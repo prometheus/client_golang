@@ -1,0 +1,5 @@
+- Validate repository for Go code fluency and idiomatic adherence.
+- Decouple HTTP report handler from our project and incorporate into this
+  repository.
+- Implement labeled metric support.
+- Evaluate using atomic types versus locks.
