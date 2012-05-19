@@ -110,56 +110,6 @@ func (h *Histogram) Humanize() string {
 	return string(stringBuffer.Bytes())
 }
 
-// Find what bucket and element index contains a given percentile value.
-// If a percentile is requested that results in a corresponding index that is no
-// longer contained by the bucket, the index of the last item is returned.  This
-// may occur if the underlying bucket catalogs values and employs an eviction
-// strategy.
-func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, index int) {
-	var totalObservations int = 0
-
-	for _, bucket := range h.buckets {
-		totalObservations += bucket.Observations()
-	}
-
-	expectedIndex := int(math.Floor(percentile * float64(totalObservations)))
-
-	var accumulatedObservations int = 0
-	var lastBucket Bucket = nil
-	var lastAccumulatedObservations int = 0
-	for _, bucket := range h.buckets {
-		if lastBucket == nil {
-			lastBucket = bucket
-		}
-
-		observations := bucket.Observations()
-		accumulatedObservations += observations
-
-		if observations == 0 {
-			continue
-		}
-
-		if accumulatedObservations > expectedIndex {
-			break
-		} else if accumulatedObservations == expectedIndex {
-			lastBucket = bucket
-			break
-		}
-
-		lastAccumulatedObservations = accumulatedObservations
-		lastBucket = bucket
-	}
-
-	var offset int
-	offset = int(expectedIndex - lastAccumulatedObservations)
-
-	if offset > 0 {
-		offset--
-	}
-
-	return &lastBucket, offset
-}
-
 func previousCumulativeObservations(cumulativeObservations []int, bucketIndex int) int {
 	if bucketIndex == 0 {
 		return 0
@@ -172,7 +122,12 @@ func prospectiveIndexForPercentile(percentile float64, totalObservations int) in
 	return int(math.Floor(percentile * float64(totalObservations)))
 }
 
-func (h *Histogram) bucketForPercentile2(percentile float64) (bucket *Bucket, index int) {
+// Find what bucket and element index contains a given percentile value.
+// If a percentile is requested that results in a corresponding index that is no
+// longer contained by the bucket, the index of the last item is returned.  This
+// may occur if the underlying bucket catalogs values and employs an eviction
+// strategy.
+func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, index int) {
 	bucketCount := len(h.buckets)
 
 	observationsByBucket := make([]int, bucketCount)
@@ -217,7 +172,7 @@ func (h *Histogram) bucketForPercentile2(percentile float64) (bucket *Bucket, in
 // collected samples.  The requested percentile is expected to be a real
 // value within (0, 1.0].
 func (h *Histogram) Percentile(percentile float64) float64 {
-	bucket, index := h.bucketForPercentile2(percentile)
+	bucket, index := h.bucketForPercentile(percentile)
 
 	return (*bucket).ValueForIndex(index)
 }

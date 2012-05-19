@@ -86,13 +86,13 @@ func (s *S) TestBucketForPercentile(c *C) {
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
-	c.Check((*bucket).Observations(), Equals, 0)
+	c.Check((*bucket).Observations(), Equals, 1)
 
 	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
-	c.Check((*bucket).Observations(), Equals, 0)
+	c.Check((*bucket).Observations(), Equals, 1)
 
 	bucket, subindex = h.bucketForPercentile(1.0)
 
@@ -124,7 +124,7 @@ func (s *S) TestBucketForPercentile(c *C) {
 	bucket, subindex = h.bucketForPercentile(0.51)
 
 	c.Assert(*bucket, Not(IsNil))
-	c.Check(subindex, Equals, 1)
+	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 51)
 }
 
@@ -142,7 +142,7 @@ func (s *S) TestBucketForPercentileSingleton(c *C) {
 	var subindex int = 0
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -150,19 +150,19 @@ func (s *S) TestBucketForPercentileSingleton(c *C) {
 
 	h.Add(0.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -173,7 +173,7 @@ func (s *S) TestBucketForPercentileSingleton(c *C) {
 	c.Assert(h, Not(IsNil))
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -181,19 +181,19 @@ func (s *S) TestBucketForPercentileSingleton(c *C) {
 
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -212,19 +212,19 @@ func (s *S) TestBucketForPercentileSingleton(c *C) {
 
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -245,7 +245,7 @@ func (s *S) TestBucketForPercentileDoubleInSingleBucket(c *C) {
 	var subindex int = 0
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -254,19 +254,19 @@ func (s *S) TestBucketForPercentileDoubleInSingleBucket(c *C) {
 	h.Add(0.0)
 	h.Add(0.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -277,7 +277,7 @@ func (s *S) TestBucketForPercentileDoubleInSingleBucket(c *C) {
 	c.Assert(h, Not(IsNil))
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -286,19 +286,19 @@ func (s *S) TestBucketForPercentileDoubleInSingleBucket(c *C) {
 	h.Add(1.0)
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -318,19 +318,19 @@ func (s *S) TestBucketForPercentileDoubleInSingleBucket(c *C) {
 	h.Add(2.0)
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -351,7 +351,7 @@ func (s *S) TestBucketForPercentileTripleInSingleBucket(c *C) {
 	var subindex int = 0
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -361,37 +361,37 @@ func (s *S) TestBucketForPercentileTripleInSingleBucket(c *C) {
 	h.Add(0.0)
 	h.Add(0.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -403,37 +403,37 @@ func (s *S) TestBucketForPercentileTripleInSingleBucket(c *C) {
 	h.Add(1.0)
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -445,37 +445,37 @@ func (s *S) TestBucketForPercentileTripleInSingleBucket(c *C) {
 	h.Add(2.0)
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 2)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 3)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -496,7 +496,7 @@ func (s *S) TestBucketForPercentileTwoEqualAdjacencies(c *C) {
 	var subindex int = 0
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -505,37 +505,37 @@ func (s *S) TestBucketForPercentileTwoEqualAdjacencies(c *C) {
 	h.Add(0.0)
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -546,37 +546,37 @@ func (s *S) TestBucketForPercentileTwoEqualAdjacencies(c *C) {
 	h.Add(1.0)
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -597,7 +597,7 @@ func (s *S) TestBucketForPercentileTwoAdjacenciesUnequal(c *C) {
 	var subindex int = 0
 
 	for i := 0.0; i < 1.0; i += 0.01 {
-		bucket, subindex := h.bucketForPercentile2(i)
+		bucket, subindex := h.bucketForPercentile(i)
 
 		c.Assert(*bucket, Not(IsNil))
 		c.Check(subindex, Equals, 0)
@@ -607,37 +607,37 @@ func (s *S) TestBucketForPercentileTwoAdjacenciesUnequal(c *C) {
 	h.Add(0.0)
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -649,37 +649,37 @@ func (s *S) TestBucketForPercentileTwoAdjacenciesUnequal(c *C) {
 	h.Add(1.0)
 	h.Add(1.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -691,37 +691,37 @@ func (s *S) TestBucketForPercentileTwoAdjacenciesUnequal(c *C) {
 	h.Add(1.0)
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
@@ -733,37 +733,37 @@ func (s *S) TestBucketForPercentileTwoAdjacenciesUnequal(c *C) {
 	h.Add(2.0)
 	h.Add(2.0)
 
-	bucket, subindex = h.bucketForPercentile2(1.0)
+	bucket, subindex = h.bucketForPercentile(1.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.67)
+	bucket, subindex = h.bucketForPercentile(0.67)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(2.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(2.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 1)
 	c.Check((*bucket).Observations(), Equals, 2)
 
-	bucket, subindex = h.bucketForPercentile2(0.5)
+	bucket, subindex = h.bucketForPercentile(0.5)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(1.0 / 3.0)
+	bucket, subindex = h.bucketForPercentile(1.0 / 3.0)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
 	c.Check((*bucket).Observations(), Equals, 1)
 
-	bucket, subindex = h.bucketForPercentile2(0.01)
+	bucket, subindex = h.bucketForPercentile(0.01)
 
 	c.Assert(*bucket, Not(IsNil))
 	c.Check(subindex, Equals, 0)
