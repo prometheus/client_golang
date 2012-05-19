@@ -132,7 +132,6 @@ func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, ind
 
 	observationsByBucket := make([]int, bucketCount)
 	cumulativeObservationsByBucket := make([]int, bucketCount)
-	cumulativePercentagesByBucket := make([]float64, bucketCount)
 
 	var totalObservations int = 0
 
@@ -141,10 +140,6 @@ func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, ind
 		observationsByBucket[i] = observations
 		totalObservations += bucket.Observations()
 		cumulativeObservationsByBucket[i] = totalObservations
-	}
-
-	for i, _ := range h.buckets {
-		cumulativePercentagesByBucket[i] = float64(cumulativeObservationsByBucket[i]) / float64(totalObservations)
 	}
 
 	prospectiveIndex := prospectiveIndexForPercentile(percentile, totalObservations)
