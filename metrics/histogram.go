@@ -130,7 +130,10 @@ func prospectiveIndexForPercentile(percentile float64, totalObservations int) in
 func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, index int) {
 	bucketCount := len(h.buckets)
 
+	// This captures the quantity of samples in a given bucket's range.
 	observationsByBucket := make([]int, bucketCount)
+	// This captures the cumulative quantity of observations from all preceding
+	// buckets up and to the end of this bucket.
 	cumulativeObservationsByBucket := make([]int, bucketCount)
 
 	var totalObservations int = 0
@@ -142,6 +145,9 @@ func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, ind
 		cumulativeObservationsByBucket[i] = totalObservations
 	}
 
+	// This captures the index offset where the given percentile value would be
+	// were all submitted samples stored and never down-/re-sampled nor deleted
+	// and housed in a singular array.
 	prospectiveIndex := prospectiveIndexForPercentile(percentile, totalObservations)
 
 	for i, cumulativeObservation := range cumulativeObservationsByBucket {
@@ -149,9 +155,15 @@ func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, ind
 			continue
 		}
 
+		// Find the bucket that contains the given index.
 		if cumulativeObservation >= prospectiveIndex {
 			var subIndex int
+			// This calculates the index within the current bucket where the given
+			// percentile may be found.
 			subIndex = prospectiveIndex - previousCumulativeObservations(cumulativeObservationsByBucket, i)
+			// Sometimes the index may be the last item, in which case we need to
+			// take this into account.  This is probably indicative of an underlying
+			// problem.
 			if observationsByBucket[i] == subIndex {
 				subIndex--
 			}
