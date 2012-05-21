@@ -6,6 +6,8 @@ import (
 )
 
 func main() {
-	http.Handle("/metrics.json", export.Exporter)
+	exporter := export.DefaultRegistry.YieldExporter()
+
+	http.Handle("/metrics.json", exporter)
 	http.ListenAndServe(":8080", nil)
 }

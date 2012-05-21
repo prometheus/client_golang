@@ -8,8 +8,6 @@
 // event values or samples.  The underlying histogram implementation is designed
 // to be performant in that it accepts tolerable inaccuracies.
 
-// TOOD(mtp): Implement visualization and exporting.
-
 package metrics
 
 import (

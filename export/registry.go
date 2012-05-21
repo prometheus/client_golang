@@ -92,32 +92,31 @@ func (r *Registry) Register(name string, metric metrics.Metric) {
 	}
 }
 
-func handleJson(w http.ResponseWriter, r *http.Request) {
-	var instrumentable metrics.InstrumentableCall = func() {
+// Create a http.HandlerFunc that is tied to r Registry such that requests
+// against it generate a representation of the housed metrics.
+func (registry *Registry) YieldExporter() *http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var instrumentable metrics.InstrumentableCall = func() {
+			requestCount.Increment()
+			url := r.URL
 
-		requestCount.Increment()
+			if strings.HasSuffix(url.Path, ".json") {
+				w.WriteHeader(http.StatusOK)
+				w.Header().Set("Content-Type", "application/json")
+				composite := make(map[string]interface{}, len(registry.NameToMetric))
+				for name, metric := range registry.NameToMetric {
+					composite[name] = metric.Marshallable()
+				}
 
-		w.Header().Set("Content-Type", "application/json")
+				data, _ := json.Marshal(composite)
 
-		composite := make(map[string]interface{}, len(DefaultRegistry.NameToMetric))
-		for name, metric := range DefaultRegistry.NameToMetric {
-			composite[name] = metric.Marshallable()
+				w.Write(data)
+			} else {
+				w.WriteHeader(http.StatusNotFound)
+			}
+
 		}
-
-		data, _ := json.Marshal(composite)
-
-		w.Write(data)
-	}
-
-	metrics.InstrumentCall(instrumentable, requestLatencyAccumulator)
-}
-
-// TODO(mtp): Make instance-specific.
-var Exporter http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-	url := r.URL
-
-	if strings.HasSuffix(url.Path, ".json") {
-		handleJson(w, r)
+		metrics.InstrumentCall(instrumentable, requestLatencyAccumulator)
 	}
 }
 
