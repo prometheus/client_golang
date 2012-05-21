@@ -9,10 +9,10 @@ re-implementation should other folks need to consume and analyze such telemetry.
 
 N.B. --- I have spent a bit of time working through the model in my head and
 probably haven't elucidated my ideas as clearly as I need to.  If you examine
-src/main.go and src/export/registry.go, you'll find an example of what type of
-potential instrumentation use cases this package addresses.  There are probably
-numerous Go language idiomatic changes that need to be made, but this task has
-been deferred for now.
+examples/{simple,uniform_random}/main.go and registry.go, you'll find several
+examples of what types of potential instrumentation use cases this package
+addresses.  There are probably numerous Go language idiomatic changes that need
+to be made, but this task has been deferred for now.
 
 # Continuous Integration
 [![Build Status](https://secure.travis-ci.org/matttproud/golang_instrumentation.png?branch=master)](http://travis-ci.org/matttproud/golang_instrumentation)
