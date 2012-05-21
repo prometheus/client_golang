@@ -7,7 +7,7 @@
 // registry.go provides a container for centralization exposition of metrics to
 // their prospective consumers.
 
-package export
+package registry
 
 import (
 	"encoding/json"
@@ -94,7 +94,7 @@ func (r *Registry) Register(name string, metric metrics.Metric) {
 
 // Create a http.HandlerFunc that is tied to r Registry such that requests
 // against it generate a representation of the housed metrics.
-func (registry *Registry) YieldExporter() *http.HandlerFunc {
+func (registry *Registry) YieldExporter() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var instrumentable metrics.InstrumentableCall = func() {
 			requestCount.Increment()
