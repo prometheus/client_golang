@@ -29,6 +29,9 @@ type AccumulatingBucket struct {
 	evictionPolicy EvictionPolicy
 }
 
+// AccumulatingBucketBuilder is a convenience method for generating a
+// BucketBuilder that produces AccumatingBucket entries with a certain
+// behavior set.
 func AccumulatingBucketBuilder(evictionPolicy EvictionPolicy, maximumSize int) BucketBuilder {
 	return func() Bucket {
 		return &AccumulatingBucket{
@@ -87,21 +90,20 @@ func (b *AccumulatingBucket) ValueForIndex(index int) float64 {
 		return math.NaN()
 	}
 
-	rawData := make([]float64, elementCount)
+	sortedElements := make([]float64, elementCount)
 
 	for i, element := range b.elements {
-		rawData[i] = element.Value.(float64)
+		sortedElements[i] = element.Value.(float64)
 	}
 
-	sort.Float64s(rawData)
+	sort.Float64s(sortedElements)
 
 	// N.B.(mtp): Interfacing components should not need to comprehend what
-	//            evictions strategy is used; therefore, we adjust this silently.
-	if index >= elementCount {
-		return rawData[elementCount-1]
-	}
+	//            eviction and storage container strategies used; therefore,
+	//            we adjust this silently.
+	targetIndex := int(float64(elementCount-1) * (float64(index) / float64(b.observations)))
 
-	return rawData[index]
+	return sortedElements[targetIndex]
 }
 
 func (b *AccumulatingBucket) Observations() int {

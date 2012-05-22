@@ -108,6 +108,7 @@ func (h *Histogram) Humanize() string {
 	return string(stringBuffer.Bytes())
 }
 
+// Determine the number of previous observations up to a given index.
 func previousCumulativeObservations(cumulativeObservations []int, bucketIndex int) int {
 	if bucketIndex == 0 {
 		return 0
@@ -116,8 +117,22 @@ func previousCumulativeObservations(cumulativeObservations []int, bucketIndex in
 	return cumulativeObservations[bucketIndex-1]
 }
 
+// Determine the index for an element given a percentage of length.
 func prospectiveIndexForPercentile(percentile float64, totalObservations int) int {
-	return int(math.Floor(percentile * float64(totalObservations)))
+	return int(percentile * float64(totalObservations-1))
+}
+
+// Determine the next bucket element when interim bucket intervals may be empty.
+func (h *Histogram) nextNonEmptyBucketElement(currentIndex, bucketCount int, observationsByBucket []int) (*Bucket, int) {
+	for i := currentIndex; i < bucketCount; i++ {
+		if observationsByBucket[i] == 0 {
+			continue
+		}
+
+		return &h.buckets[i], 0
+	}
+
+	panic("Illegal Condition: There were no remaining buckets to provide a value.")
 }
 
 // Find what bucket and element index contains a given percentile value.
@@ -125,7 +140,7 @@ func prospectiveIndexForPercentile(percentile float64, totalObservations int) in
 // longer contained by the bucket, the index of the last item is returned.  This
 // may occur if the underlying bucket catalogs values and employs an eviction
 // strategy.
-func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, index int) {
+func (h *Histogram) bucketForPercentile(percentile float64) (*Bucket, int) {
 	bucketCount := len(h.buckets)
 
 	// This captures the quantity of samples in a given bucket's range.
@@ -159,11 +174,11 @@ func (h *Histogram) bucketForPercentile(percentile float64) (bucket *Bucket, ind
 			// This calculates the index within the current bucket where the given
 			// percentile may be found.
 			subIndex = prospectiveIndex - previousCumulativeObservations(cumulativeObservationsByBucket, i)
+
 			// Sometimes the index may be the last item, in which case we need to
-			// take this into account.  This is probably indicative of an underlying
-			// problem.
+			// take this into account.
 			if observationsByBucket[i] == subIndex {
-				subIndex--
+				return h.nextNonEmptyBucketElement(i+1, bucketCount, observationsByBucket)
 			}
 
 			return &h.buckets[i], subIndex

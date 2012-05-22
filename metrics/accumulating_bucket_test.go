@@ -139,8 +139,7 @@ func (s *S) TestAccumulatingBucketValueForIndex(c *C) {
 	}
 
 	c.Check(b.ValueForIndex(0), Equals, 1.0)
-	c.Check(b.ValueForIndex(50), Equals, 51.0)
-	c.Check(b.ValueForIndex(99), Equals, 100.0)
+	c.Check(b.ValueForIndex(50), Equals, 50.0)
 	c.Check(b.ValueForIndex(100), Equals, 100.0)
 
 	for i := 101.0; i <= 150; i += 1 {
@@ -149,8 +148,11 @@ func (s *S) TestAccumulatingBucketValueForIndex(c *C) {
 		time.Sleep(1 * time.Millisecond)
 	}
 
+	// The bucket's capacity has been exceeded by inputs at this point;
+	// consequently, we search for a given element by percentage offset
+	// therein.
 	c.Check(b.ValueForIndex(0), Equals, 51.0)
-	c.Check(b.ValueForIndex(50), Equals, 101.0)
-	c.Check(b.ValueForIndex(99), Equals, 150.0)
-	c.Check(b.ValueForIndex(100), Equals, 150.0)
+	c.Check(b.ValueForIndex(50), Equals, 84.0)
+	c.Check(b.ValueForIndex(99), Equals, 116.0)
+	c.Check(b.ValueForIndex(100), Equals, 117.0)
 }

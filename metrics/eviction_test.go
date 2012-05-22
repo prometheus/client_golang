@@ -42,8 +42,6 @@ func (s *S) TestEvictOldest(c *C) {
 	c.Check(heap.Pop(&q), utility.ValueEquals, 0.0)
 }
 
-// TODO(mtp): Extract reduction mechanisms into local variables.
-
 func (s *S) TestEvictAndReplaceWithAverage(c *C) {
 	q := make(utility.PriorityQueue, 0, 10)
 	heap.Init(&q)

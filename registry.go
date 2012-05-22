@@ -4,7 +4,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// registry.go provides a container for centralization exposition of metrics to
+// registry.go provides a container for centralized exposition of metrics to
 // their prospective consumers.
 
 package registry
@@ -20,6 +20,9 @@ import (
 	"time"
 )
 
+// Boilerplate metrics about the metrics reporting subservice.  These are only
+// exposed if the DefaultRegistry's exporter is hooked into the HTTP request
+// handler.
 var requestCount *metrics.GaugeMetric = &metrics.GaugeMetric{}
 var requestLatencyLogarithmicBuckets []float64 = metrics.LogarithmicSizedBucketsFor(0, 1000)
 var requestLatencyEqualBuckets []float64 = metrics.EquallySizedBucketsFor(0, 1000, 10)
@@ -44,13 +47,15 @@ var requestLatencyEqualTallying *metrics.Histogram = metrics.CreateHistogram(&me
 	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
 })
 
+// This callback accumulates the microsecond duration of the reporting
+// framework's overhead such that it can be reported.
 var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Duration) {
-	micros := float64(int64(duration) / 1E3)
+	microseconds := float64(int64(duration) / 1E3)
 
-	requestLatencyLogarithmicAccumulating.Add(micros)
-	requestLatencyEqualAccumulating.Add(micros)
-	requestLatencyLogarithmicTallying.Add(micros)
-	requestLatencyEqualTallying.Add(micros)
+	requestLatencyLogarithmicAccumulating.Add(microseconds)
+	requestLatencyEqualAccumulating.Add(microseconds)
+	requestLatencyLogarithmicTallying.Add(microseconds)
+	requestLatencyEqualTallying.Add(microseconds)
 }
 
 // Registry is, as the name implies, a registrar where metrics are listed.

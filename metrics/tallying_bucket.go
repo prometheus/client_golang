@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	lowerThird = 100.0 / 3.0
-	upperThird = 2.0 * (100.0 / 3.0)
+	lowerThird = 1.0 / 3.0
+	upperThird = 2.0 * lowerThird
 )
 
 // A TallyingIndexEstimator is responsible for estimating the value of index for

@@ -35,18 +35,9 @@ func (s *S) TestTallyingPercentilesEstimatorAverage(c *C) {
 func (s *S) TestTallyingPercentilesEstimatorUniform(c *C) {
 	c.Assert(Uniform(-5, 5, 0, 0), maths.IsNaN)
 
-	// TODO(mtp): Rewrite.
-	// for i := 0.0; i < 33.3; i += 0.1 {
-	// 	c.Check(Uniform(-5, 5, i, 2), Equals, -5.0)
-	// }
-
-	// for i := 33.4; i < 66.0; i += 0.1 {
-	// 	c.Check(Uniform(-5, 5, i, 2), Equals, 0.0)
-	// }
-
-	// for i := 66.7; i < 100.0; i += 0.1 {
-	// 	c.Check(Uniform(-5, 5, i, 2), Equals, 5.0)
-	// }
+	c.Check(Uniform(-5, 5, 0, 2), Equals, -5.0)
+	c.Check(Uniform(-5, 5, 1, 2), Equals, 0.0)
+	c.Check(Uniform(-5, 5, 2, 2), Equals, 5.0)
 }
 
 func (s *S) TestTallyingBucketBuilder(c *C) {
