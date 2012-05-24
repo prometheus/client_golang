@@ -17,42 +17,47 @@ to be made, but this task has been deferred for now.
 # Continuous Integration
 [![Build Status](https://secure.travis-ci.org/matttproud/golang_instrumentation.png?branch=master)](http://travis-ci.org/matttproud/golang_instrumentation)
 
-# Metrics
+# Documentation
+Please read the [generated documentation](http://go.pkgdoc.org/launchpad.net/gocheck)
+for the project's documentation from source code.
+
+# Basic Overview
+## Metrics
 A metric is a measurement mechanism.
 
-## Gauge
+### Gauge
 A Gauge is a metric that exposes merely an instantaneous value or some snapshot
 thereof.
 
-## Histogram
+### Histogram
 A Histogram is a metric that captures events or samples into buckets.  It
 exposes its values via percentile estimations.
 
-### Buckets
+#### Buckets
 A Bucket is a generic container that collects samples and their values.  It
 prescribes no behavior on its own aside from merely accepting a value,
 leaving it up to the concrete implementation to what to do with the injected
 values.
 
-#### Accumulating Bucket
+##### Accumulating Bucket
 An Accumulating Bucket is a bucket that appends the new sample to a timestamped
 priority queue such that the eldest values are evicted according to a given
 policy.
 
-#### Eviction Policies
+##### Eviction Policies
 Once an Accumulating Bucket reaches capacity, its eviction policy is invoked.
 This reaps the oldest N objects subject to certain behavior.
 
-##### Remove Oldest
+###### Remove Oldest
 This merely removes the oldest N items without performing some aggregation
 replacement operation on them.
 
-##### Aggregate Oldest
+###### Aggregate Oldest
 This removes the oldest N items while performing some summary aggregation
 operation thereupon, which is then appended to the list in the former values'
 place.
 
-#### Tallying Bucket
+##### Tallying Bucket
 A Tallying Bucket differs from an Accumulating Bucket in that it never stores
 any of the values emitted into it but rather exposes a simplied summary
 representation thereof.  For instance, if a values therein is requested,

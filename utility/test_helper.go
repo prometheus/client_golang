@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// test_helper.go provides a testing assistents for this package and its
-// dependents.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package utility
 

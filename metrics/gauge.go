@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// gauge.go provides a scalar metric that one can monitor.  It is useful for
-// certain cases, such as instantaneous temperature.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package metrics
 
@@ -14,10 +13,12 @@ import (
 	"sync"
 )
 
-// A gauge metric merely provides an instantaneous representation of a scalar
-// value or an accumulation.  For instance, if one wants to expose the current
-// temperature or the hitherto bandwidth used, this would be the metric for such
-// circumstances.
+/*
+A gauge metric merely provides an instantaneous representation of a scalar
+value or an accumulation.  For instance, if one wants to expose the current
+temperature or the hitherto bandwidth used, this would be the metric for such
+circumstances.
+*/
 type GaugeMetric struct {
 	value float64
 	mutex sync.RWMutex
@@ -80,8 +81,8 @@ func (metric *GaugeMetric) Marshallable() map[string]interface{} {
 
 	v := make(map[string]interface{}, 2)
 
-	v["value"] = metric.value
-	v["type"] = "gauge"
+	v[valueKey] = metric.value
+	v[typeKey] = gaugeTypeValue
 
 	return v
 }

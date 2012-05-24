@@ -1,14 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// statistics.go provides basic summary statistics functions for the purpose of
-// metrics aggregation.
-
-// TODO(mtp): Split this out into a summary statistics file once moving/rolling
-//            averages are calculated.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package maths
 
@@ -17,8 +13,15 @@ import (
 	"sort"
 )
 
-// ReductionMethod provides a method for reducing metrics into a given scalar
-// value.
+/*
+TODO(mtp): Split this out into a summary statistics file once moving/rolling
+           averages are calculated.
+*/
+
+/*
+ReductionMethod provides a method for reducing metrics into a given scalar
+value.
+*/
 type ReductionMethod func([]float64) float64
 
 var Average ReductionMethod = func(input []float64) float64 {
@@ -37,7 +40,9 @@ var Average ReductionMethod = func(input []float64) float64 {
 	return sum / count
 }
 
-// Extract the first modal value.
+/*
+Extract the first modal value.
+*/
 var FirstMode ReductionMethod = func(input []float64) float64 {
 	valuesToFrequency := map[float64]int64{}
 	var largestTally int64 = math.MinInt64
@@ -58,7 +63,9 @@ var FirstMode ReductionMethod = func(input []float64) float64 {
 	return largestTallyValue
 }
 
-// Calculate the percentile by choosing the nearest neighboring value.
+/*
+Calculate the percentile by choosing the nearest neighboring value.
+*/
 func NearestRank(input []float64, percentile float64) float64 {
 	inputSize := len(input)
 
@@ -81,7 +88,10 @@ func NearestRank(input []float64, percentile float64) float64 {
 	return copiedInput[preliminaryIndex]
 }
 
-func NearestRankReducer(percentile float64) func(input []float64) float64 {
+/*
+Generate a ReductionMethod based off of extracting a given percentile value.
+*/
+func NearestRankReducer(percentile float64) ReductionMethod {
 	return func(input []float64) float64 {
 		return NearestRank(input, percentile)
 	}

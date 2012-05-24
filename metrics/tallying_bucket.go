@@ -1,12 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// tallying_bucket.go provides a histogram bucket type that aggregates tallies
-// of events that fall into its ranges versus a summary of the values
-// themselves.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package metrics
 
@@ -22,13 +20,17 @@ const (
 	upperThird = 2.0 * lowerThird
 )
 
-// A TallyingIndexEstimator is responsible for estimating the value of index for
-// a given TallyingBucket, even though a TallyingBucket does not possess a
-// collection of samples.  There are a few strategies listed below for how
-// this value should be approximated.
+/*
+A TallyingIndexEstimator is responsible for estimating the value of index for
+a given TallyingBucket, even though a TallyingBucket does not possess a
+collection of samples.  There are a few strategies listed below for how
+this value should be approximated.
+*/
 type TallyingIndexEstimator func(minimum, maximum float64, index, observations int) float64
 
-// Provide a filter for handling empty buckets.
+/*
+Provide a filter for handling empty buckets.
+*/
 func emptyFilter(e TallyingIndexEstimator) TallyingIndexEstimator {
 	return func(minimum, maximum float64, index, observations int) float64 {
 		if observations == 0 {
@@ -39,23 +41,31 @@ func emptyFilter(e TallyingIndexEstimator) TallyingIndexEstimator {
 	}
 }
 
-// Report the smallest observed value in the bucket.
+/*
+Report the smallest observed value in the bucket.
+*/
 var Minimum TallyingIndexEstimator = emptyFilter(func(minimum, maximum float64, _, observations int) float64 {
 	return minimum
 })
 
-// Report the largest observed value in the bucket.
+/*
+Report the largest observed value in the bucket.
+*/
 var Maximum TallyingIndexEstimator = emptyFilter(func(minimum, maximum float64, _, observations int) float64 {
 	return maximum
 })
 
-// Report the average of the extrema.
+/*
+Report the average of the extrema.
+*/
 var Average TallyingIndexEstimator = emptyFilter(func(minimum, maximum float64, _, observations int) float64 {
 	return maths.Average([]float64{minimum, maximum})
 })
 
-// Report the minimum value of the index is in the lower-third of observations,
-// the average if in the middle-third, and the maximum if in the largest third.
+/*
+Report the minimum value of the index is in the lower-third of observations,
+the average if in the middle-third, and the maximum if in the largest third.
+*/
 var Uniform TallyingIndexEstimator = emptyFilter(func(minimum, maximum float64, index, observations int) float64 {
 	if observations == 1 {
 		return minimum
@@ -72,9 +82,11 @@ var Uniform TallyingIndexEstimator = emptyFilter(func(minimum, maximum float64, 
 	return maths.Average([]float64{minimum, maximum})
 })
 
-// A TallyingBucket is a Bucket that tallies when an object is added to it.
-// Upon insertion, an object is compared against collected extrema and noted
-// as a new minimum or maximum if appropriate.
+/*
+A TallyingBucket is a Bucket that tallies when an object is added to it.
+Upon insertion, an object is compared against collected extrema and noted
+as a new minimum or maximum if appropriate.
+*/
 type TallyingBucket struct {
 	observations     int
 	smallestObserved float64
@@ -119,7 +131,9 @@ func (b *TallyingBucket) ValueForIndex(index int) float64 {
 	return b.estimator(b.smallestObserved, b.largestObserved, index, b.observations)
 }
 
-// Produce a TallyingBucket with sane defaults.
+/*
+Produce a TallyingBucket with sane defaults.
+*/
 func DefaultTallyingBucket() TallyingBucket {
 	return TallyingBucket{
 		smallestObserved: math.MaxFloat64,
@@ -136,7 +150,9 @@ func CustomTallyingBucket(estimator TallyingIndexEstimator) TallyingBucket {
 	}
 }
 
-// This is used strictly for testing.
+/*
+This is used strictly for testing.
+*/
 func TallyingBucketBuilder() Bucket {
 	b := DefaultTallyingBucket()
 	return &b

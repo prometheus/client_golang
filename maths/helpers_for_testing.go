@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// helpers_for_testing.go provides a testing assistents for this package and its
-// dependents.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package maths
 
@@ -19,8 +18,10 @@ type isNaNChecker struct {
 	*CheckerInfo
 }
 
-// This piece provides a simple tester for the gocheck testing library to
-// ascertain if a value is not-a-number.
+/*
+This piece provides a simple tester for the gocheck testing library to
+ascertain if a value is not-a-number.
+*/
 var IsNaN Checker = &isNaNChecker{
 	&CheckerInfo{Name: "IsNaN", Params: []string{"value"}},
 }

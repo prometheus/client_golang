@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// maths_test.go provides a test suite for all tests in the maths package
-// hierarchy.  It employs the gocheck framework for test scaffolding.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package maths
 

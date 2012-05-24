@@ -1,12 +1,15 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// main.go provides a simple skeletal example of how this instrumentation
-// framework is registered and invoked.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
+/*
+main.go provides a simple skeletal example of how this instrumentation
+framework is registered and invoked.
+*/
 package main
 
 import (

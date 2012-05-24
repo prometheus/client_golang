@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// registry.go provides a container for centralized exposition of metrics to
-// their prospective consumers.
+Use of this source code is governed by a BSD-style license that can be found in
+the LICENSE file.
+*/
 
 package registry
 
@@ -20,9 +19,18 @@ import (
 	"time"
 )
 
-// Boilerplate metrics about the metrics reporting subservice.  These are only
-// exposed if the DefaultRegistry's exporter is hooked into the HTTP request
-// handler.
+const (
+	jsonContentType = "application/json"
+	contentType     = "Content-Type"
+	jsonSuffix      = ".json"
+)
+
+/*
+Boilerplate metrics about the metrics reporting subservice.  These are only
+exposed if the DefaultRegistry's exporter is hooked into the HTTP request
+handler.
+*/
+
 var requestCount *metrics.GaugeMetric = &metrics.GaugeMetric{}
 var requestLatencyLogarithmicBuckets []float64 = metrics.LogarithmicSizedBucketsFor(0, 1000)
 var requestLatencyEqualBuckets []float64 = metrics.EquallySizedBucketsFor(0, 1000, 10)
@@ -47,8 +55,10 @@ var requestLatencyEqualTallying *metrics.Histogram = metrics.CreateHistogram(&me
 	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
 })
 
-// This callback accumulates the microsecond duration of the reporting
-// framework's overhead such that it can be reported.
+/*
+This callback accumulates the microsecond duration of the reporting framework's
+overhead such that it can be reported.
+*/
 var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Duration) {
 	microseconds := float64(int64(duration) / 1E3)
 
@@ -58,33 +68,43 @@ var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Du
 	requestLatencyEqualTallying.Add(microseconds)
 }
 
-// Registry is, as the name implies, a registrar where metrics are listed.
-//
-// In most situations, using DefaultRegistry is sufficient versus creating
-// one's own.
+/*
+Registry is, as the name implies, a registrar where metrics are listed.
+
+In most situations, using DefaultRegistry is sufficient versus creating one's
+own.
+*/
 type Registry struct {
 	mutex        sync.RWMutex
 	NameToMetric map[string]metrics.Metric
 }
 
-// This builds a new metric registry.  It is not needed in the majority of
-// cases.
+/*
+This builds a new metric registry.  It is not needed in the majority of
+cases.
+*/
 func NewRegistry() *Registry {
 	return &Registry{
 		NameToMetric: make(map[string]metrics.Metric),
 	}
 }
 
-// This is the default registry with which Metric objects are associated.  It
-// is primarily a read-only object after server instantiation.
+/*
+This is the default registry with which Metric objects are associated.  It
+is primarily a read-only object after server instantiation.
+*/
 var DefaultRegistry = NewRegistry()
 
-// Associate a Metric with the DefaultRegistry.
+/*
+Associate a Metric with the DefaultRegistry.
+*/
 func Register(name string, metric metrics.Metric) {
 	DefaultRegistry.Register(name, metric)
 }
 
-// Register a metric with a given name.  Name should be globally unique.
+/*
+Register a metric with a given name.  Name should be globally unique.
+*/
 func (r *Registry) Register(name string, metric metrics.Metric) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -97,17 +117,19 @@ func (r *Registry) Register(name string, metric metrics.Metric) {
 	}
 }
 
-// Create a http.HandlerFunc that is tied to r Registry such that requests
-// against it generate a representation of the housed metrics.
+/*
+Create a http.HandlerFunc that is tied to r Registry such that requests
+against it generate a representation of the housed metrics.
+*/
 func (registry *Registry) YieldExporter() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var instrumentable metrics.InstrumentableCall = func() {
 			requestCount.Increment()
 			url := r.URL
 
-			if strings.HasSuffix(url.Path, ".json") {
+			if strings.HasSuffix(url.Path, jsonSuffix) {
 				w.WriteHeader(http.StatusOK)
-				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set(contentType, jsonContentType)
 				composite := make(map[string]interface{}, len(registry.NameToMetric))
 				for name, metric := range registry.NameToMetric {
 					composite[name] = metric.Marshallable()
@@ -126,9 +148,9 @@ func (registry *Registry) YieldExporter() http.HandlerFunc {
 }
 
 func init() {
-	DefaultRegistry.Register("requests_total", requestCount)
-	DefaultRegistry.Register("request_latency_logarithmic_accumulating_microseconds", requestLatencyLogarithmicAccumulating)
-	DefaultRegistry.Register("request_latency_equal_accumulating_microseconds", requestLatencyEqualAccumulating)
-	DefaultRegistry.Register("request_latency_logarithmic_tallying_microseconds", requestLatencyLogarithmicTallying)
-	DefaultRegistry.Register("request_latency_equal_tallying_microseconds", requestLatencyEqualTallying)
+	DefaultRegistry.Register("requests_metrics_total", requestCount)
+	DefaultRegistry.Register("requests_metrics_latency_logarithmic_accumulating_microseconds", requestLatencyLogarithmicAccumulating)
+	DefaultRegistry.Register("requests_metrics_latency_equal_accumulating_microseconds", requestLatencyEqualAccumulating)
+	DefaultRegistry.Register("requests_metrics_latency_logarithmic_tallying_microseconds", requestLatencyLogarithmicTallying)
+	DefaultRegistry.Register("request_metrics_latency_equal_tallying_microseconds", requestLatencyEqualTallying)
 }

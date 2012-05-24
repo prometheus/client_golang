@@ -1,16 +1,19 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// main.go provides a simple example of how to use this instrumentation
-// framework in the context of having something that emits values into
-// its collectors.
-//
-// The emitted values correspond to uniform, normal, and exponential
-// distributions.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
+/*
+main.go provides a simple example of how to use this instrumentation
+framework in the context of having something that emits values into
+its collectors.
+
+The emitted values correspond to uniform, normal, and exponential
+distributions.
+*/
 package main
 
 import (
@@ -43,12 +46,12 @@ func main() {
 	zed_rpc_calls := &metrics.GaugeMetric{}
 
 	metrics := registry.NewRegistry()
-	metrics.Register("foo_rpc_latency_ms_histogram", foo_rpc_latency)
-	metrics.Register("foo_rpc_call_count", foo_rpc_calls)
-	metrics.Register("bar_rpc_latency_ms_histogram", bar_rpc_latency)
-	metrics.Register("bar_rpc_call_count", bar_rpc_calls)
-	metrics.Register("zed_rpc_latency_ms_histogram", zed_rpc_latency)
-	metrics.Register("zed_rpc_call_count", zed_rpc_calls)
+	metrics.Register("rpc_latency_foo_microseconds", foo_rpc_latency)
+	metrics.Register("rpc_calls_foo_total", foo_rpc_calls)
+	metrics.Register("rpc_latency_bar_microseconds", bar_rpc_latency)
+	metrics.Register("rpc_calls_bar_total", bar_rpc_calls)
+	metrics.Register("rpc_latency_zed_microseconds", zed_rpc_latency)
+	metrics.Register("rpc_calls_zed_total", zed_rpc_calls)
 
 	go func() {
 		for {

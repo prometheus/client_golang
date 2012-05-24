@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// accumulating_bucket_test.go provides a test complement for the
-// accumulating_bucket_go module.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package metrics
 
@@ -124,17 +123,23 @@ func (s *S) TestAccumulatingBucketValueForIndex(c *C) {
 		c.Assert(b.ValueForIndex(i), maths.IsNaN)
 	}
 
-	// The bucket has only observed one item and contains now one item.
+	/*
+	  The bucket has only observed one item and contains now one item.
+	*/
 	b.Add(1.0)
 
 	c.Check(b.ValueForIndex(0), Equals, 1.0)
-	// Let's sanity check what occurs if presumably an eviction happened and
-	// we requested an index larger than what is contained.
+	/*
+		Let's sanity check what occurs if presumably an eviction happened and
+		we requested an index larger than what is contained.
+	*/
 	c.Check(b.ValueForIndex(1), Equals, 1.0)
 
 	for i := 2.0; i <= 100; i += 1 {
 		b.Add(i)
-		// TODO(mtp): This is a sin.  Provide a mechanism for deterministic testing.
+		/*
+			TODO(mtp): This is a sin.  Provide a mechanism for deterministic testing.
+		*/
 		time.Sleep(1 * time.Millisecond)
 	}
 
@@ -144,13 +149,17 @@ func (s *S) TestAccumulatingBucketValueForIndex(c *C) {
 
 	for i := 101.0; i <= 150; i += 1 {
 		b.Add(i)
-		// TODO(mtp): This is a sin.  Provide a mechanism for deterministic testing.
+		/*
+			TODO(mtp): This is a sin.  Provide a mechanism for deterministic testing.
+		*/
 		time.Sleep(1 * time.Millisecond)
 	}
 
-	// The bucket's capacity has been exceeded by inputs at this point;
-	// consequently, we search for a given element by percentage offset
-	// therein.
+	/*
+		The bucket's capacity has been exceeded by inputs at this point;
+		consequently, we search for a given element by percentage offset
+		therein.
+	*/
 	c.Check(b.ValueForIndex(0), Equals, 51.0)
 	c.Check(b.ValueForIndex(50), Equals, 84.0)
 	c.Check(b.ValueForIndex(99), Equals, 116.0)

@@ -1,11 +1,10 @@
-// Copyright (c) 2012, Matt T. Proud
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+/*
+Copyright (c) 2012, Matt T. Proud
+All rights reserved.
 
-// priority_queue_test.go provides a test complement for the priority_queue.go
-// module.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+*/
 
 package utility
 
