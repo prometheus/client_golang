@@ -2,10 +2,10 @@ language: erlang
 
 before_install:
  - sudo apt-get install bzr >/dev/null 2>&1
- - apt-get remove -y --force-yes --purge golang || true
- - apt-get remove -y --force-yes --purge golang-stable || true
- - apt-get remove -y --force-yes --purge golang-weekly || true
- - apt-get remove -y --force-yes --purge golang-tip || true
+ - sudo apt-get remove -y --force-yes --purge golang || true
+ - sudo apt-get remove -y --force-yes --purge golang-stable || true
+ - sudo apt-get remove -y --force-yes --purge golang-weekly || true
+ - sudo apt-get remove -y --force-yes --purge golang-tip || true
 
 install:
  - hg clone -u release https://code.google.com/p/go "${HOME}/go" >/dev/null 2>&1
