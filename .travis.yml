@@ -1,7 +1,10 @@
 language: erlang
 
 before_install:
- - sudo apt-get install bzr >/dev/null 2>&1
+ - dpkg -l 'go*' || true
+ - which go || true
+ - locate go || true
+ - false
 
 install:
  - hg clone -u release https://code.google.com/p/go "${HOME}/go" >/dev/null 2>&1
