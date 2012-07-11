@@ -1,4 +1,4 @@
-language: go
+language: erlang
 
 # N.B.(matttproud): Travis CI now includes the Go runtime packages made and
 #                   maintained by who-knows-whom.  They conflict with the
