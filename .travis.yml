@@ -1,6 +1,4 @@
-# N.B.(matttproud): This will default to using the Ruby workers until
-#                   Go is, if ever, officially supported on Travis.
-language: go
+language: erlang
 
 # N.B.(matttproud): Travis CI now includes the Go runtime packages made and
 #                   maintained by who-knows-whom.  They conflict with the
