@@ -1,11 +1,18 @@
-language: erlang
+# N.B.(matttproud): This will default to using the Ruby workers until
+#                   Go is, if ever, officially supported on Travis.
+language: go
 
+# N.B.(matttproud): Travis CI now includes the Go runtime packages made and
+#                   maintained by who-knows-whom.  They conflict with the
+#                   hermeticness of the test environment and are thusly
+#                   removed.
 before_install:
  - sudo apt-get install bzr >/dev/null 2>&1
  - sudo apt-get remove -y --force-yes --purge golang || true
  - sudo apt-get remove -y --force-yes --purge golang-stable || true
  - sudo apt-get remove -y --force-yes --purge golang-weekly || true
  - sudo apt-get remove -y --force-yes --purge golang-tip || true
+ - [[ ! -x "$(which go)" ]] || (echo "Go is still present: $(which go)" ; exit 1)
 
 install:
  - hg clone -u release https://code.google.com/p/go "${HOME}/go" >/dev/null 2>&1
