@@ -1,4 +1,4 @@
-language: erlang
+language: go
 
 before_install:
  - sudo apt-get install bzr >/dev/null 2>&1
