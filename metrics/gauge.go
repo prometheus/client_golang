@@ -24,7 +24,7 @@ type GaugeMetric struct {
 	mutex sync.RWMutex
 }
 
-func (metric *GaugeMetric) Humanize() string {
+func (metric *GaugeMetric) String() string {
 	formatString := "[GaugeMetric; value=%f]"
 
 	metric.mutex.RLock()

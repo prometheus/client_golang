@@ -15,7 +15,7 @@ type Metric interface {
 	/*
 	  Produce a human-consumable representation of the metric.
 	*/
-	Humanize() string
+	String() string
 	/*
 		Produce a JSON-consumable representation of the metric.
 	*/

@@ -104,7 +104,7 @@ func (b *TallyingBucket) Add(value float64) {
 	b.largestObserved = math.Max(value, b.largestObserved)
 }
 
-func (b *TallyingBucket) Humanize() string {
+func (b *TallyingBucket) String() string {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
