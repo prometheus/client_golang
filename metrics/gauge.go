@@ -42,32 +42,6 @@ func (metric *GaugeMetric) Set(value float64) float64 {
 	return metric.value
 }
 
-func (metric *GaugeMetric) IncrementBy(value float64) float64 {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	metric.value += value
-
-	return metric.value
-}
-
-func (metric *GaugeMetric) Increment() float64 {
-	return metric.IncrementBy(1)
-}
-
-func (metric *GaugeMetric) DecrementBy(value float64) float64 {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	metric.value -= value
-
-	return metric.value
-}
-
-func (metric *GaugeMetric) Decrement() float64 {
-	return metric.DecrementBy(1)
-}
-
 func (metric *GaugeMetric) Get() float64 {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()

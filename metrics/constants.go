@@ -14,6 +14,7 @@ package metrics
 const (
 	valueKey           = "value"
 	gaugeTypeValue     = "gauge"
+	counterTypeValue   = "counter"
 	typeKey            = "type"
 	histogramTypeValue = "histogram"
 	floatFormat        = 'f'

@@ -31,19 +31,19 @@ func main() {
 		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
-	foo_rpc_calls := &metrics.GaugeMetric{}
+	foo_rpc_calls := &metrics.CounterMetric{}
 	bar_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
 		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
 		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
-	bar_rpc_calls := &metrics.GaugeMetric{}
+	bar_rpc_calls := &metrics.CounterMetric{}
 	zed_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
 		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
 		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
-	zed_rpc_calls := &metrics.GaugeMetric{}
+	zed_rpc_calls := &metrics.CounterMetric{}
 
 	metrics := registry.NewRegistry()
 	metrics.Register("rpc_latency_foo_microseconds", foo_rpc_latency)
