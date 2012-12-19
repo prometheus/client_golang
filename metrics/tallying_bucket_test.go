@@ -45,14 +45,14 @@ func (s *S) TestTallyingBucketBuilder(c *C) {
 	c.Assert(bucket, Not(IsNil))
 }
 
-func (s *S) TestTallyingBucketHumanize(c *C) {
+func (s *S) TestTallyingBucketString(c *C) {
 	bucket := TallyingBucket{
 		observations:     3,
 		smallestObserved: 2.0,
 		largestObserved:  5.5,
 	}
 
-	c.Check(bucket.Humanize(), Equals, "[TallyingBucket (2.000000, 5.500000); 3 items]")
+	c.Check(bucket.String(), Equals, "[TallyingBucket (2.000000, 5.500000); 3 items]")
 }
 
 func (s *S) TestTallyingBucketAdd(c *C) {

@@ -32,7 +32,7 @@ type Bucket interface {
 	/*
 	  Provide a humanized representation hereof.
 	*/
-	Humanize() string
+	String() string
 	/*
 		Provide a count of observations throughout the bucket's lifetime.
 	*/

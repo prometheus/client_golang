@@ -65,7 +65,7 @@ func (b *AccumulatingBucket) Add(value float64) {
 	heap.Push(&b.elements, &v)
 }
 
-func (b *AccumulatingBucket) Humanize() string {
+func (b *AccumulatingBucket) String() string {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 

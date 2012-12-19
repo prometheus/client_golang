@@ -106,13 +106,13 @@ func (h *Histogram) Add(value float64) {
 	h.buckets[lastIndex].Add(value)
 }
 
-func (h *Histogram) Humanize() string {
+func (h *Histogram) String() string {
 	stringBuffer := bytes.NewBufferString("")
 	stringBuffer.WriteString("[Histogram { ")
 
 	for i, bucketStart := range h.bucketStarts {
 		bucket := h.buckets[i]
-		stringBuffer.WriteString(fmt.Sprintf("[%f, inf) = %s, ", bucketStart, bucket.Humanize()))
+		stringBuffer.WriteString(fmt.Sprintf("[%f, inf) = %s, ", bucketStart, bucket.String()))
 	}
 
 	stringBuffer.WriteString("}]")

@@ -27,25 +27,25 @@ func (s *S) TestAccumulatingBucketBuilderWithEvictOldest(c *C) {
 	var b Bucket = bb()
 
 	c.Assert(b, Not(IsNil))
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 0 elements and 5 capacity] { }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 0 elements and 5 capacity] { }")
 
 	b.Add(1)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 1 elements and 5 capacity] { 1.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 1 elements and 5 capacity] { 1.000000, }")
 
 	b.Add(2)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 2 elements and 5 capacity] { 1.000000, 2.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 2 elements and 5 capacity] { 1.000000, 2.000000, }")
 
 	b.Add(3)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, }")
 
 	b.Add(4)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, }")
 
 	b.Add(5)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 5 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, 5.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 5 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, 5.000000, }")
 
 	b.Add(6)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 4.000000, 5.000000, 6.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 4.000000, 5.000000, 6.000000, }")
 
 	var bucket Bucket = b
 
@@ -65,25 +65,25 @@ func (s *S) TestAccumulatingBucketBuilderWithEvictAndReplaceWithAverage(c *C) {
 
 	c.Assert(b, Not(IsNil))
 
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 0 elements and 5 capacity] { }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 0 elements and 5 capacity] { }")
 
 	b.Add(1)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 1 elements and 5 capacity] { 1.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 1 elements and 5 capacity] { 1.000000, }")
 
 	b.Add(2)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 2 elements and 5 capacity] { 1.000000, 2.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 2 elements and 5 capacity] { 1.000000, 2.000000, }")
 
 	b.Add(3)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 3 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, }")
 
 	b.Add(4)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, }")
 
 	b.Add(5)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 5 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, 5.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 5 elements and 5 capacity] { 1.000000, 2.000000, 3.000000, 4.000000, 5.000000, }")
 
 	b.Add(6)
-	c.Check(b.Humanize(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 4.000000, 5.000000, 2.000000, 6.000000, }")
+	c.Check(b.String(), Equals, "[AccumulatingBucket with 4 elements and 5 capacity] { 4.000000, 5.000000, 2.000000, 6.000000, }")
 }
 
 func (s *S) TestAccumulatingBucket(c *C) {
