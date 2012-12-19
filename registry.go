@@ -31,7 +31,7 @@ exposed if the DefaultRegistry's exporter is hooked into the HTTP request
 handler.
 */
 
-var requestCount *metrics.GaugeMetric = &metrics.GaugeMetric{}
+var requestCount *metrics.CounterMetric = &metrics.CounterMetric{}
 var requestLatencyLogarithmicBuckets []float64 = metrics.LogarithmicSizedBucketsFor(0, 1000)
 var requestLatencyEqualBuckets []float64 = metrics.EquallySizedBucketsFor(0, 1000, 10)
 var requestLatencyLogarithmicAccumulating *metrics.Histogram = metrics.CreateHistogram(&metrics.HistogramSpecification{
