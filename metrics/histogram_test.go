@@ -53,11 +53,11 @@ func (s *S) TestCreateHistogram(c *C) {
 
 	c.Assert(h, Not(IsNil))
 
-	c.Check(h.Humanize(), Equals, "[Histogram { [0.000000, inf) = [TallyingBucket (Empty)], [2.000000, inf) = [TallyingBucket (Empty)], [4.000000, inf) = [TallyingBucket (Empty)], [6.000000, inf) = [TallyingBucket (Empty)], [8.000000, inf) = [TallyingBucket (Empty)], }]")
+	c.Check(h.String(), Equals, "[Histogram { [0.000000, inf) = [TallyingBucket (Empty)], [2.000000, inf) = [TallyingBucket (Empty)], [4.000000, inf) = [TallyingBucket (Empty)], [6.000000, inf) = [TallyingBucket (Empty)], [8.000000, inf) = [TallyingBucket (Empty)], }]")
 
 	h.Add(1)
 
-	c.Check(h.Humanize(), Equals, "[Histogram { [0.000000, inf) = [TallyingBucket (1.000000, 1.000000); 1 items], [2.000000, inf) = [TallyingBucket (Empty)], [4.000000, inf) = [TallyingBucket (Empty)], [6.000000, inf) = [TallyingBucket (Empty)], [8.000000, inf) = [TallyingBucket (Empty)], }]")
+	c.Check(h.String(), Equals, "[Histogram { [0.000000, inf) = [TallyingBucket (1.000000, 1.000000); 1 items], [2.000000, inf) = [TallyingBucket (Empty)], [4.000000, inf) = [TallyingBucket (Empty)], [6.000000, inf) = [TallyingBucket (Empty)], [8.000000, inf) = [TallyingBucket (Empty)], }]")
 }
 
 func (s *S) TestBucketForPercentile(c *C) {

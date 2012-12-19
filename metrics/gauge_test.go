@@ -19,9 +19,9 @@ func (s *S) TestCreate(c *C) {
 	c.Check(m.Get(), Equals, 1.0)
 }
 
-func (s *S) TestHumanize(c *C) {
+func (s *S) TestString(c *C) {
 	m := GaugeMetric{value: 2.0}
-	c.Check(m.Humanize(), Equals, "[GaugeMetric; value=2.000000]")
+	c.Check(m.String(), Equals, "[GaugeMetric; value=2.000000]")
 }
 
 func (s *S) TestSet(c *C) {
@@ -38,7 +38,7 @@ func (s *S) TestIncrementBy(c *C) {
 	m.IncrementBy(1.5)
 
 	c.Check(m.Get(), Equals, 2.5)
-	c.Check(m.Humanize(), Equals, "[GaugeMetric; value=2.500000]")
+	c.Check(m.String(), Equals, "[GaugeMetric; value=2.500000]")
 }
 
 func (s *S) TestIncrement(c *C) {
@@ -47,7 +47,7 @@ func (s *S) TestIncrement(c *C) {
 	m.Increment()
 
 	c.Check(m.Get(), Equals, 2.0)
-	c.Check(m.Humanize(), Equals, "[GaugeMetric; value=2.000000]")
+	c.Check(m.String(), Equals, "[GaugeMetric; value=2.000000]")
 }
 
 func (s *S) TestDecrementBy(c *C) {
@@ -56,7 +56,7 @@ func (s *S) TestDecrementBy(c *C) {
 	m.DecrementBy(1.0)
 
 	c.Check(m.Get(), Equals, 0.0)
-	c.Check(m.Humanize(), Equals, "[GaugeMetric; value=0.000000]")
+	c.Check(m.String(), Equals, "[GaugeMetric; value=0.000000]")
 }
 
 func (s *S) TestDecrement(c *C) {
@@ -65,7 +65,7 @@ func (s *S) TestDecrement(c *C) {
 	m.Decrement()
 
 	c.Check(m.Get(), Equals, 0.0)
-	c.Check(m.Humanize(), Equals, "[GaugeMetric; value=0.000000]")
+	c.Check(m.String(), Equals, "[GaugeMetric; value=0.000000]")
 }
 
 func (s *S) TestGaugeMetricMarshallable(c *C) {
