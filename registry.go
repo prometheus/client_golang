@@ -9,6 +9,7 @@ the LICENSE file.
 package registry
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"github.com/matttproud/golang_instrumentation/maths"
 	"github.com/matttproud/golang_instrumentation/metrics"
@@ -115,6 +116,31 @@ func (r *Registry) Register(name string, metric metrics.Metric) {
 	} else {
 		log.Printf("Attempted to register duplicate %s metric.\n", name)
 	}
+}
+
+func (register *Registry) YieldProtectedExporter(username, password string) http.HandlerFunc {
+	exporter := register.YieldExporter()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authenticated := false
+
+		if auth := r.Header.Get("Authorization"); auth != "" {
+			base64Encoded := strings.SplitAfter(auth, " ")[1]
+			decoded, err := base64.URLEncoding.DecodeString(base64Encoded)
+			if err == nil {
+				usernamePassword := strings.Split(string(decoded), ":")
+				if usernamePassword[0] == username && usernamePassword[1] == password {
+					authenticated = true
+				}
+			}
+		}
+
+		if authenticated {
+			exporter.ServeHTTP(w, r)
+		} else {
+			http.Error(w, "access forbidden", 403)
+		}
+	})
 }
 
 /*
