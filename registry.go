@@ -139,7 +139,8 @@ func (register *Registry) YieldBasicAuthExporter(username, password string) http
 		if authenticated {
 			exporter.ServeHTTP(w, r)
 		} else {
-			http.Error(w, "access forbidden", 403)
+			w.Header().Add("WWW-Authenticate", "Basic")
+			http.Error(w, "access forbidden", 401)
 		}
 	})
 }
