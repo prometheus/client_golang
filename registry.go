@@ -24,6 +24,7 @@ const (
 	jsonContentType = "application/json"
 	contentType     = "Content-Type"
 	jsonSuffix      = ".json"
+	authorization   = "Authorization"
 )
 
 /*
@@ -124,7 +125,7 @@ func (register *Registry) YieldProtectedExporter(username, password string) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated := false
 
-		if auth := r.Header.Get("Authorization"); auth != "" {
+		if auth := r.Header.Get(authorization); auth != "" {
 			base64Encoded := strings.SplitAfter(auth, " ")[1]
 			decoded, err := base64.URLEncoding.DecodeString(base64Encoded)
 			if err == nil {
