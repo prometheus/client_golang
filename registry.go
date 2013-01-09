@@ -119,7 +119,7 @@ func (r *Registry) Register(name string, metric metrics.Metric) {
 	}
 }
 
-func (register *Registry) YieldProtectedExporter(username, password string) http.HandlerFunc {
+func (register *Registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	exporter := register.YieldExporter()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
