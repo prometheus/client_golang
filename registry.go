@@ -128,7 +128,6 @@ func (registry *Registry) YieldExporter() http.HandlerFunc {
 			url := r.URL
 
 			if strings.HasSuffix(url.Path, jsonSuffix) {
-				w.WriteHeader(http.StatusOK)
 				w.Header().Set(contentType, jsonContentType)
 				composite := make(map[string]interface{}, len(registry.NameToMetric))
 				for name, metric := range registry.NameToMetric {
