@@ -17,6 +17,7 @@ distributions.
 package main
 
 import (
+	"flag"
 	"github.com/matttproud/golang_instrumentation"
 	"github.com/matttproud/golang_instrumentation/maths"
 	"github.com/matttproud/golang_instrumentation/metrics"
@@ -25,7 +26,17 @@ import (
 	"time"
 )
 
+var (
+	listeningAddress string
+)
+
+func init() {
+	flag.StringVar(&listeningAddress, "listeningAddress", ":8080", "The address to listen to requests on.")
+}
+
 func main() {
+	flag.Parse()
+
 	foo_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
 		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
 		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
@@ -71,5 +82,5 @@ func main() {
 	exporter := metrics.YieldExporter()
 
 	http.Handle("/metrics.json", exporter)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(listeningAddress, nil)
 }

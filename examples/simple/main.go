@@ -13,13 +13,24 @@ framework is registered and invoked.
 package main
 
 import (
+	"flag"
 	"github.com/matttproud/golang_instrumentation"
 	"net/http"
 )
 
+var (
+	listeningAddress string
+)
+
+func init() {
+	flag.StringVar(&listeningAddress, "listeningAddress", ":8080", "The address to listen to requests on.")
+}
+
 func main() {
+	flag.Parse()
+
 	exporter := registry.DefaultRegistry.YieldExporter()
 
 	http.Handle("/metrics.json", exporter)
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(listeningAddress, nil)
 }
