@@ -57,12 +57,15 @@ func main() {
 	zed_rpc_calls := &metrics.CounterMetric{}
 
 	metrics := registry.NewRegistry()
-	metrics.Register("rpc_latency_foo_microseconds", "RPC latency for foo service.", foo_rpc_latency)
-	metrics.Register("rpc_calls_foo_total", "RPC calls for foo service.", foo_rpc_calls)
-	metrics.Register("rpc_latency_bar_microseconds", "RPC latency for bar service.", bar_rpc_latency)
-	metrics.Register("rpc_calls_bar_total", "RPC calls for bar service.", bar_rpc_calls)
-	metrics.Register("rpc_latency_zed_microseconds", "RPC latency for zed service.", zed_rpc_latency)
-	metrics.Register("rpc_calls_zed_total", "RPC calls for zed service.", zed_rpc_calls)
+
+	nilBaseLabels := make(map[string]string)
+
+	metrics.Register("rpc_latency_foo_microseconds", "RPC latency for foo service.", nilBaseLabels, foo_rpc_latency)
+	metrics.Register("rpc_calls_foo_total", "RPC calls for foo service.", nilBaseLabels, foo_rpc_calls)
+	metrics.Register("rpc_latency_bar_microseconds", "RPC latency for bar service.", nilBaseLabels, bar_rpc_latency)
+	metrics.Register("rpc_calls_bar_total", "RPC calls for bar service.", nilBaseLabels, bar_rpc_calls)
+	metrics.Register("rpc_latency_zed_microseconds", "RPC latency for zed service.", nilBaseLabels, zed_rpc_latency)
+	metrics.Register("rpc_calls_zed_total", "RPC calls for zed service.", nilBaseLabels, zed_rpc_calls)
 
 	go func() {
 		for {
