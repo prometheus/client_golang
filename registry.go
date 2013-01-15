@@ -100,14 +100,14 @@ var DefaultRegistry = NewRegistry()
 /*
 Associate a Metric with the DefaultRegistry.
 */
-func Register(name string, metric metrics.Metric) {
-	DefaultRegistry.Register(name, metric)
+func Register(name, unusedDocstring string, metric metrics.Metric) {
+	DefaultRegistry.Register(name, unusedDocstring, metric)
 }
 
 /*
 Register a metric with a given name.  Name should be globally unique.
 */
-func (r *Registry) Register(name string, metric metrics.Metric) {
+func (r *Registry) Register(name, unusedDocstring string, metric metrics.Metric) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -175,9 +175,9 @@ func (registry *Registry) YieldExporter() http.HandlerFunc {
 }
 
 func init() {
-	DefaultRegistry.Register("requests_metrics_total", requestCount)
-	DefaultRegistry.Register("requests_metrics_latency_logarithmic_accumulating_microseconds", requestLatencyLogarithmicAccumulating)
-	DefaultRegistry.Register("requests_metrics_latency_equal_accumulating_microseconds", requestLatencyEqualAccumulating)
-	DefaultRegistry.Register("requests_metrics_latency_logarithmic_tallying_microseconds", requestLatencyLogarithmicTallying)
-	DefaultRegistry.Register("request_metrics_latency_equal_tallying_microseconds", requestLatencyEqualTallying)
+	DefaultRegistry.Register("requests_metrics_total", "A counter of the total requests made against the telemetry system.", requestCount)
+	DefaultRegistry.Register("requests_metrics_latency_logarithmic_accumulating_microseconds", "A histogram of the response latency for requests made against the telemetry system.", requestLatencyLogarithmicAccumulating)
+	DefaultRegistry.Register("requests_metrics_latency_equal_accumulating_microseconds", "A histogram of the response latency for requests made against the telemetry system.", requestLatencyEqualAccumulating)
+	DefaultRegistry.Register("requests_metrics_latency_logarithmic_tallying_microseconds", "A histogram of the response latency for requests made against the telemetry system.", requestLatencyLogarithmicTallying)
+	DefaultRegistry.Register("request_metrics_latency_equal_tallying_microseconds", "A histogram of the response latency for requests made against the telemetry system.", requestLatencyEqualTallying)
 }

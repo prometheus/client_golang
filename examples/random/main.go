@@ -57,12 +57,12 @@ func main() {
 	zed_rpc_calls := &metrics.CounterMetric{}
 
 	metrics := registry.NewRegistry()
-	metrics.Register("rpc_latency_foo_microseconds", foo_rpc_latency)
-	metrics.Register("rpc_calls_foo_total", foo_rpc_calls)
-	metrics.Register("rpc_latency_bar_microseconds", bar_rpc_latency)
-	metrics.Register("rpc_calls_bar_total", bar_rpc_calls)
-	metrics.Register("rpc_latency_zed_microseconds", zed_rpc_latency)
-	metrics.Register("rpc_calls_zed_total", zed_rpc_calls)
+	metrics.Register("rpc_latency_foo_microseconds", "RPC latency for foo service.", foo_rpc_latency)
+	metrics.Register("rpc_calls_foo_total", "RPC calls for foo service.", foo_rpc_calls)
+	metrics.Register("rpc_latency_bar_microseconds", "RPC latency for bar service.", bar_rpc_latency)
+	metrics.Register("rpc_calls_bar_total", "RPC calls for bar service.", bar_rpc_calls)
+	metrics.Register("rpc_latency_zed_microseconds", "RPC latency for zed service.", zed_rpc_latency)
+	metrics.Register("rpc_calls_zed_total", "RPC calls for zed service.", zed_rpc_calls)
 
 	go func() {
 		for {
