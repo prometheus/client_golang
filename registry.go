@@ -11,7 +11,6 @@ package registry
 import (
 	"encoding/base64"
 	"encoding/json"
-	"github.com/matttproud/golang_instrumentation/maths"
 	"github.com/matttproud/golang_instrumentation/metrics"
 	"log"
 	"net/http"
@@ -21,48 +20,18 @@ import (
 )
 
 const (
-	jsonContentType = "application/json"
-	contentType     = "Content-Type"
-	jsonSuffix      = ".json"
 	authorization   = "Authorization"
+	contentType     = "Content-Type"
+	jsonContentType = "application/json"
+	jsonSuffix      = ".json"
 )
-
-/*
-Boilerplate metrics about the metrics reporting subservice.  These are only
-exposed if the DefaultRegistry's exporter is hooked into the HTTP request
-handler.
-*/
-
-var requestCount *metrics.CounterMetric = &metrics.CounterMetric{}
-var requestLatencyLogarithmicBuckets []float64 = metrics.LogarithmicSizedBucketsFor(0, 1000)
-var requestLatencyEqualBuckets []float64 = metrics.EquallySizedBucketsFor(0, 1000, 10)
-var requestLatencyLogarithmicAccumulating *metrics.Histogram = metrics.CreateHistogram(&metrics.HistogramSpecification{
-	Starts:                requestLatencyLogarithmicBuckets,
-	BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(50, maths.Average), 1000),
-	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
-})
-var requestLatencyEqualAccumulating *metrics.Histogram = metrics.CreateHistogram(&metrics.HistogramSpecification{
-	Starts:                requestLatencyEqualBuckets,
-	BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(50, maths.Average), 1000),
-	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
-})
-var requestLatencyLogarithmicTallying *metrics.Histogram = metrics.CreateHistogram(&metrics.HistogramSpecification{
-	Starts:                requestLatencyLogarithmicBuckets,
-	BucketMaker:           metrics.TallyingBucketBuilder,
-	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
-})
-var requestLatencyEqualTallying *metrics.Histogram = metrics.CreateHistogram(&metrics.HistogramSpecification{
-	Starts:                requestLatencyEqualBuckets,
-	BucketMaker:           metrics.TallyingBucketBuilder,
-	ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.9, 0.99},
-})
 
 /*
 This callback accumulates the microsecond duration of the reporting framework's
 overhead such that it can be reported.
 */
 var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Duration) {
-	microseconds := float64(int64(duration) / 1E3)
+	microseconds := float64(duration / time.Millisecond)
 
 	requestLatencyLogarithmicAccumulating.Add(microseconds)
 	requestLatencyEqualAccumulating.Add(microseconds)
@@ -172,14 +141,4 @@ func (registry *Registry) YieldExporter() http.HandlerFunc {
 		}
 		metrics.InstrumentCall(instrumentable, requestLatencyAccumulator)
 	}
-}
-
-func init() {
-	nilBaseLabels := make(map[string]string)
-
-	DefaultRegistry.Register("requests_metrics_total", "A counter of the total requests made against the telemetry system.", nilBaseLabels, requestCount)
-	DefaultRegistry.Register("requests_metrics_latency_logarithmic_accumulating_microseconds", "A histogram of the response latency for requests made against the telemetry system.", nilBaseLabels, requestLatencyLogarithmicAccumulating)
-	DefaultRegistry.Register("requests_metrics_latency_equal_accumulating_microseconds", "A histogram of the response latency for requests made against the telemetry system.", nilBaseLabels, requestLatencyEqualAccumulating)
-	DefaultRegistry.Register("requests_metrics_latency_logarithmic_tallying_microseconds", "A histogram of the response latency for requests made against the telemetry system.", nilBaseLabels, requestLatencyLogarithmicTallying)
-	DefaultRegistry.Register("request_metrics_latency_equal_tallying_microseconds", "A histogram of the response latency for requests made against the telemetry system.", nilBaseLabels, requestLatencyEqualTallying)
 }
