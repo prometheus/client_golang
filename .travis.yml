@@ -1,8 +1,5 @@
 language: go
 
-before_install:
- - sudo apt-get install bzr >/dev/null 2>&1
-
 before_script:
  - go get -v github.com/matttproud/golang_instrumentation
 

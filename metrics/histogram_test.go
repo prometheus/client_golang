@@ -9,8 +9,8 @@ license that can be found in the LICENSE file.
 package metrics
 
 import (
+	. "github.com/matttproud/gocheck"
 	"github.com/matttproud/golang_instrumentation/maths"
-	. "launchpad.net/gocheck"
 )
 
 func (s *S) TestEquallySizedBucketsFor(c *C) {

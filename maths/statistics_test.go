@@ -9,7 +9,7 @@ license that can be found in the LICENSE file.
 package maths
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/matttproud/gocheck"
 )
 
 func (s *S) TestAverageOnEmpty(c *C) {

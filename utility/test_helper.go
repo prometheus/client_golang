@@ -9,7 +9,7 @@ license that can be found in the LICENSE file.
 package utility
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/matttproud/gocheck"
 )
 
 type valueEqualsChecker struct {
