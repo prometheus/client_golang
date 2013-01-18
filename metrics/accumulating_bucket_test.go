@@ -9,9 +9,9 @@ license that can be found in the LICENSE file.
 package metrics
 
 import (
+	. "github.com/matttproud/gocheck"
 	"github.com/matttproud/golang_instrumentation/maths"
 	"github.com/matttproud/golang_instrumentation/utility"
-	. "launchpad.net/gocheck"
 	"time"
 )
 

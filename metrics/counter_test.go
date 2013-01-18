@@ -9,7 +9,7 @@ license that can be found in the LICENSE file.
 package metrics
 
 import (
-	. "launchpad.net/gocheck"
+	. "github.com/matttproud/gocheck"
 )
 
 func (s *S) TestCounterCreate(c *C) {

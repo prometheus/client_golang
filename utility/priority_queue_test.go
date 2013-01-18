@@ -10,7 +10,7 @@ package utility
 
 import (
 	"container/heap"
-	. "launchpad.net/gocheck"
+	. "github.com/matttproud/gocheck"
 )
 
 func (s *S) TestPriorityQueueSort(c *C) {
