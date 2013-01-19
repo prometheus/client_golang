@@ -9,21 +9,39 @@ the LICENSE file.
 package registry
 
 import (
+	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
+	"fmt"
 	"github.com/matttproud/golang_instrumentation/metrics"
+	"github.com/matttproud/golang_instrumentation/utility"
+	"io"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	authorization   = "Authorization"
-	contentType     = "Content-Type"
-	jsonContentType = "application/json"
-	jsonSuffix      = ".json"
+	acceptEncodingHeader     = "Accept-Encoding"
+	authorization            = "Authorization"
+	authorizationHeader      = "WWW-Authenticate"
+	authorizationHeaderValue = "Basic"
+	contentEncodingHeader    = "Content-Encoding"
+	contentTypeHeader        = "Content-Type"
+	gzipAcceptEncodingValue  = "gzip"
+	gzipContentEncodingValue = "gzip"
+	jsonContentType          = "application/json"
+	jsonSuffix               = ".json"
+)
+
+var (
+	abortOnMisuse             bool
+	debugRegistration         bool
+	useAggressiveSanityChecks bool
 )
 
 /*
@@ -31,12 +49,18 @@ This callback accumulates the microsecond duration of the reporting framework's
 overhead such that it can be reported.
 */
 var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Duration) {
-	microseconds := float64(duration / time.Millisecond)
+	microseconds := float64(duration / time.Microsecond)
 
-	requestLatencyLogarithmicAccumulating.Add(microseconds)
-	requestLatencyEqualAccumulating.Add(microseconds)
-	requestLatencyLogarithmicTallying.Add(microseconds)
-	requestLatencyEqualTallying.Add(microseconds)
+	requestLatency.Add(nil, microseconds)
+}
+
+// container represents a top-level registered metric that encompasses its
+// static metadata.
+type container struct {
+	baseLabels map[string]string
+	docstring  string
+	metric     metrics.Metric
+	name       string
 }
 
 /*
@@ -46,8 +70,8 @@ In most situations, using DefaultRegistry is sufficient versus creating one's
 own.
 */
 type Registry struct {
-	mutex        sync.RWMutex
-	NameToMetric map[string]metrics.Metric
+	mutex               sync.RWMutex
+	signatureContainers map[string]container
 }
 
 /*
@@ -56,7 +80,7 @@ cases.
 */
 func NewRegistry() *Registry {
 	return &Registry{
-		NameToMetric: make(map[string]metrics.Metric),
+		signatureContainers: make(map[string]container),
 	}
 }
 
@@ -69,25 +93,96 @@ var DefaultRegistry = NewRegistry()
 /*
 Associate a Metric with the DefaultRegistry.
 */
-func Register(name, unusedDocstring string, unusedBaseLabels map[string]string, metric metrics.Metric) {
-	DefaultRegistry.Register(name, unusedDocstring, unusedBaseLabels, metric)
+func Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) error {
+	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
+}
+
+// isValidCandidate returns true if the candidate is acceptable for use.  In the
+// event of any apparent incorrect use it will report the problem, invalidate
+// the candidate, or outright abort.
+func (r *Registry) isValidCandidate(name string, baseLabels map[string]string) (signature string, err error) {
+	if len(name) == 0 {
+		err = fmt.Errorf("unnamed metric named with baseLabels %s is invalid", baseLabels)
+
+		if abortOnMisuse {
+			panic(err)
+		} else if debugRegistration {
+			log.Println(err)
+		}
+	}
+
+	if _, contains := baseLabels[nameLabel]; contains {
+		err = fmt.Errorf("metric named %s with baseLabels %s contains reserved label name %s in baseLabels", name, baseLabels, nameLabel)
+
+		if abortOnMisuse {
+			panic(err)
+		} else if debugRegistration {
+			log.Println(err)
+		}
+
+		return
+	}
+
+	baseLabels[nameLabel] = name
+	signature = utility.LabelsToSignature(baseLabels)
+
+	if _, contains := r.signatureContainers[signature]; contains {
+		err = fmt.Errorf("metric named %s with baseLabels %s is already registered", name, baseLabels)
+		if abortOnMisuse {
+			panic(err)
+		} else if debugRegistration {
+			log.Println(err)
+		}
+
+		return
+	}
+
+	if useAggressiveSanityChecks {
+		for _, container := range r.signatureContainers {
+			if container.name == name {
+				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.baseLabels)
+				if abortOnMisuse {
+					panic(err)
+				} else if debugRegistration {
+					log.Println(err)
+				}
+
+				return
+			}
+		}
+	}
+
+	return
 }
 
 /*
 Register a metric with a given name.  Name should be globally unique.
 */
-func (r *Registry) Register(name, unusedDocstring string, unusedBaseLabels map[string]string, metric metrics.Metric) {
+func (r *Registry) Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) (err error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if _, present := r.NameToMetric[name]; !present {
-		r.NameToMetric[name] = metric
-		log.Printf("Registered %s.\n", name)
-	} else {
-		log.Printf("Attempted to register duplicate %s metric.\n", name)
+	if baseLabels == nil {
+		baseLabels = map[string]string{}
 	}
+
+	signature, err := r.isValidCandidate(name, baseLabels)
+	if err != nil {
+		return
+	}
+
+	r.signatureContainers[signature] = container{
+		baseLabels: baseLabels,
+		docstring:  docstring,
+		metric:     metric,
+		name:       name,
+	}
+
+	return
 }
 
+// YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
+// basic authentication.
 func (register *Registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	exporter := register.YieldExporter()
 
@@ -108,10 +203,78 @@ func (register *Registry) YieldBasicAuthExporter(username, password string) http
 		if authenticated {
 			exporter.ServeHTTP(w, r)
 		} else {
-			w.Header().Add("WWW-Authenticate", "Basic")
+			w.Header().Add(authorizationHeader, authorizationHeaderValue)
 			http.Error(w, "access forbidden", 401)
 		}
 	})
+}
+
+func (registry *Registry) dumpToWriter(writer io.Writer) (err error) {
+	defer func() {
+		if err != nil {
+			dumpErrorCount.Increment(nil)
+		}
+	}()
+
+	numberOfMetrics := len(registry.signatureContainers)
+	keys := make([]string, 0, numberOfMetrics)
+	for key := range registry.signatureContainers {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	_, err = writer.Write([]byte("["))
+	if err != nil {
+		return
+	}
+
+	index := 0
+
+	for _, key := range keys {
+		container := registry.signatureContainers[key]
+		intermediate := map[string]interface{}{
+			baseLabelsKey: container.baseLabels,
+			docstringKey:  container.docstring,
+			metricKey:     container.metric.AsMarshallable(),
+		}
+		marshaled, err := json.Marshal(intermediate)
+		if err != nil {
+			marshalErrorCount.Increment(nil)
+			index++
+			continue
+		}
+
+		if index > 0 && index < numberOfMetrics {
+			_, err = writer.Write([]byte(","))
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = writer.Write(marshaled)
+		if err != nil {
+			return err
+		}
+		index++
+	}
+
+	_, err = writer.Write([]byte("]"))
+
+	return
+}
+
+// decorateWriter annotates the response writer to handle any other behaviors
+// that might be beneficial to the client---e.g., GZIP encoding.
+func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer {
+	if !strings.Contains(request.Header.Get(acceptEncodingHeader), gzipAcceptEncodingValue) {
+		return writer
+	}
+
+	writer.Header().Set(contentEncodingHeader, gzipContentEncodingValue)
+	gziper := gzip.NewWriter(writer)
+
+	return gziper
 }
 
 /*
@@ -121,19 +284,23 @@ against it generate a representation of the housed metrics.
 func (registry *Registry) YieldExporter() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var instrumentable metrics.InstrumentableCall = func() {
-			requestCount.Increment()
+			requestCount.Increment(nil)
 			url := r.URL
 
 			if strings.HasSuffix(url.Path, jsonSuffix) {
-				w.Header().Set(contentType, jsonContentType)
-				composite := make(map[string]interface{}, len(registry.NameToMetric))
-				for name, metric := range registry.NameToMetric {
-					composite[name] = metric.Marshallable()
+				header := w.Header()
+				header.Set(ProtocolVersionHeader, APIVersion)
+				header.Set(contentTypeHeader, jsonContentType)
+
+				writer := decorateWriter(r, w)
+
+				// TODO(matt): Migrate to ioutil.NopCloser.
+				if closer, ok := writer.(io.Closer); ok {
+					defer closer.Close()
 				}
 
-				data, _ := json.Marshal(composite)
+				registry.dumpToWriter(writer)
 
-				w.Write(data)
 			} else {
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -141,4 +308,10 @@ func (registry *Registry) YieldExporter() http.HandlerFunc {
 		}
 		metrics.InstrumentCall(instrumentable, requestLatencyAccumulator)
 	}
+}
+
+func init() {
+	flag.BoolVar(&abortOnMisuse, FlagNamespace+"abortonmisuse", false, "abort if a semantic misuse is encountered (bool).")
+	flag.BoolVar(&debugRegistration, FlagNamespace+"debugregistration", false, "display information about the metric registration process (bool).")
+	flag.BoolVar(&useAggressiveSanityChecks, FlagNamespace+"useaggressivesanitychecks", false, "perform expensive validation of metrics (bool).")
 }

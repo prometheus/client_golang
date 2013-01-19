@@ -9,43 +9,131 @@ license that can be found in the LICENSE file.
 package metrics
 
 import (
-	. "github.com/matttproud/gocheck"
+	"encoding/json"
+	"github.com/matttproud/golang_instrumentation/utility/test"
+	"testing"
 )
 
-func (s *S) TestGaugeCreate(c *C) {
-	m := GaugeMetric{value: 1.0}
+func testGauge(t test.Tester) {
+	type input struct {
+		steps []func(g Gauge)
+	}
+	type output struct {
+		value string
+	}
 
-	c.Assert(m, Not(IsNil))
-	c.Check(m.Get(), Equals, 1.0)
+	var scenarios = []struct {
+		in  input
+		out output
+	}{
+		{
+			in: input{
+				steps: []func(g Gauge){},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Gauge){
+					func(g Gauge) {
+						g.Set(nil, 1)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":1}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Gauge){
+					func(g Gauge) {
+						g.Set(map[string]string{}, 2)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":2}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Gauge){
+					func(g Gauge) {
+						g.Set(map[string]string{}, 3)
+					},
+					func(g Gauge) {
+						g.Set(map[string]string{}, 5)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":5}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Gauge){
+					func(g Gauge) {
+						g.Set(map[string]string{"handler": "/foo"}, 13)
+					},
+					func(g Gauge) {
+						g.Set(map[string]string{"handler": "/bar"}, 17)
+					},
+					func(g Gauge) {
+						g.ResetAll()
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Gauge){
+					func(g Gauge) {
+						g.Set(map[string]string{"handler": "/foo"}, 19)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":19}]}",
+			},
+		},
+	}
+
+	for i, scenario := range scenarios {
+		gauge := NewGauge()
+
+		for _, step := range scenario.in.steps {
+			step(gauge)
+		}
+
+		marshallable := gauge.AsMarshallable()
+
+		bytes, err := json.Marshal(marshallable)
+		if err != nil {
+			t.Errorf("%d. could not marshal into JSON %s", i, err)
+			continue
+		}
+
+		asString := string(bytes)
+
+		if scenario.out.value != asString {
+			t.Errorf("%d. expected %q, got %q", i, scenario.out.value, asString)
+		}
+	}
 }
 
-func (s *S) TestGaugeString(c *C) {
-	m := GaugeMetric{value: 2.0}
-	c.Check(m.String(), Equals, "[GaugeMetric; value=2.000000]")
+func TestGauge(t *testing.T) {
+	testGauge(t)
 }
 
-func (s *S) TestGaugeSet(c *C) {
-	m := GaugeMetric{value: -1.0}
-
-	m.Set(-99.0)
-
-	c.Check(m.Get(), Equals, -99.0)
-}
-
-func (s *S) TestGaugeMetricMarshallable(c *C) {
-	m := GaugeMetric{value: 1.0}
-
-	returned := m.Marshallable()
-
-	c.Assert(returned, Not(IsNil))
-
-	c.Check(returned, HasLen, 2)
-	c.Check(returned["value"], Equals, 1.0)
-	c.Check(returned["type"], Equals, "gauge")
-}
-
-func (s *S) TestGaugeAsMetric(c *C) {
-	var metric Metric = &GaugeMetric{value: 1.0}
-
-	c.Assert(metric, Not(IsNil))
+func BenchmarkGauge(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		testGauge(b)
+	}
 }

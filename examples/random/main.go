@@ -37,46 +37,29 @@ func init() {
 func main() {
 	flag.Parse()
 
-	foo_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
+	rpc_latency := metrics.NewHistogram(&metrics.HistogramSpecification{
 		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
-		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
+		BucketBuilder:         metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
-	foo_rpc_calls := &metrics.CounterMetric{}
-	bar_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
-		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
-		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
-		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
-	})
-	bar_rpc_calls := &metrics.CounterMetric{}
-	zed_rpc_latency := metrics.CreateHistogram(&metrics.HistogramSpecification{
-		Starts:                metrics.EquallySizedBucketsFor(0, 200, 4),
-		BucketMaker:           metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
-		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
-	})
-	zed_rpc_calls := &metrics.CounterMetric{}
+
+	rpc_calls := metrics.NewCounter()
 
 	metrics := registry.NewRegistry()
 
-	nilBaseLabels := make(map[string]string)
-
-	metrics.Register("rpc_latency_foo_microseconds", "RPC latency for foo service.", nilBaseLabels, foo_rpc_latency)
-	metrics.Register("rpc_calls_foo_total", "RPC calls for foo service.", nilBaseLabels, foo_rpc_calls)
-	metrics.Register("rpc_latency_bar_microseconds", "RPC latency for bar service.", nilBaseLabels, bar_rpc_latency)
-	metrics.Register("rpc_calls_bar_total", "RPC calls for bar service.", nilBaseLabels, bar_rpc_calls)
-	metrics.Register("rpc_latency_zed_microseconds", "RPC latency for zed service.", nilBaseLabels, zed_rpc_latency)
-	metrics.Register("rpc_calls_zed_total", "RPC calls for zed service.", nilBaseLabels, zed_rpc_calls)
+	metrics.Register("rpc_latency_microseconds", "RPC latency.", registry.NilLabels, rpc_latency)
+	metrics.Register("rpc_calls_total", "RPC calls.", registry.NilLabels, rpc_calls)
 
 	go func() {
 		for {
-			foo_rpc_latency.Add(rand.Float64() * 200)
-			foo_rpc_calls.Increment()
+			rpc_latency.Add(map[string]string{"service": "foo"}, rand.Float64()*200)
+			rpc_calls.Increment(map[string]string{"service": "foo"})
 
-			bar_rpc_latency.Add((rand.NormFloat64() * 10.0) + 100.0)
-			bar_rpc_calls.Increment()
+			rpc_latency.Add(map[string]string{"service": "bar"}, (rand.NormFloat64()*10.0)+100.0)
+			rpc_calls.Increment(map[string]string{"service": "bar"})
 
-			zed_rpc_latency.Add(rand.ExpFloat64())
-			zed_rpc_calls.Increment()
+			rpc_latency.Add(map[string]string{"service": "zed"}, rand.ExpFloat64())
+			rpc_calls.Increment(map[string]string{"service": "zed"})
 
 			time.Sleep(100 * time.Millisecond)
 		}

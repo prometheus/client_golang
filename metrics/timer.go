@@ -30,19 +30,23 @@ N.B.(mtp): A major limitation hereof is that the StopWatch protocol cannot
 retain instrumentation if a panic percolates within the context that is
 being measured.
 */
-type StopWatch struct {
-	startTime    time.Time
+type StopWatch interface {
+	Stop() time.Duration
+}
+
+type stopWatch struct {
 	endTime      time.Time
 	onCompletion CompletionCallback
+	startTime    time.Time
 }
 
 /*
 Return a new StopWatch that is ready for instrumentation.
 */
-func Start(onCompletion CompletionCallback) *StopWatch {
-	return &StopWatch{
-		startTime:    time.Now(),
+func Start(onCompletion CompletionCallback) StopWatch {
+	return &stopWatch{
 		onCompletion: onCompletion,
+		startTime:    time.Now(),
 	}
 }
 
@@ -50,7 +54,7 @@ func Start(onCompletion CompletionCallback) *StopWatch {
 Stop the StopWatch returning the elapsed duration of its lifetime while
 firing an optional CompletionCallback in the background.
 */
-func (s *StopWatch) Stop() time.Duration {
+func (s *stopWatch) Stop() time.Duration {
 	s.endTime = time.Now()
 	duration := s.endTime.Sub(s.startTime)
 

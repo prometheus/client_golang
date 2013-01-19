@@ -14,7 +14,10 @@ import (
 )
 
 func (s *S) TestTimerStart(c *C) {
-	stopWatch := Start(nil)
+	stopWatch, ok := Start(nil).(*stopWatch)
+	if !ok {
+		c.Check(ok, Equals, true)
+	}
 
 	c.Assert(stopWatch, Not(IsNil))
 	c.Assert(stopWatch.startTime, Not(IsNil))

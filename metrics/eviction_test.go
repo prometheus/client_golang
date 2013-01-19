@@ -22,8 +22,8 @@ func (s *S) TestEvictOldest(c *C) {
 
 	for i := 0; i < 10; i++ {
 		var item utility.Item = utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		}
 
 		heap.Push(&q, &item)
@@ -49,8 +49,8 @@ func (s *S) TestEvictAndReplaceWithAverage(c *C) {
 
 	for i := 0; i < 10; i++ {
 		var item utility.Item = utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		}
 
 		heap.Push(&q, &item)
@@ -77,8 +77,8 @@ func (s *S) TestEvictAndReplaceWithMedian(c *C) {
 
 	for i := 0; i < 10; i++ {
 		var item utility.Item = utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		}
 
 		heap.Push(&q, &item)
@@ -105,8 +105,8 @@ func (s *S) TestEvictAndReplaceWithFirstMode(c *C) {
 
 	for i := 0; i < 10; i++ {
 		heap.Push(&q, &utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		})
 	}
 
@@ -131,8 +131,8 @@ func (s *S) TestEvictAndReplaceWithMinimum(c *C) {
 
 	for i := 0; i < 10; i++ {
 		var item utility.Item = utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		}
 
 		heap.Push(&q, &item)
@@ -159,8 +159,8 @@ func (s *S) TestEvictAndReplaceWithMaximum(c *C) {
 
 	for i := 0; i < 10; i++ {
 		var item utility.Item = utility.Item{
-			Value:    float64(i),
 			Priority: int64(i),
+			Value:    float64(i),
 		}
 
 		heap.Push(&q, &item)

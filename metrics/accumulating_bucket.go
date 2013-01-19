@@ -20,11 +20,11 @@ import (
 )
 
 type AccumulatingBucket struct {
-	observations   int
 	elements       utility.PriorityQueue
+	evictionPolicy EvictionPolicy
 	maximumSize    int
 	mutex          sync.RWMutex
-	evictionPolicy EvictionPolicy
+	observations   int
 }
 
 /*
@@ -35,9 +35,9 @@ behavior set.
 func AccumulatingBucketBuilder(evictionPolicy EvictionPolicy, maximumSize int) BucketBuilder {
 	return func() Bucket {
 		return &AccumulatingBucket{
-			maximumSize:    maximumSize,
-			evictionPolicy: evictionPolicy,
 			elements:       make(utility.PriorityQueue, 0, maximumSize),
+			evictionPolicy: evictionPolicy,
+			maximumSize:    maximumSize,
 		}
 	}
 }
@@ -54,8 +54,8 @@ func (b *AccumulatingBucket) Add(value float64) {
 	size := len(b.elements)
 
 	v := utility.Item{
-		Value:    value,
 		Priority: -1 * time.Now().UnixNano(),
+		Value:    value,
 	}
 
 	if size == b.maximumSize {
@@ -69,7 +69,7 @@ func (b *AccumulatingBucket) String() string {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
-	buffer := new(bytes.Buffer)
+	buffer := &bytes.Buffer{}
 
 	fmt.Fprintf(buffer, "[AccumulatingBucket with %d elements and %d capacity] { ", len(b.elements), b.maximumSize)
 
@@ -79,7 +79,7 @@ func (b *AccumulatingBucket) String() string {
 
 	fmt.Fprintf(buffer, "}")
 
-	return string(buffer.Bytes())
+	return buffer.String()
 }
 
 func (b *AccumulatingBucket) ValueForIndex(index int) float64 {
@@ -115,4 +115,15 @@ func (b *AccumulatingBucket) Observations() int {
 	defer b.mutex.RUnlock()
 
 	return b.observations
+}
+
+func (b *AccumulatingBucket) Reset() {
+	b.mutex.Lock()
+	defer b.mutex.RUnlock()
+
+	for i := 0; i < b.elements.Len(); i++ {
+		b.elements.Pop()
+	}
+
+	b.observations = 0
 }

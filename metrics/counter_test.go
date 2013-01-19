@@ -9,90 +9,215 @@ license that can be found in the LICENSE file.
 package metrics
 
 import (
-	. "github.com/matttproud/gocheck"
+	"encoding/json"
+	"github.com/matttproud/golang_instrumentation/utility/test"
+	"testing"
 )
 
-func (s *S) TestCounterCreate(c *C) {
-	m := CounterMetric{value: 1.0}
+func testCounter(t test.Tester) {
+	type input struct {
+		steps []func(g Counter)
+	}
+	type output struct {
+		value string
+	}
 
-	c.Assert(m, Not(IsNil))
+	var scenarios = []struct {
+		in  input
+		out output
+	}{
+		{
+			in: input{
+				steps: []func(g Counter){},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(nil, 1)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":1}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{}, 2)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":2}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{}, 3)
+					},
+					func(g Counter) {
+						g.Set(map[string]string{}, 5)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":5}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 13)
+					},
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/bar"}, 17)
+					},
+					func(g Counter) {
+						g.ResetAll()
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 19)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":19}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 23)
+					},
+					func(g Counter) {
+						g.Increment(map[string]string{"handler": "/foo"})
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":24}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Increment(map[string]string{"handler": "/foo"})
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":1}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Decrement(map[string]string{"handler": "/foo"})
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":-1}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 29)
+					},
+					func(g Counter) {
+						g.Decrement(map[string]string{"handler": "/foo"})
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":28}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 31)
+					},
+					func(g Counter) {
+						g.IncrementBy(map[string]string{"handler": "/foo"}, 5)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":36}]}",
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 37)
+					},
+					func(g Counter) {
+						g.DecrementBy(map[string]string{"handler": "/foo"}, 10)
+					},
+				},
+			},
+			out: output{
+				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":27}]}",
+			},
+		},
+	}
+
+	for i, scenario := range scenarios {
+		counter := NewCounter()
+
+		for _, step := range scenario.in.steps {
+			step(counter)
+		}
+
+		marshallable := counter.AsMarshallable()
+
+		bytes, err := json.Marshal(marshallable)
+		if err != nil {
+			t.Errorf("%d. could not marshal into JSON %s", i, err)
+			continue
+		}
+
+		asString := string(bytes)
+
+		if scenario.out.value != asString {
+			t.Errorf("%d. expected %q, got %q", i, scenario.out.value, asString)
+		}
+	}
 }
 
-func (s *S) TestCounterGet(c *C) {
-	m := CounterMetric{value: 42.23}
-
-	c.Check(m.Get(), Equals, 42.23)
+func TestCounter(t *testing.T) {
+	testCounter(t)
 }
 
-func (s *S) TestCounterSet(c *C) {
-	m := CounterMetric{value: 42.23}
-	m.Set(40.4)
-
-	c.Check(m.Get(), Equals, 40.4)
-}
-
-func (s *S) TestCounterReset(c *C) {
-	m := CounterMetric{value: 42.23}
-	m.Reset()
-
-	c.Check(m.Get(), Equals, 0.0)
-}
-
-func (s *S) TestCounterIncrementBy(c *C) {
-	m := CounterMetric{value: 1.0}
-
-	m.IncrementBy(1.5)
-
-	c.Check(m.Get(), Equals, 2.5)
-	c.Check(m.String(), Equals, "[CounterMetric; value=2.500000]")
-}
-
-func (s *S) TestCounterIncrement(c *C) {
-	m := CounterMetric{value: 1.0}
-
-	m.Increment()
-
-	c.Check(m.Get(), Equals, 2.0)
-	c.Check(m.String(), Equals, "[CounterMetric; value=2.000000]")
-}
-
-func (s *S) TestCounterDecrementBy(c *C) {
-	m := CounterMetric{value: 1.0}
-
-	m.DecrementBy(1.0)
-
-	c.Check(m.Get(), Equals, 0.0)
-	c.Check(m.String(), Equals, "[CounterMetric; value=0.000000]")
-}
-
-func (s *S) TestCounterDecrement(c *C) {
-	m := CounterMetric{value: 1.0}
-
-	m.Decrement()
-
-	c.Check(m.Get(), Equals, 0.0)
-	c.Check(m.String(), Equals, "[CounterMetric; value=0.000000]")
-}
-
-func (s *S) TestCounterString(c *C) {
-	m := CounterMetric{value: 2.0}
-	c.Check(m.String(), Equals, "[CounterMetric; value=2.000000]")
-}
-
-func (s *S) TestCounterMetricMarshallable(c *C) {
-	m := CounterMetric{value: 1.0}
-
-	returned := m.Marshallable()
-
-	c.Assert(returned, Not(IsNil))
-
-	c.Check(returned, HasLen, 2)
-	c.Check(returned["value"], Equals, 1.0)
-	c.Check(returned["type"], Equals, "counter")
-}
-
-func (s *S) TestCounterAsMetric(c *C) {
-	var metric Metric = &CounterMetric{value: 1.0}
-
-	c.Assert(metric, Not(IsNil))
+func BenchmarkCounter(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		testCounter(b)
+	}
 }

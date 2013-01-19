@@ -9,8 +9,8 @@ license that can be found in the LICENSE file.
 package utility
 
 type Item struct {
-	Value    interface{}
 	Priority int64
+	Value    interface{}
 	index    int
 }
 
