@@ -1,3 +1,18 @@
+# Major Notes
+The project's documentation is *not up-to-date due to rapidly-changing
+requirements* that have quieted down in the interim, but the overall API should
+be stable for several months even if things change under the hood.
+
+An update to reflect the current state is pending.  Key changes for current
+users:
+
+1. The code has been qualified in production environments.
+2. Label-oriented metric exposition and registration, including docstrings.
+3. Deprecation of gocheck in favor of native table-driven tests.
+4. The best way to get a handle on this is to look at the examples.
+
+Barring that, the antique documentation is below:
+
 # Overview
 This [Go](http://golang.org) package is an extraction of a piece of
 instrumentation code I whipped-up for a personal project that a friend of mine

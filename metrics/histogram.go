@@ -11,8 +11,10 @@ package metrics
 import (
 	"bytes"
 	"fmt"
+	"github.com/matttproud/golang_instrumentation/utility"
 	"math"
 	"strconv"
+	"sync"
 )
 
 /*
@@ -53,21 +55,25 @@ func LogarithmicSizedBucketsFor(lower, upper float64) []float64 {
 A HistogramSpecification defines how a Histogram is to be built.
 */
 type HistogramSpecification struct {
-	Starts                []float64
-	BucketMaker           BucketBuilder
+	BucketBuilder         BucketBuilder
 	ReportablePercentiles []float64
+	Starts                []float64
+}
+
+type Histogram interface {
+	Add(labels map[string]string, value float64)
+	AsMarshallable() map[string]interface{}
+	ResetAll()
+	String() string
 }
 
 /*
 The histogram is an accumulator for samples.  It merely routes into which
 to bucket to capture an event and provides a percentile calculation
 mechanism.
-
-Histogram makes do without locking by employing the law of large numbers
-to presume a convergence toward a given bucket distribution.  Locking
-may be implemented in the buckets themselves, though.
 */
-type Histogram struct {
+type histogram struct {
+	bucketMaker BucketBuilder
 	/*
 		This represents the open interval's start at which values shall be added to
 		the bucket.  The interval continues until the beginning of the next bucket
@@ -76,23 +82,52 @@ type Histogram struct {
 		N.B.
 		- bucketStarts should be sorted in ascending order;
 		- len(bucketStarts) must be equivalent to len(buckets);
-		- The index of a given bucketStarts' element is presumed to match
+		- The index of a given bucketStarts' element is presumed to
 		  correspond to the appropriate element in buckets.
 	*/
 	bucketStarts []float64
+	mutex        sync.RWMutex
 	/*
 		These are the buckets that capture samples as they are emitted to the
 		histogram.  Please consult the reference interface and its implements for
 		further details about behavior expectations.
 	*/
-	buckets []Bucket
+	values map[string]*histogramValue
 	/*
 	 These are the percentile values that will be reported on marshalling.
 	*/
 	reportablePercentiles []float64
 }
 
-func (h *Histogram) Add(value float64) {
+type histogramValue struct {
+	buckets []Bucket
+	labels  map[string]string
+}
+
+func (h *histogram) Add(labels map[string]string, value float64) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	if labels == nil {
+		labels = map[string]string{}
+	}
+
+	signature := utility.LabelsToSignature(labels)
+	var histogram *histogramValue = nil
+	if original, ok := h.values[signature]; ok {
+		histogram = original
+	} else {
+		bucketCount := len(h.bucketStarts)
+		histogram = &histogramValue{
+			buckets: make([]Bucket, bucketCount),
+			labels:  labels,
+		}
+		for i := 0; i < bucketCount; i++ {
+			histogram.buckets[i] = h.bucketMaker()
+		}
+		h.values[signature] = histogram
+	}
+
 	lastIndex := 0
 
 	for i, bucketStart := range h.bucketStarts {
@@ -103,21 +138,27 @@ func (h *Histogram) Add(value float64) {
 		lastIndex = i
 	}
 
-	h.buckets[lastIndex].Add(value)
+	histogram.buckets[lastIndex].Add(value)
 }
 
-func (h *Histogram) String() string {
-	stringBuffer := bytes.NewBufferString("")
+func (h *histogram) String() string {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
+	stringBuffer := &bytes.Buffer{}
 	stringBuffer.WriteString("[Histogram { ")
 
-	for i, bucketStart := range h.bucketStarts {
-		bucket := h.buckets[i]
-		stringBuffer.WriteString(fmt.Sprintf("[%f, inf) = %s, ", bucketStart, bucket.String()))
+	for _, histogram := range h.values {
+		fmt.Fprintf(stringBuffer, "Labels: %s ", histogram.labels)
+		for i, bucketStart := range h.bucketStarts {
+			bucket := histogram.buckets[i]
+			fmt.Fprintf(stringBuffer, "[%f, inf) = %s, ", bucketStart, bucket)
+		}
 	}
 
 	stringBuffer.WriteString("}]")
 
-	return string(stringBuffer.Bytes())
+	return stringBuffer.String()
 }
 
 /*
@@ -141,13 +182,15 @@ func prospectiveIndexForPercentile(percentile float64, totalObservations int) in
 /*
 Determine the next bucket element when interim bucket intervals may be empty.
 */
-func (h *Histogram) nextNonEmptyBucketElement(currentIndex, bucketCount int, observationsByBucket []int) (*Bucket, int) {
+func (h *histogram) nextNonEmptyBucketElement(signature string, currentIndex, bucketCount int, observationsByBucket []int) (*Bucket, int) {
 	for i := currentIndex; i < bucketCount; i++ {
 		if observationsByBucket[i] == 0 {
 			continue
 		}
 
-		return &h.buckets[i], 0
+		histogram := h.values[signature]
+
+		return &histogram.buckets[i], 0
 	}
 
 	panic("Illegal Condition: There were no remaining buckets to provide a value.")
@@ -160,8 +203,8 @@ longer contained by the bucket, the index of the last item is returned.  This
 may occur if the underlying bucket catalogs values and employs an eviction
 strategy.
 */
-func (h *Histogram) bucketForPercentile(percentile float64) (*Bucket, int) {
-	bucketCount := len(h.buckets)
+func (h *histogram) bucketForPercentile(signature string, percentile float64) (*Bucket, int) {
+	bucketCount := len(h.bucketStarts)
 
 	/*
 		This captures the quantity of samples in a given bucket's range.
@@ -173,9 +216,11 @@ func (h *Histogram) bucketForPercentile(percentile float64) (*Bucket, int) {
 	*/
 	cumulativeObservationsByBucket := make([]int, bucketCount)
 
-	var totalObservations int = 0
+	totalObservations := 0
 
-	for i, bucket := range h.buckets {
+	histogram := h.values[signature]
+
+	for i, bucket := range histogram.buckets {
 		observations := bucket.Observations()
 		observationsByBucket[i] = observations
 		totalObservations += bucket.Observations()
@@ -210,14 +255,14 @@ func (h *Histogram) bucketForPercentile(percentile float64) (*Bucket, int) {
 				take this into account.
 			*/
 			if observationsByBucket[i] == subIndex {
-				return h.nextNonEmptyBucketElement(i+1, bucketCount, observationsByBucket)
+				return h.nextNonEmptyBucketElement(signature, i+1, bucketCount, observationsByBucket)
 			}
 
-			return &h.buckets[i], subIndex
+			return &histogram.buckets[i], subIndex
 		}
 	}
 
-	return &h.buckets[0], 0
+	return &histogram.buckets[0], 0
 }
 
 /*
@@ -225,8 +270,8 @@ Return the histogram's estimate of the value for a given percentile of
 collected samples.  The requested percentile is expected to be a real
 value within (0, 1.0].
 */
-func (h *Histogram) Percentile(percentile float64) float64 {
-	bucket, index := h.bucketForPercentile(percentile)
+func (h *histogram) percentile(signature string, percentile float64) float64 {
+	bucket, index := h.bucketForPercentile(signature, percentile)
 
 	return (*bucket).ValueForIndex(index)
 }
@@ -235,38 +280,53 @@ func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, floatFormat, floatPrecision, floatBitCount)
 }
 
-func (h *Histogram) Marshallable() map[string]interface{} {
-	numberOfPercentiles := len(h.reportablePercentiles)
+func (h *histogram) AsMarshallable() map[string]interface{} {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
 	result := make(map[string]interface{}, 2)
-
 	result[typeKey] = histogramTypeValue
+	values := make([]map[string]interface{}, 0, len(h.values))
 
-	value := make(map[string]interface{}, numberOfPercentiles)
-
-	for _, percentile := range h.reportablePercentiles {
-		percentileString := formatFloat(percentile)
-		value[percentileString] = formatFloat(h.Percentile(percentile))
+	for signature, value := range h.values {
+		metricContainer := map[string]interface{}{}
+		metricContainer[labelsKey] = value.labels
+		intermediate := map[string]interface{}{}
+		for _, percentile := range h.reportablePercentiles {
+			formatted := formatFloat(percentile)
+			intermediate[formatted] = h.percentile(signature, percentile)
+		}
+		metricContainer[valueKey] = intermediate
+		values = append(values, metricContainer)
 	}
 
-	result[valueKey] = value
+	result[valueKey] = values
 
 	return result
+}
+
+func (h *histogram) ResetAll() {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	for signature, value := range h.values {
+		for _, bucket := range value.buckets {
+			bucket.Reset()
+		}
+
+		delete(h.values, signature)
+	}
 }
 
 /*
 Produce a histogram from a given specification.
 */
-func CreateHistogram(specification *HistogramSpecification) *Histogram {
-	bucketCount := len(specification.Starts)
-
-	metric := &Histogram{
+func NewHistogram(specification *HistogramSpecification) Histogram {
+	metric := &histogram{
+		bucketMaker:           specification.BucketBuilder,
 		bucketStarts:          specification.Starts,
-		buckets:               make([]Bucket, bucketCount),
 		reportablePercentiles: specification.ReportablePercentiles,
-	}
-
-	for i := 0; i < bucketCount; i++ {
-		metric.buckets[i] = specification.BucketMaker()
+		values:                map[string]*histogramValue{},
 	}
 
 	return metric

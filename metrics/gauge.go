@@ -10,6 +10,7 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/matttproud/golang_instrumentation/utility"
 	"sync"
 )
 
@@ -19,44 +20,86 @@ value or an accumulation.  For instance, if one wants to expose the current
 temperature or the hitherto bandwidth used, this would be the metric for such
 circumstances.
 */
-type GaugeMetric struct {
-	value float64
-	mutex sync.RWMutex
+type Gauge interface {
+	AsMarshallable() map[string]interface{}
+	ResetAll()
+	Set(labels map[string]string, value float64) float64
+	String() string
 }
 
-func (metric *GaugeMetric) String() string {
-	formatString := "[GaugeMetric; value=%f]"
+type gaugeValue struct {
+	labels map[string]string
+	value  float64
+}
+
+func NewGauge() Gauge {
+	return &gauge{
+		values: map[string]*gaugeValue{},
+	}
+}
+
+type gauge struct {
+	mutex  sync.RWMutex
+	values map[string]*gaugeValue
+}
+
+func (metric *gauge) String() string {
+	formatString := "[Gauge %s]"
 
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	return fmt.Sprintf(formatString, metric.value)
+	return fmt.Sprintf(formatString, metric.values)
 }
 
-func (metric *GaugeMetric) Set(value float64) float64 {
+func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	metric.value = value
+	if labels == nil {
+		labels = map[string]string{}
+	}
 
-	return metric.value
+	signature := utility.LabelsToSignature(labels)
+
+	if original, ok := metric.values[signature]; ok {
+		original.value = value
+	} else {
+		metric.values[signature] = &gaugeValue{
+			labels: labels,
+			value:  value,
+		}
+	}
+
+	return value
 }
 
-func (metric *GaugeMetric) Get() float64 {
+func (metric *gauge) ResetAll() {
+	metric.mutex.Lock()
+	defer metric.mutex.Unlock()
+
+	for key, value := range metric.values {
+		for label := range value.labels {
+			delete(value.labels, label)
+		}
+		delete(metric.values, key)
+	}
+}
+
+func (metric *gauge) AsMarshallable() map[string]interface{} {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	return metric.value
-}
+	values := make([]map[string]interface{}, 0, len(metric.values))
+	for _, value := range metric.values {
+		values = append(values, map[string]interface{}{
+			labelsKey: value.labels,
+			valueKey:  value.value,
+		})
+	}
 
-func (metric *GaugeMetric) Marshallable() map[string]interface{} {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	v := make(map[string]interface{}, 2)
-
-	v[valueKey] = metric.value
-	v[typeKey] = gaugeTypeValue
-
-	return v
+	return map[string]interface{}{
+		typeKey:  gaugeTypeValue,
+		valueKey: values,
+	}
 }

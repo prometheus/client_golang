@@ -30,13 +30,15 @@ type Bucket interface {
 	*/
 	Add(value float64)
 	/*
-	  Provide a humanized representation hereof.
-	*/
-	String() string
-	/*
 		Provide a count of observations throughout the bucket's lifetime.
 	*/
 	Observations() int
+	// Reset is responsible for resetting this bucket back to a pristine state.
+	Reset()
+	/*
+	  Provide a humanized representation hereof.
+	*/
+	String() string
 	/*
 		Provide the value from the given in-memory value cache or an estimate
 		thereof for the given index.  The consumer of the bucket's data makes

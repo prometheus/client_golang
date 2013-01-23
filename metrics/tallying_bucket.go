@@ -88,11 +88,11 @@ Upon insertion, an object is compared against collected extrema and noted
 as a new minimum or maximum if appropriate.
 */
 type TallyingBucket struct {
-	observations     int
-	smallestObserved float64
+	estimator        TallyingIndexEstimator
 	largestObserved  float64
 	mutex            sync.RWMutex
-	estimator        TallyingIndexEstimator
+	observations     int
+	smallestObserved float64
 }
 
 func (b *TallyingBucket) Add(value float64) {
@@ -131,22 +131,31 @@ func (b *TallyingBucket) ValueForIndex(index int) float64 {
 	return b.estimator(b.smallestObserved, b.largestObserved, index, b.observations)
 }
 
+func (b *TallyingBucket) Reset() {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	b.largestObserved = math.SmallestNonzeroFloat64
+	b.observations = 0
+	b.smallestObserved = math.MaxFloat64
+}
+
 /*
 Produce a TallyingBucket with sane defaults.
 */
 func DefaultTallyingBucket() TallyingBucket {
 	return TallyingBucket{
-		smallestObserved: math.MaxFloat64,
-		largestObserved:  math.SmallestNonzeroFloat64,
 		estimator:        Minimum,
+		largestObserved:  math.SmallestNonzeroFloat64,
+		smallestObserved: math.MaxFloat64,
 	}
 }
 
 func CustomTallyingBucket(estimator TallyingIndexEstimator) TallyingBucket {
 	return TallyingBucket{
-		smallestObserved: math.MaxFloat64,
-		largestObserved:  math.SmallestNonzeroFloat64,
 		estimator:        estimator,
+		largestObserved:  math.SmallestNonzeroFloat64,
+		smallestObserved: math.MaxFloat64,
 	}
 }
 

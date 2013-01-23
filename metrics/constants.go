@@ -12,12 +12,13 @@ constants.go provides package-level constants for metrics.
 package metrics
 
 const (
-	valueKey           = "value"
-	gaugeTypeValue     = "gauge"
 	counterTypeValue   = "counter"
-	typeKey            = "type"
-	histogramTypeValue = "histogram"
+	floatBitCount      = 64
 	floatFormat        = 'f'
 	floatPrecision     = 6
-	floatBitCount      = 64
+	gaugeTypeValue     = "gauge"
+	histogramTypeValue = "histogram"
+	typeKey            = "type"
+	valueKey           = "value"
+	labelsKey          = "labels"
 )

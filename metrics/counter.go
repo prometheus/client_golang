@@ -10,77 +10,145 @@ package metrics
 
 import (
 	"fmt"
+	"github.com/matttproud/golang_instrumentation/utility"
 	"sync"
 )
 
-type CounterMetric struct {
-	value float64
-	mutex sync.RWMutex
+// TODO(matt): Refactor to de-duplicate behaviors.
+
+type Counter interface {
+	AsMarshallable() map[string]interface{}
+	Decrement(labels map[string]string) float64
+	DecrementBy(labels map[string]string, value float64) float64
+	Increment(labels map[string]string) float64
+	IncrementBy(labels map[string]string, value float64) float64
+	ResetAll()
+	Set(labels map[string]string, value float64) float64
+	String() string
 }
 
-func (metric *CounterMetric) Set(value float64) float64 {
+type counterValue struct {
+	labels map[string]string
+	value  float64
+}
+
+func NewCounter() Counter {
+	return &counter{
+		values: map[string]*counterValue{},
+	}
+}
+
+type counter struct {
+	mutex  sync.RWMutex
+	values map[string]*counterValue
+}
+
+func (metric *counter) Set(labels map[string]string, value float64) float64 {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	metric.value = value
+	if labels == nil {
+		labels = map[string]string{}
+	}
 
-	return metric.value
+	signature := utility.LabelsToSignature(labels)
+	if original, ok := metric.values[signature]; ok {
+		original.value = value
+	} else {
+		metric.values[signature] = &counterValue{
+			labels: labels,
+			value:  value,
+		}
+	}
+
+	return value
 }
 
-func (metric *CounterMetric) Reset() {
-	metric.Set(0)
+func (metric *counter) ResetAll() {
+	metric.mutex.Lock()
+	defer metric.mutex.Unlock()
+
+	for key, value := range metric.values {
+		for label := range value.labels {
+			delete(value.labels, label)
+		}
+		delete(metric.values, key)
+	}
 }
 
-func (metric *CounterMetric) String() string {
-	formatString := "[CounterMetric; value=%f]"
+func (metric *counter) String() string {
+	formatString := "[Counter %s]"
 
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	return fmt.Sprintf(formatString, metric.value)
+	return fmt.Sprintf(formatString, metric.values)
 }
 
-func (metric *CounterMetric) IncrementBy(value float64) float64 {
+func (metric *counter) IncrementBy(labels map[string]string, value float64) float64 {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	metric.value += value
+	if labels == nil {
+		labels = map[string]string{}
+	}
 
-	return metric.value
+	signature := utility.LabelsToSignature(labels)
+	if original, ok := metric.values[signature]; ok {
+		original.value += value
+	} else {
+		metric.values[signature] = &counterValue{
+			labels: labels,
+			value:  value,
+		}
+	}
+
+	return value
 }
 
-func (metric *CounterMetric) Increment() float64 {
-	return metric.IncrementBy(1)
+func (metric *counter) Increment(labels map[string]string) float64 {
+	return metric.IncrementBy(labels, 1)
 }
 
-func (metric *CounterMetric) DecrementBy(value float64) float64 {
+func (metric *counter) DecrementBy(labels map[string]string, value float64) float64 {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	metric.value -= value
+	if labels == nil {
+		labels = map[string]string{}
+	}
 
-	return metric.value
+	signature := utility.LabelsToSignature(labels)
+	if original, ok := metric.values[signature]; ok {
+		original.value -= value
+	} else {
+		metric.values[signature] = &counterValue{
+			labels: labels,
+			value:  -1 * value,
+		}
+	}
+
+	return value
 }
 
-func (metric *CounterMetric) Decrement() float64 {
-	return metric.DecrementBy(1)
+func (metric *counter) Decrement(labels map[string]string) float64 {
+	return metric.DecrementBy(labels, 1)
 }
 
-func (metric *CounterMetric) Get() float64 {
+func (metric *counter) AsMarshallable() map[string]interface{} {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	return metric.value
-}
+	values := make([]map[string]interface{}, 0, len(metric.values))
+	for _, value := range metric.values {
+		values = append(values, map[string]interface{}{
+			labelsKey: value.labels,
+			valueKey:  value.value,
+		})
+	}
 
-func (metric *CounterMetric) Marshallable() map[string]interface{} {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	v := make(map[string]interface{}, 2)
-
-	v[valueKey] = metric.value
-	v[typeKey] = counterTypeValue
-
-	return v
+	return map[string]interface{}{
+		valueKey: values,
+		typeKey:  counterTypeValue,
+	}
 }
