@@ -9,8 +9,8 @@ package registry
 import (
 	"bytes"
 	"fmt"
-	"github.com/matttproud/golang_instrumentation/metrics"
-	"github.com/matttproud/golang_instrumentation/utility/test"
+	"github.com/prometheus/client_golang/metrics"
+	"github.com/prometheus/client_golang/utility/test"
 	"io"
 	"net/http"
 	"testing"

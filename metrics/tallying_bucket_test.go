@@ -10,7 +10,7 @@ package metrics
 
 import (
 	. "github.com/matttproud/gocheck"
-	"github.com/matttproud/golang_instrumentation/maths"
+	"github.com/prometheus/client_golang/maths"
 )
 
 func (s *S) TestTallyingPercentileEstimatorMinimum(c *C) {

@@ -10,7 +10,7 @@ package metrics
 
 import (
 	"encoding/json"
-	"github.com/matttproud/golang_instrumentation/utility/test"
+	"github.com/prometheus/client_golang/utility/test"
 	"testing"
 )
 

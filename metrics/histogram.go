@@ -11,7 +11,7 @@ package metrics
 import (
 	"bytes"
 	"fmt"
-	"github.com/matttproud/golang_instrumentation/utility"
+	"github.com/prometheus/client_golang/utility"
 	"math"
 	"strconv"
 	"sync"

@@ -14,7 +14,7 @@ package main
 
 import (
 	"flag"
-	"github.com/matttproud/golang_instrumentation"
+	"github.com/prometheus/client_golang"
 	"net/http"
 )
 

@@ -30,7 +30,7 @@ addresses.  There are probably numerous Go language idiomatic changes that need
 to be made, but this task has been deferred for now.
 
 # Continuous Integration
-[![Build Status](https://secure.travis-ci.org/matttproud/golang_instrumentation.png?branch=master)](http://travis-ci.org/matttproud/golang_instrumentation)
+[![Build Status](https://secure.travis-ci.org/prometheus/client_golang.png?branch=master)](http://travis-ci.org/matttproud/golang_instrumentation)
 
 # Documentation
 Please read the [generated documentation](http://go.pkgdoc.org/launchpad.net/gocheck)

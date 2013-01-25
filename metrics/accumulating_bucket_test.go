@@ -10,8 +10,8 @@ package metrics
 
 import (
 	. "github.com/matttproud/gocheck"
-	"github.com/matttproud/golang_instrumentation/maths"
-	"github.com/matttproud/golang_instrumentation/utility"
+	"github.com/prometheus/client_golang/maths"
+	"github.com/prometheus/client_golang/utility"
 	"time"
 )
 

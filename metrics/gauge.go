@@ -10,7 +10,7 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/matttproud/golang_instrumentation/utility"
+	"github.com/prometheus/client_golang/utility"
 	"sync"
 )
 
