@@ -1,10 +1,8 @@
-/*
-Copyright (c) 2012, Matt T. Proud
-All rights reserved.
-
-Use of this source code is governed by a BSD-style
-license that can be found in the LICENSE file.
-*/
+// Copyright (c) 2012, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 package metrics
 
@@ -14,12 +12,10 @@ import (
 	"sync"
 )
 
-/*
-A gauge metric merely provides an instantaneous representation of a scalar
-value or an accumulation.  For instance, if one wants to expose the current
-temperature or the hitherto bandwidth used, this would be the metric for such
-circumstances.
-*/
+// A gauge metric merely provides an instantaneous representation of a scalar
+// value or an accumulation.  For instance, if one wants to expose the current
+// temperature or the hitherto bandwidth used, this would be the metric for such
+// circumstances.
 type Gauge interface {
 	AsMarshallable() map[string]interface{}
 	ResetAll()
@@ -27,20 +23,20 @@ type Gauge interface {
 	String() string
 }
 
-type gaugeValue struct {
+type gaugeVector struct {
 	labels map[string]string
 	value  float64
 }
 
 func NewGauge() Gauge {
 	return &gauge{
-		values: map[string]*gaugeValue{},
+		values: map[string]*gaugeVector{},
 	}
 }
 
 type gauge struct {
 	mutex  sync.RWMutex
-	values map[string]*gaugeValue
+	values map[string]*gaugeVector
 }
 
 func (metric *gauge) String() string {
@@ -65,7 +61,7 @@ func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 	if original, ok := metric.values[signature]; ok {
 		original.value = value
 	} else {
-		metric.values[signature] = &gaugeValue{
+		metric.values[signature] = &gaugeVector{
 			labels: labels,
 			value:  value,
 		}

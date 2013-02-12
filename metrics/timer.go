@@ -1,10 +1,8 @@
-/*
-Copyright (c) 2012, Matt T. Proud
-All rights reserved.
-
-Use of this source code is governed by a BSD-style
-license that can be found in the LICENSE file.
-*/
+// Copyright (c) 2012, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 package metrics
 
@@ -12,24 +10,18 @@ import (
 	"time"
 )
 
-/*
-This callback is called upon the completion of the timer—i.e., when it stops.
-*/
+// This callback is called upon the completion of the timer—i.e., when it stops.
 type CompletionCallback func(duration time.Duration)
 
-/*
-This is meant to capture a function that a StopWatch can call for purposes
-of instrumentation.
-*/
+// This is meant to capture a function that a StopWatch can call for purposes
+// of instrumentation.
 type InstrumentableCall func()
 
-/*
-StopWatch is the structure that captures instrumentation for durations.
+// StopWatch is the structure that captures instrumentation for durations.
 
-N.B.(mtp): A major limitation hereof is that the StopWatch protocol cannot
-retain instrumentation if a panic percolates within the context that is
-being measured.
-*/
+// N.B.(mtp): A major limitation hereof is that the StopWatch protocol cannot
+// retain instrumentation if a panic percolates within the context that is
+// being measured.
 type StopWatch interface {
 	Stop() time.Duration
 }
@@ -40,9 +32,7 @@ type stopWatch struct {
 	startTime    time.Time
 }
 
-/*
-Return a new StopWatch that is ready for instrumentation.
-*/
+// Return a new StopWatch that is ready for instrumentation.
 func Start(onCompletion CompletionCallback) StopWatch {
 	return &stopWatch{
 		onCompletion: onCompletion,
@@ -50,10 +40,8 @@ func Start(onCompletion CompletionCallback) StopWatch {
 	}
 }
 
-/*
-Stop the StopWatch returning the elapsed duration of its lifetime while
-firing an optional CompletionCallback in the background.
-*/
+// Stop the StopWatch returning the elapsed duration of its lifetime while
+// firing an optional CompletionCallback in the background.
 func (s *stopWatch) Stop() time.Duration {
 	s.endTime = time.Now()
 	duration := s.endTime.Sub(s.startTime)
@@ -65,10 +53,8 @@ func (s *stopWatch) Stop() time.Duration {
 	return duration
 }
 
-/*
-Provide a quick way of instrumenting a InstrumentableCall and emitting its
-duration.
-*/
+// Provide a quick way of instrumenting a InstrumentableCall and emitting its
+// duration.
 func InstrumentCall(instrumentable InstrumentableCall, onCompletion CompletionCallback) time.Duration {
 	s := Start(onCompletion)
 	instrumentable()

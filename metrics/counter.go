@@ -1,10 +1,8 @@
-/*
-Copyright (c) 2012, Matt T. Proud
-All rights reserved.
-
-Use of this source code is governed by a BSD-style
-license that can be found in the LICENSE file.
-*/
+// Copyright (c) 2012, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 package metrics
 
@@ -27,20 +25,20 @@ type Counter interface {
 	String() string
 }
 
-type counterValue struct {
+type counterVector struct {
 	labels map[string]string
 	value  float64
 }
 
 func NewCounter() Counter {
 	return &counter{
-		values: map[string]*counterValue{},
+		values: map[string]*counterVector{},
 	}
 }
 
 type counter struct {
 	mutex  sync.RWMutex
-	values map[string]*counterValue
+	values map[string]*counterVector
 }
 
 func (metric *counter) Set(labels map[string]string, value float64) float64 {
@@ -55,7 +53,7 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 	if original, ok := metric.values[signature]; ok {
 		original.value = value
 	} else {
-		metric.values[signature] = &counterValue{
+		metric.values[signature] = &counterVector{
 			labels: labels,
 			value:  value,
 		}
@@ -97,7 +95,7 @@ func (metric *counter) IncrementBy(labels map[string]string, value float64) floa
 	if original, ok := metric.values[signature]; ok {
 		original.value += value
 	} else {
-		metric.values[signature] = &counterValue{
+		metric.values[signature] = &counterVector{
 			labels: labels,
 			value:  value,
 		}
@@ -122,7 +120,7 @@ func (metric *counter) DecrementBy(labels map[string]string, value float64) floa
 	if original, ok := metric.values[signature]; ok {
 		original.value -= value
 	} else {
-		metric.values[signature] = &counterValue{
+		metric.values[signature] = &counterVector{
 			labels: labels,
 			value:  -1 * value,
 		}
