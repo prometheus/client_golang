@@ -1,8 +1,8 @@
 // Copyright (c) 2013, Matt T. Proud
 // All rights reserved.
 //
-// Use of this source code is governed by a BSD-style license that can be found in
-// the LICENSE file.
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
 
 package registry
 
@@ -18,6 +18,8 @@ var (
 	APIVersion = "0.0.1"
 
 	ProtocolVersionHeader = "X-Prometheus-API-Version"
+
+	ExpositionResource = "/metrics.json"
 
 	baseLabelsKey = "baseLabels"
 	docstringKey  = "docstring"

@@ -1,10 +1,9 @@
-/*
-Copyright (c) 2013, Matt T. Proud
-All rights reserved.
-
-Use of this source code is governed by a BSD-style license that can be found in
-the LICENSE file.
-*/
+// Copyright (c) 2013, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style license that can be found
+// in the LICENSE file.
+//
 
 package registry
 
@@ -14,11 +13,9 @@ import (
 	"time"
 )
 
-/*
-Boilerplate metrics about the metrics reporting subservice.  These are only
-exposed if the DefaultRegistry's exporter is hooked into the HTTP request
-handler.
-*/
+// Boilerplate metrics about the metrics reporting subservice.  These are only
+// exposed if the DefaultRegistry's exporter is hooked into the HTTP request
+// handler.
 var (
 	marshalErrorCount = metrics.NewCounter()
 	dumpErrorCount    = metrics.NewCounter()
@@ -41,4 +38,12 @@ func init() {
 	DefaultRegistry.Register("telemetry_requests_metrics_latency_microseconds", "A histogram of the response latency for requests made against the telemetry system.", NilLabels, requestLatency)
 
 	DefaultRegistry.Register("instance_start_time_seconds", "The time at which the current instance started (UTC).", NilLabels, startTime)
+}
+
+// This callback accumulates the microsecond duration of the reporting
+// framework's overhead such that it can be reported.
+var requestLatencyAccumulator metrics.CompletionCallback = func(duration time.Duration) {
+	microseconds := float64(duration / time.Microsecond)
+
+	requestLatency.Add(nil, microseconds)
 }

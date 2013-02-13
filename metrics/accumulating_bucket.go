@@ -1,10 +1,8 @@
-/*
-Copyright (c) 2012, Matt T. Proud
-All rights reserved.
-
-Use of this source code is governed by a BSD-style
-license that can be found in the LICENSE file.
-*/
+// Copyright (c) 2012, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
 package metrics
 
@@ -27,11 +25,9 @@ type AccumulatingBucket struct {
 	observations   int
 }
 
-/*
-AccumulatingBucketBuilder is a convenience method for generating a
-BucketBuilder that produces AccumatingBucket entries with a certain
-behavior set.
-*/
+// AccumulatingBucketBuilder is a convenience method for generating a
+// BucketBuilder that produces AccumatingBucket entries with a certain
+// behavior set.
 func AccumulatingBucketBuilder(evictionPolicy EvictionPolicy, maximumSize int) BucketBuilder {
 	return func() Bucket {
 		return &AccumulatingBucket{
@@ -42,10 +38,8 @@ func AccumulatingBucketBuilder(evictionPolicy EvictionPolicy, maximumSize int) B
 	}
 }
 
-/*
-Add a value to the bucket.  Depending on whether the bucket is full, it may
-trigger an eviction of older items.
-*/
+// Add a value to the bucket.  Depending on whether the bucket is full, it may
+// trigger an eviction of older items.
 func (b *AccumulatingBucket) Add(value float64) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
@@ -100,11 +94,9 @@ func (b *AccumulatingBucket) ValueForIndex(index int) float64 {
 
 	sort.Float64s(sortedElements)
 
-	/*
-		N.B.(mtp): Interfacing components should not need to comprehend what
-		           eviction and storage container strategies used; therefore,
-		           we adjust this silently.
-	*/
+	// N.B.(mtp): Interfacing components should not need to comprehend what
+	//            eviction and storage container strategies used; therefore,
+	//            we adjust this silently.
 	targetIndex := int(float64(elementCount-1) * (float64(index) / float64(b.observations)))
 
 	return sortedElements[targetIndex]
