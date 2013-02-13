@@ -1,15 +1,11 @@
-/*
-Copyright (c) 2012, Matt T. Proud
-All rights reserved.
+// Copyright (c) 2012, Matt T. Proud
+// All rights reserved.
+//
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
-Use of this source code is governed by a BSD-style
-license that can be found in the LICENSE file.
-*/
-
-/*
-main.go provides a simple skeletal example of how this instrumentation
-framework is registered and invoked.
-*/
+// main.go provides a simple skeletal example of how this instrumentation
+// framework is registered and invoked.
 package main
 
 import (
@@ -29,8 +25,6 @@ func init() {
 func main() {
 	flag.Parse()
 
-	exporter := registry.DefaultRegistry.YieldExporter()
-
-	http.Handle("/metrics.json", exporter)
+	http.Handle(registry.ExpositionResource, registry.DefaultHandler)
 	http.ListenAndServe(listeningAddress, nil)
 }
