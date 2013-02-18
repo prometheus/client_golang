@@ -50,7 +50,6 @@ type container struct {
 	name       string
 }
 
-
 type registry struct {
 	mutex               sync.RWMutex
 	signatureContainers map[string]container
@@ -63,9 +62,12 @@ type registry struct {
 type Registry interface {
 	// Register a metric with a given name.  Name should be globally unique.
 	Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) error
-// Create a http.HandlerFunc that is tied to a Registry such that requests
-// against it generate a representation of the housed metrics.
+	// Create a http.HandlerFunc that is tied to a Registry such that requests
+	// against it generate a representation of the housed metrics.
 	Handler() http.HandlerFunc
+	// This is a legacy version of Handler and is deprecated.  Please stop
+	// using.
+	YieldExporter() http.HandlerFunc
 }
 
 // This builds a new metric registry.  It is not needed in the majority of
