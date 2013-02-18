@@ -298,7 +298,7 @@ func testDumpToWriter(t test.Tester) {
 	}
 
 	for i, scenario := range scenarios {
-		registry := NewRegistry()
+		registry := NewRegistry().(registry)
 
 		for name, metric := range scenario.in.metrics {
 			err := registry.Register(name, fmt.Sprintf("metric %s", name), map[string]string{fmt.Sprintf("label_%s", name): name}, metric)
