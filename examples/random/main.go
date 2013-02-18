@@ -4,9 +4,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// main.go provides a simple example of how to use this instrumentation
-// framework in the context of having something that emits values into
-// its collectors.
+// A simple example of how to use this instrumentation framework in the context
+// of having something that emits values into its collectors.
 //
 // The emitted values correspond to uniform, normal, and exponential
 // distributions.

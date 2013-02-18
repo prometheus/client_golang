@@ -39,8 +39,6 @@ var (
 	abortOnMisuse             bool
 	debugRegistration         bool
 	useAggressiveSanityChecks bool
-
-	DefaultHandler = DefaultRegistry.Handler()
 )
 
 // container represents a top-level registered metric that encompasses its
@@ -52,27 +50,31 @@ type container struct {
 	name       string
 }
 
-// Registry is, as the name implies, a registrar where metrics are listed.
-//
-// In most situations, using DefaultRegistry is sufficient versus creating one's
-// own.
-type Registry struct {
+
+type registry struct {
 	mutex               sync.RWMutex
 	signatureContainers map[string]container
 }
 
+// Registry is a registrar where metrics are listed.
+//
+// In most situations, using DefaultRegistry is sufficient versus creating one's
+// own.
+type Registry interface {
+	// Register a metric with a given name.  Name should be globally unique.
+	Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) error
+// Create a http.HandlerFunc that is tied to a Registry such that requests
+// against it generate a representation of the housed metrics.
+	Handler() http.HandlerFunc
+}
+
 // This builds a new metric registry.  It is not needed in the majority of
 // cases.
-func NewRegistry() *Registry {
-	return &Registry{
+func NewRegistry() Registry {
+	return registry{
 		signatureContainers: make(map[string]container),
 	}
 }
-
-// This is the default registry with which Metric objects are associated.  It
-// is primarily a read-only object after server instantiation.
-//
-var DefaultRegistry = NewRegistry()
 
 // Associate a Metric with the DefaultRegistry.
 func Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) error {
@@ -82,7 +84,7 @@ func Register(name, docstring string, baseLabels map[string]string, metric metri
 // isValidCandidate returns true if the candidate is acceptable for use.  In the
 // event of any apparent incorrect use it will report the problem, invalidate
 // the candidate, or outright abort.
-func (r *Registry) isValidCandidate(name string, baseLabels map[string]string) (signature string, err error) {
+func (r registry) isValidCandidate(name string, baseLabels map[string]string) (signature string, err error) {
 	if len(name) == 0 {
 		err = fmt.Errorf("unnamed metric named with baseLabels %s is invalid", baseLabels)
 
@@ -137,8 +139,7 @@ func (r *Registry) isValidCandidate(name string, baseLabels map[string]string) (
 	return
 }
 
-// Register a metric with a given name.  Name should be globally unique.
-func (r *Registry) Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) (err error) {
+func (r registry) Register(name, docstring string, baseLabels map[string]string, metric metrics.Metric) (err error) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -163,7 +164,7 @@ func (r *Registry) Register(name, docstring string, baseLabels map[string]string
 
 // YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
 // basic authentication.
-func (register *Registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
+func (register registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	// XXX: Work with Daniel to get this removed from the library, as it is really
 	//      superfluous and can be much more elegantly accomplished via
 	//      delegation.
@@ -192,7 +193,7 @@ func (register *Registry) YieldBasicAuthExporter(username, password string) http
 	})
 }
 
-func (registry *Registry) dumpToWriter(writer io.Writer) (err error) {
+func (registry registry) dumpToWriter(writer io.Writer) (err error) {
 	defer func() {
 		if err != nil {
 			dumpErrorCount.Increment(nil)
@@ -260,15 +261,13 @@ func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer
 	return gziper
 }
 
-func (registry *Registry) YieldExporter() http.HandlerFunc {
+func (registry registry) YieldExporter() http.HandlerFunc {
 	log.Println("Registry.YieldExporter is deprecated in favor of Registry.Handler.")
 
 	return registry.Handler()
 }
 
-// Create a http.HandlerFunc that is tied to a Registry such that requests
-// against it generate a representation of the housed metrics.
-func (registry *Registry) Handler() http.HandlerFunc {
+func (registry registry) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var instrumentable metrics.InstrumentableCall = func() {
 			requestCount.Increment(nil)

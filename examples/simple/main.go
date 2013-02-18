@@ -4,8 +4,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// main.go provides a simple skeletal example of how this instrumentation
-// framework is registered and invoked.
+// A simple skeletal example of how this instrumentation framework is registered
+// and invoked.  Literally, this is the bare bones.
 package main
 
 import (
