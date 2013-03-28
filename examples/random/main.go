@@ -22,15 +22,13 @@ import (
 )
 
 var (
-	listeningAddress string
-
-	barDomain float64
-	barMean   float64
-	fooDomain float64
+	barDomain = flag.Float64("random.fooDomain", 200, "The domain for the random parameter foo.")
+	barMean   = flag.Float64("random.barDomain", 10, "The domain for the random parameter bar.")
+	fooDomain = flag.Float64("random.barMean", 100, "The mean for the random parameter bar.")
 
 	// Create a histogram to track fictitious interservice RPC latency for three
 	// distinct services.
-	rpc_latency = metrics.NewHistogram(&metrics.HistogramSpecification{
+	rpcLatency = metrics.NewHistogram(&metrics.HistogramSpecification{
 		// Four distinct histogram buckets for values:
 		// - equally-sized,
 		// - 0 to 50, 50 to 100, 100 to 150, and 150 to 200.
@@ -45,7 +43,7 @@ var (
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
 
-	rpc_calls = metrics.NewCounter()
+	rpcCalls = metrics.NewCounter()
 
 	// If for whatever reason you are resistant to the idea of having a static
 	// registry for metrics, which is a really bad idea when using Prometheus-
@@ -53,36 +51,33 @@ var (
 	customRegistry = registry.NewRegistry()
 )
 
-func init() {
-	flag.StringVar(&listeningAddress, "listeningAddress", ":8080", "The address to listen to requests on.")
-	flag.Float64Var(&fooDomain, "random.fooDomain", 200, "The domain for the random parameter foo.")
-	flag.Float64Var(&barDomain, "random.barDomain", 10, "The domain for the random parameter bar.")
-	flag.Float64Var(&barMean, "random.barMean", 100, "The mean for the random parameter bar.")
-}
-
 func main() {
 	flag.Parse()
 
 	go func() {
 		for {
-			rpc_latency.Add(map[string]string{"service": "foo"}, rand.Float64()*fooDomain)
-			rpc_calls.Increment(map[string]string{"service": "foo"})
+			rpcLatency.Add(map[string]string{"service": "foo"}, rand.Float64()**fooDomain)
+			rpcCalls.Increment(map[string]string{"service": "foo"})
 
-			rpc_latency.Add(map[string]string{"service": "bar"}, (rand.NormFloat64()*barDomain)+barMean)
-			rpc_calls.Increment(map[string]string{"service": "bar"})
+			rpcLatency.Add(map[string]string{"service": "bar"}, (rand.NormFloat64()**barDomain)+*barMean)
+			rpcCalls.Increment(map[string]string{"service": "bar"})
 
-			rpc_latency.Add(map[string]string{"service": "zed"}, rand.ExpFloat64())
-			rpc_calls.Increment(map[string]string{"service": "zed"})
+			rpcLatency.Add(map[string]string{"service": "zed"}, rand.ExpFloat64())
+			rpcCalls.Increment(map[string]string{"service": "zed"})
 
 			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 
 	http.Handle(registry.ExpositionResource, customRegistry.Handler())
-	http.ListenAndServe(listeningAddress, nil)
+	http.ListenAndServe(*listeningAddress, nil)
 }
 
 func init() {
-	customRegistry.Register("rpc_latency_microseconds", "RPC latency.", registry.NilLabels, rpc_latency)
-	customRegistry.Register("rpc_calls_total", "RPC calls.", registry.NilLabels, rpc_calls)
+	customRegistry.Register("rpc_latency_microseconds", "RPC latency.", registry.NilLabels, rpcLatency)
+	customRegistry.Register("rpc_calls_total", "RPC calls.", registry.NilLabels, rpcCalls)
 }
+
+var (
+	listeningAddress = flag.String("listeningAddress", ":8080", "The address to listen to requests on.")
+)
