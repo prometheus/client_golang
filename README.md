@@ -66,6 +66,12 @@ representation thereof.  For instance, if a values therein is requested,
 it may situationally emit a minimum, maximum, an average, or any other
 reduction mechanism requested.
 
+# Getting Started
+
+  * The source code is periodically indexed: [Go Exposition Client](http://godoc.org/github.com/prometheus/client_golang).
+  * All of the core developers are accessible via the [Prometheus Developers Mailinglist](https://groups.google.com/forum/?fromgroups#!forum/prometheus-developers).
+
+
 # Testing
 This package employs [gocheck](http://labix.org/gocheck) for testing.  Please
 ensure that all tests pass by running the following from the project root:
