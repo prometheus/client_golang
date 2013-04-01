@@ -59,7 +59,7 @@ func (b *AccumulatingBucket) Add(value float64) {
 	heap.Push(&b.elements, &v)
 }
 
-func (b *AccumulatingBucket) String() string {
+func (b AccumulatingBucket) String() string {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -76,7 +76,7 @@ func (b *AccumulatingBucket) String() string {
 	return buffer.String()
 }
 
-func (b *AccumulatingBucket) ValueForIndex(index int) float64 {
+func (b AccumulatingBucket) ValueForIndex(index int) float64 {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -102,7 +102,7 @@ func (b *AccumulatingBucket) ValueForIndex(index int) float64 {
 	return sortedElements[targetIndex]
 }
 
-func (b *AccumulatingBucket) Observations() int {
+func (b AccumulatingBucket) Observations() int {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 

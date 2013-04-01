@@ -74,7 +74,7 @@ func (metric *counter) ResetAll() {
 	}
 }
 
-func (metric *counter) String() string {
+func (metric counter) String() string {
 	formatString := "[Counter %s]"
 
 	metric.mutex.RLock()
@@ -133,7 +133,7 @@ func (metric *counter) Decrement(labels map[string]string) float64 {
 	return metric.DecrementBy(labels, 1)
 }
 
-func (metric *counter) AsMarshallable() map[string]interface{} {
+func (metric counter) AsMarshallable() map[string]interface{} {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
