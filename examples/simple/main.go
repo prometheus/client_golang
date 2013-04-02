@@ -14,17 +14,13 @@ import (
 	"net/http"
 )
 
-var (
-	listeningAddress string
-)
-
-func init() {
-	flag.StringVar(&listeningAddress, "listeningAddress", ":8080", "The address to listen to requests on.")
-}
-
 func main() {
 	flag.Parse()
 
 	http.Handle(registry.ExpositionResource, registry.DefaultHandler)
-	http.ListenAndServe(listeningAddress, nil)
+	http.ListenAndServe(*listeningAddress, nil)
 }
+
+var (
+	listeningAddress = flag.String("listeningAddress", ":8080", "The address to listen to requests on.")
+)

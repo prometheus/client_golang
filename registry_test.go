@@ -137,7 +137,7 @@ func testRegister(t test.Tester) {
 
 	for i, scenario := range scenarios {
 		if len(scenario.inputs) != len(scenario.outputs) {
-			t.Fatalf("%d. len(scenario.inputs) != len(scenario.outputs)")
+			t.Fatalf("%d. expected scenario output length %d, got %d", i, len(scenario.inputs), len(scenario.outputs))
 		}
 
 		abortOnMisuse = false
