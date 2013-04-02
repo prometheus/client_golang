@@ -125,7 +125,7 @@ func (h *histogram) Add(labels map[string]string, value float64) {
 	histogram.buckets[lastIndex].Add(value)
 }
 
-func (h *histogram) String() string {
+func (h histogram) String() string {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -160,7 +160,7 @@ func prospectiveIndexForPercentile(percentile float64, totalObservations int) in
 }
 
 // Determine the next bucket element when interim bucket intervals may be empty.
-func (h *histogram) nextNonEmptyBucketElement(signature string, currentIndex, bucketCount int, observationsByBucket []int) (*Bucket, int) {
+func (h histogram) nextNonEmptyBucketElement(signature string, currentIndex, bucketCount int, observationsByBucket []int) (*Bucket, int) {
 	for i := currentIndex; i < bucketCount; i++ {
 		if observationsByBucket[i] == 0 {
 			continue
@@ -179,7 +179,7 @@ func (h *histogram) nextNonEmptyBucketElement(signature string, currentIndex, bu
 // longer contained by the bucket, the index of the last item is returned.  This
 // may occur if the underlying bucket catalogs values and employs an eviction
 // strategy.
-func (h *histogram) bucketForPercentile(signature string, percentile float64) (*Bucket, int) {
+func (h histogram) bucketForPercentile(signature string, percentile float64) (*Bucket, int) {
 	bucketCount := len(h.bucketStarts)
 
 	// This captures the quantity of samples in a given bucket's range.
@@ -232,7 +232,7 @@ func (h *histogram) bucketForPercentile(signature string, percentile float64) (*
 // Return the histogram's estimate of the value for a given percentile of
 // collected samples.  The requested percentile is expected to be a real
 // value within (0, 1.0].
-func (h *histogram) percentile(signature string, percentile float64) float64 {
+func (h histogram) percentile(signature string, percentile float64) float64 {
 	bucket, index := h.bucketForPercentile(signature, percentile)
 
 	return (*bucket).ValueForIndex(index)
@@ -242,7 +242,7 @@ func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, floatFormat, floatPrecision, floatBitCount)
 }
 
-func (h *histogram) AsMarshallable() map[string]interface{} {
+func (h histogram) AsMarshallable() map[string]interface{} {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 

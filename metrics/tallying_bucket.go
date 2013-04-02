@@ -88,7 +88,7 @@ func (b *TallyingBucket) Add(value float64) {
 	b.largestObserved = math.Max(value, b.largestObserved)
 }
 
-func (b *TallyingBucket) String() string {
+func (b TallyingBucket) String() string {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
@@ -101,14 +101,14 @@ func (b *TallyingBucket) String() string {
 	return fmt.Sprintf("[TallyingBucket (%f, %f); %d items]", b.smallestObserved, b.largestObserved, observations)
 }
 
-func (b *TallyingBucket) Observations() int {
+func (b TallyingBucket) Observations() int {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
 	return b.observations
 }
 
-func (b *TallyingBucket) ValueForIndex(index int) float64 {
+func (b TallyingBucket) ValueForIndex(index int) float64 {
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 

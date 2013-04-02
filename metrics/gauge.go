@@ -39,7 +39,7 @@ type gauge struct {
 	values map[string]*gaugeVector
 }
 
-func (metric *gauge) String() string {
+func (metric gauge) String() string {
 	formatString := "[Gauge %s]"
 
 	metric.mutex.RLock()
@@ -82,7 +82,7 @@ func (metric *gauge) ResetAll() {
 	}
 }
 
-func (metric *gauge) AsMarshallable() map[string]interface{} {
+func (metric gauge) AsMarshallable() map[string]interface{} {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
