@@ -1,4 +1,4 @@
-// Copyright (c) 2012, Matt T. Proud
+// Copyright (c) 2013, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -10,14 +10,14 @@ package main
 
 import (
 	"flag"
-	"github.com/prometheus/client_golang"
+	"github.com/prometheus/client_golang/prometheus"
 	"net/http"
 )
 
 func main() {
 	flag.Parse()
 
-	http.Handle(registry.ExpositionResource, registry.DefaultHandler)
+	http.Handle(prometheus.ExpositionResource, prometheus.DefaultHandler)
 	http.ListenAndServe(*listeningAddress, nil)
 }
 

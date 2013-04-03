@@ -1,4 +1,4 @@
-// Copyright (c) 2012, Matt T. Proud
+// Copyright (c) 2013, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -10,8 +10,8 @@ package main
 
 import (
 	"flag"
-	"github.com/prometheus/client_golang"
-	"github.com/prometheus/client_golang/exp"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/exp"
 	"net/http"
 )
 
@@ -48,7 +48,7 @@ func main() {
 	exp.HandleFunc("/hello", helloHandler)
 	exp.HandleFunc("/goodbye", goodbyeHandler)
 	exp.HandleFunc("/teapot", teapotHandler)
-	exp.Handle(registry.ExpositionResource, registry.DefaultHandler)
+	exp.Handle(prometheus.ExpositionResource, prometheus.DefaultHandler)
 
 	http.ListenAndServe(*listeningAddress, exp.DefaultCoarseMux)
 }

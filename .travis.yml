@@ -1,8 +1,4 @@
 language: go
 
-before_script:
- - go get -v github.com/prometheus/client_golang
-
 script:
- - go build -a -v github.com/prometheus/client_golang/...
- - go test -v github.com/prometheus/client_golang/...
+ - make -f Makefile.TRAVIS
