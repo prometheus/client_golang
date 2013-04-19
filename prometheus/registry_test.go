@@ -282,7 +282,7 @@ func testDumpToWriter(t tester) {
 					"foo": NewCounter(),
 				},
 			},
-			out: []byte("[{\"baseLabels\":{\"label_foo\":\"foo\",\"name\":\"foo\"},\"docstring\":\"metric foo\",\"metric\":{\"type\":\"counter\",\"value\":[]}}]"),
+			out: []byte(`[{"baseLabels":{"label_foo":"foo","name":"foo"},"docstring":"metric foo","metric":{"type":"counter","value":[]}}]`),
 		},
 		{
 			in: input{
@@ -291,7 +291,7 @@ func testDumpToWriter(t tester) {
 					"bar": NewCounter(),
 				},
 			},
-			out: []byte("[{\"baseLabels\":{\"label_bar\":\"bar\",\"name\":\"bar\"},\"docstring\":\"metric bar\",\"metric\":{\"type\":\"counter\",\"value\":[]}},{\"baseLabels\":{\"label_foo\":\"foo\",\"name\":\"foo\"},\"docstring\":\"metric foo\",\"metric\":{\"type\":\"counter\",\"value\":[]}}]"),
+			out: []byte(`[{"baseLabels":{"label_bar":"bar","name":"bar"},"docstring":"metric bar","metric":{"type":"counter","value":[]}},{"baseLabels":{"label_foo":"foo","name":"foo"},"docstring":"metric foo","metric":{"type":"counter","value":[]}}]`),
 		},
 	}
 

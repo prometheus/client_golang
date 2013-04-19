@@ -28,7 +28,7 @@ func testGauge(t tester) {
 				steps: []func(g Gauge){},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[]}",
+				value: `{"type":"gauge","value":[]}`,
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func testGauge(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":1}]}",
+				value: `{"type":"gauge","value":[{"labels":{},"value":1}]}`,
 			},
 		},
 		{
@@ -52,7 +52,7 @@ func testGauge(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":2}]}",
+				value: `{"type":"gauge","value":[{"labels":{},"value":2}]}`,
 			},
 		},
 		{
@@ -67,7 +67,7 @@ func testGauge(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{},\"value\":5}]}",
+				value: `{"type":"gauge","value":[{"labels":{},"value":5}]}`,
 			},
 		},
 		{
@@ -85,7 +85,7 @@ func testGauge(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[]}",
+				value: `{"type":"gauge","value":[]}`,
 			},
 		},
 		{
@@ -97,7 +97,7 @@ func testGauge(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"gauge\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":19}]}",
+				value: `{"type":"gauge","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
 			},
 		},
 	}
