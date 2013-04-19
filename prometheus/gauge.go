@@ -16,10 +16,8 @@ import (
 // temperature or the hitherto bandwidth used, this would be the metric for such
 // circumstances.
 type Gauge interface {
-	AsMarshallable() map[string]interface{}
-	ResetAll()
+	Metric
 	Set(labels map[string]string, value float64) float64
-	String() string
 }
 
 type gaugeVector struct {

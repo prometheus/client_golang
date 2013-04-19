@@ -52,10 +52,8 @@ type HistogramSpecification struct {
 }
 
 type Histogram interface {
+	Metric
 	Add(labels map[string]string, value float64)
-	AsMarshallable() map[string]interface{}
-	ResetAll()
-	String() string
 }
 
 // The histogram is an accumulator for samples.  It merely routes into which

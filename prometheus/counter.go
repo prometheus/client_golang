@@ -14,14 +14,13 @@ import (
 // TODO(matt): Refactor to de-duplicate behaviors.
 
 type Counter interface {
-	AsMarshallable() map[string]interface{}
+	Metric
+
 	Decrement(labels map[string]string) float64
 	DecrementBy(labels map[string]string, value float64) float64
 	Increment(labels map[string]string) float64
 	IncrementBy(labels map[string]string, value float64) float64
-	ResetAll()
 	Set(labels map[string]string, value float64) float64
-	String() string
 }
 
 type counterVector struct {
