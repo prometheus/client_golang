@@ -28,7 +28,7 @@ func testCounter(t tester) {
 				steps: []func(g Counter){},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[]}",
+				value: `{"type":"counter","value":[]}`,
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":1}]}",
+				value: `{"type":"counter","value":[{"labels":{},"value":1}]}`,
 			},
 		},
 		{
@@ -52,7 +52,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":2}]}",
+				value: `{"type":"counter","value":[{"labels":{},"value":2}]}`,
 			},
 		},
 		{
@@ -67,7 +67,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{},\"value\":5}]}",
+				value: `{"type":"counter","value":[{"labels":{},"value":5}]}`,
 			},
 		},
 		{
@@ -85,7 +85,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[]}",
+				value: `{"type":"counter","value":[]}`,
 			},
 		},
 		{
@@ -97,7 +97,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":19}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
 			},
 		},
 		{
@@ -112,7 +112,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":24}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":24}]}`,
 			},
 		},
 		{
@@ -124,7 +124,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":1}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":1}]}`,
 			},
 		},
 		{
@@ -136,7 +136,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":-1}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":-1}]}`,
 			},
 		},
 		{
@@ -151,7 +151,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":28}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":28}]}`,
 			},
 		},
 		{
@@ -166,7 +166,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":36}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":36}]}`,
 			},
 		},
 		{
@@ -181,7 +181,7 @@ func testCounter(t tester) {
 				},
 			},
 			out: output{
-				value: "{\"type\":\"counter\",\"value\":[{\"labels\":{\"handler\":\"/foo\"},\"value\":27}]}",
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":27}]}`,
 			},
 		},
 	}
@@ -193,9 +193,7 @@ func testCounter(t tester) {
 			step(counter)
 		}
 
-		marshallable := counter.AsMarshallable()
-
-		bytes, err := json.Marshal(marshallable)
+		bytes, err := json.Marshal(counter)
 		if err != nil {
 			t.Errorf("%d. could not marshal into JSON %s", i, err)
 			continue

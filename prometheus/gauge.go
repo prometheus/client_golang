@@ -7,6 +7,7 @@
 package prometheus
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 )
@@ -16,15 +17,13 @@ import (
 // temperature or the hitherto bandwidth used, this would be the metric for such
 // circumstances.
 type Gauge interface {
-	AsMarshallable() map[string]interface{}
-	ResetAll()
+	Metric
 	Set(labels map[string]string, value float64) float64
-	String() string
 }
 
 type gaugeVector struct {
-	labels map[string]string
-	value  float64
+	Labels map[string]string `json:"labels"`
+	Value  float64           `json:"value"`
 }
 
 func NewGauge() Gauge {
@@ -58,11 +57,11 @@ func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 	signature := labelsToSignature(labels)
 
 	if original, ok := metric.values[signature]; ok {
-		original.value = value
+		original.Value = value
 	} else {
 		metric.values[signature] = &gaugeVector{
-			labels: labels,
-			value:  value,
+			Labels: labels,
+			Value:  value,
 		}
 	}
 
@@ -74,27 +73,24 @@ func (metric *gauge) ResetAll() {
 	defer metric.mutex.Unlock()
 
 	for key, value := range metric.values {
-		for label := range value.labels {
-			delete(value.labels, label)
+		for label := range value.Labels {
+			delete(value.Labels, label)
 		}
 		delete(metric.values, key)
 	}
 }
 
-func (metric gauge) AsMarshallable() map[string]interface{} {
+func (metric gauge) MarshalJSON() ([]byte, error) {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	values := make([]map[string]interface{}, 0, len(metric.values))
+	values := make([]*gaugeVector, 0, len(metric.values))
 	for _, value := range metric.values {
-		values = append(values, map[string]interface{}{
-			labelsKey: value.labels,
-			valueKey:  value.value,
-		})
+		values = append(values, value)
 	}
 
-	return map[string]interface{}{
+	return json.Marshal(map[string]interface{}{
 		typeKey:  gaugeTypeValue,
 		valueKey: values,
-	}
+	})
 }
