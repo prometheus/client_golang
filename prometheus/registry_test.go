@@ -8,6 +8,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -305,15 +306,14 @@ func testDumpToWriter(t tester) {
 			}
 		}
 
-		actual := &bytes.Buffer{}
+		actual, err := json.Marshal(registry)
 
-		err := registry.dumpToWriter(actual)
 		if err != nil {
 			t.Errorf("%d. encountered error while dumping %s", i, err)
 		}
 
-		if !bytes.Equal(scenario.out, actual.Bytes()) {
-			t.Errorf("%d. expected %q for dumping, got %q", i, scenario.out, actual.Bytes())
+		if !bytes.Equal(scenario.out, actual) {
+			t.Errorf("%d. expected %q for dumping, got %q", i, scenario.out, actual)
 		}
 	}
 }

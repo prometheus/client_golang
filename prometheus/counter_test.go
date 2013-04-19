@@ -193,9 +193,7 @@ func testCounter(t tester) {
 			step(counter)
 		}
 
-		marshallable := counter.AsMarshallable()
-
-		bytes, err := json.Marshal(marshallable)
+		bytes, err := json.Marshal(counter)
 		if err != nil {
 			t.Errorf("%d. could not marshal into JSON %s", i, err)
 			continue

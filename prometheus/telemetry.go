@@ -15,9 +15,6 @@ import (
 // exposed if the DefaultRegistry's exporter is hooked into the HTTP request
 // handler.
 var (
-	marshalErrorCount = NewCounter()
-	dumpErrorCount    = NewCounter()
-
 	requestCount          = NewCounter()
 	requestLatencyBuckets = LogarithmicSizedBucketsFor(0, 1000)
 	requestLatency        = NewHistogram(&HistogramSpecification{

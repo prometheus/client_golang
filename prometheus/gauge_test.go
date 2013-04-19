@@ -109,9 +109,7 @@ func testGauge(t tester) {
 			step(gauge)
 		}
 
-		marshallable := gauge.AsMarshallable()
-
-		bytes, err := json.Marshal(marshallable)
+		bytes, err := json.Marshal(gauge)
 		if err != nil {
 			t.Errorf("%d. could not marshal into JSON %s", i, err)
 			continue
