@@ -8,6 +8,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -282,7 +283,7 @@ func testDumpToWriter(t tester) {
 					"foo": NewCounter(),
 				},
 			},
-			out: []byte("[{\"baseLabels\":{\"label_foo\":\"foo\",\"name\":\"foo\"},\"docstring\":\"metric foo\",\"metric\":{\"type\":\"counter\",\"value\":[]}}]"),
+			out: []byte(`[{"baseLabels":{"label_foo":"foo","name":"foo"},"docstring":"metric foo","metric":{"type":"counter","value":[]}}]`),
 		},
 		{
 			in: input{
@@ -291,7 +292,7 @@ func testDumpToWriter(t tester) {
 					"bar": NewCounter(),
 				},
 			},
-			out: []byte("[{\"baseLabels\":{\"label_bar\":\"bar\",\"name\":\"bar\"},\"docstring\":\"metric bar\",\"metric\":{\"type\":\"counter\",\"value\":[]}},{\"baseLabels\":{\"label_foo\":\"foo\",\"name\":\"foo\"},\"docstring\":\"metric foo\",\"metric\":{\"type\":\"counter\",\"value\":[]}}]"),
+			out: []byte(`[{"baseLabels":{"label_bar":"bar","name":"bar"},"docstring":"metric bar","metric":{"type":"counter","value":[]}},{"baseLabels":{"label_foo":"foo","name":"foo"},"docstring":"metric foo","metric":{"type":"counter","value":[]}}]`),
 		},
 	}
 
@@ -305,15 +306,14 @@ func testDumpToWriter(t tester) {
 			}
 		}
 
-		actual := &bytes.Buffer{}
+		actual, err := json.Marshal(registry)
 
-		err := registry.dumpToWriter(actual)
 		if err != nil {
 			t.Errorf("%d. encountered error while dumping %s", i, err)
 		}
 
-		if !bytes.Equal(scenario.out, actual.Bytes()) {
-			t.Errorf("%d. expected %q for dumping, got %q", i, scenario.out, actual.Bytes())
+		if !bytes.Equal(scenario.out, actual) {
+			t.Errorf("%d. expected %q for dumping, got %q", i, scenario.out, actual)
 		}
 	}
 }

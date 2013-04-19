@@ -43,9 +43,9 @@ var (
 // container represents a top-level registered metric that encompasses its
 // static metadata.
 type container struct {
-	baseLabels map[string]string
-	docstring  string
-	metric     Metric
+	BaseLabels map[string]string `json:"baseLabels"`
+	Docstring  string            `json:"docstring"`
+	Metric     Metric            `json:"metric"`
 	name       string
 }
 
@@ -80,6 +80,24 @@ func NewRegistry() Registry {
 // Associate a Metric with the DefaultRegistry.
 func Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
 	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
+}
+
+// Implements json.Marshaler
+func (r registry) MarshalJSON() (_ []byte, err error) {
+	metrics := make([]interface{}, 0, len(r.signatureContainers))
+
+	keys := make([]string, 0, len(metrics))
+	for key := range r.signatureContainers {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		metrics = append(metrics, r.signatureContainers[key])
+	}
+
+	return json.Marshal(metrics)
 }
 
 // isValidCandidate returns true if the candidate is acceptable for use.  In the
@@ -125,7 +143,7 @@ func (r registry) isValidCandidate(name string, baseLabels map[string]string) (s
 	if useAggressiveSanityChecks {
 		for _, container := range r.signatureContainers {
 			if container.name == name {
-				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.baseLabels)
+				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.BaseLabels)
 				if abortOnMisuse {
 					panic(err)
 				} else if debugRegistration {
@@ -154,9 +172,9 @@ func (r registry) Register(name, docstring string, baseLabels map[string]string,
 	}
 
 	r.signatureContainers[signature] = container{
-		baseLabels: baseLabels,
-		docstring:  docstring,
-		metric:     metric,
+		BaseLabels: baseLabels,
+		Docstring:  docstring,
+		Metric:     metric,
 		name:       name,
 	}
 
@@ -192,61 +210,6 @@ func (register registry) YieldBasicAuthExporter(username, password string) http.
 			http.Error(w, "access forbidden", 401)
 		}
 	})
-}
-
-func (registry registry) dumpToWriter(writer io.Writer) (err error) {
-	defer func() {
-		if err != nil {
-			dumpErrorCount.Increment(nil)
-		}
-	}()
-
-	numberOfMetrics := len(registry.signatureContainers)
-	keys := make([]string, 0, numberOfMetrics)
-	for key := range registry.signatureContainers {
-		keys = append(keys, key)
-	}
-
-	sort.Strings(keys)
-
-	_, err = writer.Write([]byte("["))
-	if err != nil {
-		return
-	}
-
-	index := 0
-
-	for _, key := range keys {
-		container := registry.signatureContainers[key]
-		intermediate := map[string]interface{}{
-			baseLabelsKey: container.baseLabels,
-			docstringKey:  container.docstring,
-			metricKey:     container.metric.AsMarshallable(),
-		}
-		marshaled, err := json.Marshal(intermediate)
-		if err != nil {
-			marshalErrorCount.Increment(nil)
-			index++
-			continue
-		}
-
-		if index > 0 && index < numberOfMetrics {
-			_, err = writer.Write([]byte(","))
-			if err != nil {
-				return err
-			}
-		}
-
-		_, err = writer.Write(marshaled)
-		if err != nil {
-			return err
-		}
-		index++
-	}
-
-	_, err = writer.Write([]byte("]"))
-
-	return
 }
 
 // decorateWriter annotates the response writer to handle any other behaviors
@@ -286,8 +249,7 @@ func (registry registry) Handler() http.HandlerFunc {
 				defer closer.Close()
 			}
 
-			registry.dumpToWriter(writer)
-
+			json.NewEncoder(writer).Encode(registry)
 		} else {
 			w.WriteHeader(http.StatusNotFound)
 		}

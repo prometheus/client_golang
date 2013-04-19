@@ -7,6 +7,7 @@
 package prometheus
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
 )
@@ -14,19 +15,18 @@ import (
 // TODO(matt): Refactor to de-duplicate behaviors.
 
 type Counter interface {
-	AsMarshallable() map[string]interface{}
+	Metric
+
 	Decrement(labels map[string]string) float64
 	DecrementBy(labels map[string]string, value float64) float64
 	Increment(labels map[string]string) float64
 	IncrementBy(labels map[string]string, value float64) float64
-	ResetAll()
 	Set(labels map[string]string, value float64) float64
-	String() string
 }
 
 type counterVector struct {
-	labels map[string]string
-	value  float64
+	Labels map[string]string `json:"labels"`
+	Value  float64           `json:"value"`
 }
 
 func NewCounter() Counter {
@@ -50,11 +50,11 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 
 	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
-		original.value = value
+		original.Value = value
 	} else {
 		metric.values[signature] = &counterVector{
-			labels: labels,
-			value:  value,
+			Labels: labels,
+			Value:  value,
 		}
 	}
 
@@ -66,8 +66,8 @@ func (metric *counter) ResetAll() {
 	defer metric.mutex.Unlock()
 
 	for key, value := range metric.values {
-		for label := range value.labels {
-			delete(value.labels, label)
+		for label := range value.Labels {
+			delete(value.Labels, label)
 		}
 		delete(metric.values, key)
 	}
@@ -92,11 +92,11 @@ func (metric *counter) IncrementBy(labels map[string]string, value float64) floa
 
 	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
-		original.value += value
+		original.Value += value
 	} else {
 		metric.values[signature] = &counterVector{
-			labels: labels,
-			value:  value,
+			Labels: labels,
+			Value:  value,
 		}
 	}
 
@@ -117,11 +117,11 @@ func (metric *counter) DecrementBy(labels map[string]string, value float64) floa
 
 	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
-		original.value -= value
+		original.Value -= value
 	} else {
 		metric.values[signature] = &counterVector{
-			labels: labels,
-			value:  -1 * value,
+			Labels: labels,
+			Value:  -1 * value,
 		}
 	}
 
@@ -132,20 +132,18 @@ func (metric *counter) Decrement(labels map[string]string) float64 {
 	return metric.DecrementBy(labels, 1)
 }
 
-func (metric counter) AsMarshallable() map[string]interface{} {
+func (metric counter) MarshalJSON() ([]byte, error) {
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
-	values := make([]map[string]interface{}, 0, len(metric.values))
+	values := make([]*counterVector, 0, len(metric.values))
+
 	for _, value := range metric.values {
-		values = append(values, map[string]interface{}{
-			labelsKey: value.labels,
-			valueKey:  value.value,
-		})
+		values = append(values, value)
 	}
 
-	return map[string]interface{}{
+	return json.Marshal(map[string]interface{}{
 		valueKey: values,
 		typeKey:  counterTypeValue,
-	}
+	})
 }

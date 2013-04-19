@@ -8,6 +8,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -52,10 +53,8 @@ type HistogramSpecification struct {
 }
 
 type Histogram interface {
+	Metric
 	Add(labels map[string]string, value float64)
-	AsMarshallable() map[string]interface{}
-	ResetAll()
-	String() string
 }
 
 // The histogram is an accumulator for samples.  It merely routes into which
@@ -240,29 +239,30 @@ func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, floatFormat, floatPrecision, floatBitCount)
 }
 
-func (h histogram) AsMarshallable() map[string]interface{} {
+func (h histogram) MarshalJSON() ([]byte, error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
-	result := make(map[string]interface{}, 2)
-	result[typeKey] = histogramTypeValue
 	values := make([]map[string]interface{}, 0, len(h.values))
 
 	for signature, value := range h.values {
-		metricContainer := map[string]interface{}{}
-		metricContainer[labelsKey] = value.labels
-		intermediate := map[string]interface{}{}
+		percentiles := make(map[string]float64, len(h.reportablePercentiles))
+
 		for _, percentile := range h.reportablePercentiles {
 			formatted := formatFloat(percentile)
-			intermediate[formatted] = h.percentile(signature, percentile)
+			percentiles[formatted] = h.percentile(signature, percentile)
 		}
-		metricContainer[valueKey] = intermediate
-		values = append(values, metricContainer)
+
+		values = append(values, map[string]interface{}{
+			labelsKey: value.labels,
+			valueKey:  percentiles,
+		})
 	}
 
-	result[valueKey] = values
-
-	return result
+	return json.Marshal(map[string]interface{}{
+		typeKey:  histogramTypeValue,
+		valueKey: values,
+	})
 }
 
 func (h *histogram) ResetAll() {
