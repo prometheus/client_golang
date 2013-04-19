@@ -40,8 +40,8 @@ func init() {
 
 // This callback accumulates the microsecond duration of the reporting
 // framework's overhead such that it can be reported.
-var requestLatencyAccumulator CompletionCallback = func(duration time.Duration) {
-	microseconds := float64(duration / time.Microsecond)
+var requestLatencyAccumulator = func(began time.Time) {
+	microseconds := float64(time.Since(began) / time.Microsecond)
 
 	requestLatency.Add(nil, microseconds)
 }

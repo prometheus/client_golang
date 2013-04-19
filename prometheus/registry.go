@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -269,29 +270,27 @@ func (registry registry) YieldExporter() http.HandlerFunc {
 
 func (registry registry) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var instrumentable InstrumentableCall = func() {
-			requestCount.Increment(nil)
-			url := r.URL
+		defer requestLatencyAccumulator(time.Now())
 
-			if strings.HasSuffix(url.Path, jsonSuffix) {
-				header := w.Header()
-				header.Set(ProtocolVersionHeader, APIVersion)
-				header.Set(contentTypeHeader, jsonContentType)
+		requestCount.Increment(nil)
+		url := r.URL
 
-				writer := decorateWriter(r, w)
+		if strings.HasSuffix(url.Path, jsonSuffix) {
+			header := w.Header()
+			header.Set(ProtocolVersionHeader, APIVersion)
+			header.Set(contentTypeHeader, jsonContentType)
 
-				if closer, ok := writer.(io.Closer); ok {
-					defer closer.Close()
-				}
+			writer := decorateWriter(r, w)
 
-				registry.dumpToWriter(writer)
-
-			} else {
-				w.WriteHeader(http.StatusNotFound)
+			if closer, ok := writer.(io.Closer); ok {
+				defer closer.Close()
 			}
 
+			registry.dumpToWriter(writer)
+
+		} else {
+			w.WriteHeader(http.StatusNotFound)
 		}
-		InstrumentCall(instrumentable, requestLatencyAccumulator)
 	}
 }
 
