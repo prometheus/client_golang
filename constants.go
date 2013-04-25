@@ -28,9 +28,9 @@ const (
 	APIVersion = "0.0.1"
 
 	// When reporting telemetric data over the HTTP web services interface, a web
-	// services interface shall include this header along with APIVersion as its
+	// services interface shall include this Content-Type along with APIVersion as its
 	// value.
-	ProtocolVersionHeader = "X-Prometheus-API-Version"
+	ProtocolContentType = "Content-Type: application/json; protocol=prometheus_telemetry; version=" + APIVersion
 
 	// The customary web services endpoint on which telemetric data is exposed.
 	ExpositionResource = "/metrics.json"
