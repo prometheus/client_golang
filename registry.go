@@ -31,7 +31,6 @@ const (
 	contentTypeHeader        = "Content-Type"
 	gzipAcceptEncodingValue  = "gzip"
 	gzipContentEncodingValue = "gzip"
-	jsonContentType          = "application/json"
 	jsonSuffix               = ".json"
 )
 
@@ -277,8 +276,7 @@ func (registry registry) Handler() http.HandlerFunc {
 
 			if strings.HasSuffix(url.Path, jsonSuffix) {
 				header := w.Header()
-				header.Set(ProtocolVersionHeader, APIVersion)
-				header.Set(contentTypeHeader, jsonContentType)
+				header.Set(contentTypeHeader, ProtocolContentType)
 
 				writer := decorateWriter(r, w)
 
