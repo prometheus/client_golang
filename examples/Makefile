@@ -11,35 +11,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MAKE_ARTIFACTS = search_index
-
 all: test
 
 build:
-	$(MAKE) -C prometheus build
-	$(MAKE) -C examples build
+	$(MAKE) -C delegator build
+	$(MAKE) -C random build
+	$(MAKE) -C simple build
 
 test: build
-	$(MAKE) -C prometheus test
-	$(MAKE) -C examples test
+	$(MAKE) -C delegator test
+	$(MAKE) -C random test
+	$(MAKE) -C simple test
 
 advice: test
-	$(MAKE) -C prometheus advice
-	$(MAKE) -C examples advice
-
-format:
-	find . -iname '*.go' -exec gofmt -w -s=true '{}' ';'
-
-search_index:
-	godoc -index -write_index -index_files='search_index'
-
-documentation: search_index
-	godoc -http=:6060 -index -index_files='search_index'
+	$(MAKE) -C delegator advice
+	$(MAKE) -C random advice
+	$(MAKE) -C simple advice
 
 clean:
-	$(MAKE) -C examples clean
-	rm -f $(MAKE_ARTIFACTS)
-	find . -iname '*~' -exec rm -f '{}' ';'
-	find . -iname '*#' -exec rm -f '{}' ';'
+	$(MAKE) -C delegator clean
+	$(MAKE) -C random clean
+	$(MAKE) -C simple clean
 
-.PHONY: advice build clean documentation format test
+.PHONY: advice build clean test

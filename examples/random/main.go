@@ -1,4 +1,4 @@
-// Copyright (c) 2012, Matt T. Proud
+// Copyright (c) 2013, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -13,9 +13,7 @@ package main
 
 import (
 	"flag"
-	"github.com/prometheus/client_golang"
-	"github.com/prometheus/client_golang/maths"
-	"github.com/prometheus/client_golang/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"math/rand"
 	"net/http"
 	"time"
@@ -28,27 +26,27 @@ var (
 
 	// Create a histogram to track fictitious interservice RPC latency for three
 	// distinct services.
-	rpcLatency = metrics.NewHistogram(&metrics.HistogramSpecification{
+	rpcLatency = prometheus.NewHistogram(&prometheus.HistogramSpecification{
 		// Four distinct histogram buckets for values:
 		// - equally-sized,
 		// - 0 to 50, 50 to 100, 100 to 150, and 150 to 200.
-		Starts: metrics.EquallySizedBucketsFor(0, 200, 4),
+		Starts: prometheus.EquallySizedBucketsFor(0, 200, 4),
 		// Create histogram buckets using an accumulating bucket, a bucket that
 		// holds sample values subject to an eviction policy:
 		// - 50 elements are allowed per bucket.
 		// - Once 50 have been reached, the bucket empties 10 elements, averages the
 		//   evicted elements, and re-appends that back to the bucket.
-		BucketBuilder: metrics.AccumulatingBucketBuilder(metrics.EvictAndReplaceWith(10, maths.Average), 50),
+		BucketBuilder: prometheus.AccumulatingBucketBuilder(prometheus.EvictAndReplaceWith(10, prometheus.AverageReducer), 50),
 		// The histogram reports percentiles 1, 5, 50, 90, and 99.
 		ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
 	})
 
-	rpcCalls = metrics.NewCounter()
+	rpcCalls = prometheus.NewCounter()
 
 	// If for whatever reason you are resistant to the idea of having a static
 	// registry for metrics, which is a really bad idea when using Prometheus-
 	// enabled library code, you can create your own.
-	customRegistry = registry.NewRegistry()
+	customRegistry = prometheus.NewRegistry()
 )
 
 func main() {
@@ -69,13 +67,13 @@ func main() {
 		}
 	}()
 
-	http.Handle(registry.ExpositionResource, customRegistry.Handler())
+	http.Handle(prometheus.ExpositionResource, customRegistry.Handler())
 	http.ListenAndServe(*listeningAddress, nil)
 }
 
 func init() {
-	customRegistry.Register("rpc_latency_microseconds", "RPC latency.", registry.NilLabels, rpcLatency)
-	customRegistry.Register("rpc_calls_total", "RPC calls.", registry.NilLabels, rpcCalls)
+	customRegistry.Register("rpc_latency_microseconds", "RPC latency.", prometheus.NilLabels, rpcLatency)
+	customRegistry.Register("rpc_calls_total", "RPC calls.", prometheus.NilLabels, rpcCalls)
 }
 
 var (
