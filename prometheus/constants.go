@@ -24,12 +24,10 @@ const (
 
 	// The format of the exported data.  This will match this library's version,
 	// which subscribes to the Semantic Versioning scheme.
-	APIVersion = "0.0.1"
+	APIVersion = "0.0.2"
 
-	// When reporting telemetric data over the HTTP web services interface, a web
-	// services interface shall include this header along with APIVersion as its
-	// value.
-	ProtocolVersionHeader = "X-Prometheus-API-Version"
+	// The content type and schema information set on telemetry data responses.
+	TelemetryContentType = `application/json; schema="prometheus/telemetry"; version=` + APIVersion
 
 	// The customary web services endpoint on which telemetric data is exposed.
 	ExpositionResource = "/metrics.json"

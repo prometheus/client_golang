@@ -240,8 +240,7 @@ func (registry registry) Handler() http.HandlerFunc {
 
 		if strings.HasSuffix(url.Path, jsonSuffix) {
 			header := w.Header()
-			header.Set(ProtocolVersionHeader, APIVersion)
-			header.Set(contentTypeHeader, jsonContentType)
+			header.Set(contentTypeHeader, TelemetryContentType)
 
 			writer := decorateWriter(r, w)
 
