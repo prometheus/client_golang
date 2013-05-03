@@ -122,7 +122,7 @@ func (h *histogram) Add(labels map[string]string, value float64) {
 	histogram.buckets[lastIndex].Add(value)
 }
 
-func (h histogram) String() string {
+func (h *histogram) String() string {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -239,7 +239,7 @@ func formatFloat(value float64) string {
 	return strconv.FormatFloat(value, floatFormat, floatPrecision, floatBitCount)
 }
 
-func (h histogram) MarshalJSON() ([]byte, error) {
+func (h *histogram) MarshalJSON() ([]byte, error) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
