@@ -4,7 +4,8 @@
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 
-// Prometheus' client side metric primitives and telemetry exposition framework.
+// Package prometheus provides client side metric primitives and a telemetry
+// exposition framework.
 //
 // This package provides both metric primitives and tools for their exposition
 // to the Prometheus time series collection and computation framework.
