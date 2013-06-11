@@ -11,12 +11,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package extraction
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 // Processor002 is responsible for decoding payloads from protocol version
@@ -24,13 +26,13 @@ import (
 var Processor002 = &processor002{}
 
 type histogram002 struct {
-	Labels map[string]string      `json:"labels"`
-	Values map[string]SampleValue `json:"value"`
+	Labels map[string]string            `json:"labels"`
+	Values map[string]model.SampleValue `json:"value"`
 }
 
 type counter002 struct {
 	Labels map[string]string `json:"labels"`
-	Value  SampleValue       `json:"value"`
+	Value  model.SampleValue `json:"value"`
 }
 
 type processor002 struct{}
@@ -51,7 +53,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 		return err
 	}
 
-	pendingSamples := Samples{}
+	pendingSamples := model.Samples{}
 	for _, entity := range entities {
 		switch entity.Metric.Type {
 		case "counter", "gauge":
@@ -68,8 +70,8 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 				entityLabels := labelSet(entity.BaseLabels).Merge(labelSet(counter.Labels))
 				labels := mergeTargetLabels(entityLabels, o.BaseLabels)
 
-				pendingSamples = append(pendingSamples, &Sample{
-					Metric:    Metric(labels),
+				pendingSamples = append(pendingSamples, &model.Sample{
+					Metric:    model.Metric(labels),
 					Timestamp: o.Timestamp,
 					Value:     counter.Value,
 				})
@@ -88,11 +90,11 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 			for _, histogram := range values {
 				for percentile, value := range histogram.Values {
 					entityLabels := labelSet(entity.BaseLabels).Merge(labelSet(histogram.Labels))
-					entityLabels[LabelName("percentile")] = LabelValue(percentile)
+					entityLabels[model.LabelName("percentile")] = model.LabelValue(percentile)
 					labels := mergeTargetLabels(entityLabels, o.BaseLabels)
 
-					pendingSamples = append(pendingSamples, &Sample{
-						Metric:    Metric(labels),
+					pendingSamples = append(pendingSamples, &model.Sample{
+						Metric:    model.Metric(labels),
 						Timestamp: o.Timestamp,
 						Value:     value,
 					})

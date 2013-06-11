@@ -11,23 +11,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package extraction
 
 import (
 	"io"
 	"time"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 const (
 	// The label name prefix to prepend if a synthetic label is already present
 	// in the exported metrics.
-	ExporterLabelPrefix = LabelName("exporter_")
+	ExporterLabelPrefix model.LabelName = "exporter_"
 
 	// The label name indicating the metric name of a timeseries.
-	MetricNameLabel = LabelName("name")
+	MetricNameLabel = "name"
 
 	// The label name indicating the job from which a timeseries was scraped.
-	JobLabel = LabelName("job")
+	JobLabel = "job"
 )
 
 // ProcessOptions dictates how the interpreted stream should be rendered for
@@ -37,7 +39,7 @@ type ProcessOptions struct {
 	Timestamp time.Time
 
 	// BaseLabels are labels that are accumulated onto each sample, if any.
-	BaseLabels LabelSet
+	BaseLabels model.LabelSet
 }
 
 // Processor is responsible for decoding the actual message responses from
@@ -53,11 +55,11 @@ type Processor interface {
 //
 // NOTE: This should be deleted when support for go 1.0.3 is removed; 1.1 is
 //       smart enough to unmarshal JSON objects into LabelSet directly.
-func labelSet(labels map[string]string) LabelSet {
-	labelset := make(LabelSet, len(labels))
+func labelSet(labels map[string]string) model.LabelSet {
+	labelset := make(model.LabelSet, len(labels))
 
 	for k, v := range labels {
-		labelset[LabelName(k)] = LabelValue(v)
+		labelset[model.LabelName(k)] = model.LabelValue(v)
 	}
 
 	return labelset
@@ -67,12 +69,12 @@ func labelSet(labels map[string]string) LabelSet {
 // exported sample. If a label is already defined in the exported sample, we
 // assume that we are scraping an intermediate exporter and attach
 // "exporter_"-prefixes to Prometheus' own base labels.
-func mergeTargetLabels(entityLabels, targetLabels LabelSet) LabelSet {
+func mergeTargetLabels(entityLabels, targetLabels model.LabelSet) model.LabelSet {
 	if targetLabels == nil {
-		targetLabels = LabelSet{}
+		targetLabels = model.LabelSet{}
 	}
 
-	result := LabelSet{}
+	result := model.LabelSet{}
 
 	for label, value := range entityLabels {
 		result[label] = value
@@ -91,9 +93,32 @@ func mergeTargetLabels(entityLabels, targetLabels LabelSet) LabelSet {
 // Result encapsulates the outcome from processing samples from a source.
 type Result struct {
 	Err     error
-	Samples Samples
+	Samples model.Samples
 }
 
-// A LabelName is a key for a LabelSet or Metric.  It has a value associated
-// therewith.
-type LabelName string
+// A basic interface only useful in testing contexts for dispensing the time
+// in a controlled manner.
+type instantProvider interface {
+	// The current instant.
+	Now() time.Time
+}
+
+// Clock is a simple means for fluently wrapping around standard Go timekeeping
+// mechanisms to enhance testability without compromising code readability.
+//
+// It is sufficient for use on bare initialization.  A provider should be
+// set only for test contexts.  When not provided, it emits the current
+// system time.
+type clock struct {
+	// The underlying means through which time is provided, if supplied.
+	Provider instantProvider
+}
+
+// Emit the current instant.
+func (t *clock) Now() time.Time {
+	if t.Provider == nil {
+		return time.Now()
+	}
+
+	return t.Provider.Now()
+}

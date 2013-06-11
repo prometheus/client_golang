@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package extraction
 
 import (
 	"container/list"
@@ -21,13 +21,16 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/test"
+	"github.com/prometheus/client_golang/model"
 )
 
-func testProcessor002Process(t tester) {
+func testProcessor002Process(t test.Tester) {
 	var scenarios = []struct {
 		in         string
-		baseLabels LabelSet
-		out        Samples
+		baseLabels model.LabelSet
+		out        model.Samples
 		err        error
 	}{
 		{
@@ -36,85 +39,85 @@ func testProcessor002Process(t tester) {
 		},
 		{
 			in: "test0_0_1-0_0_2.json",
-			baseLabels: LabelSet{
+			baseLabels: model.LabelSet{
 				JobLabel: "batch_exporter",
 			},
-			out: Samples{
-				&Sample{
-					Metric: Metric{"service": "zed", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
+			out: model.Samples{
+				&model.Sample{
+					Metric: model.Metric{"service": "zed", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
 					Value:  25,
 				},
-				&Sample{
-					Metric: Metric{"service": "bar", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"service": "bar", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
 					Value:  25,
 				},
-				&Sample{
-					Metric: Metric{"service": "foo", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"service": "foo", MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
 					Value:  25,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
 					Value:  0.0459814091918713,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
 					Value:  78.48563317257356,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.010000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
 					Value:  15.890724674774395,
 				},
-				&Sample{
+				&model.Sample{
 
-					Metric: Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
+					Metric: model.Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
 					Value:  0.0459814091918713,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
 					Value:  78.48563317257356,
 				},
-				&Sample{
+				&model.Sample{
 
-					Metric: Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
+					Metric: model.Metric{"percentile": "0.050000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
 					Value:  15.890724674774395,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
 					Value:  0.6120456642749681,
 				},
-				&Sample{
+				&model.Sample{
 
-					Metric: Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
+					Metric: model.Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
 					Value:  97.31798360385088,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.500000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
 					Value:  84.63044031436561,
 				},
-				&Sample{
+				&model.Sample{
 
-					Metric: Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
+					Metric: model.Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
 					Value:  1.355915069887731,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
 					Value:  109.89202084295582,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.900000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
 					Value:  160.21100853053224,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
 					Value:  1.772733213161236,
 				},
-				&Sample{
+				&model.Sample{
 
-					Metric: Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
+					Metric: model.Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
 					Value:  109.99626121011262,
 				},
-				&Sample{
-					Metric: Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
+				&model.Sample{
+					Metric: model.Metric{"percentile": "0.990000", MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
 					Value:  172.49828748957728,
 				},
 			},
@@ -136,12 +139,12 @@ func testProcessor002Process(t tester) {
 			BaseLabels: scenario.baseLabels,
 		}
 		err = Processor002.ProcessSingle(reader, inputChannel, options)
-		if !errorEqual(scenario.err, err) {
+		if !test.ErrorEqual(scenario.err, err) {
 			t.Errorf("%d. expected err of %s, got %s", i, scenario.err, err)
 			continue
 		}
 
-		delivered := Samples{}
+		delivered := model.Samples{}
 
 		for len(inputChannel) != 0 {
 			result := <-inputChannel
@@ -167,7 +170,7 @@ func testProcessor002Process(t tester) {
 
 			found := false
 			for element := expectedElements.Front(); element != nil && found == false; element = element.Next() {
-				candidate := element.Value.(*Sample)
+				candidate := element.Value.(*model.Sample)
 
 				if candidate.Value != actual.Value {
 					continue
