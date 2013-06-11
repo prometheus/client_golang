@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package model
 
 import (
 	"runtime"
@@ -21,40 +21,40 @@ import (
 func TestFingerprintComparison(t *testing.T) {
 	fingerprints := []*Fingerprint{
 		{
-			hash: 0,
-			firstCharacterOfFirstLabelName: "b",
-			labelMatterLength:              1,
-			lastCharacterOfLastLabelValue:  "b",
+			Hash: 0,
+			FirstCharacterOfFirstLabelName: "b",
+			LabelMatterLength:              1,
+			LastCharacterOfLastLabelValue:  "b",
 		},
 		{
-			hash: 1,
-			firstCharacterOfFirstLabelName: "a",
-			labelMatterLength:              0,
-			lastCharacterOfLastLabelValue:  "a",
+			Hash: 1,
+			FirstCharacterOfFirstLabelName: "a",
+			LabelMatterLength:              0,
+			LastCharacterOfLastLabelValue:  "a",
 		},
 		{
-			hash: 1,
-			firstCharacterOfFirstLabelName: "a",
-			labelMatterLength:              1000,
-			lastCharacterOfLastLabelValue:  "b",
+			Hash: 1,
+			FirstCharacterOfFirstLabelName: "a",
+			LabelMatterLength:              1000,
+			LastCharacterOfLastLabelValue:  "b",
 		},
 		{
-			hash: 1,
-			firstCharacterOfFirstLabelName: "b",
-			labelMatterLength:              0,
-			lastCharacterOfLastLabelValue:  "a",
+			Hash: 1,
+			FirstCharacterOfFirstLabelName: "b",
+			LabelMatterLength:              0,
+			LastCharacterOfLastLabelValue:  "a",
 		},
 		{
-			hash: 1,
-			firstCharacterOfFirstLabelName: "b",
-			labelMatterLength:              1,
-			lastCharacterOfLastLabelValue:  "a",
+			Hash: 1,
+			FirstCharacterOfFirstLabelName: "b",
+			LabelMatterLength:              1,
+			LastCharacterOfLastLabelValue:  "a",
 		},
 		{
-			hash: 1,
-			firstCharacterOfFirstLabelName: "b",
-			labelMatterLength:              1,
-			lastCharacterOfLastLabelValue:  "b",
+			Hash: 1,
+			FirstCharacterOfFirstLabelName: "b",
+			LabelMatterLength:              1,
+			LastCharacterOfLastLabelValue:  "b",
 		},
 	}
 	for i := range fingerprints {
@@ -72,16 +72,16 @@ func BenchmarkFingerprinting(b *testing.B) {
 	b.StopTimer()
 	fps := []*Fingerprint{
 		{
-			hash: 0,
-			firstCharacterOfFirstLabelName: "a",
-			labelMatterLength:              2,
-			lastCharacterOfLastLabelValue:  "z",
+			Hash: 0,
+			FirstCharacterOfFirstLabelName: "a",
+			LabelMatterLength:              2,
+			LastCharacterOfLastLabelValue:  "z",
 		},
 		{
-			hash: 0,
-			firstCharacterOfFirstLabelName: "a",
-			labelMatterLength:              2,
-			lastCharacterOfLastLabelValue:  "z",
+			Hash: 0,
+			FirstCharacterOfFirstLabelName: "a",
+			LabelMatterLength:              2,
+			LastCharacterOfLastLabelValue:  "z",
 		},
 	}
 	for i := 0; i < 10; i++ {

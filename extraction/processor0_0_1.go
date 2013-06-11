@@ -11,13 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package extraction
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 const (
@@ -39,7 +41,7 @@ var Processor001 Processor = &processor001{}
 
 // processor001 is responsible for handling API version 0.0.1.
 type processor001 struct {
-	time Time
+	time clock
 }
 
 // entity001 represents a the JSON structure that 0.0.1 uses.
@@ -68,7 +70,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 	}
 
 	// TODO(matt): This outer loop is a great basis for parallelization.
-	pendingSamples := Samples{}
+	pendingSamples := model.Samples{}
 	for _, entity := range entities {
 		for _, value := range entity.Metric.Value {
 			entityLabels := labelSet(entity.BaseLabels).Merge(labelSet(value.Labels))
@@ -83,10 +85,10 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 					continue
 				}
 
-				pendingSamples = append(pendingSamples, &Sample{
-					Metric:    Metric(labels),
+				pendingSamples = append(pendingSamples, &model.Sample{
+					Metric:    model.Metric(labels),
 					Timestamp: o.Timestamp,
-					Value:     SampleValue(sampleValue),
+					Value:     model.SampleValue(sampleValue),
 				})
 
 				break
@@ -107,18 +109,18 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 						continue
 					}
 
-					childMetric := make(map[LabelName]LabelValue, len(labels)+1)
+					childMetric := make(map[model.LabelName]model.LabelValue, len(labels)+1)
 
 					for k, v := range labels {
 						childMetric[k] = v
 					}
 
-					childMetric[LabelName(percentile001)] = LabelValue(percentile)
+					childMetric[model.LabelName(percentile001)] = model.LabelValue(percentile)
 
-					pendingSamples = append(pendingSamples, &Sample{
-						Metric:    Metric(childMetric),
+					pendingSamples = append(pendingSamples, &model.Sample{
+						Metric:    model.Metric(childMetric),
 						Timestamp: o.Timestamp,
-						Value:     SampleValue(individualValue),
+						Value:     model.SampleValue(individualValue),
 					})
 				}
 

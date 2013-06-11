@@ -11,28 +11,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package model
 
-type tester interface {
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
-	Fatal(args ...interface{})
-	Fatalf(format string, args ...interface{})
+import (
+	"strings"
+)
+
+// A LabelName is a key for a LabelSet or Metric.  It has a value associated
+// therewith.
+type LabelName string
+
+type LabelNames []LabelName
+
+func (l LabelNames) Len() int {
+	return len(l)
 }
 
-// errorEqual compares Go errors for equality.
-func errorEqual(left, right error) bool {
-	if left == right {
-		return true
+func (l LabelNames) Less(i, j int) bool {
+	return l[i] < l[j]
+}
+
+func (l LabelNames) Swap(i, j int) {
+	l[i], l[j] = l[j], l[i]
+}
+
+func (l LabelNames) String() string {
+	labelStrings := make([]string, 0, len(l))
+	for _, label := range l {
+		labelStrings = append(labelStrings, string(label))
 	}
-
-	if left != nil && right != nil {
-		if left.Error() == right.Error() {
-			return true
-		}
-
-		return false
-	}
-
-	return false
+	return strings.Join(labelStrings, ", ")
 }

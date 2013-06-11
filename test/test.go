@@ -11,5 +11,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package decoding decodes Prometheus clients' data streams for consumers.
-package decoding
+// Package test provides common test helpers to the client library.
+package test
+
+type Tester interface {
+	Error(args ...interface{})
+	Errorf(format string, args ...interface{})
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
+}
+
+// ErrorEqual compares Go errors for equality.
+func ErrorEqual(left, right error) bool {
+	if left == right {
+		return true
+	}
+
+	if left != nil && right != nil {
+		if left.Error() == right.Error() {
+			return true
+		}
+
+		return false
+	}
+
+	return false
+}
