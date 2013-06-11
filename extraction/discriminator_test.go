@@ -11,15 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package decoding
+package extraction
 
 import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/prometheus/client_golang/test"
 )
 
-func testDiscriminatorHttpHeader(t tester) {
+func testDiscriminatorHttpHeader(t test.Tester) {
 	var scenarios = []struct {
 		input  map[string]string
 		output Processor
