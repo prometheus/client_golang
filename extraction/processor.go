@@ -20,18 +20,6 @@ import (
 	"github.com/prometheus/client_golang/model"
 )
 
-const (
-	// The label name prefix to prepend if a synthetic label is already present
-	// in the exported metrics.
-	ExporterLabelPrefix model.LabelName = "exporter_"
-
-	// The label name indicating the metric name of a timeseries.
-	MetricNameLabel = "name"
-
-	// The label name indicating the job from which a timeseries was scraped.
-	JobLabel = "job"
-)
-
 // ProcessOptions dictates how the interpreted stream should be rendered for
 // consumption.
 type ProcessOptions struct {
@@ -82,7 +70,7 @@ func mergeTargetLabels(entityLabels, targetLabels model.LabelSet) model.LabelSet
 
 	for label, labelValue := range targetLabels {
 		if _, exists := result[label]; exists {
-			result[ExporterLabelPrefix+label] = labelValue
+			result[model.ExporterLabelPrefix+label] = labelValue
 		} else {
 			result[label] = labelValue
 		}
