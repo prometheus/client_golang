@@ -85,8 +85,8 @@ func (f *Fingerprint) Equal(o *Fingerprint) bool {
 
 const rowKeyDelimiter = "-"
 
-// LoadFromString transforms a rowKey into a Fingerprint, resetting any
-// previous attributes.
+// LoadFromString transforms a string representation into a Fingerprint,
+// resetting any previous attributes.
 func (f *Fingerprint) LoadFromString(s string) {
 	components := strings.Split(s, rowKeyDelimiter)
 	hash, err := strconv.ParseUint(components[0], 10, 64)

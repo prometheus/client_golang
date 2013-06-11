@@ -40,9 +40,7 @@ const (
 var Processor001 Processor = &processor001{}
 
 // processor001 is responsible for handling API version 0.0.1.
-type processor001 struct {
-	time clock
-}
+type processor001 struct{}
 
 // entity001 represents a the JSON structure that 0.0.1 uses.
 type entity001 []struct {
