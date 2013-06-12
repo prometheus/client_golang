@@ -17,6 +17,18 @@ import (
 	"strings"
 )
 
+const (
+	// The label name prefix to prepend if a synthetic label is already present
+	// in the exported metrics.
+	ExporterLabelPrefix LabelName = "exporter_"
+
+	// The label name indicating the metric name of a timeseries.
+	MetricNameLabel = "name"
+
+	// The label name indicating the job from which a timeseries was scraped.
+	JobLabel = "job"
+)
+
 // A LabelName is a key for a LabelSet or Metric.  It has a value associated
 // therewith.
 type LabelName string
