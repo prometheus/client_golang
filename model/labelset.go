@@ -44,10 +44,14 @@ func (l LabelSet) Merge(other LabelSet) LabelSet {
 func (l LabelSet) String() string {
 	labelStrings := make([]string, 0, len(l))
 	for label, value := range l {
-		labelStrings = append(labelStrings, fmt.Sprintf("%s='%s'", label, value))
+		labelStrings = append(labelStrings, fmt.Sprintf("%s=%q", label, value))
 	}
 
-	sort.Strings(labelStrings)
-
-	return fmt.Sprintf("{%s}", strings.Join(labelStrings, ", "))
+	switch len(labelStrings) {
+	case 0:
+		return ""
+	default:
+		sort.Strings(labelStrings)
+		return fmt.Sprintf("{%s}", strings.Join(labelStrings, ", "))
+	}
 }

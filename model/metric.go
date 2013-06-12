@@ -13,6 +13,12 @@
 
 package model
 
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
 // A Metric is similar to a LabelSet, but the key difference is that a Metric is
 // a singleton and refers to one and only one stream of samples.
 type Metric map[LabelName]LabelValue
@@ -35,4 +41,25 @@ func (m Metric) Before(o Metric) bool {
 	rFingerprint.LoadFromMetric(o)
 
 	return m.Before(o)
+}
+
+func (m Metric) String() string {
+	metricName, ok := m[MetricNameLabel]
+	if !ok {
+		panic("Tried to print metric without name")
+	}
+	labelStrings := make([]string, 0, len(m)-1)
+	for label, value := range m {
+		if label != MetricNameLabel {
+			labelStrings = append(labelStrings, fmt.Sprintf("%s=%q", label, value))
+		}
+	}
+
+	switch len(labelStrings) {
+	case 0:
+		return string(metricName)
+	default:
+		sort.Strings(labelStrings)
+		return fmt.Sprintf("%s{%s}", metricName, strings.Join(labelStrings, ", "))
+	}
 }
