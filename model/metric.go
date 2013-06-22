@@ -40,7 +40,7 @@ func (m Metric) Before(o Metric) bool {
 	lFingerprint.LoadFromMetric(m)
 	rFingerprint.LoadFromMetric(o)
 
-	return m.Before(o)
+	return lFingerprint.Less(rFingerprint)
 }
 
 func (m Metric) String() string {
