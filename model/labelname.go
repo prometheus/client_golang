@@ -23,10 +23,10 @@ const (
 	ExporterLabelPrefix LabelName = "exporter_"
 
 	// The label name indicating the metric name of a timeseries.
-	MetricNameLabel = "name"
+	MetricNameLabel LabelName = "name"
 
 	// The label name indicating the job from which a timeseries was scraped.
-	JobLabel = "job"
+	JobLabel LabelName = "job"
 )
 
 // A LabelName is a key for a LabelSet or Metric.  It has a value associated
