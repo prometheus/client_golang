@@ -55,3 +55,9 @@ func (l LabelSet) String() string {
 		return fmt.Sprintf("{%s}", strings.Join(labelStrings, ", "))
 	}
 }
+
+func (l LabelSet) MergeFromMetric(m Metric) {
+	for k, v := range m {
+		l[k] = v
+	}
+}
