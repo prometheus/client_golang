@@ -23,7 +23,7 @@ import (
 
 // Processor002 is responsible for decoding payloads from protocol version
 // 0.0.2.
-var Processor002 = &processor002{}
+var Processor002 = new(processor002)
 
 type histogram002 struct {
 	Labels map[string]string            `json:"labels"`

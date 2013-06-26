@@ -56,6 +56,21 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 			output: Processor002,
 			err:    nil,
 		},
+		{
+			input:  map[string]string{"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="varint record length-delimited"`},
+			output: MetricFamilyProcessor,
+			err:    nil,
+		},
+		{
+			input:  map[string]string{"Content-Type": `application/vnd.google.protobuf; proto="illegal"; encoding="varint record length-delimited"`},
+			output: nil,
+			err:    fmt.Errorf("Unrecognized Protocol Message illegal"),
+		},
+		{
+			input:  map[string]string{"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="illegal"`},
+			output: nil,
+			err:    fmt.Errorf("Unsupported Encoding illegal"),
+		},
 	}
 
 	for i, scenario := range scenarios {
