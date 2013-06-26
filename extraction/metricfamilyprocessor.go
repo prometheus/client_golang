@@ -14,7 +14,14 @@
 package extraction
 
 import (
+	"fmt"
 	"io"
+
+	dto "github.com/prometheus/client_model/go"
+
+	"github.com/matttproud/golang_protobuf_extensions/ext"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 type metricFamilyProcessor struct{}
@@ -26,6 +33,128 @@ type metricFamilyProcessor struct{}
 // more details.
 var MetricFamilyProcessor = new(metricFamilyProcessor)
 
-func (m *metricFamilyProcessor) ProcessSingle(io.Reader, chan<- *Result, *ProcessOptions) error {
-	panic("not implemented")
+func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, r chan<- *Result, o *ProcessOptions) error {
+	family := new(dto.MetricFamily)
+
+	for {
+		family.Reset()
+
+		if _, err := ext.ReadDelimited(i, family); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+
+			return err
+		}
+
+		switch *family.Type {
+		case dto.MetricType_COUNTER:
+			extractCounter(r, o, family)
+		case dto.MetricType_GAUGE:
+			extractGauge(r, o, family)
+		case dto.MetricType_SUMMARY:
+			extractSummary(r, o, family)
+		}
+	}
+}
+
+func extractCounter(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+	samples := make(model.Samples, 0, len(f.Metric))
+
+	for _, m := range f.Metric {
+		if m.Counter == nil {
+			continue
+		}
+
+		sample := new(model.Sample)
+		samples = append(samples, sample)
+
+		sample.Timestamp = o.Timestamp
+		sample.Metric = model.Metric{}
+		metric := sample.Metric
+
+		for l, v := range o.BaseLabels {
+			metric[l] = v
+		}
+		for _, p := range m.Label {
+			metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+		}
+
+		metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
+
+		sample.Value = model.SampleValue(m.Counter.GetValue())
+	}
+
+	r <- &Result{
+		Samples: samples,
+	}
+}
+
+func extractGauge(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+	samples := make(model.Samples, 0, len(f.Metric))
+
+	for _, m := range f.Metric {
+		if m.Gauge == nil {
+			continue
+		}
+
+		sample := new(model.Sample)
+		samples = append(samples, sample)
+
+		sample.Timestamp = o.Timestamp
+		sample.Metric = model.Metric{}
+		metric := sample.Metric
+
+		for l, v := range o.BaseLabels {
+			metric[l] = v
+		}
+		for _, p := range m.Label {
+			metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+		}
+
+		metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
+
+		sample.Value = model.SampleValue(m.Gauge.GetValue())
+	}
+
+	r <- &Result{
+		Samples: samples,
+	}
+}
+
+func extractSummary(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+	// BUG(matt): Lack of dumping of sum or count.
+	samples := make(model.Samples, 0, len(f.Metric))
+
+	for _, m := range f.Metric {
+		if m.Summary == nil {
+			continue
+		}
+
+		for _, q := range m.Summary.Quantile {
+			sample := new(model.Sample)
+			samples = append(samples, sample)
+
+			sample.Timestamp = o.Timestamp
+			sample.Metric = model.Metric{}
+			metric := sample.Metric
+
+			for l, v := range o.BaseLabels {
+				metric[l] = v
+			}
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			// BUG(matt): Update other names to "quantile".
+			metric[model.LabelName("quantile")] = model.LabelValue(fmt.Sprint(q.GetQuantile()))
+
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
+
+			sample.Value = model.SampleValue(q.GetValue())
+		}
+	}
+
+	r <- &Result{
+		Samples: samples,
+	}
 }
