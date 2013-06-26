@@ -31,24 +31,34 @@ func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Invalid Content-Type header %q: %s", header.Get("Content-Type"), err)
 	}
-	if mediatype != "application/json" {
-		return nil, fmt.Errorf("Unsupported media type %q, expected %q", mediatype, "application/json")
-	}
+	switch mediatype {
+	case "application/vnd.google.protobuf":
+		if params["proto"] != "io.prometheus.client.MetricFamily" {
+			return nil, fmt.Errorf("Unrecognized Protocol Message %s", params["proto"])
+		}
+		if params["encoding"] != "varint record length-delimited" {
+			return nil, fmt.Errorf("Unsupported Encoding %s", params["encoding"])
+		}
+		return MetricFamilyProcessor, nil
 
-	var prometheusApiVersion string
+	case "application/json":
+		var prometheusApiVersion string
 
-	if params["schema"] == "prometheus/telemetry" && params["version"] != "" {
-		prometheusApiVersion = params["version"]
-	} else {
-		prometheusApiVersion = header.Get("X-Prometheus-API-Version")
-	}
+		if params["schema"] == "prometheus/telemetry" && params["version"] != "" {
+			prometheusApiVersion = params["version"]
+		} else {
+			prometheusApiVersion = header.Get("X-Prometheus-API-Version")
+		}
 
-	switch prometheusApiVersion {
-	case "0.0.2":
-		return Processor002, nil
-	case "0.0.1":
-		return Processor001, nil
+		switch prometheusApiVersion {
+		case "0.0.2":
+			return Processor002, nil
+		case "0.0.1":
+			return Processor001, nil
+		default:
+			return nil, fmt.Errorf("Unrecognized API version %s", prometheusApiVersion)
+		}
 	default:
-		return nil, fmt.Errorf("Unrecognized API version %s", prometheusApiVersion)
+		return nil, fmt.Errorf("Unsupported media type %q, expected %q", mediatype, "application/json")
 	}
 }
