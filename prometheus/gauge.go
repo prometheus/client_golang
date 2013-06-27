@@ -10,6 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+
+	"code.google.com/p/goprotobuf/proto"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 // A gauge metric merely provides an instantaneous representation of a scalar
@@ -28,13 +32,13 @@ type gaugeVector struct {
 
 func NewGauge() Gauge {
 	return &gauge{
-		values: map[string]*gaugeVector{},
+		values: map[uint64]*gaugeVector{},
 	}
 }
 
 type gauge struct {
 	mutex  sync.RWMutex
-	values map[string]*gaugeVector
+	values map[uint64]*gaugeVector
 }
 
 func (metric *gauge) String() string {
@@ -93,4 +97,32 @@ func (metric *gauge) MarshalJSON() ([]byte, error) {
 		typeKey:  gaugeTypeValue,
 		valueKey: values,
 	})
+}
+
+func (metric *gauge) dumpChildren(f *dto.MetricFamily) {
+	metric.mutex.RLock()
+	defer metric.mutex.RUnlock()
+
+	f.Type = dto.MetricType_GAUGE.Enum()
+
+	for _, child := range metric.values {
+		c := &dto.Gauge{
+			Value: proto.Float64(child.Value),
+		}
+
+		m := &dto.Metric{
+			Gauge: c,
+		}
+
+		for name, value := range child.Labels {
+			p := &dto.LabelPair{
+				Name:  proto.String(name),
+				Value: proto.String(value),
+			}
+
+			m.Label = append(m.Label, p)
+		}
+
+		f.Metric = append(f.Metric, m)
+	}
 }

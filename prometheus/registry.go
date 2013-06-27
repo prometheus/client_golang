@@ -19,25 +19,26 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	dto "github.com/prometheus/client_model/go"
+
+	"code.google.com/p/goprotobuf/proto"
+	"github.com/matttproud/golang_protobuf_extensions/ext"
+
+	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
 
 const (
-	acceptEncodingHeader     = "Accept-Encoding"
 	authorization            = "Authorization"
 	authorizationHeader      = "WWW-Authenticate"
 	authorizationHeaderValue = "Basic"
+
+	acceptEncodingHeader     = "Accept-Encoding"
 	contentEncodingHeader    = "Content-Encoding"
 	contentTypeHeader        = "Content-Type"
 	gzipAcceptEncodingValue  = "gzip"
 	gzipContentEncodingValue = "gzip"
 	jsonContentType          = "application/json"
-	jsonSuffix               = ".json"
-)
-
-var (
-	abortOnMisuse             bool
-	debugRegistration         bool
-	useAggressiveSanityChecks bool
 )
 
 // container represents a top-level registered metric that encompasses its
@@ -49,9 +50,23 @@ type container struct {
 	name       string
 }
 
+type containers []*container
+
+func (c containers) Len() int {
+	return len(c)
+}
+
+func (c containers) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (c containers) Less(i, j int) bool {
+	return c[i].name < c[j].name
+}
+
 type registry struct {
 	mutex               sync.RWMutex
-	signatureContainers map[string]container
+	signatureContainers map[uint64]*container
 }
 
 // Registry is a registrar where metrics are listed.
@@ -72,8 +87,8 @@ type Registry interface {
 // This builds a new metric registry.  It is not needed in the majority of
 // cases.
 func NewRegistry() Registry {
-	return registry{
-		signatureContainers: make(map[string]container),
+	return &registry{
+		signatureContainers: make(map[uint64]*container),
 	}
 }
 
@@ -83,33 +98,28 @@ func Register(name, docstring string, baseLabels map[string]string, metric Metri
 }
 
 // Implements json.Marshaler
-func (r registry) MarshalJSON() (_ []byte, err error) {
-	metrics := make([]interface{}, 0, len(r.signatureContainers))
+func (r *registry) MarshalJSON() ([]byte, error) {
+	containers := make(containers, 0, len(r.signatureContainers))
 
-	keys := make([]string, 0, len(metrics))
-	for key := range r.signatureContainers {
-		keys = append(keys, key)
+	for _, container := range r.signatureContainers {
+		containers = append(containers, container)
 	}
 
-	sort.Strings(keys)
+	sort.Sort(containers)
 
-	for _, key := range keys {
-		metrics = append(metrics, r.signatureContainers[key])
-	}
-
-	return json.Marshal(metrics)
+	return json.Marshal(containers)
 }
 
 // isValidCandidate returns true if the candidate is acceptable for use.  In the
 // event of any apparent incorrect use it will report the problem, invalidate
 // the candidate, or outright abort.
-func (r registry) isValidCandidate(name string, baseLabels map[string]string) (signature string, err error) {
+func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (signature uint64, err error) {
 	if len(name) == 0 {
 		err = fmt.Errorf("unnamed metric named with baseLabels %s is invalid", baseLabels)
 
-		if abortOnMisuse {
+		if *abortOnMisuse {
 			panic(err)
-		} else if debugRegistration {
+		} else if *debugRegistration {
 			log.Println(err)
 		}
 	}
@@ -117,13 +127,13 @@ func (r registry) isValidCandidate(name string, baseLabels map[string]string) (s
 	if _, contains := baseLabels[nameLabel]; contains {
 		err = fmt.Errorf("metric named %s with baseLabels %s contains reserved label name %s in baseLabels", name, baseLabels, nameLabel)
 
-		if abortOnMisuse {
+		if *abortOnMisuse {
 			panic(err)
-		} else if debugRegistration {
+		} else if *debugRegistration {
 			log.Println(err)
 		}
 
-		return
+		return signature, err
 	}
 
 	baseLabels[nameLabel] = name
@@ -131,34 +141,34 @@ func (r registry) isValidCandidate(name string, baseLabels map[string]string) (s
 
 	if _, contains := r.signatureContainers[signature]; contains {
 		err = fmt.Errorf("metric named %s with baseLabels %s is already registered", name, baseLabels)
-		if abortOnMisuse {
+		if *abortOnMisuse {
 			panic(err)
-		} else if debugRegistration {
+		} else if *debugRegistration {
 			log.Println(err)
 		}
 
-		return
+		return signature, err
 	}
 
-	if useAggressiveSanityChecks {
+	if *useAggressiveSanityChecks {
 		for _, container := range r.signatureContainers {
 			if container.name == name {
 				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.BaseLabels)
-				if abortOnMisuse {
+				if *abortOnMisuse {
 					panic(err)
-				} else if debugRegistration {
+				} else if *debugRegistration {
 					log.Println(err)
 				}
 
-				return
+				return signature, err
 			}
 		}
 	}
 
-	return
+	return signature, err
 }
 
-func (r registry) Register(name, docstring string, baseLabels map[string]string, metric Metric) (err error) {
+func (r *registry) Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -168,25 +178,26 @@ func (r registry) Register(name, docstring string, baseLabels map[string]string,
 
 	signature, err := r.isValidCandidate(name, baseLabels)
 	if err != nil {
-		return
+		return err
 	}
 
-	r.signatureContainers[signature] = container{
+	r.signatureContainers[signature] = &container{
 		BaseLabels: baseLabels,
 		Docstring:  docstring,
 		Metric:     metric,
 		name:       name,
 	}
 
-	return
+	return nil
 }
 
 // YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
 // basic authentication.
-func (register registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
+func (register *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	// XXX: Work with Daniel to get this removed from the library, as it is really
 	//      superfluous and can be much more elegantly accomplished via
 	//      delegation.
+	log.Println("Registry.YieldBasicAuthExporter is deprecated.")
 	exporter := register.YieldExporter()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -225,38 +236,81 @@ func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer
 	return gziper
 }
 
-func (registry registry) YieldExporter() http.HandlerFunc {
+func (registry *registry) YieldExporter() http.HandlerFunc {
 	log.Println("Registry.YieldExporter is deprecated in favor of Registry.Handler.")
 
 	return registry.Handler()
 }
 
-func (registry registry) Handler() http.HandlerFunc {
+func (r *registry) dumpDelimitedPB(w io.Writer) {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	f := new(dto.MetricFamily)
+	for _, container := range r.signatureContainers {
+		f.Reset()
+
+		f.Name = proto.String(container.name)
+		f.Help = proto.String(container.Docstring)
+
+		container.Metric.dumpChildren(f)
+
+		for name, value := range container.BaseLabels {
+			p := &dto.LabelPair{
+				Name:  proto.String(name),
+				Value: proto.String(value),
+			}
+
+			for _, child := range f.Metric {
+				child.Label = append(child.Label, p)
+			}
+		}
+
+		ext.WriteDelimited(w, f)
+	}
+}
+
+func (registry *registry) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer requestLatencyAccumulator(time.Now())
 
 		requestCount.Increment(nil)
-		url := r.URL
+		header := w.Header()
 
-		if strings.HasSuffix(url.Path, jsonSuffix) {
-			header := w.Header()
-			header.Set(contentTypeHeader, TelemetryContentType)
+		writer := decorateWriter(r, w)
 
-			writer := decorateWriter(r, w)
+		if closer, ok := writer.(io.Closer); ok {
+			defer closer.Close()
+		}
 
-			if closer, ok := writer.(io.Closer); ok {
-				defer closer.Close()
+		accepts := goautoneg.ParseAccept(r.Header.Get("Accept"))
+		for _, accept := range accepts {
+			if accept.Type != "application" {
+				continue
 			}
 
-			json.NewEncoder(writer).Encode(registry)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
+			if accept.SubType == "vnd.google.protobuf" {
+				if accept.Params["proto"] != "io.prometheus.client.MetricFamily" {
+					continue
+				}
+				if accept.Params["encoding"] != "delimited" {
+					continue
+				}
+
+				header.Set(contentTypeHeader, DelimitedTelemetryContentType)
+				registry.dumpDelimitedPB(writer)
+
+				return
+			}
 		}
+
+		header.Set(contentTypeHeader, TelemetryContentType)
+		json.NewEncoder(writer).Encode(registry)
 	}
 }
 
-func init() {
-	flag.BoolVar(&abortOnMisuse, FlagNamespace+"abortonmisuse", false, "abort if a semantic misuse is encountered (bool).")
-	flag.BoolVar(&debugRegistration, FlagNamespace+"debugregistration", false, "display information about the metric registration process (bool).")
-	flag.BoolVar(&useAggressiveSanityChecks, FlagNamespace+"useaggressivesanitychecks", false, "perform expensive validation of metrics (bool).")
-}
+var (
+	abortOnMisuse             = flag.Bool(FlagNamespace+"abortonmisuse", false, "abort if a semantic misuse is encountered (bool).")
+	debugRegistration         = flag.Bool(FlagNamespace+"debugregistration", false, "display information about the metric registration process (bool).")
+	useAggressiveSanityChecks = flag.Bool(FlagNamespace+"useaggressivesanitychecks", false, "perform expensive validation of metrics (bool).")
+)

@@ -28,9 +28,11 @@ const (
 
 	// The content type and schema information set on telemetry data responses.
 	TelemetryContentType = `application/json; schema="prometheus/telemetry"; version=` + APIVersion
+	// The content type and schema information set on telemetry data responses.
+	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`
 
 	// The customary web services endpoint on which telemetric data is exposed.
-	ExpositionResource = "/metrics.json"
+	ExpositionResource = "/metrics"
 
 	baseLabelsKey = "baseLabels"
 	docstringKey  = "docstring"

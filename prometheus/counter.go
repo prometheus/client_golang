@@ -10,6 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+
+	dto "github.com/prometheus/client_model/go"
+
+	"code.google.com/p/goprotobuf/proto"
 )
 
 // TODO(matt): Refactor to de-duplicate behaviors.
@@ -31,13 +35,13 @@ type counterVector struct {
 
 func NewCounter() Counter {
 	return &counter{
-		values: map[string]*counterVector{},
+		values: map[uint64]*counterVector{},
 	}
 }
 
 type counter struct {
 	mutex  sync.RWMutex
-	values map[string]*counterVector
+	values map[uint64]*counterVector
 }
 
 func (metric *counter) Set(labels map[string]string, value float64) float64 {
@@ -146,4 +150,32 @@ func (metric *counter) MarshalJSON() ([]byte, error) {
 		valueKey: values,
 		typeKey:  counterTypeValue,
 	})
+}
+
+func (metric *counter) dumpChildren(f *dto.MetricFamily) {
+	metric.mutex.RLock()
+	defer metric.mutex.RUnlock()
+
+	f.Type = dto.MetricType_COUNTER.Enum()
+
+	for _, child := range metric.values {
+		c := &dto.Counter{
+			Value: proto.Float64(child.Value),
+		}
+
+		m := &dto.Metric{
+			Counter: c,
+		}
+
+		for name, value := range child.Labels {
+			p := &dto.LabelPair{
+				Name:  proto.String(name),
+				Value: proto.String(value),
+			}
+
+			m.Label = append(m.Label, p)
+		}
+
+		f.Metric = append(f.Metric, m)
+	}
 }

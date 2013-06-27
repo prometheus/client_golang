@@ -13,6 +13,8 @@ import (
 	"io"
 	"net/http"
 	"testing"
+
+	"code.google.com/p/goprotobuf/proto"
 )
 
 func testRegister(t tester) {
@@ -21,14 +23,14 @@ func testRegister(t tester) {
 		debugRegistration         bool
 		useAggressiveSanityChecks bool
 	}{
-		abortOnMisuse:             abortOnMisuse,
-		debugRegistration:         debugRegistration,
-		useAggressiveSanityChecks: useAggressiveSanityChecks,
+		abortOnMisuse:             *abortOnMisuse,
+		debugRegistration:         *debugRegistration,
+		useAggressiveSanityChecks: *useAggressiveSanityChecks,
 	}
 	defer func() {
-		abortOnMisuse = oldState.abortOnMisuse
-		debugRegistration = oldState.debugRegistration
-		useAggressiveSanityChecks = oldState.useAggressiveSanityChecks
+		abortOnMisuse = &(oldState.abortOnMisuse)
+		debugRegistration = &(oldState.debugRegistration)
+		useAggressiveSanityChecks = &(oldState.useAggressiveSanityChecks)
 	}()
 
 	type input struct {
@@ -139,9 +141,9 @@ func testRegister(t tester) {
 			t.Fatalf("%d. expected scenario output length %d, got %d", i, len(scenario.inputs), len(scenario.outputs))
 		}
 
-		abortOnMisuse = false
-		debugRegistration = false
-		useAggressiveSanityChecks = true
+		abortOnMisuse = proto.Bool(false)
+		debugRegistration = proto.Bool(false)
+		useAggressiveSanityChecks = proto.Bool(true)
 
 		registry := NewRegistry()
 
@@ -297,7 +299,7 @@ func testDumpToWriter(t tester) {
 	}
 
 	for i, scenario := range scenarios {
-		registry := NewRegistry().(registry)
+		registry := NewRegistry().(*registry)
 
 		for name, metric := range scenario.in.metrics {
 			err := registry.Register(name, fmt.Sprintf("metric %s", name), map[string]string{fmt.Sprintf("label_%s", name): name}, metric)
