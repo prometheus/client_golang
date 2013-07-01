@@ -6,7 +6,11 @@
 
 package prometheus
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	dto "github.com/prometheus/client_model/go"
+)
 
 // A Metric is something that can be exposed via the registry framework.
 type Metric interface {
@@ -16,4 +20,6 @@ type Metric interface {
 	ResetAll()
 	// Produce a human-consumable representation of the metric.
 	String() string
+	// dumpChildren populates the child metrics of the given family.
+	dumpChildren(*dto.MetricFamily)
 }

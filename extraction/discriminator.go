@@ -33,11 +33,10 @@ func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 	}
 	switch mediatype {
 	case "application/vnd.google.protobuf":
-		// BUG(matt): Version?
 		if params["proto"] != "io.prometheus.client.MetricFamily" {
 			return nil, fmt.Errorf("Unrecognized Protocol Message %s", params["proto"])
 		}
-		if params["encoding"] != "varint record length-delimited" {
+		if params["encoding"] != "delimited" {
 			return nil, fmt.Errorf("Unsupported Encoding %s", params["encoding"])
 		}
 		return MetricFamilyProcessor, nil
