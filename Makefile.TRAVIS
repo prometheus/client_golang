@@ -20,7 +20,10 @@ preparation:
 	ln -sf "$(PWD)" $(PROMETHEUS_TARGET)
 
 dependencies:
+	go get code.google.com/p/goprotobuf/proto
 	go get github.com/matttproud/gocheck
+	go get github.com/matttproud/golang_protobuf_extensions/ext
+	go get github.com/prometheus/client_model/go
 
 test: dependencies preparation
 	$(MAKE) test

@@ -13,13 +13,16 @@ import (
 func testLabelsToSignature(t tester) {
 	var scenarios = []struct {
 		in  map[string]string
-		out string
+		out uint64
 	}{
 		{
 			in:  map[string]string{},
-			out: "",
+			out: 14695981039346656037,
 		},
-		{},
+		{
+			in:  map[string]string{"name": "garland, briggs", "fear": "love is not enough"},
+			out: 15753083015552662396,
+		},
 	}
 
 	for i, scenario := range scenarios {
