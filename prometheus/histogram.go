@@ -13,6 +13,7 @@ import (
 	"math"
 	"strconv"
 	"sync"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -54,6 +55,7 @@ type HistogramSpecification struct {
 	BucketBuilder         BucketBuilder
 	ReportablePercentiles []float64
 	Starts                []float64
+	PurgeInterval         time.Duration
 }
 
 type Histogram interface {
@@ -82,11 +84,16 @@ type histogram struct {
 	values map[uint64]*histogramVector
 	// These are the percentile values that will be reported on marshalling.
 	reportablePercentiles []float64
+
+	purgeInterval time.Duration
+	lastPurge     time.Time
 }
 
 type histogramVector struct {
 	buckets []Bucket
 	labels  map[string]string
+	sum     float64
+	count   uint64
 }
 
 func (h *histogram) Add(labels map[string]string, value float64) {
@@ -124,6 +131,9 @@ func (h *histogram) Add(labels map[string]string, value float64) {
 	}
 
 	histogram.buckets[lastIndex].Add(value)
+
+	histogram.sum += value
+	histogram.count++
 }
 
 func (h *histogram) String() string {
@@ -244,6 +254,8 @@ func formatFloat(value float64) string {
 }
 
 func (h *histogram) MarshalJSON() ([]byte, error) {
+	h.Purge()
+
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
 
@@ -269,10 +281,29 @@ func (h *histogram) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (h *histogram) Purge() {
+	if h.purgeInterval == 0 {
+		return
+	}
+
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	if time.Since(h.lastPurge) < h.purgeInterval {
+		return
+	}
+
+	h.resetAll()
+	h.lastPurge = time.Now()
+}
+
 func (h *histogram) ResetAll() {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
+	h.resetAll()
+}
+
+func (h *histogram) resetAll() {
 	for signature, value := range h.values {
 		for _, bucket := range value.buckets {
 			bucket.Reset()
@@ -289,6 +320,8 @@ func NewHistogram(specification *HistogramSpecification) Histogram {
 		bucketStarts:          specification.Starts,
 		reportablePercentiles: specification.ReportablePercentiles,
 		values:                map[uint64]*histogramVector{},
+		lastPurge:             time.Now(),
+		purgeInterval:         specification.PurgeInterval,
 	}
 
 	return metric
@@ -302,18 +335,24 @@ func NewDefaultHistogram() Histogram {
 			Starts:                LogarithmicSizedBucketsFor(0, 4096),
 			BucketBuilder:         AccumulatingBucketBuilder(EvictAndReplaceWith(10, AverageReducer), 50),
 			ReportablePercentiles: []float64{0.01, 0.05, 0.5, 0.90, 0.99},
+			PurgeInterval:         15 * time.Minute,
 		},
 	)
 }
 
 func (metric *histogram) dumpChildren(f *dto.MetricFamily) {
+	metric.Purge()
+
 	metric.mutex.RLock()
 	defer metric.mutex.RUnlock()
 
 	f.Type = dto.MetricType_SUMMARY.Enum()
 
 	for signature, child := range metric.values {
-		c := &dto.Summary{}
+		c := &dto.Summary{
+			SampleSum:   proto.Float64(child.sum),
+			SampleCount: proto.Uint64(child.count),
+		}
 
 		m := &dto.Metric{
 			Summary: c,
