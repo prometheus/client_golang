@@ -87,6 +87,8 @@ type histogram struct {
 type histogramVector struct {
 	buckets []Bucket
 	labels  map[string]string
+	sum     float64
+	count   uint64
 }
 
 func (h *histogram) Add(labels map[string]string, value float64) {
@@ -124,6 +126,9 @@ func (h *histogram) Add(labels map[string]string, value float64) {
 	}
 
 	histogram.buckets[lastIndex].Add(value)
+
+	histogram.sum += value
+	histogram.count++
 }
 
 func (h *histogram) String() string {
@@ -313,7 +318,10 @@ func (metric *histogram) dumpChildren(f *dto.MetricFamily) {
 	f.Type = dto.MetricType_SUMMARY.Enum()
 
 	for signature, child := range metric.values {
-		c := &dto.Summary{}
+		c := &dto.Summary{
+			SampleSum:   proto.Float64(child.sum),
+			SampleCount: proto.Uint64(child.count),
+		}
 
 		m := &dto.Metric{
 			Summary: c,
