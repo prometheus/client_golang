@@ -13,13 +13,16 @@
 
 all: test
 
-build:
-	go build ./...
+build: dependencies
+	$(GO) build ./...
+
+dependencies: $(GOCC)
+	$(GO) get -d
 
 test: build
-	go test ./... $(GO_TEST_FLAGS)
+	$(GO) test ./... $(GO_TEST_FLAGS)
 
 advice:
-	go tool vet .
+	$(GO) tool vet .
 
-.PHONY: advice build test
+.PHONY: advice build dependencies test

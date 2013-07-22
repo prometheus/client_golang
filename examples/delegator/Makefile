@@ -18,13 +18,13 @@ all: test
 build: delegator
 
 delegator:
-	go build .
+	$(GO) build .
 
 test: build
-	go test . $(GO_TEST_FLAGS)
+	$(GO) test . $(GO_TEST_FLAGS)
 
 advice:
-	go tool vet .
+	$(GO) tool vet .
 
 clean:
 	rm -f $(MAKE_ARTIFACTS)
