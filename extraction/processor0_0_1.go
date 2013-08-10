@@ -71,8 +71,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 	pendingSamples := model.Samples{}
 	for _, entity := range entities {
 		for _, value := range entity.Metric.Value {
-			entityLabels := labelSet(entity.BaseLabels).Merge(labelSet(value.Labels))
-			labels := mergeTargetLabels(entityLabels, o.BaseLabels)
+			labels := labelSet(entity.BaseLabels).Merge(labelSet(value.Labels))
 
 			switch entity.Metric.MetricType {
 			case gauge001, counter001:

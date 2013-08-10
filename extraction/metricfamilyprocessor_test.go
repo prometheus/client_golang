@@ -38,8 +38,7 @@ func (s *metricFamilyProcessorScenario) test(t *testing.T, set int) {
 	i := strings.NewReader(s.in)
 
 	o := &ProcessOptions{
-		Timestamp:  testTime,
-		BaseLabels: model.LabelSet{"base": "label"},
+		Timestamp: testTime,
 	}
 
 	err := MetricFamilyProcessor.ProcessSingle(i, s, o)
@@ -72,12 +71,12 @@ func TestMetricFamilyProcessor(t *testing.T) {
 				{
 					Samples: model.Samples{
 						&model.Sample{
-							Metric:    model.Metric{"base": "label", "name": "request_count", "some_label_name": "some_label_value"},
+							Metric:    model.Metric{"name": "request_count", "some_label_name": "some_label_value"},
 							Value:     -42,
 							Timestamp: testTime,
 						},
 						&model.Sample{
-							Metric:    model.Metric{"base": "label", "name": "request_count", "another_label_name": "another_label_value"},
+							Metric:    model.Metric{"name": "request_count", "another_label_name": "another_label_value"},
 							Value:     84,
 							Timestamp: testTime,
 						},
@@ -91,17 +90,17 @@ func TestMetricFamilyProcessor(t *testing.T) {
 				{
 					Samples: model.Samples{
 						&model.Sample{
-							Metric:    model.Metric{"base": "label", "name": "request_count", "some_label_name": "some_label_value", "quantile": "0.99"},
+							Metric:    model.Metric{"name": "request_count", "some_label_name": "some_label_value", "quantile": "0.99"},
 							Value:     -42,
 							Timestamp: testTime,
 						},
 						&model.Sample{
-							Metric:    model.Metric{"base": "label", "name": "request_count", "some_label_name": "some_label_value", "quantile": "0.999"},
+							Metric:    model.Metric{"name": "request_count", "some_label_name": "some_label_value", "quantile": "0.999"},
 							Value:     -84,
 							Timestamp: testTime,
 						},
 						&model.Sample{
-							Metric:    model.Metric{"base": "label", "name": "request_count", "another_label_name": "another_label_value", "quantile": "0.5"},
+							Metric:    model.Metric{"name": "request_count", "another_label_name": "another_label_value", "quantile": "0.5"},
 							Value:     10,
 							Timestamp: testTime,
 						},

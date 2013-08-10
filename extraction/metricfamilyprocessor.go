@@ -81,9 +81,6 @@ func extractCounter(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		sample.Metric = model.Metric{}
 		metric := sample.Metric
 
-		for l, v := range o.BaseLabels {
-			metric[l] = v
-		}
 		for _, p := range m.Label {
 			metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 		}
@@ -111,9 +108,6 @@ func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 		sample.Metric = model.Metric{}
 		metric := sample.Metric
 
-		for l, v := range o.BaseLabels {
-			metric[l] = v
-		}
 		for _, p := range m.Label {
 			metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 		}
@@ -143,9 +137,6 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 			sample.Metric = model.Metric{}
 			metric := sample.Metric
 
-			for l, v := range o.BaseLabels {
-				metric[l] = v
-			}
 			for _, p := range m.Label {
 				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 			}

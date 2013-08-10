@@ -14,6 +14,7 @@
 package extraction
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -25,9 +26,6 @@ import (
 type ProcessOptions struct {
 	// Timestamp is added to each value interpreted from the stream.
 	Timestamp time.Time
-
-	// BaseLabels are labels that are accumulated onto each sample, if any.
-	BaseLabels model.LabelSet
 }
 
 // Ingester consumes result streams in whatever way is desired by the user.
@@ -58,31 +56,6 @@ func labelSet(labels map[string]string) model.LabelSet {
 	return labelset
 }
 
-// Helper function to merge a target's base labels ontop of the labels of an
-// exported sample. If a label is already defined in the exported sample, we
-// assume that we are scraping an intermediate exporter and attach
-// "exporter_"-prefixes to Prometheus' own base labels.
-func mergeTargetLabels(entityLabels, targetLabels model.LabelSet) model.LabelSet {
-	if targetLabels == nil {
-		targetLabels = model.LabelSet{}
-	}
-
-	result := model.LabelSet{}
-
-	for label, value := range entityLabels {
-		result[label] = value
-	}
-
-	for label, labelValue := range targetLabels {
-		if _, exists := result[label]; exists {
-			result[model.ExporterLabelPrefix+label] = labelValue
-		} else {
-			result[label] = labelValue
-		}
-	}
-	return result
-}
-
 // Result encapsulates the outcome from processing samples from a source.
 type Result struct {
 	Err     error
@@ -96,15 +69,18 @@ func (r *Result) equal(o *Result) bool {
 
 	if r.Err != o.Err {
 		if r.Err == nil || o.Err == nil {
+			fmt.Println("err nil")
 			return false
 		}
 
 		if r.Err.Error() != o.Err.Error() {
+			fmt.Println("err str")
 			return false
 		}
 	}
 
 	if len(r.Samples) != len(o.Samples) {
+		fmt.Println("samples len")
 		return false
 	}
 
@@ -112,6 +88,7 @@ func (r *Result) equal(o *Result) bool {
 		other := o.Samples[i]
 
 		if !mine.Equal(other) {
+			fmt.Println("samples", mine, other)
 			return false
 		}
 	}
