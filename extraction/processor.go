@@ -30,13 +30,18 @@ type ProcessOptions struct {
 	BaseLabels model.LabelSet
 }
 
+// Ingester consumes result streams in whatever way is desired by the user.
+type Ingester interface {
+	Ingest(*Result) error
+}
+
 // Processor is responsible for decoding the actual message responses from
 // stream into a format that can be consumed with the end result written
 // to the results channel.
 type Processor interface {
 	// ProcessSingle treats the input as a single self-contained message body and
 	// transforms it accordingly.  It has no support for streaming.
-	ProcessSingle(in io.Reader, out chan<- *Result, o *ProcessOptions) error
+	ProcessSingle(in io.Reader, out Ingester, o *ProcessOptions) error
 }
 
 // Helper function to convert map[string]string into LabelSet.
@@ -82,6 +87,36 @@ func mergeTargetLabels(entityLabels, targetLabels model.LabelSet) model.LabelSet
 type Result struct {
 	Err     error
 	Samples model.Samples
+}
+
+func (r *Result) equal(o *Result) bool {
+	if r == o {
+		return true
+	}
+
+	if r.Err != o.Err {
+		if r.Err == nil || o.Err == nil {
+			return false
+		}
+
+		if r.Err.Error() != o.Err.Error() {
+			return false
+		}
+	}
+
+	if len(r.Samples) != len(o.Samples) {
+		return false
+	}
+
+	for i, mine := range r.Samples {
+		other := o.Samples[i]
+
+		if !mine.Equal(other) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // A basic interface only useful in testing contexts for dispensing the time

@@ -33,7 +33,7 @@ type metricFamilyProcessor struct{}
 // more details.
 var MetricFamilyProcessor = new(metricFamilyProcessor)
 
-func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, r chan<- *Result, o *ProcessOptions) error {
+func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOptions) error {
 	family := new(dto.MetricFamily)
 
 	for {
@@ -49,16 +49,24 @@ func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, r chan<- *Result, o *
 
 		switch *family.Type {
 		case dto.MetricType_COUNTER:
-			extractCounter(r, o, family)
+			if err := extractCounter(out, o, family); err != nil {
+				return err
+			}
 		case dto.MetricType_GAUGE:
-			extractGauge(r, o, family)
+			if err := extractGauge(out, o, family); err != nil {
+				return err
+			}
 		case dto.MetricType_SUMMARY:
-			extractSummary(r, o, family)
+			if err := extractSummary(out, o, family); err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
 
-func extractCounter(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+func extractCounter(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 	samples := make(model.Samples, 0, len(f.Metric))
 
 	for _, m := range f.Metric {
@@ -85,12 +93,10 @@ func extractCounter(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
 		sample.Value = model.SampleValue(m.Counter.GetValue())
 	}
 
-	r <- &Result{
-		Samples: samples,
-	}
+	return out.Ingest(&Result{Samples: samples})
 }
 
-func extractGauge(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 	samples := make(model.Samples, 0, len(f.Metric))
 
 	for _, m := range f.Metric {
@@ -117,12 +123,10 @@ func extractGauge(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
 		sample.Value = model.SampleValue(m.Gauge.GetValue())
 	}
 
-	r <- &Result{
-		Samples: samples,
-	}
+	return out.Ingest(&Result{Samples: samples})
 }
 
-func extractSummary(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
+func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 	// BUG(matt): Lack of dumping of sum or count.
 	samples := make(model.Samples, 0, len(f.Metric))
 
@@ -154,7 +158,5 @@ func extractSummary(r chan<- *Result, o *ProcessOptions, f *dto.MetricFamily) {
 		}
 	}
 
-	r <- &Result{
-		Samples: samples,
-	}
+	return out.Ingest(&Result{Samples: samples})
 }

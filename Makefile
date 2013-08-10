@@ -59,8 +59,7 @@ dependencies: source_path $(GOCC)
 	$(GO) get github.com/matttproud/gocheck
 
 test: build
-	$(MAKE) -C prometheus test
-	$(MAKE) -C examples test
+	$(GO) test ./...
 
 advice: test
 	$(MAKE) -C prometheus advice

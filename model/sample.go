@@ -24,6 +24,10 @@ type Sample struct {
 }
 
 func (s *Sample) Equal(o *Sample) bool {
+	if s == o {
+		return true
+	}
+
 	if !s.Metric.Equal(o.Metric) {
 		return false
 	}

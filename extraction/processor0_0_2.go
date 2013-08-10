@@ -37,7 +37,7 @@ type counter002 struct {
 
 type processor002 struct{}
 
-func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *ProcessOptions) error {
+func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptions) error {
 	// Processor for telemetry schema version 0.0.2.
 	// container for telemetry data
 	var entities []struct {
@@ -60,8 +60,9 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 			var values []counter002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				out <- &Result{
-					Err: fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err),
+				err := fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err)
+				if err := out.Ingest(&Result{Err: err}); err != nil {
+					return err
 				}
 				continue
 			}
@@ -81,8 +82,9 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 			var values []histogram002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				out <- &Result{
-					Err: fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err),
+				err := fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err)
+				if err := out.Ingest(&Result{Err: err}); err != nil {
+					return err
 				}
 				continue
 			}
@@ -102,14 +104,15 @@ func (p *processor002) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 			}
 
 		default:
-			out <- &Result{
-				Err: fmt.Errorf("Unknown metric type %q", entity.Metric.Type),
+			err := fmt.Errorf("Unknown metric type %q", entity.Metric.Type)
+			if err := out.Ingest(&Result{Err: err}); err != nil {
+				return err
 			}
 		}
 	}
 
 	if len(pendingSamples) > 0 {
-		out <- &Result{Samples: pendingSamples}
+		return out.Ingest(&Result{Samples: pendingSamples})
 	}
 
 	return nil

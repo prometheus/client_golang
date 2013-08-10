@@ -55,7 +55,7 @@ type entity001 []struct {
 	} `json:"metric"`
 }
 
-func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *ProcessOptions) error {
+func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptions) error {
 	// TODO(matt): Replace with plain-jane JSON unmarshalling.
 	buffer, err := ioutil.ReadAll(in)
 	if err != nil {
@@ -79,7 +79,9 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 				sampleValue, ok := value.Value.(float64)
 				if !ok {
 					err = fmt.Errorf("Could not convert value from %s %s to float64.", entity, value)
-					out <- &Result{Err: err}
+					if err := out.Ingest(&Result{Err: err}); err != nil {
+						return err
+					}
 					continue
 				}
 
@@ -95,7 +97,9 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 				sampleValue, ok := value.Value.(map[string]interface{})
 				if !ok {
 					err = fmt.Errorf("Could not convert value from %q to a map[string]interface{}.", value.Value)
-					out <- &Result{Err: err}
+					if err := out.Ingest(&Result{Err: err}); err != nil {
+						return err
+					}
 					continue
 				}
 
@@ -103,7 +107,9 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 					individualValue, ok := percentileValue.(float64)
 					if !ok {
 						err = fmt.Errorf("Could not convert value from %q to a float64.", percentileValue)
-						out <- &Result{Err: err}
+						if err := out.Ingest(&Result{Err: err}); err != nil {
+							return err
+						}
 						continue
 					}
 
@@ -127,7 +133,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out chan<- *Result, o *Proces
 		}
 	}
 	if len(pendingSamples) > 0 {
-		out <- &Result{Samples: pendingSamples}
+		return out.Ingest(&Result{Samples: pendingSamples})
 	}
 
 	return nil
