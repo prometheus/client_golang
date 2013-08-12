@@ -14,10 +14,10 @@
 package extraction
 
 import (
-	"container/list"
 	"fmt"
 	"os"
 	"path"
+	"sort"
 	"testing"
 	"time"
 
@@ -25,186 +25,157 @@ import (
 	"github.com/prometheus/client_golang/test"
 )
 
+var test001Time = time.Now()
+
+type testProcessor001ProcessScenario struct {
+	in               string
+	expected, actual []*Result
+	err              error
+}
+
+func (s *testProcessor001ProcessScenario) Ingest(r *Result) error {
+	s.actual = append(s.actual, r)
+	return nil
+}
+
+func (s *testProcessor001ProcessScenario) test(t test.Tester, set int) {
+	reader, err := os.Open(path.Join("fixtures", s.in))
+	if err != nil {
+		t.Fatalf("%d. couldn't open scenario input file %s: %s", set, s.in, err)
+	}
+
+	options := &ProcessOptions{
+		Timestamp: test001Time,
+	}
+	if err := Processor001.ProcessSingle(reader, s, options); !test.ErrorEqual(s.err, err) {
+		t.Fatalf("%d. expected err of %s, got %s", set, s.err, err)
+	}
+
+	if len(s.actual) != len(s.expected) {
+		t.Fatalf("%d. expected output length of %d, got %d", set, len(s.expected), len(s.actual))
+	}
+
+	for i, expected := range s.expected {
+		sort.Sort(s.actual[i].Samples)
+		sort.Sort(expected.Samples)
+
+		if !expected.equal(s.actual[i]) {
+			t.Errorf("%d.%d. expected %s, got %s", set, i, expected, s.actual[i])
+		}
+	}
+}
+
 func testProcessor001Process(t test.Tester) {
-	var scenarios = []struct {
-		in         string
-		baseLabels model.LabelSet
-		out        model.Samples
-		err        error
-	}{
+	var scenarios = []testProcessor001ProcessScenario{
 		{
 			in:  "empty.json",
 			err: fmt.Errorf("unexpected end of JSON input"),
 		},
 		{
 			in: "test0_0_1-0_0_2.json",
-			baseLabels: model.LabelSet{
-				model.JobLabel: "batch_exporter",
-			},
-			out: model.Samples{
-				&model.Sample{
-					Metric: model.Metric{"service": "zed", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
-					Value:  25,
-				},
-				&model.Sample{
-					Metric: model.Metric{"service": "bar", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
-					Value:  25,
-				},
-				&model.Sample{
-					Metric: model.Metric{"service": "foo", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job", "exporter_job": "batch_exporter"},
-					Value:  25,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
-					Value:  0.0459814091918713,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
-					Value:  78.48563317257356,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
-					Value:  15.890724674774395,
-				},
-				&model.Sample{
+			expected: []*Result{
+				{
+					Samples: model.Samples{
+						&model.Sample{
+							Metric:    model.Metric{"service": "zed", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+							Value:     25,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"service": "bar", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+							Value:     25,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"service": "foo", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+							Value:     25,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+							Value:     0.0459814091918713,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+							Value:     78.48563317257356,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+							Value:     15.890724674774395,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
 
-					Metric: model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
-					Value:  0.0459814091918713,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
-					Value:  78.48563317257356,
-				},
-				&model.Sample{
+							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+							Value:     0.0459814091918713,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+							Value:     78.48563317257356,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+							Value:     15.890724674774395,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+							Value:     0.6120456642749681,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
 
-					Metric: model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
-					Value:  15.890724674774395,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
-					Value:  0.6120456642749681,
-				},
-				&model.Sample{
-
-					Metric: model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
-					Value:  97.31798360385088,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
-					Value:  84.63044031436561,
-				},
-				&model.Sample{
-
-					Metric: model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
-					Value:  1.355915069887731,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
-					Value:  109.89202084295582,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
-					Value:  160.21100853053224,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed", "job": "batch_exporter"},
-					Value:  1.772733213161236,
-				},
-				&model.Sample{
-
-					Metric: model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar", "job": "batch_exporter"},
-					Value:  109.99626121011262,
-				},
-				&model.Sample{
-					Metric: model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo", "job": "batch_exporter"},
-					Value:  172.49828748957728,
+							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+							Value:     97.31798360385088,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+							Value:     84.63044031436561,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+							Value:     1.355915069887731,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+							Value:     109.89202084295582,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+							Value:     160.21100853053224,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+							Value:     1.772733213161236,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+							Value:     109.99626121011262,
+							Timestamp: test001Time,
+						},
+						&model.Sample{
+							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+							Value:     172.49828748957728,
+							Timestamp: test001Time,
+						},
+					},
 				},
 			},
 		},
 	}
 
 	for i, scenario := range scenarios {
-		inputChannel := make(chan *Result, 1024)
-
-		defer close(inputChannel)
-
-		reader, err := os.Open(path.Join("fixtures", scenario.in))
-		if err != nil {
-			t.Fatalf("%d. couldn't open scenario input file %s: %s", i, scenario.in, err)
-		}
-
-		options := &ProcessOptions{
-			Timestamp:  time.Now(),
-			BaseLabels: scenario.baseLabels,
-		}
-		err = Processor001.ProcessSingle(reader, inputChannel, options)
-		if !test.ErrorEqual(scenario.err, err) {
-			t.Errorf("%d. expected err of %s, got %s", i, scenario.err, err)
-			continue
-		}
-
-		delivered := model.Samples{}
-
-		for len(inputChannel) != 0 {
-			result := <-inputChannel
-			if result.Err != nil {
-				t.Fatalf("%d. expected no error, got: %s", i, result.Err)
-			}
-			delivered = append(delivered, result.Samples...)
-		}
-
-		if len(delivered) != len(scenario.out) {
-			t.Errorf("%d. expected output length of %d, got %d", i, len(scenario.out), len(delivered))
-
-			continue
-		}
-
-		expectedElements := list.New()
-		for _, j := range scenario.out {
-			expectedElements.PushBack(j)
-		}
-
-		for j := 0; j < len(delivered); j++ {
-			actual := delivered[j]
-
-			found := false
-			for element := expectedElements.Front(); element != nil && found == false; element = element.Next() {
-				candidate := element.Value.(*model.Sample)
-
-				if candidate.Value != actual.Value {
-					continue
-				}
-
-				if len(candidate.Metric) != len(actual.Metric) {
-					continue
-				}
-
-				labelsMatch := false
-
-				for key, value := range candidate.Metric {
-					actualValue, ok := actual.Metric[key]
-					if !ok {
-						break
-					}
-					if actualValue == value {
-						labelsMatch = true
-						break
-					}
-				}
-
-				if !labelsMatch {
-					continue
-				}
-
-				// XXX: Test time.
-				found = true
-				expectedElements.Remove(element)
-			}
-
-			if !found {
-				t.Errorf("%d.%d. expected to find %s among candidate, absent", i, j, actual)
-			}
-		}
+		scenario.test(t, i)
 	}
 }
 

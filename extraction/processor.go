@@ -25,9 +25,11 @@ import (
 type ProcessOptions struct {
 	// Timestamp is added to each value interpreted from the stream.
 	Timestamp time.Time
+}
 
-	// BaseLabels are labels that are accumulated onto each sample, if any.
-	BaseLabels model.LabelSet
+// Ingester consumes result streams in whatever way is desired by the user.
+type Ingester interface {
+	Ingest(*Result) error
 }
 
 // Processor is responsible for decoding the actual message responses from
@@ -36,7 +38,7 @@ type ProcessOptions struct {
 type Processor interface {
 	// ProcessSingle treats the input as a single self-contained message body and
 	// transforms it accordingly.  It has no support for streaming.
-	ProcessSingle(in io.Reader, out chan<- *Result, o *ProcessOptions) error
+	ProcessSingle(in io.Reader, out Ingester, o *ProcessOptions) error
 }
 
 // Helper function to convert map[string]string into LabelSet.
@@ -53,35 +55,40 @@ func labelSet(labels map[string]string) model.LabelSet {
 	return labelset
 }
 
-// Helper function to merge a target's base labels ontop of the labels of an
-// exported sample. If a label is already defined in the exported sample, we
-// assume that we are scraping an intermediate exporter and attach
-// "exporter_"-prefixes to Prometheus' own base labels.
-func mergeTargetLabels(entityLabels, targetLabels model.LabelSet) model.LabelSet {
-	if targetLabels == nil {
-		targetLabels = model.LabelSet{}
-	}
-
-	result := model.LabelSet{}
-
-	for label, value := range entityLabels {
-		result[label] = value
-	}
-
-	for label, labelValue := range targetLabels {
-		if _, exists := result[label]; exists {
-			result[model.ExporterLabelPrefix+label] = labelValue
-		} else {
-			result[label] = labelValue
-		}
-	}
-	return result
-}
-
 // Result encapsulates the outcome from processing samples from a source.
 type Result struct {
 	Err     error
 	Samples model.Samples
+}
+
+func (r *Result) equal(o *Result) bool {
+	if r == o {
+		return true
+	}
+
+	if r.Err != o.Err {
+		if r.Err == nil || o.Err == nil {
+			return false
+		}
+
+		if r.Err.Error() != o.Err.Error() {
+			return false
+		}
+	}
+
+	if len(r.Samples) != len(o.Samples) {
+		return false
+	}
+
+	for i, mine := range r.Samples {
+		other := o.Samples[i]
+
+		if !mine.Equal(other) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // A basic interface only useful in testing contexts for dispensing the time
