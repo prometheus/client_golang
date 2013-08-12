@@ -14,7 +14,6 @@
 package extraction
 
 import (
-	"fmt"
 	"io"
 	"time"
 
@@ -69,18 +68,15 @@ func (r *Result) equal(o *Result) bool {
 
 	if r.Err != o.Err {
 		if r.Err == nil || o.Err == nil {
-			fmt.Println("err nil")
 			return false
 		}
 
 		if r.Err.Error() != o.Err.Error() {
-			fmt.Println("err str")
 			return false
 		}
 	}
 
 	if len(r.Samples) != len(o.Samples) {
-		fmt.Println("samples len")
 		return false
 	}
 
@@ -88,7 +84,6 @@ func (r *Result) equal(o *Result) bool {
 		other := o.Samples[i]
 
 		if !mine.Equal(other) {
-			fmt.Println("samples", mine, other)
 			return false
 		}
 	}
