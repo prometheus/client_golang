@@ -161,3 +161,44 @@ func (f Fingerprints) Less(i, j int) bool {
 func (f Fingerprints) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
+
+type FingerprintSet map[Fingerprint]bool
+
+func (s FingerprintSet) Equal(o FingerprintSet) bool {
+	if len(s) != len(o) {
+		return false
+	}
+
+	for k := range s {
+		if _, ok := o[k]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (s FingerprintSet) Intersection(o FingerprintSet) FingerprintSet {
+	myLength, otherLength := len(s), len(o)
+	if myLength == 0 || otherLength == 0 {
+		return FingerprintSet{}
+	}
+
+	subSet := s
+	superSet := o
+
+	if otherLength < myLength {
+		subSet = o
+		superSet = s
+	}
+
+	out := FingerprintSet{}
+
+	for k := range subSet {
+		if _, ok := superSet[k]; ok {
+			out[k] = true
+		}
+	}
+
+	return out
+}
