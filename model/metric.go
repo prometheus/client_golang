@@ -63,3 +63,18 @@ func (m Metric) String() string {
 		return fmt.Sprintf("%s{%s}", metricName, strings.Join(labelStrings, ", "))
 	}
 }
+
+func (m Metric) MergeFromLabelSet(labels LabelSet, collisionPrefix LabelName) {
+	for k, v := range labels {
+		if collisionPrefix != "" {
+			for {
+				if _, exists := m[k]; !exists {
+					break
+				}
+				k = collisionPrefix + k
+			}
+		}
+
+		m[k] = v
+	}
+}
