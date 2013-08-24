@@ -121,7 +121,6 @@ func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 }
 
 func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
-	// BUG(matt): Lack of dumping of sum or count.
 	samples := make(model.Samples, 0, len(f.Metric))
 
 	for _, m := range f.Metric {
@@ -146,6 +145,32 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 			metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
 
 			sample.Value = model.SampleValue(q.GetValue())
+		}
+
+		if m.Summary.SampleSum != nil {
+			sum := new(model.Sample)
+			sum.Timestamp = o.Timestamp
+			metric := model.Metric{}
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_sum")
+			sum.Metric = metric
+			sum.Value = model.SampleValue(m.Summary.GetSampleSum())
+			samples = append(samples, sum)
+		}
+
+		if m.Summary.SampleCount != nil {
+			count := new(model.Sample)
+			count.Timestamp = o.Timestamp
+			metric := model.Metric{}
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_count")
+			count.Metric = metric
+			count.Value = model.SampleValue(m.Summary.GetSampleCount())
+			samples = append(samples, count)
 		}
 	}
 
