@@ -172,17 +172,21 @@ func (r *registry) Register(name, docstring string, baseLabels map[string]string
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	if baseLabels == nil {
-		baseLabels = map[string]string{}
+	labels := map[string]string{}
+
+	if baseLabels != nil {
+		for k, v := range baseLabels {
+			labels[k] = v
+		}
 	}
 
-	signature, err := r.isValidCandidate(name, baseLabels)
+	signature, err := r.isValidCandidate(name, labels)
 	if err != nil {
 		return err
 	}
 
 	r.signatureContainers[signature] = &container{
-		BaseLabels: baseLabels,
+		BaseLabels: labels,
 		Docstring:  docstring,
 		Metric:     metric,
 		name:       name,
