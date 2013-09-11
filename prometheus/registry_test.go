@@ -38,6 +38,8 @@ func testRegister(t tester) {
 		baseLabels map[string]string
 	}
 
+	validLabels := map[string]string{"label": "value"}
+
 	var scenarios = []struct {
 		inputs  []input
 		outputs []bool
@@ -116,6 +118,22 @@ func testRegister(t tester) {
 			outputs: []bool{
 				true,
 				false,
+			},
+		},
+		{
+			inputs: []input{
+				{
+					name:       "metric_1_with_identical_labels",
+					baseLabels: validLabels,
+				},
+				{
+					name:       "metric_2_with_identical_labels",
+					baseLabels: validLabels,
+				},
+			},
+			outputs: []bool{
+				true,
+				true,
 			},
 		},
 		{
