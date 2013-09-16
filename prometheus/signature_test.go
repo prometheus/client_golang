@@ -7,6 +7,7 @@
 package prometheus
 
 import (
+	"runtime"
 	"testing"
 )
 
@@ -36,6 +37,25 @@ func testLabelsToSignature(t tester) {
 
 func TestLabelToSignature(t *testing.T) {
 	testLabelsToSignature(t)
+}
+
+func TestEmptyLabelSignature(t *testing.T) {
+	input := []map[string]string{nil, {}}
+
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+
+	alloc := ms.Alloc
+
+	for _, labels := range input {
+		labelsToSignature(labels)
+	}
+
+	runtime.ReadMemStats(&ms)
+
+	if got := ms.Alloc; alloc != got {
+		t.Fatal("expected labelsToSignature with empty labels not to perform allocations")
+	}
 }
 
 func BenchmarkLabelToSignature(b *testing.B) {
