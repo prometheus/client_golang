@@ -24,7 +24,7 @@ import (
 // consumption.
 type ProcessOptions struct {
 	// Timestamp is added to each value interpreted from the stream.
-	Timestamp time.Time
+	Timestamp model.Timestamp
 }
 
 // Ingester consumes result streams in whatever way is desired by the user.
