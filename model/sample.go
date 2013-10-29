@@ -13,14 +13,10 @@
 
 package model
 
-import (
-	"time"
-)
-
 type Sample struct {
 	Metric    Metric
 	Value     SampleValue
-	Timestamp time.Time
+	Timestamp Timestamp
 }
 
 func (s *Sample) Equal(o *Sample) bool {
