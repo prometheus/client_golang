@@ -91,7 +91,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			for _, histogram := range values {
 				for percentile, value := range histogram.Values {
 					labels := labelSet(entity.BaseLabels).Merge(labelSet(histogram.Labels))
-					labels[model.LabelName("percentile")] = model.LabelValue(percentile)
+					labels[model.LabelName("quantile")] = model.LabelValue(percentile)
 
 					pendingSamples = append(pendingSamples, &model.Sample{
 						Metric:    model.Metric(labels),
