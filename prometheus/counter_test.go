@@ -74,10 +74,10 @@ func testCounter(t tester) {
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
+						g.Set(map[string]string{"path": "/foo"}, 13)
 					},
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
+						g.Set(map[string]string{"path": "/bar"}, 17)
 					},
 					func(g Counter) {
 						g.ResetAll()
@@ -92,96 +92,96 @@ func testCounter(t tester) {
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 19)
+						g.Set(map[string]string{"path": "/foo"}, 19)
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":19}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 23)
+						g.Set(map[string]string{"path": "/foo"}, 23)
 					},
 					func(g Counter) {
-						g.Increment(map[string]string{"handler": "/foo"})
+						g.Increment(map[string]string{"path": "/foo"})
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":24}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":24}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Increment(map[string]string{"handler": "/foo"})
+						g.Increment(map[string]string{"path": "/foo"})
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":1}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":1}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Decrement(map[string]string{"handler": "/foo"})
+						g.Decrement(map[string]string{"path": "/foo"})
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":-1}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":-1}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 29)
+						g.Set(map[string]string{"path": "/foo"}, 29)
 					},
 					func(g Counter) {
-						g.Decrement(map[string]string{"handler": "/foo"})
+						g.Decrement(map[string]string{"path": "/foo"})
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":28}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":28}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 31)
+						g.Set(map[string]string{"path": "/foo"}, 31)
 					},
 					func(g Counter) {
-						g.IncrementBy(map[string]string{"handler": "/foo"}, 5)
+						g.IncrementBy(map[string]string{"path": "/foo"}, 5)
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":36}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":36}]}`,
 			},
 		},
 		{
 			in: input{
 				steps: []func(g Counter){
 					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 37)
+						g.Set(map[string]string{"path": "/foo"}, 37)
 					},
 					func(g Counter) {
-						g.DecrementBy(map[string]string{"handler": "/foo"}, 10)
+						g.DecrementBy(map[string]string{"path": "/foo"}, 10)
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":27}]}`,
+				value: `{"type":"counter","value":[{"labels":{"path":"/foo"},"value":27}]}`,
 			},
 		},
 	}
