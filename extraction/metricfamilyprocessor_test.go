@@ -17,12 +17,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/model"
 )
 
-var testTime = time.Now()
+var testTime = model.Now()
 
 type metricFamilyProcessorScenario struct {
 	in               string

@@ -20,13 +20,12 @@ import (
 	"runtime"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/model"
 	"github.com/prometheus/client_golang/test"
 )
 
-var test002Time = time.Now()
+var test002Time = model.Now()
 
 type testProcessor002ProcessScenario struct {
 	in               string
