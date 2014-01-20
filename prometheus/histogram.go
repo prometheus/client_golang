@@ -379,3 +379,39 @@ func (metric *histogram) dumpChildren(f *dto.MetricFamily) {
 		f.Metric = append(f.Metric, m)
 	}
 }
+
+// samples produces histogram samples for the provided fn. In addition to
+// producing samples labeled with a quantile, it also produces sum and count
+// samples.
+func (metric *histogram) samples(name string, fn sampleFn) error {
+	metric.Purge()
+
+	metric.mutex.RLock()
+	defer metric.mutex.RUnlock()
+
+	for signature, child := range metric.values {
+		if err := fn(name+"_sum", child.sum, child.labels); err != nil {
+			return err
+		}
+
+		if err := fn(name+"_count", float64(child.count), child.labels); err != nil {
+			return err
+		}
+
+		quantileLabels := make(map[string]string, len(child.labels)+1)
+
+		for k, v := range child.labels {
+			quantileLabels[k] = v
+		}
+
+		for _, percentile := range metric.reportablePercentiles {
+			quantileLabels["quantile"] = strconv.FormatFloat(percentile, 'f', -1, 64)
+
+			if err := fn(name, metric.percentile(signature, percentile), quantileLabels); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}

@@ -8,6 +8,7 @@ package prometheus
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -125,6 +126,25 @@ func testGauge(t tester) {
 
 func TestGauge(t *testing.T) {
 	testGauge(t)
+}
+
+func TestGauge_samples(t *testing.T) {
+	gauge := NewGauge()
+
+	gauge.Set(map[string]string{"foo": "bar"}, 3.4)
+	gauge.Set(map[string]string{"bar": "baz"}, 4.4)
+
+	got := []testSample{}
+	expected := []testSample{
+		{"metric", 3.4, map[string]string{"foo": "bar"}},
+		{"metric", 4.4, map[string]string{"bar": "baz"}},
+	}
+
+	gauge.samples("metric", captureSamples(&got))
+
+	if !reflect.DeepEqual(expected, got) {
+		t.Fatalf("expected %v, got %v", expected, got)
+	}
 }
 
 func BenchmarkGauge(b *testing.B) {
