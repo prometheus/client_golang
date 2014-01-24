@@ -53,3 +53,27 @@ func (checker *valueEqualsChecker) Check(params []interface{}, names []string) (
 
 	return actual == expected, ""
 }
+
+func dupMap(old map[string]string) map[string]string {
+	new := make(map[string]string, len(old))
+
+	for k, v := range old {
+		new[k] = v
+	}
+
+	return new
+}
+
+// testSample represents a captured sample
+type testSample struct {
+	name   string
+	value  float64
+	labels map[string]string
+}
+
+func captureSamples(out *[]testSample) sampleFn {
+	return func(name string, value float64, labels map[string]string) error {
+		*out = append(*out, testSample{name, value, dupMap(labels)})
+		return nil
+	}
+}

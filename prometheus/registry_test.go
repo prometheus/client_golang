@@ -12,9 +12,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"code.google.com/p/goprotobuf/proto"
+	"github.com/prometheus/client_golang/extraction"
+	"github.com/prometheus/client_golang/model"
 )
 
 func testRegister(t tester) {
@@ -346,4 +349,69 @@ func BenchmarkDumpToWriter(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testDumpToWriter(b)
 	}
+}
+
+func TestRegistry_dumpSamples(t *testing.T) {
+	var (
+		buf      = new(bytes.Buffer)
+		registry = &registry{signatureContainers: make(map[uint64]*container)}
+		counter  = NewCounter()
+	)
+
+	if err := registry.dumpSamples(buf); err != nil {
+		t.Fatalf("expected no error with empty registry, got %s", err)
+	}
+
+	if buf.Len() > 0 {
+		t.Fatal("expected no output with empty registry")
+	}
+
+	registry.Register("counter", "...", map[string]string{"base": "true"}, counter)
+
+	if err := registry.dumpSamples(buf); err != nil {
+		t.Fatalf("expected no error with empty metrics, got %s", err)
+	}
+
+	if buf.Len() > 0 {
+		t.Fatal("expected no output with empty metrics")
+	}
+
+	counter.Increment(map[string]string{"foo": "bar"})
+	counter.Increment(map[string]string{"foo": "bar", "base": "false"})
+
+	if err := registry.dumpSamples(buf); err != nil {
+		t.Fatalf("expected to error writing samples, got %s", err)
+	}
+
+	got := []*model.Sample{}
+
+	ingester := testIngester(func(r *extraction.Result) {
+		got = append(got, r.Samples...)
+	})
+
+	err := extraction.SampleProcessor.ProcessSingle(buf, ingester, &extraction.ProcessOptions{})
+	if err != nil {
+		t.Fatal("expected no error extracting results, got", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 samples, got %d", len(got))
+	}
+
+	expected := []*model.Sample{
+		{model.Metric{"base": "true", "foo": "bar", "name": "counter"}, 1, 0},
+		{model.Metric{"base": "false", "foo": "bar", "name": "counter"}, 1, 0},
+	}
+
+	if !reflect.DeepEqual(expected, got) {
+		t.Fatalf("expected %#v, got %#v", expected, got)
+	}
+}
+
+type testIngester func(*extraction.Result)
+
+func (fn testIngester) Ingest(result *extraction.Result) error {
+	fn(result)
+
+	return nil
 }

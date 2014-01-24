@@ -251,6 +251,50 @@ func (registry *registry) YieldExporter() http.HandlerFunc {
 	return registry.Handler()
 }
 
+func (r *registry) dumpSamples(w io.Writer) error {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	sample := new(dto.Sample)
+
+	for _, container := range r.signatureContainers {
+		sample.Reset()
+
+		labels := make([]*dto.Label, 0, len(container.BaseLabels))
+
+		for key, val := range container.BaseLabels {
+			labels = append(labels, &dto.Label{
+				Key: proto.String(key),
+				Val: proto.String(val),
+			})
+		}
+
+		err := container.Metric.samples(container.Name, func(name string, v float64, l map[string]string) error {
+			labels = labels[:len(container.BaseLabels)]
+
+			for key, val := range l {
+				labels = append(labels, &dto.Label{
+					Key: proto.String(key),
+					Val: proto.String(val),
+				})
+			}
+
+			sample.Name = &name
+			sample.Value = &v
+			sample.Label = labels
+
+			_, err := ext.WriteDelimited(w, sample)
+			return err
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *registry) dumpDelimitedPB(w io.Writer) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
