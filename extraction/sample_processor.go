@@ -30,12 +30,55 @@ type sampleProcessor struct{}
 // more details.
 var SampleProcessor = new(sampleProcessor)
 
+type sampleBuffer struct {
+	buffer model.Samples
+	out    Ingester
+}
+
+// newSampleBuffer returns a new sample buffer of the given size which Flushes
+// samples to out as the buffer fills.
+func newSampleBuffer(size int, out Ingester) *sampleBuffer {
+	return &sampleBuffer{
+		buffer: make(model.Samples, 0, size),
+		out:    out,
+	}
+}
+
+// Append adds a sample to the buffer. If the buffer is full, Flush will be
+// called before the sample is added.
+func (b *sampleBuffer) Append(sample *model.Sample) error {
+	if len(b.buffer) == cap(b.buffer) {
+		if err := b.Flush(); err != nil {
+			return err
+		}
+	}
+
+	b.buffer = append(b.buffer, sample)
+	return nil
+}
+
+// Flush calls Ingest on the provided Ingester with the buffered samples and
+// resets the buffer.
+// Since the Ingester may or may not act immediately on the samples provided,
+// we make a copy first.
+func (b *sampleBuffer) Flush() error {
+	if len(b.buffer) == 0 {
+		return nil
+	}
+
+	samples := make(model.Samples, len(b.buffer))
+	copy(samples, b.buffer)
+	b.buffer = b.buffer[:0]
+
+	return b.out.Ingest(&Result{Samples: samples})
+}
+
 func (sampleProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOptions) error {
 	var (
 		err error
 
 		sample  = new(dto.Sample)
-		samples = make(model.Samples, 0, 64)
+		samples = newSampleBuffer(64, out)
 	)
 
 	for {
@@ -58,16 +101,20 @@ func (sampleProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOption
 
 		labels[model.MetricNameLabel] = model.LabelValue(sample.GetName())
 
-		samples = append(samples, &model.Sample{
+		err = samples.Append(&model.Sample{
 			Metric:    model.Metric(labels),
 			Timestamp: o.Timestamp,
 			Value:     model.SampleValue(sample.GetValue()),
 		})
+
+		if err != nil {
+			return err
+		}
 	}
 
 	if err != nil {
 		return err
 	}
 
-	return out.Ingest(&Result{Samples: samples})
+	return samples.Flush()
 }

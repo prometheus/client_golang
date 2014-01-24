@@ -81,3 +81,60 @@ func TestSampleProcessor(t *testing.T) {
 		t.Fatalf("expected %#v, got %#v", expected, results[0])
 	}
 }
+
+func TestSampleBuffer(t *testing.T) {
+	var (
+		results = results{}
+		samples = newSampleBuffer(5, &results)
+	)
+
+	for i := 0; i < 5; i++ {
+		if err := samples.Append(&model.Sample{Value: 1}); err != nil {
+			t.Fatal("unexpected error:", err)
+		}
+	}
+
+	if len(results) != 0 {
+		t.Fatal("sample buffer unexpectedly flushed")
+	}
+
+	if err := samples.Append(&model.Sample{Value: -1}); err != nil {
+		t.Fatal("unexpected error:", err)
+	}
+
+	if len(results) != 1 {
+		t.Fatal("sample buffer not flushed")
+	}
+
+	if len(results[0].Samples) != 5 {
+		t.Fatalf("expected 5 flushed samples, got %d", len(results[0].Samples))
+	}
+
+	for _, s := range results[0].Samples {
+		if s.Value != 1 {
+			t.Fatal("incorrectly flushed samples")
+		}
+	}
+
+	samples.Flush()
+
+	if len(results) != 2 {
+		t.Fatal("sample buffer not flushed")
+	}
+
+	if len(results[1].Samples) != 1 {
+		t.Fatalf("expected 1 flushed samples, got %d", len(results[1].Samples))
+	}
+
+	for _, s := range results[1].Samples {
+		if s.Value != -1 {
+			t.Fatal("incorrectly flushed samples")
+		}
+	}
+
+	samples.Flush()
+
+	if len(results) != 2 {
+		t.Fatal("sample buffer flushed with no values")
+	}
+}
