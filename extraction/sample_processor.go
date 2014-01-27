@@ -16,7 +16,6 @@ package extraction
 import (
 	"io"
 
-	"github.com/matttproud/golang_protobuf_extensions/ext"
 	"github.com/prometheus/client_golang/model"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -25,9 +24,6 @@ type sampleProcessor struct{}
 
 // SampleProcessor decodes varint encoded record length-delimited streams
 // of io.prometheus.client.Sample.
-//
-// See http://godoc.org/github.com/matttproud/golang_protobuf_extensions/ext for
-// more details.
 var SampleProcessor = new(sampleProcessor)
 
 type sampleBuffer struct {
@@ -79,12 +75,14 @@ func (sampleProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOption
 
 		sample  = new(dto.Sample)
 		samples = newSampleBuffer(64, out)
+
+		dec = dto.NewDecoder(i)
 	)
 
 	for {
 		sample.Reset()
 
-		if _, err = ext.ReadDelimited(i, sample); err != nil {
+		if err = dec.Decode(sample); err != nil {
 			if err == io.EOF {
 				err = nil
 				break

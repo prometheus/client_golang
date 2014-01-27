@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"code.google.com/p/goprotobuf/proto"
-	"github.com/matttproud/golang_protobuf_extensions/ext"
 	"github.com/prometheus/client_golang/model"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -34,11 +33,12 @@ func (rs *results) Ingest(r *Result) error {
 func TestSampleProcessor(t *testing.T) {
 	var (
 		buf     = new(bytes.Buffer)
+		enc     = dto.NewEncoder(buf)
 		results = results{}
 		options = &ProcessOptions{Timestamp: model.Now()}
 	)
 
-	ext.WriteDelimited(buf, &dto.Sample{
+	enc.Encode(&dto.Sample{
 		Name:  proto.String("request_count"),
 		Value: proto.Float64(-42),
 		Label: []*dto.Label{
@@ -46,7 +46,7 @@ func TestSampleProcessor(t *testing.T) {
 		},
 	})
 
-	ext.WriteDelimited(buf, &dto.Sample{
+	enc.Encode(&dto.Sample{
 		Name:  proto.String("request_count"),
 		Value: proto.Float64(6.4),
 		Label: []*dto.Label{

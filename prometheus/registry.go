@@ -23,7 +23,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
-	"github.com/matttproud/golang_protobuf_extensions/ext"
 
 	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
@@ -255,6 +254,7 @@ func (r *registry) dumpSamples(w io.Writer) error {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	enc := dto.NewEncoder(w)
 	sample := new(dto.Sample)
 
 	for _, container := range r.signatureContainers {
@@ -283,8 +283,7 @@ func (r *registry) dumpSamples(w io.Writer) error {
 			sample.Value = &v
 			sample.Label = labels
 
-			_, err := ext.WriteDelimited(w, sample)
-			return err
+			return enc.Encode(sample)
 		})
 
 		if err != nil {
@@ -299,6 +298,7 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	enc := dto.NewEncoder(w)
 	f := new(dto.MetricFamily)
 	for _, container := range r.signatureContainers {
 		f.Reset()
@@ -319,7 +319,7 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 			}
 		}
 
-		ext.WriteDelimited(w, f)
+		enc.Encode(f)
 	}
 }
 

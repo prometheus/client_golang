@@ -17,29 +17,26 @@ import (
 	"fmt"
 	"io"
 
-	dto "github.com/prometheus/client_model/go"
-
-	"github.com/matttproud/golang_protobuf_extensions/ext"
-
 	"github.com/prometheus/client_golang/model"
+	dto "github.com/prometheus/client_model/go"
 )
 
 type metricFamilyProcessor struct{}
 
 // MetricFamilyProcessor decodes varint encoded record length-delimited streams
 // of io.prometheus.client.MetricFamily.
-//
-// See http://godoc.org/github.com/matttproud/golang_protobuf_extensions/ext for
-// more details.
 var MetricFamilyProcessor = new(metricFamilyProcessor)
 
 func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOptions) error {
-	family := new(dto.MetricFamily)
+	var (
+		family = new(dto.MetricFamily)
+		dec    = dto.NewDecoder(i)
+	)
 
 	for {
 		family.Reset()
 
-		if _, err := ext.ReadDelimited(i, family); err != nil {
+		if err := dec.Decode(family); err != nil {
 			if err == io.EOF {
 				return nil
 			}
