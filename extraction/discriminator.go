@@ -31,15 +31,24 @@ func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Invalid Content-Type header %q: %s", header.Get("Content-Type"), err)
 	}
+
 	switch mediatype {
 	case "application/vnd.google.protobuf":
-		if params["proto"] != "io.prometheus.client.MetricFamily" {
+		var processor Processor
+
+		switch params["proto"] {
+		case "io.prometheus.client.MetricFamily":
+			processor = MetricFamilyProcessor
+		case "io.prometheus.client.Sample":
+			processor = SampleProcessor
+		default:
 			return nil, fmt.Errorf("Unrecognized Protocol Message %s", params["proto"])
 		}
+
 		if params["encoding"] != "delimited" {
 			return nil, fmt.Errorf("Unsupported Encoding %s", params["encoding"])
 		}
-		return MetricFamilyProcessor, nil
+		return processor, nil
 
 	case "application/json":
 		var prometheusApiVersion string

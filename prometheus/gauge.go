@@ -126,3 +126,16 @@ func (metric *gauge) dumpChildren(f *dto.MetricFamily) {
 		f.Metric = append(f.Metric, m)
 	}
 }
+
+func (metric *gauge) samples(name string, fn sampleFn) error {
+	metric.mutex.RLock()
+	defer metric.mutex.RUnlock()
+
+	for _, child := range metric.values {
+		if err := fn(name, child.Value, child.Labels); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

@@ -23,7 +23,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
-	"github.com/matttproud/golang_protobuf_extensions/ext"
 
 	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
@@ -44,10 +43,10 @@ const (
 // container represents a top-level registered metric that encompasses its
 // static metadata.
 type container struct {
+	Name       string            `json:"name"`
 	BaseLabels map[string]string `json:"baseLabels"`
 	Docstring  string            `json:"docstring"`
 	Metric     Metric            `json:"metric"`
-	name       string
 }
 
 type containers []*container
@@ -61,7 +60,7 @@ func (c containers) Swap(i, j int) {
 }
 
 func (c containers) Less(i, j int) bool {
-	return c[i].name < c[j].name
+	return c[i].Name < c[j].Name
 }
 
 type registry struct {
@@ -136,8 +135,13 @@ func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (
 		return signature, err
 	}
 
-	baseLabels[nameLabel] = name
-	signature = labelsToSignature(baseLabels)
+	signatureLabels := make(map[string]string, len(baseLabels)+1)
+	for k, v := range baseLabels {
+		signatureLabels[k] = v
+	}
+	signatureLabels[nameLabel] = name
+
+	signature = labelsToSignature(signatureLabels)
 
 	if _, contains := r.signatureContainers[signature]; contains {
 		err = fmt.Errorf("metric named %s with baseLabels %s is already registered", name, baseLabels)
@@ -152,7 +156,7 @@ func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (
 
 	if *useAggressiveSanityChecks {
 		for _, container := range r.signatureContainers {
-			if container.name == name {
+			if container.Name == name {
 				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.BaseLabels)
 				if *abortOnMisuse {
 					panic(err)
@@ -189,7 +193,7 @@ func (r *registry) Register(name, docstring string, baseLabels map[string]string
 		BaseLabels: labels,
 		Docstring:  docstring,
 		Metric:     metric,
-		name:       name,
+		Name:       name,
 	}
 
 	return nil
@@ -246,15 +250,60 @@ func (registry *registry) YieldExporter() http.HandlerFunc {
 	return registry.Handler()
 }
 
+func (r *registry) dumpSamples(w io.Writer) error {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	enc := dto.NewEncoder(w)
+	sample := new(dto.Sample)
+
+	for _, container := range r.signatureContainers {
+		sample.Reset()
+
+		labels := make([]*dto.Label, 0, len(container.BaseLabels))
+
+		for key, val := range container.BaseLabels {
+			labels = append(labels, &dto.Label{
+				Key: proto.String(key),
+				Val: proto.String(val),
+			})
+		}
+
+		err := container.Metric.samples(container.Name, func(name string, v float64, l map[string]string) error {
+			labels = labels[:len(container.BaseLabels)]
+
+			for key, val := range l {
+				labels = append(labels, &dto.Label{
+					Key: proto.String(key),
+					Val: proto.String(val),
+				})
+			}
+
+			sample.Name = &name
+			sample.Value = &v
+			sample.Label = labels
+
+			return enc.Encode(sample)
+		})
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (r *registry) dumpDelimitedPB(w io.Writer) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
+	enc := dto.NewEncoder(w)
 	f := new(dto.MetricFamily)
 	for _, container := range r.signatureContainers {
 		f.Reset()
 
-		f.Name = proto.String(container.name)
+		f.Name = proto.String(container.Name)
 		f.Help = proto.String(container.Docstring)
 
 		container.Metric.dumpChildren(f)
@@ -270,7 +319,7 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 			}
 		}
 
-		ext.WriteDelimited(w, f)
+		enc.Encode(f)
 	}
 }
 

@@ -8,6 +8,7 @@ package prometheus
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 )
 
@@ -204,6 +205,25 @@ func testCounter(t tester) {
 		if scenario.out.value != asString {
 			t.Errorf("%d. expected %q, got %q", i, scenario.out.value, asString)
 		}
+	}
+}
+
+func TestCounter_samples(t *testing.T) {
+	counter := NewCounter()
+
+	counter.Increment(map[string]string{"foo": "bar"})
+	counter.Increment(map[string]string{"bar": "baz"})
+
+	got := []testSample{}
+	expected := []testSample{
+		{"metric", 1, map[string]string{"foo": "bar"}},
+		{"metric", 1, map[string]string{"bar": "baz"}},
+	}
+
+	counter.samples("metric", captureSamples(&got))
+
+	if !reflect.DeepEqual(expected, got) {
+		t.Fatalf("expected %v, got %v", expected, got)
 	}
 }
 
