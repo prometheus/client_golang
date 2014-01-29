@@ -81,6 +81,8 @@ type Registry interface {
 	// This is a legacy version of Handler and is deprecated.  Please stop
 	// using.
 	YieldExporter() http.HandlerFunc
+	// dumpSamples writes protobuf encoded samples to a writer.
+	dumpSamples(io.Writer) error
 }
 
 // This builds a new metric registry.  It is not needed in the majority of
