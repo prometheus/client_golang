@@ -16,6 +16,8 @@ import (
 type Metric interface {
 	// Produce a JSON representation of the metric.
 	json.Marshaler
+	// Reset removes any stored values associated with a given labelset.
+	Reset(labels map[string]string)
 	// Reset the parent metrics and delete all child metrics.
 	ResetAll()
 	// Produce a human-consumable representation of the metric.

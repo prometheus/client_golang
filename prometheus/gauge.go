@@ -72,6 +72,14 @@ func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 	return value
 }
 
+func (metric *gauge) Reset(labels map[string]string) {
+	metric.mutex.Lock()
+	defer metric.mutex.Unlock()
+
+	signature := labelsToSignature(labels)
+	delete(metric.values, signature)
+}
+
 func (metric *gauge) ResetAll() {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()

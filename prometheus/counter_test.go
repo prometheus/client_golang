@@ -80,6 +80,24 @@ func testCounter(t tester) {
 						g.Set(map[string]string{"handler": "/bar"}, 17)
 					},
 					func(g Counter) {
+						g.Reset(map[string]string{"handler": "/bar"})
+					},
+				},
+			},
+			out: output{
+				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":13}]}`,
+			},
+		},
+		{
+			in: input{
+				steps: []func(g Counter){
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/foo"}, 13)
+					},
+					func(g Counter) {
+						g.Set(map[string]string{"handler": "/bar"}, 17)
+					},
+					func(g Counter) {
 						g.ResetAll()
 					},
 				},
