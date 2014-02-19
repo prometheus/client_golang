@@ -65,6 +65,14 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 	return value
 }
 
+func (metric *counter) Reset(labels map[string]string) {
+	metric.mutex.Lock()
+	defer metric.mutex.Unlock()
+
+	signature := labelsToSignature(labels)
+	delete(metric.values, signature)
+}
+
 func (metric *counter) ResetAll() {
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
