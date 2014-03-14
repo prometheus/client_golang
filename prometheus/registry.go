@@ -25,6 +25,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/matttproud/golang_protobuf_extensions/ext"
 
+	"github.com/prometheus/client_golang/model"
 	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
 
@@ -124,19 +125,21 @@ func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (
 		}
 	}
 
-	if _, contains := baseLabels[nameLabel]; contains {
-		err = fmt.Errorf("metric named %s with baseLabels %s contains reserved label name %s in baseLabels", name, baseLabels, nameLabel)
+	for label := range baseLabels {
+		if strings.HasPrefix(label, model.ReservedLabelPrefix) {
+			err = fmt.Errorf("metric named %s with baseLabels %s contains reserved label name %s in baseLabels", name, baseLabels, label)
 
-		if *abortOnMisuse {
-			panic(err)
-		} else if *debugRegistration {
-			log.Println(err)
+			if *abortOnMisuse {
+				panic(err)
+			} else if *debugRegistration {
+				log.Println(err)
+			}
+
+			return signature, err
 		}
-
-		return signature, err
 	}
 
-	baseLabels[nameLabel] = name
+	baseLabels[string(model.MetricNameLabel)] = name
 	signature = labelsToSignature(baseLabels)
 
 	if _, contains := r.signatureContainers[signature]; contains {

@@ -23,7 +23,11 @@ const (
 	ExporterLabelPrefix LabelName = "exporter_"
 
 	// The label name indicating the metric name of a timeseries.
-	MetricNameLabel LabelName = "name"
+	MetricNameLabel LabelName = "__name__"
+
+	// ReservedLabelPrefix is a prefix which is not legal in user-supplied label
+	// names.
+	ReservedLabelPrefix = "__"
 
 	// The label name indicating the job from which a timeseries was scraped.
 	JobLabel LabelName = "job"

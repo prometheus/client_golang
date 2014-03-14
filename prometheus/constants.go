@@ -37,7 +37,6 @@ const (
 	baseLabelsKey = "baseLabels"
 	docstringKey  = "docstring"
 	metricKey     = "metric"
-	nameLabel     = "name"
 
 	counterTypeValue   = "counter"
 	floatBitCount      = 64
