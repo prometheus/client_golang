@@ -47,6 +47,8 @@ func (s Samples) Less(i, j int) bool {
 	switch {
 	case s[i].Metric.Before(s[j].Metric):
 		return true
+	case s[j].Metric.Before(s[i].Metric):
+		return false
 	case s[i].Timestamp.Before(s[j].Timestamp):
 		return true
 	default:
