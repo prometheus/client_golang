@@ -21,44 +21,44 @@ import (
 func TestSamplesSort(t *testing.T) {
 	input := Samples{
 		&Sample{
-			// Fingerprint: 7658840550047852795
-			Metric: Metric{
-				MetricNameLabel: "B",
-			},
-			Timestamp: 1,
-		},
-		&Sample{
-			// Fingerprint: 7658840550047852795
-			Metric: Metric{
-				MetricNameLabel: "B",
-			},
-			Timestamp: 2,
-		},
-		&Sample{
-			// Fingerprint: 13206712341014817019
+			// Fingerprint: 5735370332639503759
 			Metric: Metric{
 				MetricNameLabel: "A",
 			},
 			Timestamp: 1,
 		},
 		&Sample{
-			// Fingerprint: 13206712341014817019
+			// Fingerprint: 5735370332639503759
 			Metric: Metric{
 				MetricNameLabel: "A",
 			},
 			Timestamp: 2,
 		},
 		&Sample{
-			// Fingerprint: 2110968759080888571
+			// Fingerprint: 13086089349438416271
 			Metric: Metric{
 				MetricNameLabel: "C",
 			},
 			Timestamp: 1,
 		},
 		&Sample{
-			// Fingerprint: 2110968759080888571
+			// Fingerprint: 13086089349438416271
 			Metric: Metric{
 				MetricNameLabel: "C",
+			},
+			Timestamp: 2,
+		},
+		&Sample{
+			// Fingerprint: 187498541672539535
+			Metric: Metric{
+				MetricNameLabel: "B",
+			},
+			Timestamp: 1,
+		},
+		&Sample{
+			// Fingerprint: 187498541672539535
+			Metric: Metric{
+				MetricNameLabel: "B",
 			},
 			Timestamp: 2,
 		},
@@ -66,44 +66,44 @@ func TestSamplesSort(t *testing.T) {
 
 	expected := Samples{
 		&Sample{
-			// Fingerprint: 2110968759080888571
-			Metric: Metric{
-				MetricNameLabel: "C",
-			},
-			Timestamp: 1,
-		},
-		&Sample{
-			// Fingerprint: 2110968759080888571
-			Metric: Metric{
-				MetricNameLabel: "C",
-			},
-			Timestamp: 2,
-		},
-		&Sample{
-			// Fingerprint: 7658840550047852795
+			// Fingerprint: 187498541672539535
 			Metric: Metric{
 				MetricNameLabel: "B",
 			},
 			Timestamp: 1,
 		},
 		&Sample{
-			// Fingerprint: 7658840550047852795
+			// Fingerprint: 187498541672539535
 			Metric: Metric{
 				MetricNameLabel: "B",
 			},
 			Timestamp: 2,
 		},
 		&Sample{
-			// Fingerprint: 13206712341014817019
+			// Fingerprint: 5735370332639503759
 			Metric: Metric{
 				MetricNameLabel: "A",
 			},
 			Timestamp: 1,
 		},
 		&Sample{
-			// Fingerprint: 13206712341014817019
+			// Fingerprint: 5735370332639503759
 			Metric: Metric{
 				MetricNameLabel: "A",
+			},
+			Timestamp: 2,
+		},
+		&Sample{
+			// Fingerprint: 13086089349438416271
+			Metric: Metric{
+				MetricNameLabel: "C",
+			},
+			Timestamp: 1,
+		},
+		&Sample{
+			// Fingerprint: 13086089349438416271
+			Metric: Metric{
+				MetricNameLabel: "C",
 			},
 			Timestamp: 2,
 		},
@@ -119,7 +119,7 @@ func TestSamplesSort(t *testing.T) {
 		expectedFp.LoadFromMetric(expected[i].Metric)
 
 		if !actualFp.Equal(&expectedFp) {
-			t.Fatalf("%d. Incorrect fingerprint. Got %s; want %s", i, actualFp, expectedFp)
+			t.Fatalf("%d. Incorrect fingerprint. Got %v; want %v", i, actualFp, expectedFp)
 		}
 
 		if actual.Timestamp != expected[i].Timestamp {
