@@ -30,7 +30,7 @@ func testLabelsToSignature(t tester) {
 		actual := labelsToSignature(scenario.in)
 
 		if actual != scenario.out {
-			t.Errorf("%d. expected %s, got %s", i, scenario.out, actual)
+			t.Errorf("%d. expected %d, got %d", i, scenario.out, actual)
 		}
 	}
 }

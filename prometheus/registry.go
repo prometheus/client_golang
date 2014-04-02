@@ -66,8 +66,9 @@ func (c containers) Less(i, j int) bool {
 }
 
 type registry struct {
-	mutex               sync.RWMutex
-	signatureContainers map[uint64]*container
+	mutex                     sync.RWMutex
+	signatureContainers       map[uint64]*container
+	metricFamilyInjectionHook func() []*dto.MetricFamily
 }
 
 // Registry is a registrar where metrics are listed.
@@ -77,11 +78,23 @@ type registry struct {
 type Registry interface {
 	// Register a metric with a given name.  Name should be globally unique.
 	Register(name, docstring string, baseLabels map[string]string, metric Metric) error
-	// Create a http.HandlerFunc that is tied to a Registry such that requests
-	// against it generate a representation of the housed metrics.
+	// SetMetricFamilyInjectionHook sets a function that is called whenever
+	// metrics are requested. The MetricsFamily protobufs returned by the
+	// function are appended to the delivered metrics. This is a way to
+	// directly inject MetricFamily protobufs managed and owned by the
+	// caller. The caller has full responsibility. No sanity checks are
+	// performed on the returned protobufs. The function must be callable at
+	// any time and concurrently. The only thing handled by the Registry is
+	// the conversion if metrics are requested in a non-protobuf format. The
+	// deprecated JSON format, however, is not supported, i.e. metrics
+	// delivered as JSON will not contain the metrics injected by the
+	// injection hook.
+	SetMetricFamilyInjectionHook(func() []*dto.MetricFamily)
+	// Handler creates a http.HandlerFunc. Requests against it generate a
+	// representation of the metrics managed by this registry.
 	Handler() http.HandlerFunc
-	// This is a legacy version of Handler and is deprecated.  Please stop
-	// using.
+	// YieldExporter is a legacy version of Handler and is deprecated.
+	// Please stop using.
 	YieldExporter() http.HandlerFunc
 }
 
@@ -96,6 +109,11 @@ func NewRegistry() Registry {
 // Associate a Metric with the DefaultRegistry.
 func Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
 	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
+}
+
+// SetMetricFamilyInjectionHook implements the Registry interface.
+func (r *registry) SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
+	r.metricFamilyInjectionHook = hook
 }
 
 // Implements json.Marshaler
@@ -277,6 +295,15 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 	}
 }
 
+func (r *registry) dumpDelimitedExternalPB(w io.Writer) {
+	if r.metricFamilyInjectionHook == nil {
+		return
+	}
+	for _, f := range r.metricFamilyInjectionHook() {
+		ext.WriteDelimited(w, f)
+	}
+}
+
 func (registry *registry) Handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer requestLatencyAccumulator(time.Now())
@@ -306,7 +333,7 @@ func (registry *registry) Handler() http.HandlerFunc {
 
 				header.Set(contentTypeHeader, DelimitedTelemetryContentType)
 				registry.dumpDelimitedPB(writer)
-
+				registry.dumpDelimitedExternalPB(writer)
 				return
 			}
 		}

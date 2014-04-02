@@ -8,11 +8,14 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
+
+	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
 
@@ -170,7 +173,7 @@ func testRegister(t tester) {
 		for j, input := range scenario.inputs {
 			actual := registry.Register(input.name, "", input.baseLabels, nil)
 			if scenario.outputs[j] != (actual == nil) {
-				t.Errorf("%d.%d. expected %s, got %s", i, j, scenario.outputs[j], actual)
+				t.Errorf("%d.%d. expected %t, got %t", i, j, scenario.outputs[j], actual == nil)
 			}
 		}
 	}
@@ -200,6 +203,297 @@ func (r *fakeResponseWriter) Write(d []byte) (l int, err error) {
 }
 
 func (r *fakeResponseWriter) WriteHeader(c int) {
+}
+
+func testHandler(t tester) {
+
+	metric := NewCounter()
+	metric.Increment(map[string]string{"labelname": "val1"})
+	metric.Increment(map[string]string{"labelname": "val2"})
+
+	varintBuf := make([]byte, binary.MaxVarintLen32)
+
+	externalMetricFamily := []*dto.MetricFamily{
+		&dto.MetricFamily{
+			Name: proto.String("externalname"),
+			Help: proto.String("externaldocstring"),
+			Type: dto.MetricType_COUNTER.Enum(),
+			Metric: []*dto.Metric{
+				&dto.Metric{
+					Label: []*dto.LabelPair{
+						&dto.LabelPair{
+							Name:  proto.String("externallabelname"),
+							Value: proto.String("externalval1"),
+						},
+						&dto.LabelPair{
+							Name:  proto.String("externalbasename"),
+							Value: proto.String("externalbasevalue"),
+						},
+						&dto.LabelPair{
+							Name:  proto.String("__name__"),
+							Value: proto.String("externalname"),
+						},
+					},
+					Counter: &dto.Counter{
+						Value: proto.Float64(1),
+					},
+				},
+			},
+		},
+	}
+	marshaledExternalMetricFamily, err := proto.Marshal(externalMetricFamily[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var externalBuf bytes.Buffer
+	l := binary.PutUvarint(varintBuf, uint64(len(marshaledExternalMetricFamily)))
+	_, err = externalBuf.Write(varintBuf[:l])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = externalBuf.Write(marshaledExternalMetricFamily)
+	if err != nil {
+		t.Fatal(err)
+	}
+	externalMetricFamilyAsBytes := externalBuf.Bytes()
+
+	expectedMetricFamily := &dto.MetricFamily{
+		Name: proto.String("name"),
+		Help: proto.String("docstring"),
+		Type: dto.MetricType_COUNTER.Enum(),
+		Metric: []*dto.Metric{
+			&dto.Metric{
+				Label: []*dto.LabelPair{
+					&dto.LabelPair{
+						Name:  proto.String("labelname"),
+						Value: proto.String("val1"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("basename"),
+						Value: proto.String("basevalue"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("__name__"),
+						Value: proto.String("name"),
+					},
+				},
+				Counter: &dto.Counter{
+					Value: proto.Float64(1),
+				},
+			},
+			&dto.Metric{
+				Label: []*dto.LabelPair{
+					&dto.LabelPair{
+						Name:  proto.String("labelname"),
+						Value: proto.String("val2"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("basename"),
+						Value: proto.String("basevalue"),
+					},
+					&dto.LabelPair{
+						Name:  proto.String("__name__"),
+						Value: proto.String("name"),
+					},
+				},
+				Counter: &dto.Counter{
+					Value: proto.Float64(1),
+				},
+			},
+		},
+	}
+	marshaledExpectedMetricFamily, err := proto.Marshal(expectedMetricFamily)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	l = binary.PutUvarint(varintBuf, uint64(len(marshaledExpectedMetricFamily)))
+	_, err = buf.Write(varintBuf[:l])
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = buf.Write(marshaledExpectedMetricFamily)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedMetricFamilyAsBytes := buf.Bytes()
+
+	type output struct {
+		headers map[string]string
+		body    []byte
+	}
+
+	var scenarios = []struct {
+		headers        map[string]string
+		out            output
+		withCounter    bool
+		withExternalMF bool
+	}{
+		{
+			headers: map[string]string{
+				"Accept": "foo/bar;q=0.2, dings/bums;q=0.8",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.2`,
+				},
+				body: []byte("[]\n"),
+			},
+		},
+		{
+			headers: map[string]string{
+				"Accept": "foo/bar;q=0.2, application/quark;q=0.8",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.2`,
+				},
+				body: []byte("[]\n"),
+			},
+		},
+		{
+			headers: map[string]string{
+				"Accept": "foo/bar;q=0.2, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=bla;q=0.8",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.2`,
+				},
+				body: []byte("[]\n"),
+			},
+		},
+		{
+			headers: map[string]string{
+				"Accept": "foo/bar;q=0.2, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.8",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+				},
+				body: []byte{},
+			},
+		},
+		{
+			headers: map[string]string{
+				"Accept": "application/json",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.2`,
+				},
+				body: []byte(`[{"baseLabels":{"__name__":"name","basename":"basevalue"},"docstring":"docstring","metric":{"type":"counter","value":[{"labels":{"labelname":"val1"},"value":1},{"labels":{"labelname":"val2"},"value":1}]}}]
+`),
+			},
+			withCounter: true,
+		},
+		{
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+				},
+				body: expectedMetricFamilyAsBytes,
+			},
+			withCounter: true,
+		},
+		{
+			headers: map[string]string{
+				"Accept": "application/json",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.2`,
+				},
+				body: []byte("[]\n"),
+			},
+			withExternalMF: true,
+		},
+		{
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+				},
+				body: externalMetricFamilyAsBytes,
+			},
+			withExternalMF: true,
+		},
+		{
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						expectedMetricFamilyAsBytes,
+						externalMetricFamilyAsBytes,
+					},
+					[]byte{},
+				),
+			},
+			withCounter:    true,
+			withExternalMF: true,
+		},
+	}
+	for i, scenario := range scenarios {
+		registry := NewRegistry().(*registry)
+		if scenario.withCounter {
+			registry.Register(
+				"name", "docstring",
+				map[string]string{"basename": "basevalue"},
+				metric,
+			)
+		}
+		if scenario.withExternalMF {
+			registry.SetMetricFamilyInjectionHook(
+				func() []*dto.MetricFamily {
+					return externalMetricFamily
+				},
+			)
+		}
+		writer := &fakeResponseWriter{
+			header: http.Header{},
+		}
+		handler := registry.Handler()
+		request, _ := http.NewRequest("GET", "/", nil)
+		for key, value := range scenario.headers {
+			request.Header.Add(key, value)
+		}
+		handler(writer, request)
+
+		for key, value := range scenario.out.headers {
+			if writer.Header().Get(key) != value {
+				t.Errorf(
+					"%d. expected %q for header %q, got %q",
+					i, value, key, writer.Header().Get(key),
+				)
+			}
+		}
+
+		if !bytes.Equal(scenario.out.body, writer.body.Bytes()) {
+			t.Errorf(
+				"%d. expected %q for body, got %q",
+				i, scenario.out.body, writer.body.Bytes(),
+			)
+		}
+	}
+}
+
+func TestHander(t *testing.T) {
+	testHandler(t)
+}
+
+func BenchmarkHandler(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		testHandler(b)
+	}
 }
 
 func testDecorateWriter(t tester) {
