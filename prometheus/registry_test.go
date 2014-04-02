@@ -170,7 +170,7 @@ func testRegister(t tester) {
 		for j, input := range scenario.inputs {
 			actual := registry.Register(input.name, "", input.baseLabels, nil)
 			if scenario.outputs[j] != (actual == nil) {
-				t.Errorf("%d.%d. expected %s, got %s", i, j, scenario.outputs[j], actual)
+				t.Errorf("%d.%d. expected %t, got %t", i, j, scenario.outputs[j], actual == nil)
 			}
 		}
 	}
