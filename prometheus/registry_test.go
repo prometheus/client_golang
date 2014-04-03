@@ -229,10 +229,6 @@ func testHandler(t tester) {
 							Name:  proto.String("externalbasename"),
 							Value: proto.String("externalbasevalue"),
 						},
-						&dto.LabelPair{
-							Name:  proto.String("__name__"),
-							Value: proto.String("externalname"),
-						},
 					},
 					Counter: &dto.Counter{
 						Value: proto.Float64(1),
@@ -272,10 +268,6 @@ func testHandler(t tester) {
 						Name:  proto.String("basename"),
 						Value: proto.String("basevalue"),
 					},
-					&dto.LabelPair{
-						Name:  proto.String("__name__"),
-						Value: proto.String("name"),
-					},
 				},
 				Counter: &dto.Counter{
 					Value: proto.Float64(1),
@@ -290,10 +282,6 @@ func testHandler(t tester) {
 					&dto.LabelPair{
 						Name:  proto.String("basename"),
 						Value: proto.String("basevalue"),
-					},
-					&dto.LabelPair{
-						Name:  proto.String("__name__"),
-						Value: proto.String("name"),
 					},
 				},
 				Counter: &dto.Counter{

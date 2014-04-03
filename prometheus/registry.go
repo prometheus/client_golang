@@ -281,6 +281,13 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 		container.Metric.dumpChildren(f)
 
 		for name, value := range container.BaseLabels {
+			if model.LabelName(name) == model.MetricNameLabel {
+				// The name is already in MetricFamily.
+				continue
+				// TODO: Once JSON is history, do not anymore
+				// add the __name__ label to BaseLabels and
+				// then remove this check.
+			}
 			p := &dto.LabelPair{
 				Name:  proto.String(name),
 				Value: proto.String(value),
