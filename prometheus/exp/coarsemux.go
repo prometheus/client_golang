@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	handler = "handler"
+	path    = "path"
 	code    = "code"
 	method  = "method"
 )
@@ -54,7 +54,7 @@ func (h handlerDelegator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		duration := float64(time.Since(start) / time.Microsecond)
 		status := rwd.Status()
-		labels := map[string]string{handler: h.pattern, code: status, method: strings.ToLower(r.Method)}
+		labels := map[string]string{path: h.pattern, code: status, method: strings.ToLower(r.Method)}
 		requestCounts.Increment(labels)
 		requestDuration.IncrementBy(labels, duration)
 		requestDurations.Add(labels, duration)

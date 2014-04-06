@@ -74,10 +74,10 @@ func testGauge(t tester) {
 			in: input{
 				steps: []func(g Gauge){
 					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
+						g.Set(map[string]string{"path": "/foo"}, 13)
 					},
 					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
+						g.Set(map[string]string{"path": "/bar"}, 17)
 					},
 					func(g Gauge) {
 						g.Reset(map[string]string{"handler": "/bar"})
@@ -110,12 +110,12 @@ func testGauge(t tester) {
 			in: input{
 				steps: []func(g Gauge){
 					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/foo"}, 19)
+						g.Set(map[string]string{"path": "/foo"}, 19)
 					},
 				},
 			},
 			out: output{
-				value: `{"type":"gauge","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
+				value: `{"type":"gauge","value":[{"labels":{"path":"/foo"},"value":19}]}`,
 			},
 		},
 	}
