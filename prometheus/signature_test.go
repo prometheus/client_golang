@@ -27,7 +27,7 @@ func testLabelsToSignature(t tester) {
 	}
 
 	for i, scenario := range scenarios {
-		actual := labelsToSignature(scenario.in)
+		actual := LabelsToSignature(scenario.in)
 
 		if actual != scenario.out {
 			t.Errorf("%d. expected %d, got %d", i, scenario.out, actual)
@@ -48,13 +48,13 @@ func TestEmptyLabelSignature(t *testing.T) {
 	alloc := ms.Alloc
 
 	for _, labels := range input {
-		labelsToSignature(labels)
+		LabelsToSignature(labels)
 	}
 
 	runtime.ReadMemStats(&ms)
 
 	if got := ms.Alloc; alloc != got {
-		t.Fatal("expected labelsToSignature with empty labels not to perform allocations")
+		t.Fatal("expected LabelsToSignature with empty labels not to perform allocations")
 	}
 }
 
@@ -90,7 +90,7 @@ func BenchmarkLabelValuesToSignatureTriple(b *testing.B) {
 
 func benchmarkLabelToSignature(b *testing.B, l map[string]string, e uint64) {
 	for i := 0; i < b.N; i++ {
-		if a := labelsToSignature(l); a != e {
+		if a := LabelsToSignature(l); a != e {
 			b.Fatalf("expected signature of %d for %s, got %d", e, l, a)
 		}
 	}
