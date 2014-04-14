@@ -45,14 +45,15 @@ type counter struct {
 }
 
 func (metric *counter) Set(labels map[string]string, value float64) float64 {
+	if labels == nil {
+		labels = blankLabelsSingleton
+	}
+
+	signature := labelValuesToSignature(labels)
+
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	if labels == nil {
-		labels = map[string]string{}
-	}
-
-	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
 		original.Value = value
 	} else {
@@ -66,10 +67,10 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 }
 
 func (metric *counter) Reset(labels map[string]string) {
+	signature := labelValuesToSignature(labels)
+
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
-
-	signature := labelsToSignature(labels)
 	delete(metric.values, signature)
 }
 
@@ -95,14 +96,15 @@ func (metric *counter) String() string {
 }
 
 func (metric *counter) IncrementBy(labels map[string]string, value float64) float64 {
+	if labels == nil {
+		labels = blankLabelsSingleton
+	}
+
+	signature := labelValuesToSignature(labels)
+
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	if labels == nil {
-		labels = map[string]string{}
-	}
-
-	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
 		original.Value += value
 	} else {
@@ -120,14 +122,15 @@ func (metric *counter) Increment(labels map[string]string) float64 {
 }
 
 func (metric *counter) DecrementBy(labels map[string]string, value float64) float64 {
+	if labels == nil {
+		labels = blankLabelsSingleton
+	}
+
+	signature := labelValuesToSignature(labels)
+
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
 
-	if labels == nil {
-		labels = map[string]string{}
-	}
-
-	signature := labelsToSignature(labels)
 	if original, ok := metric.values[signature]; ok {
 		original.Value -= value
 	} else {

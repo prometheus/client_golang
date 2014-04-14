@@ -214,18 +214,18 @@ func testHandler(t tester) {
 	varintBuf := make([]byte, binary.MaxVarintLen32)
 
 	externalMetricFamily := []*dto.MetricFamily{
-		&dto.MetricFamily{
+		{
 			Name: proto.String("externalname"),
 			Help: proto.String("externaldocstring"),
 			Type: dto.MetricType_COUNTER.Enum(),
 			Metric: []*dto.Metric{
-				&dto.Metric{
+				{
 					Label: []*dto.LabelPair{
-						&dto.LabelPair{
+						{
 							Name:  proto.String("externallabelname"),
 							Value: proto.String("externalval1"),
 						},
-						&dto.LabelPair{
+						{
 							Name:  proto.String("externalbasename"),
 							Value: proto.String("externalbasevalue"),
 						},
@@ -258,13 +258,13 @@ func testHandler(t tester) {
 		Help: proto.String("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
-			&dto.Metric{
+			{
 				Label: []*dto.LabelPair{
-					&dto.LabelPair{
+					{
 						Name:  proto.String("labelname"),
 						Value: proto.String("val1"),
 					},
-					&dto.LabelPair{
+					{
 						Name:  proto.String("basename"),
 						Value: proto.String("basevalue"),
 					},
@@ -273,13 +273,13 @@ func testHandler(t tester) {
 					Value: proto.Float64(1),
 				},
 			},
-			&dto.Metric{
+			{
 				Label: []*dto.LabelPair{
-					&dto.LabelPair{
+					{
 						Name:  proto.String("labelname"),
 						Value: proto.String("val2"),
 					},
-					&dto.LabelPair{
+					{
 						Name:  proto.String("basename"),
 						Value: proto.String("basevalue"),
 					},

@@ -97,15 +97,16 @@ type histogramVector struct {
 }
 
 func (h *histogram) Add(labels map[string]string, value float64) {
+	if labels == nil {
+		labels = blankLabelsSingleton
+	}
+
+	signature := labelValuesToSignature(labels)
+	var histogram *histogramVector = nil
+
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	if labels == nil {
-		labels = map[string]string{}
-	}
-
-	signature := labelsToSignature(labels)
-	var histogram *histogramVector = nil
 	if original, ok := h.values[signature]; ok {
 		histogram = original
 	} else {
@@ -297,10 +298,11 @@ func (h *histogram) Purge() {
 }
 
 func (h *histogram) Reset(labels map[string]string) {
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
+	signature := labelValuesToSignature(labels)
 
-	signature := labelsToSignature(labels)
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+
 	value, ok := h.values[signature]
 
 	if !ok {

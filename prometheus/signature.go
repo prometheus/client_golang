@@ -7,7 +7,6 @@
 package prometheus
 
 import (
-	"fmt"
 	"hash/fnv"
 	"sort"
 
@@ -34,7 +33,31 @@ func labelsToSignature(labels map[string]string) uint64 {
 	hasher := fnv.New64a()
 
 	for _, name := range names {
-		fmt.Fprintf(hasher, string(name), labels[string(name)])
+		hasher.Write([]byte(name))
+		hasher.Write([]byte(labels[string(name)]))
+	}
+
+	return hasher.Sum64()
+}
+
+// LabelValuesToSignature provides a way of building a unique signature
+// (i.e., fingerprint) for a given set of label's values.
+func labelValuesToSignature(labels map[string]string) uint64 {
+	if len(labels) == 0 {
+		return emptyLabelSignature
+	}
+
+	names := make(model.LabelNames, 0, len(labels))
+	for name := range labels {
+		names = append(names, model.LabelName(name))
+	}
+
+	sort.Sort(names)
+
+	hasher := fnv.New64a()
+
+	for _, name := range names {
+		hasher.Write([]byte(labels[string(name)]))
 	}
 
 	return hasher.Sum64()

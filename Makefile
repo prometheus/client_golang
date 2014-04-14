@@ -28,6 +28,8 @@ export GOENV		  = TMPDIR=$(TMPDIR) GOROOT=$(GOROOT) GOPATH=$(GOPATH)
 export GO	        = $(GOENV) $(GOCC)
 export GOFMT		  = $(GOROOT)/bin/gofmt
 
+BENCHMARK_FILTER ?= .
+
 FULL_GOPATH = $(GOPATH)/src/github.com/prometheus/client_golang
 FULL_GOPATH_BASE = $(GOPATH)/src/github.com/prometheus
 
@@ -60,6 +62,9 @@ dependencies: source_path $(GOCC)
 
 test: build
 	$(GO) test ./...
+
+benchmark: build
+	$(GO) test -benchmem -test.bench="$(BENCHMARK_FILTER)" ./...
 
 advice: test
 	$(MAKE) -C prometheus advice

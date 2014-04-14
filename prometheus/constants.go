@@ -48,3 +48,5 @@ const (
 	valueKey           = "value"
 	labelsKey          = "labels"
 )
+
+var blankLabelsSingleton = map[string]string{}
