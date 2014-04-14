@@ -300,8 +300,8 @@ func (h *histogram) Purge() {
 func (h *histogram) Reset(labels map[string]string) {
 	signature := labelValuesToSignature(labels)
 
-	h.mutex.RLock()
-	defer h.mutex.RUnlock()
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 
 	value, ok := h.values[signature]
 
@@ -312,6 +312,7 @@ func (h *histogram) Reset(labels map[string]string) {
 	for _, bucket := range value.buckets {
 		bucket.Reset()
 	}
+
 	delete(h.values, signature)
 }
 
