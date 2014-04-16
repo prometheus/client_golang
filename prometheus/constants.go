@@ -43,6 +43,7 @@ const (
 	floatFormat        = 'f'
 	floatPrecision     = 6
 	gaugeTypeValue     = "gauge"
+	untypedTypeValue   = "untyped"
 	histogramTypeValue = "histogram"
 	typeKey            = "type"
 	valueKey           = "value"
