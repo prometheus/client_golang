@@ -60,6 +60,10 @@ func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *Proc
 			if err := extractSummary(out, o, family); err != nil {
 				return err
 			}
+		case dto.MetricType_UNTYPED:
+			if err := extractUntyped(out, o, family); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -77,7 +81,11 @@ func extractCounter(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		sample := new(model.Sample)
 		samples = append(samples, sample)
 
-		sample.Timestamp = o.Timestamp
+		if m.TimestampMs != nil {
+			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+		} else {
+			sample.Timestamp = o.Timestamp
+		}
 		sample.Metric = model.Metric{}
 		metric := sample.Metric
 
@@ -104,7 +112,11 @@ func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 		sample := new(model.Sample)
 		samples = append(samples, sample)
 
-		sample.Timestamp = o.Timestamp
+		if m.TimestampMs != nil {
+			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+		} else {
+			sample.Timestamp = o.Timestamp
+		}
 		sample.Metric = model.Metric{}
 		metric := sample.Metric
 
@@ -128,11 +140,16 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 			continue
 		}
 
+		timestamp := o.Timestamp
+		if m.TimestampMs != nil {
+			timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+		}
+
 		for _, q := range m.Summary.Quantile {
 			sample := new(model.Sample)
 			samples = append(samples, sample)
 
-			sample.Timestamp = o.Timestamp
+			sample.Timestamp = timestamp
 			sample.Metric = model.Metric{}
 			metric := sample.Metric
 
@@ -149,7 +166,7 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 
 		if m.Summary.SampleSum != nil {
 			sum := new(model.Sample)
-			sum.Timestamp = o.Timestamp
+			sum.Timestamp = timestamp
 			metric := model.Metric{}
 			for _, p := range m.Label {
 				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
@@ -162,7 +179,7 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 
 		if m.Summary.SampleCount != nil {
 			count := new(model.Sample)
-			count.Timestamp = o.Timestamp
+			count.Timestamp = timestamp
 			metric := model.Metric{}
 			for _, p := range m.Label {
 				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
@@ -172,6 +189,37 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 			count.Value = model.SampleValue(m.Summary.GetSampleCount())
 			samples = append(samples, count)
 		}
+	}
+
+	return out.Ingest(&Result{Samples: samples})
+}
+
+func extractUntyped(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
+	samples := make(model.Samples, 0, len(f.Metric))
+
+	for _, m := range f.Metric {
+		if m.Untyped == nil {
+			continue
+		}
+
+		sample := new(model.Sample)
+		samples = append(samples, sample)
+
+		if m.TimestampMs != nil {
+			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+		} else {
+			sample.Timestamp = o.Timestamp
+		}
+		sample.Metric = model.Metric{}
+		metric := sample.Metric
+
+		for _, p := range m.Label {
+			metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+		}
+
+		metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
+
+		sample.Value = model.SampleValue(m.Untyped.GetValue())
 	}
 
 	return out.Ingest(&Result{Samples: samples})
