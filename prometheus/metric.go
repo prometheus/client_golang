@@ -1,4 +1,4 @@
-// Copyright (c) 2013, Prometheus Team
+// Copyright (c) 2014, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -7,21 +7,94 @@
 package prometheus
 
 import (
-	"encoding/json"
+	"errors"
+	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
 
-// A Metric is something that can be exposed via the registry framework.
+// Metric models any sort of telemetric data you wish to export to Prometheus.
 type Metric interface {
-	// Produce a JSON representation of the metric.
-	json.Marshaler
-	// Reset removes any stored values associated with a given labelset.
-	Reset(labels map[string]string)
-	// Reset the parent metrics and delete all child metrics.
-	ResetAll()
-	// Produce a human-consumable representation of the metric.
-	String() string
-	// dumpChildren populates the child metrics of the given family.
-	dumpChildren(*dto.MetricFamily)
+	// Desc yields the descriptor for the Metric.  Descriptors are read once by
+	// Prometheus upon initial Metric registration.
+	Desc() Desc
+	// Write encodes the Metric into Protocol Buffer data transmission objects.
+	//
+	// Implementers of custom Metric types must observe concurrency safety as
+	// reads of this metric may occur at any time, and any blocking occurs at
+	// the expense of total performance of rendering all registered metrics.
+	// Ideally Metric implementations should support concurrent readers.
+	//
+	// The Prometheus client library attempts to minimize memory allocations
+	// and will provide a pre-existing reset dto.MetricFamily pointer.
+	// Prometheus recycles the returned value, so Metric implementations should
+	// not keep any reference to it.  Prometheus will never invoke Write with a
+	// value.
+	Write(*dto.MetricFamily)
+}
+
+// Desc is a the descriptor for all Prometheus Metrics.  Prometheus
+// automatically materializes fully-qualified metric names by combining
+// Namespace, Subsystem, and Name together.
+type Desc struct {
+	Namespace string
+	Subsystem string
+	Name      string
+
+	// Provide some helpful information about this metric.
+	Help string
+
+	// Materialized from Namespace, Subsystem, and Name.
+	canonName string
+}
+
+var (
+	errEmptyName             = errors.New("may not have empty name")
+	errEmptyHelp             = errors.New("may not have empty help")
+	errZeroCardinalityForVec = errors.New("should not use a vector type for scalar")
+
+	errInconsistentCardinality = errors.New("inconsistent label cardinality")
+
+	errEmptyLabelDesc = errors.New("vector may not be described by empty label dimension")
+	errDuplLabelDesc  = errors.New("vector may not be described by duplicate label dimension")
+)
+
+func (d *Desc) build() error {
+	if d.Name == "" {
+		return errEmptyName
+	}
+
+	if d.Help == "" {
+		return errEmptyHelp
+	}
+
+	switch {
+	case d.Namespace != "" && d.Subsystem != "":
+		d.canonName = strings.Join([]string{d.Namespace, d.Subsystem, d.Name}, "_")
+		break
+	case d.Namespace != "":
+		d.canonName = strings.Join([]string{d.Namespace, d.Name}, "_")
+		break
+	case d.Subsystem != "":
+		d.canonName = strings.Join([]string{d.Subsystem, d.Name}, "_")
+		break
+	default:
+		d.canonName = d.Name
+	}
+
+	return nil
+}
+
+type lpSorter []*dto.LabelPair
+
+func (s lpSorter) Len() int {
+	return len(s)
+}
+
+func (s lpSorter) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s lpSorter) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
 }
