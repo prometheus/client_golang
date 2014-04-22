@@ -31,10 +31,10 @@ type metricFamilyProcessor struct{}
 //
 // See http://godoc.org/github.com/matttproud/golang_protobuf_extensions/ext for
 // more details.
-var MetricFamilyProcessor = new(metricFamilyProcessor)
+var MetricFamilyProcessor = &metricFamilyProcessor{}
 
 func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *ProcessOptions) error {
-	family := new(dto.MetricFamily)
+	family := &dto.MetricFamily{}
 
 	for {
 		family.Reset()
@@ -43,30 +43,33 @@ func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *Proc
 			if err == io.EOF {
 				return nil
 			}
-
 			return err
 		}
-
-		switch *family.Type {
-		case dto.MetricType_COUNTER:
-			if err := extractCounter(out, o, family); err != nil {
-				return err
-			}
-		case dto.MetricType_GAUGE:
-			if err := extractGauge(out, o, family); err != nil {
-				return err
-			}
-		case dto.MetricType_SUMMARY:
-			if err := extractSummary(out, o, family); err != nil {
-				return err
-			}
-		case dto.MetricType_UNTYPED:
-			if err := extractUntyped(out, o, family); err != nil {
-				return err
-			}
+		if err := extractMetricFamily(out, o, family); err != nil {
+			return err
 		}
 	}
+}
 
+func extractMetricFamily(out Ingester, o *ProcessOptions, family *dto.MetricFamily) error {
+	switch *family.Type {
+	case dto.MetricType_COUNTER:
+		if err := extractCounter(out, o, family); err != nil {
+			return err
+		}
+	case dto.MetricType_GAUGE:
+		if err := extractGauge(out, o, family); err != nil {
+			return err
+		}
+	case dto.MetricType_SUMMARY:
+		if err := extractSummary(out, o, family); err != nil {
+			return err
+		}
+	case dto.MetricType_UNTYPED:
+		if err := extractUntyped(out, o, family); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

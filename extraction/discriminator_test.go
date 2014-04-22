@@ -71,6 +71,21 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 			output: nil,
 			err:    fmt.Errorf("Unsupported Encoding illegal"),
 		},
+		{
+			input:  map[string]string{"Content-Type": `text/plain; version=0.0.4`},
+			output: Processor004,
+			err:    nil,
+		},
+		{
+			input:  map[string]string{"Content-Type": `text/plain`},
+			output: Processor004,
+			err:    nil,
+		},
+		{
+			input:  map[string]string{"Content-Type": `text/plain; version=0.0.3`},
+			output: nil,
+			err:    fmt.Errorf("Unrecognized API version 0.0.3"),
+		},
 	}
 
 	for i, scenario := range scenarios {

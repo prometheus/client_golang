@@ -40,7 +40,16 @@ func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 			return nil, fmt.Errorf("Unsupported Encoding %s", params["encoding"])
 		}
 		return MetricFamilyProcessor, nil
-
+	case "text/plain":
+		switch params["version"] {
+		case "0.0.4":
+			return Processor004, nil
+		case "":
+			// Fallback: most recent version.
+			return Processor004, nil
+		default:
+			return nil, fmt.Errorf("Unrecognized API version %s", params["version"])
+		}
 	case "application/json":
 		var prometheusApiVersion string
 

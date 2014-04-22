@@ -23,7 +23,8 @@ import (
 // ProcessOptions dictates how the interpreted stream should be rendered for
 // consumption.
 type ProcessOptions struct {
-	// Timestamp is added to each value interpreted from the stream.
+	// Timestamp is added to each value from the stream that has no explicit
+	// timestamp set.
 	Timestamp model.Timestamp
 }
 
