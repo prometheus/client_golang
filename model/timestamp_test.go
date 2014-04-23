@@ -72,12 +72,12 @@ func TestDuration(t *testing.T) {
 
 	ts := TimestampFromTime(goTime)
 	if !goTime.Add(duration).Equal(ts.Add(duration).Time()) {
-		t.Fatalf("%d. Expected %s to be equal to %s", goTime.Add(duration), ts.Add(duration))
+		t.Fatalf("Expected %s to be equal to %s", goTime.Add(duration), ts.Add(duration))
 	}
 
 	earlier := ts.Add(-duration)
 	delta := ts.Sub(earlier)
 	if delta != duration {
-		t.Fatalf("%d. Expected %s to be equal to %s", delta, duration)
+		t.Fatalf("Expected %s to be equal to %s", delta, duration)
 	}
 }

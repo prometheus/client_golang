@@ -21,7 +21,7 @@ import (
 	"github.com/prometheus/client_golang/test"
 )
 
-func testDiscriminatorHttpHeader(t test.Tester) {
+func testDiscriminatorHTTPHeader(t test.Tester) {
 	var scenarios = []struct {
 		input  map[string]string
 		output Processor
@@ -29,12 +29,12 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 	}{
 		{
 			output: nil,
-			err:    fmt.Errorf("Received illegal and nil header."),
+			err:    fmt.Errorf("received illegal and nil header"),
 		},
 		{
 			input:  map[string]string{"Content-Type": "application/json", "X-Prometheus-API-Version": "0.0.0"},
 			output: nil,
-			err:    fmt.Errorf("Unrecognized API version 0.0.0"),
+			err:    fmt.Errorf("unrecognized API version 0.0.0"),
 		},
 		{
 			input:  map[string]string{"Content-Type": "application/json", "X-Prometheus-API-Version": "0.0.1"},
@@ -44,7 +44,7 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 		{
 			input:  map[string]string{"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.0`},
 			output: nil,
-			err:    fmt.Errorf("Unrecognized API version 0.0.0"),
+			err:    fmt.Errorf("unrecognized API version 0.0.0"),
 		},
 		{
 			input:  map[string]string{"Content-Type": `application/json; schema="prometheus/telemetry"; version=0.0.1`},
@@ -64,12 +64,12 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 		{
 			input:  map[string]string{"Content-Type": `application/vnd.google.protobuf; proto="illegal"; encoding="delimited"`},
 			output: nil,
-			err:    fmt.Errorf("Unrecognized Protocol Message illegal"),
+			err:    fmt.Errorf("unrecognized protocol message illegal"),
 		},
 		{
 			input:  map[string]string{"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="illegal"`},
 			output: nil,
-			err:    fmt.Errorf("Unsupported Encoding illegal"),
+			err:    fmt.Errorf("unsupported encoding illegal"),
 		},
 		{
 			input:  map[string]string{"Content-Type": `text/plain; version=0.0.4`},
@@ -84,7 +84,7 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 		{
 			input:  map[string]string{"Content-Type": `text/plain; version=0.0.3`},
 			output: nil,
-			err:    fmt.Errorf("Unrecognized API version 0.0.3"),
+			err:    fmt.Errorf("unrecognized API version 0.0.3"),
 		},
 	}
 
@@ -117,12 +117,12 @@ func testDiscriminatorHttpHeader(t test.Tester) {
 	}
 }
 
-func TestDiscriminatorHttpHeader(t *testing.T) {
-	testDiscriminatorHttpHeader(t)
+func TestDiscriminatorHTTPHeader(t *testing.T) {
+	testDiscriminatorHTTPHeader(t)
 }
 
-func BenchmarkDiscriminatorHttpHeader(b *testing.B) {
+func BenchmarkDiscriminatorHTTPHeader(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		testDiscriminatorHttpHeader(b)
+		testDiscriminatorHTTPHeader(b)
 	}
 }

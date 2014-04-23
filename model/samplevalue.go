@@ -21,10 +21,12 @@ import (
 // time.
 type SampleValue float64
 
+// Equal does a straight v==o.
 func (v SampleValue) Equal(o SampleValue) bool {
 	return v == o
 }
 
+// MarshalJSON implements json.Marshaler.
 func (v SampleValue) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%f"`, v)), nil
 }

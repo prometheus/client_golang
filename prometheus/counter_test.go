@@ -9,9 +9,11 @@ package prometheus
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/prometheus/client_golang/test"
 )
 
-func testCounter(t tester) {
+func testCounter(t test.Tester) {
 	type input struct {
 		steps []func(g Counter)
 	}

@@ -14,6 +14,7 @@
 // Package test provides common test helpers to the client library.
 package test
 
+// Tester is an interface implemented by both, testing.T and testing.B.
 type Tester interface {
 	Error(args ...interface{})
 	Errorf(format string, args ...interface{})

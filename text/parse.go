@@ -26,7 +26,6 @@ import (
 
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/prometheus/client_golang/model"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 // A stateFn is a function that represents a state in a state machine. By
@@ -332,7 +331,7 @@ func (p *Parser) readingValue() stateFn {
 	// infamous special case of a summary, we can finally find out
 	// if the metric already exists.
 	if p.currentMF.GetType() == dto.MetricType_SUMMARY {
-		signature := prometheus.LabelsToSignature(p.currentLabels)
+		signature := model.LabelsToSignature(p.currentLabels)
 		if summary := p.summaries[signature]; summary != nil {
 			p.currentMetric = summary
 		} else {
