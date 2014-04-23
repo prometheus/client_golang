@@ -26,6 +26,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/ext"
 
 	"github.com/prometheus/client_golang/model"
+	"github.com/prometheus/client_golang/text"
 	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
 
@@ -41,6 +42,12 @@ const (
 	gzipContentEncodingValue = "gzip"
 	jsonContentType          = "application/json"
 )
+
+// encoder is a function that writes a proto.Message to an io.Writer in a
+// certain encoding. It returns the number of bytes written and any error
+// encountered.  Note that ext.WriteDelimited and text.MetricFamilyToText are
+// encoders.
+type encoder func(io.Writer, proto.Message) (int, error)
 
 // container represents a top-level registered metric that encompasses its
 // static metadata.
@@ -267,7 +274,7 @@ func (r *registry) YieldExporter() http.HandlerFunc {
 	return r.Handler()
 }
 
-func (r *registry) dumpDelimitedPB(w io.Writer) {
+func (r *registry) dumpPB(w io.Writer, writeEncoded encoder) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -298,16 +305,16 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 			}
 		}
 
-		ext.WriteDelimited(w, f)
+		writeEncoded(w, f)
 	}
 }
 
-func (r *registry) dumpDelimitedExternalPB(w io.Writer) {
+func (r *registry) dumpExternalPB(w io.Writer, writeEncoded encoder) {
 	if r.metricFamilyInjectionHook == nil {
 		return
 	}
 	for _, f := range r.metricFamilyInjectionHook() {
-		ext.WriteDelimited(w, f)
+		writeEncoded(w, f)
 	}
 }
 
@@ -326,26 +333,39 @@ func (r *registry) Handler() http.HandlerFunc {
 
 		accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
 		for _, accept := range accepts {
-			if accept.Type != "application" {
+			var enc encoder
+			switch {
+			case accept.Type == "application" &&
+				accept.SubType == "vnd.google.protobuf" &&
+				accept.Params["proto"] == "io.prometheus.client.MetricFamily":
+				switch {
+				case accept.Params["encoding"] == "delimited":
+					header.Set(contentTypeHeader, DelimitedTelemetryContentType)
+					enc = ext.WriteDelimited
+				case accept.Params["encoding"] == "text":
+					header.Set(contentTypeHeader, ProtoTextTelemetryContentType)
+					enc = text.WriteProtoText
+				case accept.Params["encoding"] == "compact-text":
+					header.Set(contentTypeHeader, ProtoCompactTextTelemetryContentType)
+					enc = text.WriteProtoCompactText
+				default:
+					continue
+				}
+			case accept.Type == "text" &&
+				accept.SubType == "plain" &&
+				(accept.Params["version"] == "0.0.4" || accept.Params["version"] == ""):
+				header.Set(contentTypeHeader, TextTelemetryContentType)
+				enc = text.MetricFamilyToText
+			default:
 				continue
 			}
-
-			if accept.SubType == "vnd.google.protobuf" {
-				if accept.Params["proto"] != "io.prometheus.client.MetricFamily" {
-					continue
-				}
-				if accept.Params["encoding"] != "delimited" {
-					continue
-				}
-
-				header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-				r.dumpDelimitedPB(writer)
-				r.dumpDelimitedExternalPB(writer)
-				return
-			}
+			r.dumpPB(writer, enc)
+			r.dumpExternalPB(writer, enc)
+			return
 		}
-
-		header.Set(contentTypeHeader, TelemetryContentType)
+		// TODO: Once JSON deprecation is completed, use text format as
+		// fall-back.
+		header.Set(contentTypeHeader, JSONTelemetryContentType)
 		json.NewEncoder(writer).Encode(r)
 	}
 }
