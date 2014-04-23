@@ -253,6 +253,30 @@ func testHandler(t test.Tester) {
 		t.Fatal(err)
 	}
 	externalMetricFamilyAsBytes := externalBuf.Bytes()
+	externalMetricFamilyAsText := []byte(`# HELP externalname externaldocstring
+# TYPE externalname counter
+externalname{externallabelname="externalval1",externalbasename="externalbasevalue"} 1
+`)
+	externalMetricFamilyAsProtoText := []byte(`name: "externalname"
+help: "externaldocstring"
+type: COUNTER
+metric: <
+  label: <
+    name: "externallabelname"
+    value: "externalval1"
+  >
+  label: <
+    name: "externalbasename"
+    value: "externalbasevalue"
+  >
+  counter: <
+    value: 1
+  >
+>
+
+`)
+	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externallabelname" value:"externalval1" > label:<name:"externalbasename" value:"externalbasevalue" > counter:<value:1 > > 
+`)
 
 	expectedMetricFamily := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -306,6 +330,44 @@ func testHandler(t test.Tester) {
 		t.Fatal(err)
 	}
 	expectedMetricFamilyAsBytes := buf.Bytes()
+	expectedMetricFamilyAsText := []byte(`# HELP name docstring
+# TYPE name counter
+name{labelname="val1",basename="basevalue"} 1
+name{labelname="val2",basename="basevalue"} 1
+`)
+	expectedMetricFamilyAsProtoText := []byte(`name: "name"
+help: "docstring"
+type: COUNTER
+metric: <
+  label: <
+    name: "labelname"
+    value: "val1"
+  >
+  label: <
+    name: "basename"
+    value: "basevalue"
+  >
+  counter: <
+    value: 1
+  >
+>
+metric: <
+  label: <
+    name: "labelname"
+    value: "val2"
+  >
+  label: <
+    name: "basename"
+    value: "basevalue"
+  >
+  counter: <
+    value: 1
+  >
+>
+
+`)
+	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"labelname" value:"val1" > label:<name:"basename" value:"basevalue" > counter:<value:1 > > metric:<label:<name:"labelname" value:"val2" > label:<name:"basename" value:"basevalue" > counter:<value:1 > > 
+`)
 
 	type output struct {
 		headers map[string]string
@@ -318,7 +380,7 @@ func testHandler(t test.Tester) {
 		withCounter    bool
 		withExternalMF bool
 	}{
-		{
+		{ // 0
 			headers: map[string]string{
 				"Accept": "foo/bar;q=0.2, dings/bums;q=0.8",
 			},
@@ -329,7 +391,7 @@ func testHandler(t test.Tester) {
 				body: []byte("[]\n"),
 			},
 		},
-		{
+		{ // 1
 			headers: map[string]string{
 				"Accept": "foo/bar;q=0.2, application/quark;q=0.8",
 			},
@@ -340,7 +402,7 @@ func testHandler(t test.Tester) {
 				body: []byte("[]\n"),
 			},
 		},
-		{
+		{ // 2
 			headers: map[string]string{
 				"Accept": "foo/bar;q=0.2, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=bla;q=0.8",
 			},
@@ -351,9 +413,9 @@ func testHandler(t test.Tester) {
 				body: []byte("[]\n"),
 			},
 		},
-		{
+		{ // 3
 			headers: map[string]string{
-				"Accept": "foo/bar;q=0.2, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.8",
+				"Accept": "text/plain;q=0.2, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.8",
 			},
 			out: output{
 				headers: map[string]string{
@@ -362,7 +424,7 @@ func testHandler(t test.Tester) {
 				body: []byte{},
 			},
 		},
-		{
+		{ // 4
 			headers: map[string]string{
 				"Accept": "application/json",
 			},
@@ -375,7 +437,7 @@ func testHandler(t test.Tester) {
 			},
 			withCounter: true,
 		},
-		{
+		{ // 5
 			headers: map[string]string{
 				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
 			},
@@ -387,7 +449,7 @@ func testHandler(t test.Tester) {
 			},
 			withCounter: true,
 		},
-		{
+		{ // 6
 			headers: map[string]string{
 				"Accept": "application/json",
 			},
@@ -399,7 +461,7 @@ func testHandler(t test.Tester) {
 			},
 			withExternalMF: true,
 		},
-		{
+		{ // 7
 			headers: map[string]string{
 				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
 			},
@@ -411,7 +473,7 @@ func testHandler(t test.Tester) {
 			},
 			withExternalMF: true,
 		},
-		{
+		{ // 8
 			headers: map[string]string{
 				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
 			},
@@ -423,6 +485,105 @@ func testHandler(t test.Tester) {
 					[][]byte{
 						expectedMetricFamilyAsBytes,
 						externalMetricFamilyAsBytes,
+					},
+					[]byte{},
+				),
+			},
+			withCounter:    true,
+			withExternalMF: true,
+		},
+		{ // 9
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4`,
+				},
+				body: []byte{},
+			},
+		},
+		{ // 10
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=bla;q=0.2, text/plain;q=0.5",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4`,
+				},
+				body: expectedMetricFamilyAsText,
+			},
+			withCounter: true,
+		},
+		{ // 11
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=bla;q=0.2, text/plain;q=0.5;version=0.0.4",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						expectedMetricFamilyAsText,
+						externalMetricFamilyAsText,
+					},
+					[]byte{},
+				),
+			},
+			withCounter:    true,
+			withExternalMF: true,
+		},
+		{ // 12
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.2, text/plain;q=0.5;version=0.0.2",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						expectedMetricFamilyAsBytes,
+						externalMetricFamilyAsBytes,
+					},
+					[]byte{},
+				),
+			},
+			withCounter:    true,
+			withExternalMF: true,
+		},
+		{ // 13
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=text;q=0.5, application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited;q=0.4",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="text"`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						expectedMetricFamilyAsProtoText,
+						externalMetricFamilyAsProtoText,
+					},
+					[]byte{},
+				),
+			},
+			withCounter:    true,
+			withExternalMF: true,
+		},
+		{ // 14
+			headers: map[string]string{
+				"Accept": "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=compact-text",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="compact-text"`,
+				},
+				body: bytes.Join(
+					[][]byte{
+						expectedMetricFamilyAsProtoCompactText,
+						externalMetricFamilyAsProtoCompactText,
 					},
 					[]byte{},
 				),

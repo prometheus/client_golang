@@ -26,6 +26,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/ext"
 
 	"github.com/prometheus/client_golang/model"
+	"github.com/prometheus/client_golang/text"
 	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
 
@@ -41,6 +42,12 @@ const (
 	gzipContentEncodingValue = "gzip"
 	jsonContentType          = "application/json"
 )
+
+// encoder is a function that writes a proto.Message to an io.Writer in a
+// certain encoding. It returns the number of bytes written and any error
+// encountered.  Note that ext.WriteDelimited and text.MetricFamilyToText are
+// encoders.
+type encoder func(io.Writer, proto.Message) (int, error)
 
 // container represents a top-level registered metric that encompasses its
 // static metadata.
@@ -98,15 +105,15 @@ type Registry interface {
 	YieldExporter() http.HandlerFunc
 }
 
-// This builds a new metric registry.  It is not needed in the majority of
-// cases.
+// NewRegistry builds a new metric registry.  It is not needed in the majority
+// of cases.
 func NewRegistry() Registry {
 	return &registry{
 		signatureContainers: make(map[uint64]*container),
 	}
 }
 
-// Associate a Metric with the DefaultRegistry.
+// Register associates a Metric with the DefaultRegistry.
 func Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
 	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
 }
@@ -116,7 +123,7 @@ func (r *registry) SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily)
 	r.metricFamilyInjectionHook = hook
 }
 
-// Implements json.Marshaler
+// MarshalJSON implements json.Marshaler.
 func (r *registry) MarshalJSON() ([]byte, error) {
 	containers := make(containers, 0, len(r.signatureContainers))
 
@@ -218,12 +225,12 @@ func (r *registry) Register(name, docstring string, baseLabels map[string]string
 
 // YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
 // basic authentication.
-func (register *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
+func (r *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	// XXX: Work with Daniel to get this removed from the library, as it is really
 	//      superfluous and can be much more elegantly accomplished via
 	//      delegation.
 	log.Println("Registry.YieldBasicAuthExporter is deprecated.")
-	exporter := register.YieldExporter()
+	exporter := r.YieldExporter()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated := false
@@ -261,13 +268,13 @@ func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer
 	return gziper
 }
 
-func (registry *registry) YieldExporter() http.HandlerFunc {
+func (r *registry) YieldExporter() http.HandlerFunc {
 	log.Println("Registry.YieldExporter is deprecated in favor of Registry.Handler.")
 
-	return registry.Handler()
+	return r.Handler()
 }
 
-func (r *registry) dumpDelimitedPB(w io.Writer) {
+func (r *registry) dumpPB(w io.Writer, writeEncoded encoder) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -298,55 +305,68 @@ func (r *registry) dumpDelimitedPB(w io.Writer) {
 			}
 		}
 
-		ext.WriteDelimited(w, f)
+		writeEncoded(w, f)
 	}
 }
 
-func (r *registry) dumpDelimitedExternalPB(w io.Writer) {
+func (r *registry) dumpExternalPB(w io.Writer, writeEncoded encoder) {
 	if r.metricFamilyInjectionHook == nil {
 		return
 	}
 	for _, f := range r.metricFamilyInjectionHook() {
-		ext.WriteDelimited(w, f)
+		writeEncoded(w, f)
 	}
 }
 
-func (registry *registry) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (r *registry) Handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
 		defer requestLatencyAccumulator(time.Now())
 
 		requestCount.Increment(nil)
 		header := w.Header()
 
-		writer := decorateWriter(r, w)
+		writer := decorateWriter(req, w)
 
 		if closer, ok := writer.(io.Closer); ok {
 			defer closer.Close()
 		}
 
-		accepts := goautoneg.ParseAccept(r.Header.Get("Accept"))
+		accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
 		for _, accept := range accepts {
-			if accept.Type != "application" {
+			var enc encoder
+			switch {
+			case accept.Type == "application" &&
+				accept.SubType == "vnd.google.protobuf" &&
+				accept.Params["proto"] == "io.prometheus.client.MetricFamily":
+				switch {
+				case accept.Params["encoding"] == "delimited":
+					header.Set(contentTypeHeader, DelimitedTelemetryContentType)
+					enc = ext.WriteDelimited
+				case accept.Params["encoding"] == "text":
+					header.Set(contentTypeHeader, ProtoTextTelemetryContentType)
+					enc = text.WriteProtoText
+				case accept.Params["encoding"] == "compact-text":
+					header.Set(contentTypeHeader, ProtoCompactTextTelemetryContentType)
+					enc = text.WriteProtoCompactText
+				default:
+					continue
+				}
+			case accept.Type == "text" &&
+				accept.SubType == "plain" &&
+				(accept.Params["version"] == "0.0.4" || accept.Params["version"] == ""):
+				header.Set(contentTypeHeader, TextTelemetryContentType)
+				enc = text.MetricFamilyToText
+			default:
 				continue
 			}
-
-			if accept.SubType == "vnd.google.protobuf" {
-				if accept.Params["proto"] != "io.prometheus.client.MetricFamily" {
-					continue
-				}
-				if accept.Params["encoding"] != "delimited" {
-					continue
-				}
-
-				header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-				registry.dumpDelimitedPB(writer)
-				registry.dumpDelimitedExternalPB(writer)
-				return
-			}
+			r.dumpPB(writer, enc)
+			r.dumpExternalPB(writer, enc)
+			return
 		}
-
-		header.Set(contentTypeHeader, TelemetryContentType)
-		json.NewEncoder(writer).Encode(registry)
+		// TODO: Once JSON deprecation is completed, use text format as
+		// fall-back.
+		header.Set(contentTypeHeader, JSONTelemetryContentType)
+		json.NewEncoder(writer).Encode(r)
 	}
 }
 

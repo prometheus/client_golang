@@ -23,14 +23,15 @@ import (
 //               methods below, so it will be easy to change this later
 //               without requiring significant user code changes.
 
-// Time in seconds since the epoch (January 1, 1970 UTC).
+// Timestamp is the number of seconds since the epoch (1970-01-01 00:00 UTC)
+// without leap seconds.
 type Timestamp int64
 
 const (
-	// The minimum supported time resolution. This has to be at least
-	// native_time.Second in order for the code below to work.
+	// MinimumTick is the minimum supported time resolution. This has to be
+	// at least native_time.Second in order for the code below to work.
 	MinimumTick = native_time.Second
-	// The timestamp duration equivalent to one second.
+	// second is the timestamp duration equivalent to one second.
 	second = int64(native_time.Second / MinimumTick)
 )
 
@@ -44,7 +45,7 @@ func (t Timestamp) Before(o Timestamp) bool {
 	return t < o
 }
 
-// Before reports whether the timestamp t is after o.
+// After reports whether the timestamp t is after o.
 func (t Timestamp) After(o Timestamp) bool {
 	return t > o
 }

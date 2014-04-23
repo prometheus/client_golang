@@ -13,12 +13,14 @@
 
 package model
 
+// Sample is a sample value with a timestamp and a metric.
 type Sample struct {
 	Metric    Metric
 	Value     SampleValue
 	Timestamp Timestamp
 }
 
+// Equal compares first the metrics, then the timestamp, then the value.
 func (s *Sample) Equal(o *Sample) bool {
 	if s == o {
 		return true
@@ -37,12 +39,14 @@ func (s *Sample) Equal(o *Sample) bool {
 	return true
 }
 
+// Samples is a sortable Sample slice. It implements sort.Interface.
 type Samples []*Sample
 
 func (s Samples) Len() int {
 	return len(s)
 }
 
+// Less compares first the metrics, then the timestamp.
 func (s Samples) Less(i, j int) bool {
 	switch {
 	case s[i].Metric.Before(s[j].Metric):

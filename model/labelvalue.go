@@ -20,6 +20,7 @@ import (
 // A LabelValue is an associated value for a LabelName.
 type LabelValue string
 
+// LabelValues is a sortable LabelValue slice. It implements sort.Interface.
 type LabelValues []LabelValue
 
 func (l LabelValues) Len() int {
