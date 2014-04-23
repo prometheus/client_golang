@@ -226,7 +226,7 @@ summary_name_count{name_1="value 1",name_2="value 2"} 4711
 
 	for i, scenario := range scenarios {
 		out := bytes.NewBuffer(make([]byte, 0, len(scenario.out)))
-		n, err := MetricFamilyToText(scenario.in, out)
+		n, err := MetricFamilyToText(out, scenario.in)
 		if err != nil {
 			t.Errorf("%d. error: %s", i, err)
 			continue
@@ -322,7 +322,7 @@ func testCreateError(t test.Tester) {
 
 	for i, scenario := range scenarios {
 		var out bytes.Buffer
-		_, err := MetricFamilyToText(scenario.in, &out)
+		_, err := MetricFamilyToText(&out, scenario.in)
 		if err == nil {
 			t.Errorf("%d. expected error, got nil", i)
 			continue

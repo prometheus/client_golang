@@ -11,8 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package text contains functions to parse and create the simple and flat
-// text-based exchange format.
+// Package text contains helper functions to parse and create text-based
+// exchange formats. The package currently supports (only) version 0.0.4 of the
+// exchange format. Should other version be supported in the future, some
+// versioning scheme has to be applied. Possibilities include separate packages
+// or separate functions. The best way depends on the nature of future changes,
+// which is the reason why no versioning scheme has been applied prematurely
+// here.
 package text
 
 import (
@@ -20,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -29,32 +35,33 @@ import (
 // and any error encountered.  This function does not perform checks on the
 // content of the metric and label names, i.e. invalid metric or label names
 // will result in invalid text format output.
-func MetricFamilyToText(in *dto.MetricFamily, out io.Writer) (int, error) {
+func MetricFamilyToText(out io.Writer, in proto.Message) (int, error) {
+	mf := in.(*dto.MetricFamily)
 	var written int
 
 	// Fail-fast checks.
-	if len(in.Metric) == 0 {
+	if len(mf.Metric) == 0 {
 		return written, fmt.Errorf("MetricFamily has no metrics: %s", in)
 	}
-	name := in.GetName()
+	name := mf.GetName()
 	if name == "" {
 		return written, fmt.Errorf("MetricFamily has no name: %s", in)
 	}
-	if in.Type == nil {
+	if mf.Type == nil {
 		return written, fmt.Errorf("MetricFamily has no type: %s", in)
 	}
 
 	// Comments, first HELP, then TYPE.
-	if in.Help != nil {
+	if mf.Help != nil {
 		n, err := fmt.Fprintf(
 			out, "# HELP %s %s\n",
-			name, strings.Replace(*in.Help, "\n", `\n`, -1))
+			name, strings.Replace(*mf.Help, "\n", `\n`, -1))
 		written += n
 		if err != nil {
 			return written, err
 		}
 	}
-	metricType := in.GetType()
+	metricType := mf.GetType()
 	n, err := fmt.Fprintf(
 		out, "# TYPE %s %s\n",
 		name, strings.ToLower(metricType.String()),
@@ -65,7 +72,7 @@ func MetricFamilyToText(in *dto.MetricFamily, out io.Writer) (int, error) {
 	}
 
 	// Finally the samples, one line for each.
-	for _, metric := range in.Metric {
+	for _, metric := range mf.Metric {
 		switch metricType {
 		case dto.MetricType_COUNTER:
 			if metric.Counter == nil {
