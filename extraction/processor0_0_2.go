@@ -23,7 +23,7 @@ import (
 
 // Processor002 is responsible for decoding payloads from protocol version
 // 0.0.2.
-var Processor002 = new(processor002)
+var Processor002 = &processor002{}
 
 type histogram002 struct {
 	Labels map[string]string            `json:"labels"`
@@ -60,7 +60,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			var values []counter002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				err := fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err)
+				err := fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
 				if err := out.Ingest(&Result{Err: err}); err != nil {
 					return err
 				}
@@ -81,7 +81,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			var values []histogram002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				err := fmt.Errorf("Could not extract %s value: %s", entity.Metric.Type, err)
+				err := fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
 				if err := out.Ingest(&Result{Err: err}); err != nil {
 					return err
 				}
@@ -102,7 +102,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			}
 
 		default:
-			err := fmt.Errorf("Unknown metric type %q", entity.Metric.Type)
+			err := fmt.Errorf("unknown metric type %q", entity.Metric.Type)
 			if err := out.Ingest(&Result{Err: err}); err != nil {
 				return err
 			}

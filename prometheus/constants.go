@@ -8,30 +8,35 @@ package prometheus
 
 var (
 	// NilLabels is a nil set of labels merely for end-user convenience.
-	NilLabels map[string]string = nil
+	NilLabels map[string]string
 
-	// The default http.Handler for exposing telemetric data over a web services
-	// interface.
+	// DefaultHandler is the default http.Handler for exposing telemetric
+	// data over a web services interface.
 	DefaultHandler = DefaultRegistry.Handler()
 
-	// This is the default registry with which Metric objects are associated.
+	// DefaultRegistry with which Metric objects are associated.
 	DefaultRegistry = NewRegistry()
 )
 
 const (
-	// A prefix to be used to namespace instrumentation flags from others.
+	// FlagNamespace is a prefix to be used to namespace instrumentation
+	// flags from others.
 	FlagNamespace = "telemetry."
 
-	// The format of the exported data.  This will match this library's version,
-	// which subscribes to the Semantic Versioning scheme.
+	// APIVersion is the version of the format of the exported data.  This
+	// will match this library's version, which subscribes to the Semantic
+	// Versioning scheme.
 	APIVersion = "0.0.2"
 
-	// The content type and schema information set on telemetry data responses.
+	// TelemetryContentType is the content type and schema information set
+	// on telemetry data responses.
 	TelemetryContentType = `application/json; schema="prometheus/telemetry"; version=` + APIVersion
-	// The content type and schema information set on telemetry data responses.
+	// DelimitedTelemetryContentType is the content type and schema
+	// information set on telemetry data responses.
 	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`
 
-	// The customary web services endpoint on which telemetric data is exposed.
+	// ExpositionResource is the customary web services endpoint on which
+	// telemetric data is exposed.
 	ExpositionResource = "/metrics"
 
 	baseLabelsKey = "baseLabels"

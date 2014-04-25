@@ -7,9 +7,10 @@
 package prometheus
 
 import (
-	. "github.com/matttproud/gocheck"
 	"math"
 	"reflect"
+
+	. "github.com/matttproud/gocheck"
 )
 
 type isNaNChecker struct {
@@ -18,7 +19,7 @@ type isNaNChecker struct {
 
 // This piece provides a simple tester for the gocheck testing library to
 // ascertain if a value is not-a-number.
-var IsNaN Checker = &isNaNChecker{
+var IsNaN = &isNaNChecker{
 	&CheckerInfo{Name: "IsNaN", Params: []string{"value"}},
 }
 
@@ -43,7 +44,7 @@ type valueEqualsChecker struct {
 	*CheckerInfo
 }
 
-var ValueEquals Checker = &valueEqualsChecker{
+var ValueEquals = &valueEqualsChecker{
 	&CheckerInfo{Name: "IsValue", Params: []string{"obtained", "expected"}},
 }
 

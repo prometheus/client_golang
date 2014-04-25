@@ -36,6 +36,8 @@ func (f *Fingerprint) String() string {
 	return strings.Join([]string{fmt.Sprintf("%020d", f.Hash), f.FirstCharacterOfFirstLabelName, fmt.Sprint(f.LabelMatterLength), f.LastCharacterOfLastLabelValue}, "-")
 }
 
+// Less compares first the Hash, then the FirstCharacterOfFirstLabelName, then
+// the LabelMatterLength, then the LastCharacterOfLastLabelValue.
 func (f *Fingerprint) Less(o *Fingerprint) bool {
 	if f.Hash < o.Hash {
 		return true
@@ -67,6 +69,7 @@ func (f *Fingerprint) Less(o *Fingerprint) bool {
 	return false
 }
 
+// Equal uses the same semantics as Less.
 func (f *Fingerprint) Equal(o *Fingerprint) bool {
 	if f.Hash != o.Hash {
 		return false
@@ -146,8 +149,8 @@ func (f *Fingerprint) LoadFromMetric(m Metric) {
 	f.LastCharacterOfLastLabelValue = lastCharacterOfLastLabelValue
 }
 
-// Represents a collection of Fingerprint subject to a given natural sorting
-// scheme.
+// Fingerprints represents a collection of Fingerprint subject to a given
+// natural sorting scheme. It implements sort.Interface.
 type Fingerprints []*Fingerprint
 
 func (f Fingerprints) Len() int {
@@ -162,8 +165,10 @@ func (f Fingerprints) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
-type FingerprintSet map[Fingerprint]bool
+// FingerprintSet is a set of Fingerprints.
+type FingerprintSet map[Fingerprint]struct{}
 
+// Equal returns true if both sets contain the same elements (and not more).
 func (s FingerprintSet) Equal(o FingerprintSet) bool {
 	if len(s) != len(o) {
 		return false
@@ -178,6 +183,7 @@ func (s FingerprintSet) Equal(o FingerprintSet) bool {
 	return true
 }
 
+// Intersection returns the elements contained in both sets.
 func (s FingerprintSet) Intersection(o FingerprintSet) FingerprintSet {
 	myLength, otherLength := len(s), len(o)
 	if myLength == 0 || otherLength == 0 {
@@ -196,7 +202,7 @@ func (s FingerprintSet) Intersection(o FingerprintSet) FingerprintSet {
 
 	for k := range subSet {
 		if _, ok := superSet[k]; ok {
-			out[k] = true
+			out[k] = struct{}{}
 		}
 	}
 

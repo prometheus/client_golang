@@ -24,20 +24,20 @@ import (
 // Processor can be found, an error is returned.
 func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 	if header == nil {
-		return nil, fmt.Errorf("Received illegal and nil header.")
+		return nil, fmt.Errorf("received illegal and nil header")
 	}
 
 	mediatype, params, err := mime.ParseMediaType(header.Get("Content-Type"))
 	if err != nil {
-		return nil, fmt.Errorf("Invalid Content-Type header %q: %s", header.Get("Content-Type"), err)
+		return nil, fmt.Errorf("invalid Content-Type header %q: %s", header.Get("Content-Type"), err)
 	}
 	switch mediatype {
 	case "application/vnd.google.protobuf":
 		if params["proto"] != "io.prometheus.client.MetricFamily" {
-			return nil, fmt.Errorf("Unrecognized Protocol Message %s", params["proto"])
+			return nil, fmt.Errorf("unrecognized protocol message %s", params["proto"])
 		}
 		if params["encoding"] != "delimited" {
-			return nil, fmt.Errorf("Unsupported Encoding %s", params["encoding"])
+			return nil, fmt.Errorf("unsupported encoding %s", params["encoding"])
 		}
 		return MetricFamilyProcessor, nil
 	case "text/plain":
@@ -48,26 +48,26 @@ func ProcessorForRequestHeader(header http.Header) (Processor, error) {
 			// Fallback: most recent version.
 			return Processor004, nil
 		default:
-			return nil, fmt.Errorf("Unrecognized API version %s", params["version"])
+			return nil, fmt.Errorf("unrecognized API version %s", params["version"])
 		}
 	case "application/json":
-		var prometheusApiVersion string
+		var prometheusAPIVersion string
 
 		if params["schema"] == "prometheus/telemetry" && params["version"] != "" {
-			prometheusApiVersion = params["version"]
+			prometheusAPIVersion = params["version"]
 		} else {
-			prometheusApiVersion = header.Get("X-Prometheus-API-Version")
+			prometheusAPIVersion = header.Get("X-Prometheus-API-Version")
 		}
 
-		switch prometheusApiVersion {
+		switch prometheusAPIVersion {
 		case "0.0.2":
 			return Processor002, nil
 		case "0.0.1":
 			return Processor001, nil
 		default:
-			return nil, fmt.Errorf("Unrecognized API version %s", prometheusApiVersion)
+			return nil, fmt.Errorf("unrecognized API version %s", prometheusAPIVersion)
 		}
 	default:
-		return nil, fmt.Errorf("Unsupported media type %q, expected %q", mediatype, "application/json")
+		return nil, fmt.Errorf("unsupported media type %q, expected %q", mediatype, "application/json")
 	}
 }
