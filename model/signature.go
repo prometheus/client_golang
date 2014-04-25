@@ -4,13 +4,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package prometheus
+package model
 
 import (
 	"hash/fnv"
 	"sort"
-
-	"github.com/prometheus/client_golang/model"
 )
 
 // cache the signature of an empty label set.
@@ -23,18 +21,18 @@ func LabelsToSignature(labels map[string]string) uint64 {
 		return emptyLabelSignature
 	}
 
-	names := make(model.LabelNames, 0, len(labels))
+	names := make([]string, 0, len(labels))
 	for name := range labels {
-		names = append(names, model.LabelName(name))
+		names = append(names, name)
 	}
 
-	sort.Sort(names)
+	sort.Strings(names)
 
 	hasher := fnv.New64a()
 
 	for _, name := range names {
 		hasher.Write([]byte(name))
-		hasher.Write([]byte(labels[string(name)]))
+		hasher.Write([]byte(labels[name]))
 	}
 
 	return hasher.Sum64()
@@ -42,22 +40,22 @@ func LabelsToSignature(labels map[string]string) uint64 {
 
 // LabelValuesToSignature provides a way of building a unique signature
 // (i.e., fingerprint) for a given set of label's values.
-func labelValuesToSignature(labels map[string]string) uint64 {
+func LabelValuesToSignature(labels map[string]string) uint64 {
 	if len(labels) == 0 {
 		return emptyLabelSignature
 	}
 
-	names := make(model.LabelNames, 0, len(labels))
+	names := make([]string, 0, len(labels))
 	for name := range labels {
-		names = append(names, model.LabelName(name))
+		names = append(names, name)
 	}
 
-	sort.Sort(names)
+	sort.Strings(names)
 
 	hasher := fnv.New64a()
 
 	for _, name := range names {
-		hasher.Write([]byte(labels[string(name)]))
+		hasher.Write([]byte(labels[name]))
 	}
 
 	return hasher.Sum64()

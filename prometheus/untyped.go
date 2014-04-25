@@ -14,6 +14,8 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 // An Untyped metric represents scalar values without any type implications
@@ -56,7 +58,7 @@ func (metric *untyped) Set(labels map[string]string, value float64) float64 {
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
@@ -74,7 +76,7 @@ func (metric *untyped) Set(labels map[string]string, value float64) float64 {
 }
 
 func (metric *untyped) Reset(labels map[string]string) {
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()

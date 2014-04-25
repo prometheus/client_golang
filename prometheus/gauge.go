@@ -14,6 +14,8 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 // A gauge metric merely provides an instantaneous representation of a scalar
@@ -55,7 +57,7 @@ func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
@@ -73,7 +75,7 @@ func (metric *gauge) Set(labels map[string]string, value float64) float64 {
 }
 
 func (metric *gauge) Reset(labels map[string]string) {
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()

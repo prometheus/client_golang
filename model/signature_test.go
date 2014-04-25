@@ -4,14 +4,16 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package prometheus
+package model
 
 import (
 	"runtime"
 	"testing"
+
+	"github.com/prometheus/client_golang/test"
 )
 
-func testLabelsToSignature(t tester) {
+func testLabelsToSignature(t test.Tester) {
 	var scenarios = []struct {
 		in  map[string]string
 		out uint64
@@ -66,7 +68,7 @@ func BenchmarkLabelToSignature(b *testing.B) {
 
 func benchmarkLabelValuesToSignature(b *testing.B, l map[string]string, e uint64) {
 	for i := 0; i < b.N; i++ {
-		if a := labelValuesToSignature(l); a != e {
+		if a := LabelValuesToSignature(l); a != e {
 			b.Fatalf("expected signature of %d for %s, got %d", e, l, a)
 		}
 	}
