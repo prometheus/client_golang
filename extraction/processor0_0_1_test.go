@@ -14,7 +14,7 @@
 package extraction
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path"
 	"sort"
@@ -68,7 +68,7 @@ func testProcessor001Process(t test.Tester) {
 	var scenarios = []testProcessor001ProcessScenario{
 		{
 			in:  "empty.json",
-			err: fmt.Errorf("unexpected end of JSON input"),
+			err: errors.New("unexpected end of JSON input"),
 		},
 		{
 			in: "test0_0_1-0_0_2.json",

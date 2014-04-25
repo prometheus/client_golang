@@ -23,6 +23,7 @@ import (
 // a singleton and refers to one and only one stream of samples.
 type Metric map[LabelName]LabelValue
 
+// Equal compares the fingerprints of both metrics.
 func (m Metric) Equal(o Metric) bool {
 	lFingerprint := &Fingerprint{}
 	rFingerprint := &Fingerprint{}
@@ -33,6 +34,7 @@ func (m Metric) Equal(o Metric) bool {
 	return lFingerprint.Equal(rFingerprint)
 }
 
+// Before compares the fingerprints of both metrics.
 func (m Metric) Before(o Metric) bool {
 	lFingerprint := &Fingerprint{}
 	rFingerprint := &Fingerprint{}
@@ -64,6 +66,8 @@ func (m Metric) String() string {
 	}
 }
 
+// MergeFromLabelSet merges a label set into this Metric, prefixing a collision
+// prefix to the label names merged from the label set where required.
 func (m Metric) MergeFromLabelSet(labels LabelSet, collisionPrefix LabelName) {
 	for k, v := range labels {
 		if collisionPrefix != "" {

@@ -26,7 +26,7 @@ import (
 // match.
 type LabelSet map[LabelName]LabelValue
 
-// Helper function to non-destructively merge two label sets.
+// Merge is a helper function to non-destructively merge two label sets.
 func (l LabelSet) Merge(other LabelSet) LabelSet {
 	result := make(LabelSet, len(l))
 
@@ -56,6 +56,7 @@ func (l LabelSet) String() string {
 	}
 }
 
+// MergeFromMetric merges Metric into this LabelSet.
 func (l LabelSet) MergeFromMetric(m Metric) {
 	for k, v := range m {
 		l[k] = v

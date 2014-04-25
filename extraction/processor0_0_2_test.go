@@ -14,7 +14,7 @@
 package extraction
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path"
 	"runtime"
@@ -69,7 +69,7 @@ func testProcessor002Process(t test.Tester) {
 	var scenarios = []testProcessor002ProcessScenario{
 		{
 			in:  "empty.json",
-			err: fmt.Errorf("EOF"),
+			err: errors.New("EOF"),
 		},
 		{
 			in: "test0_0_1-0_0_2.json",

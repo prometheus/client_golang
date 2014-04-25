@@ -98,15 +98,15 @@ type Registry interface {
 	YieldExporter() http.HandlerFunc
 }
 
-// This builds a new metric registry.  It is not needed in the majority of
-// cases.
+// NewRegistry builds a new metric registry.  It is not needed in the majority
+// of cases.
 func NewRegistry() Registry {
 	return &registry{
 		signatureContainers: make(map[uint64]*container),
 	}
 }
 
-// Associate a Metric with the DefaultRegistry.
+// Register associates a Metric with the DefaultRegistry.
 func Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
 	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
 }
@@ -116,7 +116,7 @@ func (r *registry) SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily)
 	r.metricFamilyInjectionHook = hook
 }
 
-// Implements json.Marshaler
+// MarshalJSON implements json.Marshaler.
 func (r *registry) MarshalJSON() ([]byte, error) {
 	containers := make(containers, 0, len(r.signatureContainers))
 
@@ -218,12 +218,12 @@ func (r *registry) Register(name, docstring string, baseLabels map[string]string
 
 // YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
 // basic authentication.
-func (register *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
+func (r *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
 	// XXX: Work with Daniel to get this removed from the library, as it is really
 	//      superfluous and can be much more elegantly accomplished via
 	//      delegation.
 	log.Println("Registry.YieldBasicAuthExporter is deprecated.")
-	exporter := register.YieldExporter()
+	exporter := r.YieldExporter()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authenticated := false
@@ -261,10 +261,10 @@ func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer
 	return gziper
 }
 
-func (registry *registry) YieldExporter() http.HandlerFunc {
+func (r *registry) YieldExporter() http.HandlerFunc {
 	log.Println("Registry.YieldExporter is deprecated in favor of Registry.Handler.")
 
-	return registry.Handler()
+	return r.Handler()
 }
 
 func (r *registry) dumpDelimitedPB(w io.Writer) {
@@ -311,20 +311,20 @@ func (r *registry) dumpDelimitedExternalPB(w io.Writer) {
 	}
 }
 
-func (registry *registry) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func (r *registry) Handler() http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
 		defer requestLatencyAccumulator(time.Now())
 
 		requestCount.Increment(nil)
 		header := w.Header()
 
-		writer := decorateWriter(r, w)
+		writer := decorateWriter(req, w)
 
 		if closer, ok := writer.(io.Closer); ok {
 			defer closer.Close()
 		}
 
-		accepts := goautoneg.ParseAccept(r.Header.Get("Accept"))
+		accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
 		for _, accept := range accepts {
 			if accept.Type != "application" {
 				continue
@@ -339,14 +339,14 @@ func (registry *registry) Handler() http.HandlerFunc {
 				}
 
 				header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-				registry.dumpDelimitedPB(writer)
-				registry.dumpDelimitedExternalPB(writer)
+				r.dumpDelimitedPB(writer)
+				r.dumpDelimitedExternalPB(writer)
 				return
 			}
 		}
 
 		header.Set(contentTypeHeader, TelemetryContentType)
-		json.NewEncoder(writer).Encode(registry)
+		json.NewEncoder(writer).Encode(r)
 	}
 }
 

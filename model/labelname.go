@@ -18,18 +18,20 @@ import (
 )
 
 const (
-	// The label name prefix to prepend if a synthetic label is already present
-	// in the exported metrics.
+	// ExporterLabelPrefix is the label name prefix to prepend if a
+	// synthetic label is already present in the exported metrics.
 	ExporterLabelPrefix LabelName = "exporter_"
 
-	// The label name indicating the metric name of a timeseries.
+	// MetricNameLabel is the label name indicating the metric name of a
+	// timeseries.
 	MetricNameLabel LabelName = "__name__"
 
-	// ReservedLabelPrefix is a prefix which is not legal in user-supplied label
-	// names.
+	// ReservedLabelPrefix is a prefix which is not legal in user-supplied
+	// label names.
 	ReservedLabelPrefix = "__"
 
-	// The label name indicating the job from which a timeseries was scraped.
+	// JobLabel is the label name indicating the job from which a timeseries
+	// was scraped.
 	JobLabel LabelName = "job"
 )
 
@@ -37,6 +39,7 @@ const (
 // therewith.
 type LabelName string
 
+// LabelNames is a sortable LabelName slice. In implements sort.Interface.
 type LabelNames []LabelName
 
 func (l LabelNames) Len() int {

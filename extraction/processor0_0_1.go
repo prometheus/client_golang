@@ -35,9 +35,9 @@ const (
 	percentile001 = "percentile"
 )
 
-// Processor002 is responsible for decoding payloads from protocol version
+// Processor001 is responsible for decoding payloads from protocol version
 // 0.0.1.
-var Processor001 Processor = &processor001{}
+var Processor001 = &processor001{}
 
 // processor001 is responsible for handling API version 0.0.1.
 type processor001 struct{}
@@ -77,7 +77,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			case gauge001, counter001:
 				sampleValue, ok := value.Value.(float64)
 				if !ok {
-					err = fmt.Errorf("Could not convert value from %s %s to float64.", entity, value)
+					err = fmt.Errorf("could not convert value from %s %s to float64", entity, value)
 					if err := out.Ingest(&Result{Err: err}); err != nil {
 						return err
 					}
@@ -95,7 +95,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			case histogram001:
 				sampleValue, ok := value.Value.(map[string]interface{})
 				if !ok {
-					err = fmt.Errorf("Could not convert value from %q to a map[string]interface{}.", value.Value)
+					err = fmt.Errorf("could not convert value from %q to a map[string]interface{}", value.Value)
 					if err := out.Ingest(&Result{Err: err}); err != nil {
 						return err
 					}
@@ -105,7 +105,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 				for percentile, percentileValue := range sampleValue {
 					individualValue, ok := percentileValue.(float64)
 					if !ok {
-						err = fmt.Errorf("Could not convert value from %q to a float64.", percentileValue)
+						err = fmt.Errorf("could not convert value from %q to a float64", percentileValue)
 						if err := out.Ingest(&Result{Err: err}); err != nil {
 							return err
 						}

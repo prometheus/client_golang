@@ -80,3 +80,17 @@ ensure that all tests pass by running the following from the project root:
 
 The use of gocheck is summarily being phased out; however, old tests that use it
 still exist.
+
+# Contributing
+
+Same as for the `prometheus/prometheus` repository, we are using
+Gerrit to manage reviews of pull-requests for this repository. See
+[`CONTRIBUTING.md`](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md)
+in the `prometheus/prometheus` repository for details (but replace the
+`prometheus` repository name by `client_golang`).
+
+Please try to avoid warnings flagged by [`go
+vet`](https://godoc.org/code.google.com/p/go.tools/cmd/vet) and by
+[`golint`](https://github.com/golang/lint), and pay attention to the
+[Go Code Review
+Comments](https://code.google.com/p/go-wiki/wiki/CodeReviewComments).
