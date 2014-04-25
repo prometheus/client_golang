@@ -158,7 +158,7 @@ func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (
 	}
 
 	baseLabels[string(model.MetricNameLabel)] = name
-	signature = LabelsToSignature(baseLabels)
+	signature = model.LabelsToSignature(baseLabels)
 
 	if _, contains := r.signatureContainers[signature]; contains {
 		err = fmt.Errorf("metric named %s with baseLabels %s is already registered", name, baseLabels)

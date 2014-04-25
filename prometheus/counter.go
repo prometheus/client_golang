@@ -14,6 +14,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 // TODO(matt): Refactor to de-duplicate behaviors.
@@ -49,7 +51,7 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
@@ -67,7 +69,7 @@ func (metric *counter) Set(labels map[string]string, value float64) float64 {
 }
 
 func (metric *counter) Reset(labels map[string]string) {
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
@@ -100,7 +102,7 @@ func (metric *counter) IncrementBy(labels map[string]string, value float64) floa
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()
@@ -126,7 +128,7 @@ func (metric *counter) DecrementBy(labels map[string]string, value float64) floa
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	metric.mutex.Lock()
 	defer metric.mutex.Unlock()

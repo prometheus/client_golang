@@ -18,6 +18,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
+
+	"github.com/prometheus/client_golang/model"
 )
 
 // This generates count-buckets of equal size distributed along the open
@@ -101,7 +103,7 @@ func (h *histogram) Add(labels map[string]string, value float64) {
 		labels = blankLabelsSingleton
 	}
 
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 	var histogram *histogramVector = nil
 
 	h.mutex.Lock()
@@ -298,7 +300,7 @@ func (h *histogram) Purge() {
 }
 
 func (h *histogram) Reset(labels map[string]string) {
-	signature := labelValuesToSignature(labels)
+	signature := model.LabelValuesToSignature(labels)
 
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
