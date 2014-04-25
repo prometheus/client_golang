@@ -9,9 +9,11 @@ package prometheus
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/prometheus/client_golang/test"
 )
 
-func testGauge(t tester) {
+func testGauge(t test.Tester) {
 	type input struct {
 		steps []func(g Gauge)
 	}
