@@ -20,9 +20,10 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 
 	"github.com/prometheus/client_golang/model"
+	"github.com/prometheus/client_golang/test"
 )
 
-func testRegister(t tester) {
+func testRegister(t test.Tester) {
 	var oldState = struct {
 		abortOnMisuse             bool
 		debugRegistration         bool
@@ -205,7 +206,7 @@ func (r *fakeResponseWriter) Write(d []byte) (l int, err error) {
 func (r *fakeResponseWriter) WriteHeader(c int) {
 }
 
-func testHandler(t tester) {
+func testHandler(t test.Tester) {
 
 	metric := NewCounter()
 	metric.Increment(map[string]string{"labelname": "val1"})
@@ -484,7 +485,7 @@ func BenchmarkHandler(b *testing.B) {
 	}
 }
 
-func testDecorateWriter(t tester) {
+func testDecorateWriter(t test.Tester) {
 	type input struct {
 		headers map[string]string
 		body    []byte
@@ -569,7 +570,7 @@ func BenchmarkDecorateWriter(b *testing.B) {
 	}
 }
 
-func testDumpToWriter(t tester) {
+func testDumpToWriter(t test.Tester) {
 	type input struct {
 		metrics map[string]Metric
 	}
