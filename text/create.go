@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -35,33 +34,33 @@ import (
 // and any error encountered.  This function does not perform checks on the
 // content of the metric and label names, i.e. invalid metric or label names
 // will result in invalid text format output.
-func MetricFamilyToText(out io.Writer, in proto.Message) (int, error) {
-	mf := in.(*dto.MetricFamily)
+// This method fulfills the type 'prometheus.encoder'.
+func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 	var written int
 
 	// Fail-fast checks.
-	if len(mf.Metric) == 0 {
+	if len(in.Metric) == 0 {
 		return written, fmt.Errorf("MetricFamily has no metrics: %s", in)
 	}
-	name := mf.GetName()
+	name := in.GetName()
 	if name == "" {
 		return written, fmt.Errorf("MetricFamily has no name: %s", in)
 	}
-	if mf.Type == nil {
+	if in.Type == nil {
 		return written, fmt.Errorf("MetricFamily has no type: %s", in)
 	}
 
 	// Comments, first HELP, then TYPE.
-	if mf.Help != nil {
+	if in.Help != nil {
 		n, err := fmt.Fprintf(
 			out, "# HELP %s %s\n",
-			name, strings.Replace(*mf.Help, "\n", `\n`, -1))
+			name, strings.Replace(*in.Help, "\n", `\n`, -1))
 		written += n
 		if err != nil {
 			return written, err
 		}
 	}
-	metricType := mf.GetType()
+	metricType := in.GetType()
 	n, err := fmt.Fprintf(
 		out, "# TYPE %s %s\n",
 		name, strings.ToLower(metricType.String()),
@@ -72,7 +71,7 @@ func MetricFamilyToText(out io.Writer, in proto.Message) (int, error) {
 	}
 
 	// Finally the samples, one line for each.
-	for _, metric := range mf.Metric {
+	for _, metric := range in.Metric {
 		switch metricType {
 		case dto.MetricType_COUNTER:
 			if metric.Counter == nil {

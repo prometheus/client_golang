@@ -18,16 +18,26 @@ import (
 	"io"
 
 	"code.google.com/p/goprotobuf/proto"
+	"github.com/matttproud/golang_protobuf_extensions/ext"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
-// WriteProtoText writes the proto.Message to the writer in text format and
+// WriteProtoDelimited writes the MetricFamily to the writer in delimited
+// protobuf format and returns the number of bytes written and any error
+// encountered.
+func WriteProtoDelimited(w io.Writer, p *dto.MetricFamily) (int, error) {
+	return ext.WriteDelimited(w, p)
+}
+
+// WriteProtoText writes the MetricFamily to the writer in text format and
 // returns the number of bytes written and any error encountered.
-func WriteProtoText(w io.Writer, p proto.Message) (int, error) {
+func WriteProtoText(w io.Writer, p *dto.MetricFamily) (int, error) {
 	return fmt.Fprintf(w, "%s\n", proto.MarshalTextString(p))
 }
 
-// WriteProtoCompactText writes the proto.Message to the writer in compact text
+// WriteProtoCompactText writes the MetricFamily to the writer in compact text
 // format and returns the number of bytes written and any error encountered.
-func WriteProtoCompactText(w io.Writer, p proto.Message) (int, error) {
+func WriteProtoCompactText(w io.Writer, p *dto.MetricFamily) (int, error) {
 	return fmt.Fprintf(w, "%s\n", p)
 }

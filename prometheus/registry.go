@@ -23,7 +23,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
-	"github.com/matttproud/golang_protobuf_extensions/ext"
 
 	"github.com/prometheus/client_golang/model"
 	"github.com/prometheus/client_golang/text"
@@ -43,11 +42,11 @@ const (
 	jsonContentType          = "application/json"
 )
 
-// encoder is a function that writes a proto.Message to an io.Writer in a
+// encoder is a function that writes a dto.MetricFamily to an io.Writer in a
 // certain encoding. It returns the number of bytes written and any error
 // encountered.  Note that ext.WriteDelimited and text.MetricFamilyToText are
 // encoders.
-type encoder func(io.Writer, proto.Message) (int, error)
+type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
 // container represents a top-level registered metric that encompasses its
 // static metadata.
@@ -341,7 +340,7 @@ func (r *registry) Handler() http.HandlerFunc {
 				switch accept.Params["encoding"] {
 				case "delimited":
 					header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-					enc = ext.WriteDelimited
+					enc = text.WriteProtoDelimited
 				case "text":
 					header.Set(contentTypeHeader, ProtoTextTelemetryContentType)
 					enc = text.WriteProtoText
