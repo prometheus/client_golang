@@ -22,9 +22,11 @@ package text
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+
 	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
@@ -35,8 +37,13 @@ import (
 // and any error encountered.  This function does not perform checks on the
 // content of the metric and label names, i.e. invalid metric or label names
 // will result in invalid text format output.
+// If 'in' is not a *dto.MetricFamily, an error will be returned.
+// This method fulfills the type 'prometheus.encoder'.
 func MetricFamilyToText(out io.Writer, in proto.Message) (int, error) {
-	mf := in.(*dto.MetricFamily)
+	mf, ok := in.(*dto.MetricFamily)
+	if !ok {
+		return 0, errors.New("proto.Message is not *dto.MetricFamily")
+	}
 	var written int
 
 	// Fail-fast checks.
