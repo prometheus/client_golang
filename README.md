@@ -93,4 +93,4 @@ Please try to avoid warnings flagged by [`go
 vet`](https://godoc.org/code.google.com/p/go.tools/cmd/vet) and by
 [`golint`](https://github.com/golang/lint), and pay attention to the
 [Go Code Review
-Comments](https://code.google.com/p/go-wiki/wiki/CodeReviewComments).
+Comments](https://code.google.com/p/go-wiki/wiki/CodeReviewComments) and the _Formatting and style_ section of Peter Bourgon's [Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/#formatting-and-style).
