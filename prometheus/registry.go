@@ -1,3 +1,16 @@
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Copyright (c) 2013, Prometheus Team
 // All rights reserved.
 //
@@ -7,40 +20,164 @@
 package prometheus
 
 import (
-	"compress/gzip"
-	"encoding/base64"
-	"encoding/json"
-	"flag"
+	"bytes"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
-	"log"
 	"net/http"
 	"sort"
-	"strings"
 	"sync"
-	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
 
-	"github.com/prometheus/client_golang/model"
+	"github.com/prometheus/client_golang/_vendor/goautoneg"
 	"github.com/prometheus/client_golang/text"
-	"github.com/prometheus/client_golang/vendor/goautoneg"
 )
 
+var (
+	defRegistry   = newRegistry()
+	errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
+)
+
+// Constants relevant to the HTTP interface.
 const (
-	authorization            = "Authorization"
-	authorizationHeader      = "WWW-Authenticate"
-	authorizationHeaderValue = "Basic"
+	// APIVersion is the version of the format of the exported data.  This
+	// will match this library's version, which subscribes to the Semantic
+	// Versioning scheme.
+	APIVersion = "0.0.4"
 
-	acceptEncodingHeader     = "Accept-Encoding"
-	contentEncodingHeader    = "Content-Encoding"
-	contentTypeHeader        = "Content-Type"
-	gzipAcceptEncodingValue  = "gzip"
-	gzipContentEncodingValue = "gzip"
-	jsonContentType          = "application/json"
+	// DelimitedTelemetryContentType is the content type set on telemetry
+	// data responses in delimited protobuf format.
+	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`
+	// TextTelemetryContentType is the content type set on telemetry data
+	// responses in text format.
+	TextTelemetryContentType = `text/plain; version=` + APIVersion
+	// ProtoTextTelemetryContentType is the content type set on telemetry
+	// data responses in protobuf text format.  (Only used for debugging.)
+	ProtoTextTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="text"`
+	// ProtoCompactTextTelemetryContentType is the content type set on
+	// telemetry data responses in protobuf compact text format.  (Only used
+	// for debugging.)
+	ProtoCompactTextTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="compact-text"`
+
+	// Constants for object pools.
+	numBufs           = 4
+	numMetricFamilies = 1000
+	numMetrics        = 10000
+
+	// Capacity for the channel to collect metrics and descriptors.
+	capMetricChan = 1000
+	capDescChan   = 10
+
+	contentTypeHeader = "Content-Type"
 )
+
+// Handler returns the handler for the global Prometheus registry. It is already
+// instrumented with InstrumentHandler (using "prometheus" as handler
+// name). Usually the handler is used to handle the "/metrics" endpoint.
+func Handler() http.Handler {
+	return InstrumentHandler("prometheus", defRegistry)
+}
+
+// UninstrumentedHandler works in the same way as Handler, but the returned
+// handler is not instrumented. This is useful if no instrumentation is desired
+// (for whatever reason) or if the instrumentation has to happen with a
+// different handler name (or with a different instrumentation approach
+// altogether). See the InstrumentHandler example.
+func UninstrumentedHandler() http.Handler {
+	return defRegistry
+}
+
+// Register registers a new Collector to be included in metrics collection. It
+// returns an error if the descriptors provided by the Collector are invalid or
+// if they - in combination with descriptors of already registered Collectors -
+// do not fulfill the consistency and uniqueness criteria described in the Desc
+// documentation. If the registration is successful, the registered Collector
+// is returned.
+//
+// Do not register the same Collector multiple times concurrently. (Registering
+// the same Collector twice would result in an error anyway, but on top of that,
+// it is not safe to do so concurrently.)
+func Register(m Collector) (Collector, error) {
+	return defRegistry.Register(m)
+}
+
+// MustRegister works like Register but panics where Register would have
+// returned an error.
+func MustRegister(m Collector) Collector {
+	m, err := Register(m)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+// RegisterOrGet works like Register but does not return an error if a Collector
+// is registered that equals a previously registered Collector. (Two Collectors
+// are considered equal if their Describe method yields the same set of
+// descriptors.) Instead, the previously registered Collector is returned (which
+// is helpful if the new and previously registered Collectors are equal but not
+// identical, i.e. not pointers to the same object).
+//
+// As for Register, it is still not safe to call RegisterOrGet with the same
+// Collector multiple times concurrently.
+func RegisterOrGet(m Collector) (Collector, error) {
+	return defRegistry.RegisterOrGet(m)
+}
+
+// MustRegisterOrGet works like Register but panics where RegisterOrGet would
+// have returned an error.
+func MustRegisterOrGet(m Collector) Collector {
+	existing, err := RegisterOrGet(m)
+	if err != nil {
+		panic(err)
+	}
+	return existing
+}
+
+// Unregister unregisters the Collector that equals the Collector passed in as
+// an argument. (Two Collectors are considered equal if their Describe method
+// yields the same set of descriptors.) The function returns whether a Collector
+// was unregistered.
+func Unregister(c Collector) bool {
+	return defRegistry.Unregister(c)
+}
+
+// SetMetricFamilyInjectionHook sets a function that is called whenever metrics
+// are collected. The hook function must be set before metrics collection begins
+// (i.e. call SetMetricFamilyInjectionHook before setting the http handler.) The
+// MetricsFamily protobufs returned by the hook function are added to the
+// delivered metrics. Each returned MetricFamily must have a unique name (also
+// taking into account the MetricFamilies created in the regular way).
+//
+// This is a way to directly inject MetricFamily protobufs managed and owned by
+// the caller. The caller has full responsibility. No sanity checks are
+// performed on the returned protobufs (besides the name checks described
+// above). The function must be callable at any time and concurrently.
+func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
+	defRegistry.metricFamilyInjectionHook = hook
+}
+
+// PanicOnCollectError sets the behavior whether a panic is caused upon an error
+// while metrics are collected and served to the http endpoint. By default, an
+// internal server error (status code 500) is served with an error message.
+func PanicOnCollectError(b bool) {
+	defRegistry.panicOnCollectError = b
+}
+
+// EnableCollectChecks enables or disables certain consistency checks during
+// metrics collection. By default, those checks are not enabled because they
+// inflict a performance penalty, and the errors they check for can only happen
+// if the used Metric and Collector types have internal programming
+// errors. While working with custom Collectors or Metrics whose correctness is
+// not well established yet, it can be helpful to enable the checks.
+func EnableCollectChecks(b bool) {
+	defRegistry.collectChecksEnabled = b
+}
 
 // encoder is a function that writes a dto.MetricFamily to an io.Writer in a
 // certain encoding. It returns the number of bytes written and any error
@@ -48,329 +185,444 @@ const (
 // encoders.
 type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
-// container represents a top-level registered metric that encompasses its
-// static metadata.
-type container struct {
-	BaseLabels map[string]string `json:"baseLabels"`
-	Docstring  string            `json:"docstring"`
-	Metric     Metric            `json:"metric"`
-	name       string
-}
-
-type containers []*container
-
-func (c containers) Len() int {
-	return len(c)
-}
-
-func (c containers) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (c containers) Less(i, j int) bool {
-	return c[i].name < c[j].name
-}
-
 type registry struct {
-	mutex                     sync.RWMutex
-	signatureContainers       map[uint64]*container
+	mtx                       sync.RWMutex
+	collectorsByID            map[uint64]Collector // ID is a hash of the descIDs.
+	descIDs                   map[uint64]struct{}
+	dimHashesByName           map[string]uint64
+	bufPool                   chan *bytes.Buffer
+	metricFamilyPool          chan *dto.MetricFamily
+	metricPool                chan *dto.Metric
 	metricFamilyInjectionHook func() []*dto.MetricFamily
+
+	panicOnCollectError, collectChecksEnabled bool
 }
 
-// Registry is a registrar where metrics are listed.
-//
-// In most situations, using DefaultRegistry is sufficient versus creating one's
-// own.
-type Registry interface {
-	// Register a metric with a given name.  Name should be globally unique.
-	Register(name, docstring string, baseLabels map[string]string, metric Metric) error
-	// SetMetricFamilyInjectionHook sets a function that is called whenever
-	// metrics are requested. The MetricsFamily protobufs returned by the
-	// function are appended to the delivered metrics. This is a way to
-	// directly inject MetricFamily protobufs managed and owned by the
-	// caller. The caller has full responsibility. No sanity checks are
-	// performed on the returned protobufs. The function must be callable at
-	// any time and concurrently. The only thing handled by the Registry is
-	// the conversion if metrics are requested in a non-protobuf format. The
-	// deprecated JSON format, however, is not supported, i.e. metrics
-	// delivered as JSON will not contain the metrics injected by the
-	// injection hook.
-	SetMetricFamilyInjectionHook(func() []*dto.MetricFamily)
-	// Handler creates a http.HandlerFunc. Requests against it generate a
-	// representation of the metrics managed by this registry.
-	Handler() http.HandlerFunc
-	// YieldExporter is a legacy version of Handler and is deprecated.
-	// Please stop using.
-	YieldExporter() http.HandlerFunc
-}
+func (r *registry) Register(c Collector) (Collector, error) {
+	descChan := make(chan *Desc, capDescChan)
+	go func() {
+		c.Describe(descChan)
+		close(descChan)
+	}()
 
-// NewRegistry builds a new metric registry.  It is not needed in the majority
-// of cases.
-func NewRegistry() Registry {
-	return &registry{
-		signatureContainers: make(map[uint64]*container),
-	}
-}
+	newDescIDs := map[uint64]struct{}{}
+	newDimHashesByName := map[string]uint64{}
+	collectorIDHash := fnv.New64a()
+	buf := make([]byte, 8)
+	var duplicateDescErr error
 
-// Register associates a Metric with the DefaultRegistry.
-func Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
-	return DefaultRegistry.Register(name, docstring, baseLabels, metric)
-}
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	// Coduct various tests...
+	for desc := range descChan {
 
-// SetMetricFamilyInjectionHook implements the Registry interface.
-func (r *registry) SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
-	r.metricFamilyInjectionHook = hook
-}
-
-// MarshalJSON implements json.Marshaler.
-func (r *registry) MarshalJSON() ([]byte, error) {
-	containers := make(containers, 0, len(r.signatureContainers))
-
-	for _, container := range r.signatureContainers {
-		containers = append(containers, container)
-	}
-
-	sort.Sort(containers)
-
-	return json.Marshal(containers)
-}
-
-// isValidCandidate returns true if the candidate is acceptable for use.  In the
-// event of any apparent incorrect use it will report the problem, invalidate
-// the candidate, or outright abort.
-func (r *registry) isValidCandidate(name string, baseLabels map[string]string) (signature uint64, err error) {
-	if len(name) == 0 {
-		err = fmt.Errorf("unnamed metric named with baseLabels %s is invalid", baseLabels)
-
-		if *abortOnMisuse {
-			panic(err)
-		} else if *debugRegistration {
-			log.Println(err)
+		// Is the descriptor valid at all?
+		if desc.err != nil {
+			return c, fmt.Errorf("descriptor %s is invalid: %s", desc, desc.err)
 		}
-	}
 
-	for label := range baseLabels {
-		if strings.HasPrefix(label, model.ReservedLabelPrefix) {
-			err = fmt.Errorf("metric named %s with baseLabels %s contains reserved label name %s in baseLabels", name, baseLabels, label)
+		// Is the descID unique?
+		// (In other words: Is the fqName + constLabel combination unique?)
+		if _, exists := r.descIDs[desc.id]; exists {
+			duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
+		}
+		// If it is not a duplicate desc in this collector, add it to
+		// the hash.  (We allow duplicate descs within the same
+		// collector, but their existence must be a no-op.)
+		if _, exists := newDescIDs[desc.id]; !exists {
+			newDescIDs[desc.id] = struct{}{}
+			binary.BigEndian.PutUint64(buf, desc.id)
+			collectorIDHash.Write(buf)
+		}
 
-			if *abortOnMisuse {
-				panic(err)
-			} else if *debugRegistration {
-				log.Println(err)
+		// Are all the label names and the help string consistent with
+		// previous descriptors of the same name?
+		// First check existing descriptors...
+		if dimHash, exists := r.dimHashesByName[desc.fqName]; exists {
+			if dimHash != desc.dimHash {
+				return nil, fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
-
-			return signature, err
-		}
-	}
-
-	baseLabels[string(model.MetricNameLabel)] = name
-	signature = model.LabelsToSignature(baseLabels)
-
-	if _, contains := r.signatureContainers[signature]; contains {
-		err = fmt.Errorf("metric named %s with baseLabels %s is already registered", name, baseLabels)
-		if *abortOnMisuse {
-			panic(err)
-		} else if *debugRegistration {
-			log.Println(err)
-		}
-
-		return signature, err
-	}
-
-	if *useAggressiveSanityChecks {
-		for _, container := range r.signatureContainers {
-			if container.name == name {
-				err = fmt.Errorf("metric named %s with baseLabels %s is already registered as %s and risks causing confusion", name, baseLabels, container.BaseLabels)
-				if *abortOnMisuse {
-					panic(err)
-				} else if *debugRegistration {
-					log.Println(err)
+		} else {
+			// ...then check the new descriptors already seen.
+			if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
+				if dimHash != desc.dimHash {
+					return nil, fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
 				}
-
-				return signature, err
+			} else {
+				newDimHashesByName[desc.fqName] = desc.dimHash
 			}
 		}
 	}
+	// Did anything happen at all?
+	if len(newDescIDs) == 0 {
+		return nil, errors.New("collector has no descriptors")
+	}
+	collectorID := collectorIDHash.Sum64()
+	if existing, exists := r.collectorsByID[collectorID]; exists {
+		return existing, errAlreadyReg
+	}
+	// If the collectorID is new, but at least one of the descs existed
+	// before, we are in trouble.
+	if duplicateDescErr != nil {
+		return nil, duplicateDescErr
+	}
 
-	return signature, err
+	// Only after all tests have passed, actually register.
+	r.collectorsByID[collectorID] = c
+	for hash := range newDescIDs {
+		r.descIDs[hash] = struct{}{}
+	}
+	for name, dimHash := range newDimHashesByName {
+		r.dimHashesByName[name] = dimHash
+	}
+	return c, nil
 }
 
-func (r *registry) Register(name, docstring string, baseLabels map[string]string, metric Metric) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
+func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
+	existing, err := r.Register(m)
+	if err != nil && err != errAlreadyReg {
+		return nil, err
+	}
+	return existing, nil
+}
 
-	labels := map[string]string{}
+func (r *registry) Unregister(c Collector) bool {
+	descChan := make(chan *Desc, capDescChan)
+	go func() {
+		c.Describe(descChan)
+		close(descChan)
+	}()
 
-	if baseLabels != nil {
-		for k, v := range baseLabels {
-			labels[k] = v
+	descIDs := map[uint64]struct{}{}
+	collectorIDHash := fnv.New64a()
+	buf := make([]byte, 8)
+	for desc := range descChan {
+		if _, exists := descIDs[desc.id]; !exists {
+			binary.BigEndian.PutUint64(buf, desc.id)
+			collectorIDHash.Write(buf)
+			descIDs[desc.id] = struct{}{}
+		}
+	}
+	collectorID := collectorIDHash.Sum64()
+
+	r.mtx.RLock()
+	if _, exists := r.collectorsByID[collectorID]; !exists {
+		r.mtx.RUnlock()
+		return false
+	}
+	r.mtx.RUnlock()
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	delete(r.collectorsByID, collectorID)
+	for id := range descIDs {
+		delete(r.descIDs, id)
+	}
+	// dimHashesByName is left untouched as those must be consistent
+	// throughout the lifetime of a program.
+	return true
+}
+
+func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	enc, contentType := chooseEncoder(req)
+	buf := r.getBuf()
+	defer r.giveBuf(buf)
+	header := w.Header()
+	if _, err := r.writePB(buf, enc); err != nil {
+		if r.panicOnCollectError {
+			panic(err)
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		header.Set(contentTypeHeader, "text/plain")
+		fmt.Fprintf(w, "An error has occurred:\n\n%s", err)
+		return
+	}
+	header.Set(contentTypeHeader, contentType)
+	w.Write(buf.Bytes())
+}
+
+func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
+	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
+	var metricHashes map[uint64]struct{}
+	if r.collectChecksEnabled {
+		metricHashes = make(map[uint64]struct{})
+	}
+	metricChan := make(chan Metric, capMetricChan)
+	wg := sync.WaitGroup{}
+
+	// Scatter.
+	// (Collectors could be complex and slow, so we call them all at once.)
+	r.mtx.RLock()
+	wg.Add(len(r.collectorsByID))
+	go func() {
+		wg.Wait()
+		close(metricChan)
+	}()
+	for _, collector := range r.collectorsByID {
+		go func(collector Collector) {
+			defer wg.Done()
+			collector.Collect(metricChan)
+		}(collector)
+	}
+	r.mtx.RUnlock()
+
+	// Gather.
+	for metric := range metricChan {
+		// This could be done concurrently, too, but it required locking
+		// of metricFamiliesByName (and of metricHashes if checks are
+		// enabled). Most likely not worth it.
+		desc := metric.Desc()
+		metricFamily, ok := metricFamiliesByName[desc.fqName]
+		if !ok {
+			metricFamily = r.getMetricFamily()
+			defer r.giveMetricFamily(metricFamily)
+			metricFamily.Name = proto.String(desc.fqName)
+			metricFamily.Help = proto.String(desc.help)
+			metricFamiliesByName[desc.fqName] = metricFamily
+		}
+		dtoMetric := r.getMetric()
+		defer r.giveMetric(dtoMetric)
+		metric.Write(dtoMetric)
+		switch {
+		case metricFamily.Type != nil:
+			// Type already set. We are good.
+		case dtoMetric.Gauge != nil:
+			metricFamily.Type = dto.MetricType_GAUGE.Enum()
+		case dtoMetric.Counter != nil:
+			metricFamily.Type = dto.MetricType_COUNTER.Enum()
+		case dtoMetric.Summary != nil:
+			metricFamily.Type = dto.MetricType_SUMMARY.Enum()
+		case dtoMetric.Untyped != nil:
+			metricFamily.Type = dto.MetricType_UNTYPED.Enum()
+		default:
+			return 0, fmt.Errorf("empty metric collected: %s", dtoMetric)
+		}
+		if r.collectChecksEnabled {
+			if err := r.checkConsistency(metricFamily, dtoMetric, desc, metricHashes); err != nil {
+				return 0, err
+			}
+		}
+		metricFamily.Metric = append(metricFamily.Metric, dtoMetric)
+	}
+
+	if r.metricFamilyInjectionHook != nil {
+		for _, mf := range r.metricFamilyInjectionHook() {
+			if _, exists := metricFamiliesByName[mf.GetName()]; exists {
+				return 0, fmt.Errorf("metric family with duplicate name injected: %s", mf)
+			}
+			metricFamiliesByName[mf.GetName()] = mf
 		}
 	}
 
-	signature, err := r.isValidCandidate(name, labels)
-	if err != nil {
-		return err
+	// Now that MetricFamilies are all set, sort their Metrics
+	// lexicographically by their label values.
+	for _, mf := range metricFamiliesByName {
+		sort.Sort(metricSorter(mf.Metric))
 	}
 
-	r.signatureContainers[signature] = &container{
-		BaseLabels: labels,
-		Docstring:  docstring,
-		Metric:     metric,
-		name:       name,
+	// Write out MetricFamilies sorted by their name.
+	names := make([]string, 0, len(metricFamiliesByName))
+	for name := range metricFamiliesByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var written int
+	for _, name := range names {
+		w, err := writeEncoded(w, metricFamiliesByName[name])
+		written += w
+		if err != nil {
+			return written, err
+		}
+	}
+	return written, nil
+}
+
+func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *dto.Metric, desc *Desc, metricHashes map[uint64]struct{}) error {
+
+	// Type consistency with metric family.
+	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
+		metricFamily.GetType() == dto.MetricType_COUNTER && dtoMetric.Counter == nil ||
+		metricFamily.GetType() == dto.MetricType_SUMMARY && dtoMetric.Summary == nil ||
+		metricFamily.GetType() == dto.MetricType_UNTYPED && dtoMetric.Untyped == nil {
+		return fmt.Errorf(
+			"collected metric %q is not a %s",
+			dtoMetric, metricFamily.Type,
+		)
+	}
+
+	// Desc consistency with metric family.
+	if metricFamily.GetHelp() != desc.help {
+		return fmt.Errorf(
+			"collected metric %q has help %q but should have %q",
+			dtoMetric, desc.help, metricFamily.GetHelp(),
+		)
+	}
+
+	// Is the desc consistent with the content of the metric?
+	lpsFromDesc := make([]*dto.LabelPair, 0, len(dtoMetric.Label))
+	lpsFromDesc = append(lpsFromDesc, desc.constLabelPairs...)
+	for _, l := range desc.variableLabels {
+		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
+			Name: proto.String(l),
+		})
+	}
+	if len(lpsFromDesc) != len(dtoMetric.Label) {
+		return fmt.Errorf(
+			"labels in collected metric %q are inconsistent with descriptor %s",
+			dtoMetric, desc,
+		)
+	}
+	sort.Sort(LabelPairSorter(lpsFromDesc))
+	for i, lpFromDesc := range lpsFromDesc {
+		lpFromMetric := dtoMetric.Label[i]
+		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
+			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+			return fmt.Errorf(
+				"labels in collected metric %q are inconsistent with descriptor %s",
+				dtoMetric, desc,
+			)
+		}
+	}
+
+	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
+	h := fnv.New64a()
+	var buf bytes.Buffer
+	buf.WriteString(desc.fqName)
+	h.Write(buf.Bytes())
+	for _, lp := range dtoMetric.Label {
+		buf.Reset()
+		buf.WriteString(lp.GetValue())
+		h.Write(buf.Bytes())
+	}
+	metricHash := h.Sum64()
+	if _, exists := metricHashes[metricHash]; exists {
+		return fmt.Errorf(
+			"collected metric %q was collected before with the same name and label values",
+			dtoMetric,
+		)
+	}
+	metricHashes[metricHash] = struct{}{}
+
+	r.mtx.RLock() // Remaining checks need the read lock.
+	defer r.mtx.RUnlock()
+
+	// Is the desc registered?
+	if _, exist := r.descIDs[desc.id]; !exist {
+		return fmt.Errorf("collected metric %q with unregistered descriptor %s", dtoMetric, desc)
 	}
 
 	return nil
 }
 
-// YieldBasicAuthExporter creates a http.HandlerFunc that is protected by HTTP's
-// basic authentication.
-func (r *registry) YieldBasicAuthExporter(username, password string) http.HandlerFunc {
-	// XXX: Work with Daniel to get this removed from the library, as it is really
-	//      superfluous and can be much more elegantly accomplished via
-	//      delegation.
-	log.Println("Registry.YieldBasicAuthExporter is deprecated.")
-	exporter := r.YieldExporter()
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authenticated := false
-
-		if auth := r.Header.Get(authorization); auth != "" {
-			base64Encoded := strings.SplitAfter(auth, " ")[1]
-			decoded, err := base64.URLEncoding.DecodeString(base64Encoded)
-			if err == nil {
-				usernamePassword := strings.Split(string(decoded), ":")
-				if usernamePassword[0] == username && usernamePassword[1] == password {
-					authenticated = true
-				}
-			}
-		}
-
-		if authenticated {
-			exporter.ServeHTTP(w, r)
-		} else {
-			w.Header().Add(authorizationHeader, authorizationHeaderValue)
-			http.Error(w, "access forbidden", 401)
-		}
-	})
-}
-
-// decorateWriter annotates the response writer to handle any other behaviors
-// that might be beneficial to the client---e.g., GZIP encoding.
-func decorateWriter(request *http.Request, writer http.ResponseWriter) io.Writer {
-	if !strings.Contains(request.Header.Get(acceptEncodingHeader), gzipAcceptEncodingValue) {
-		return writer
-	}
-
-	writer.Header().Set(contentEncodingHeader, gzipContentEncodingValue)
-	gziper := gzip.NewWriter(writer)
-
-	return gziper
-}
-
-func (r *registry) YieldExporter() http.HandlerFunc {
-	log.Println("Registry.YieldExporter is deprecated in favor of Registry.Handler.")
-
-	return r.Handler()
-}
-
-func (r *registry) dumpPB(w io.Writer, writeEncoded encoder) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
-	f := new(dto.MetricFamily)
-	for _, container := range r.signatureContainers {
-		f.Reset()
-
-		f.Name = proto.String(container.name)
-		f.Help = proto.String(container.Docstring)
-
-		container.Metric.dumpChildren(f)
-
-		for name, value := range container.BaseLabels {
-			if model.LabelName(name) == model.MetricNameLabel {
-				// The name is already in MetricFamily.
-				continue
-				// TODO: Once JSON is history, do not anymore
-				// add the __name__ label to BaseLabels and
-				// then remove this check.
-			}
-			p := &dto.LabelPair{
-				Name:  proto.String(name),
-				Value: proto.String(value),
-			}
-
-			for _, child := range f.Metric {
-				child.Label = append(child.Label, p)
-			}
-		}
-
-		writeEncoded(w, f)
+func (r *registry) getBuf() *bytes.Buffer {
+	select {
+	case buf := <-r.bufPool:
+		return buf
+	default:
+		return &bytes.Buffer{}
 	}
 }
 
-func (r *registry) dumpExternalPB(w io.Writer, writeEncoded encoder) {
-	if r.metricFamilyInjectionHook == nil {
-		return
-	}
-	for _, f := range r.metricFamilyInjectionHook() {
-		writeEncoded(w, f)
+func (r *registry) giveBuf(buf *bytes.Buffer) {
+	buf.Reset()
+	select {
+	case r.bufPool <- buf:
+	default:
 	}
 }
 
-func (r *registry) Handler() http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer requestLatencyAccumulator(time.Now())
+func (r *registry) getMetricFamily() *dto.MetricFamily {
+	select {
+	case mf := <-r.metricFamilyPool:
+		return mf
+	default:
+		return &dto.MetricFamily{}
+	}
+}
 
-		requestCount.Increment(nil)
-		header := w.Header()
+func (r *registry) giveMetricFamily(mf *dto.MetricFamily) {
+	mf.Reset()
+	select {
+	case r.metricFamilyPool <- mf:
+	default:
+	}
+}
 
-		writer := decorateWriter(req, w)
+func (r *registry) getMetric() *dto.Metric {
+	select {
+	case m := <-r.metricPool:
+		return m
+	default:
+		return &dto.Metric{}
+	}
+}
 
-		if closer, ok := writer.(io.Closer); ok {
-			defer closer.Close()
-		}
+func (r *registry) giveMetric(m *dto.Metric) {
+	m.Reset()
+	select {
+	case r.metricPool <- m:
+	default:
+	}
+}
 
-		accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
-		for _, accept := range accepts {
-			var enc encoder
-			switch {
-			case accept.Type == "application" &&
-				accept.SubType == "vnd.google.protobuf" &&
-				accept.Params["proto"] == "io.prometheus.client.MetricFamily":
-				switch accept.Params["encoding"] {
-				case "delimited":
-					header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-					enc = text.WriteProtoDelimited
-				case "text":
-					header.Set(contentTypeHeader, ProtoTextTelemetryContentType)
-					enc = text.WriteProtoText
-				case "compact-text":
-					header.Set(contentTypeHeader, ProtoCompactTextTelemetryContentType)
-					enc = text.WriteProtoCompactText
-				default:
-					continue
-				}
-			case accept.Type == "text" &&
-				accept.SubType == "plain" &&
-				(accept.Params["version"] == "0.0.4" || accept.Params["version"] == ""):
-				header.Set(contentTypeHeader, TextTelemetryContentType)
-				enc = text.MetricFamilyToText
+func newRegistry() *registry {
+	return &registry{
+		collectorsByID:   map[uint64]Collector{},
+		descIDs:          map[uint64]struct{}{},
+		dimHashesByName:  map[string]uint64{},
+		bufPool:          make(chan *bytes.Buffer, numBufs),
+		metricFamilyPool: make(chan *dto.MetricFamily, numMetricFamilies),
+		metricPool:       make(chan *dto.Metric, numMetrics),
+	}
+}
+
+func chooseEncoder(req *http.Request) (encoder, string) {
+	accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
+	for _, accept := range accepts {
+		switch {
+		case accept.Type == "application" &&
+			accept.SubType == "vnd.google.protobuf" &&
+			accept.Params["proto"] == "io.prometheus.client.MetricFamily":
+			switch accept.Params["encoding"] {
+			case "delimited":
+				return text.WriteProtoDelimited, DelimitedTelemetryContentType
+			case "text":
+				return text.WriteProtoText, ProtoTextTelemetryContentType
+			case "compact-text":
+				return text.WriteProtoCompactText, ProtoCompactTextTelemetryContentType
 			default:
 				continue
 			}
-			r.dumpPB(writer, enc)
-			r.dumpExternalPB(writer, enc)
-			return
+		case accept.Type == "text" &&
+			accept.SubType == "plain" &&
+			(accept.Params["version"] == "0.0.4" || accept.Params["version"] == ""):
+			return text.MetricFamilyToText, TextTelemetryContentType
+		default:
+			continue
 		}
-		// TODO: Once JSON deprecation is completed, use text format as
-		// fall-back.
-		header.Set(contentTypeHeader, JSONTelemetryContentType)
-		json.NewEncoder(writer).Encode(r)
 	}
+	return text.MetricFamilyToText, TextTelemetryContentType
 }
 
-var (
-	abortOnMisuse             = flag.Bool(FlagNamespace+"abortonmisuse", false, "abort if a semantic misuse is encountered (bool).")
-	debugRegistration         = flag.Bool(FlagNamespace+"debugregistration", false, "display information about the metric registration process (bool).")
-	useAggressiveSanityChecks = flag.Bool(FlagNamespace+"useaggressivesanitychecks", false, "perform expensive validation of metrics (bool).")
-)
+type metricSorter []*dto.Metric
+
+func (s metricSorter) Len() int {
+	return len(s)
+}
+
+func (s metricSorter) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s metricSorter) Less(i, j int) bool {
+	for n, lp := range s[i].Label {
+		vi := lp.GetValue()
+		vj := s[j].Label[n].GetValue()
+		if vi != vj {
+			return vi < vj
+		}
+	}
+	return true
+}

@@ -1,140 +1,121 @@
-// Copyright (c) 2013, Prometheus Team
-// All rights reserved.
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package prometheus
 
-import (
-	"encoding/json"
-	"fmt"
-	"sync"
+import "hash/fnv"
 
-	"code.google.com/p/goprotobuf/proto"
-
-	dto "github.com/prometheus/client_model/go"
-
-	"github.com/prometheus/client_golang/model"
-)
-
-// An Untyped metric represents scalar values without any type implications
-// whatsoever. If you need to handle values that cannot be represented by any of
-// the existing metric types, you can use an Untyped type and rely on contracts
-// outside of Prometheus to ensure that these values are understood correctly.
+// Untyped is a Metric that represents a single numerical value that can
+// arbitrarily go up and down.
+//
+// An Untyped metric works the same as a Gauge. The only difference is that to
+// no type information is implied.
+//
+// To create Gauge instances, use NewUntyped.
 type Untyped interface {
 	Metric
-	Set(labels map[string]string, value float64) float64
+	Collector
+
+	// Set sets the Untyped metric to an arbitrary value.
+	Set(float64)
+	// Inc increments the Untyped metric by 1.
+	Inc()
+	// Dec decrements the Untyped metric by 1.
+	Dec()
+	// Add adds the given value to the Untyped metric. (The value can be
+	// negative, resulting in a decrease.)
+	Add(float64)
+	// Sub subtracts the given value from the Untyped metric. (The value can
+	// be negative, resulting in an increase.)
+	Sub(float64)
 }
 
-type untypedVector struct {
-	Labels map[string]string `json:"labels"`
-	Value  float64           `json:"value"`
+// UntypedOpts is an alias for Opts. See there for doc comments.
+type UntypedOpts Opts
+
+// NewUntyped creates a new Untyped metric from the provided UntypedOpts.
+func NewUntyped(opts UntypedOpts) Untyped {
+	return newValue(NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		nil,
+		opts.ConstLabels,
+	), UntypedValue, 0)
 }
 
-// NewUntyped returns a newly allocated Untyped metric ready to be used.
-func NewUntyped() Untyped {
-	return &untyped{
-		values: map[uint64]*untypedVector{},
+// UntypedVec is a Collector that bundles a set of Untyped metrics that all
+// share the same Desc, but have different values for their variable
+// labels. This is used if you want to count the same thing partitioned by
+// various dimensions. Create instances with NewUntypedVec.
+type UntypedVec struct {
+	MetricVec
+}
+
+// NewUntypedVec creates a new UntypedVec based on the provided UntypedOpts and
+// partitioned by the given label names. At least one label name must be
+// provided.
+func NewUntypedVec(opts UntypedOpts, labelNames []string) *UntypedVec {
+	desc := NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		labelNames,
+		opts.ConstLabels,
+	)
+	return &UntypedVec{
+		MetricVec: MetricVec{
+			children: map[uint64]Metric{},
+			desc:     desc,
+			hash:     fnv.New64a(),
+			newMetric: func(lvs ...string) Metric {
+				return newValue(desc, UntypedValue, 0, lvs...)
+			},
+		},
 	}
 }
 
-type untyped struct {
-	mutex  sync.RWMutex
-	values map[uint64]*untypedVector
-}
-
-func (metric *untyped) String() string {
-	formatString := "[Untyped %s]"
-
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	return fmt.Sprintf(formatString, metric.values)
-}
-
-func (metric *untyped) Set(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
+// GetMetricWithLabelValues replaces the method of the same name in
+// MetricVec. The difference is that this method returns an Untyped and not a
+// Metric so that no type conversion is required.
+func (m *UntypedVec) GetMetricWithLabelValues(lvs ...string) (Untyped, error) {
+	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
+	if metric != nil {
+		return metric.(Untyped), err
 	}
-
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value = value
-	} else {
-		metric.values[signature] = &untypedVector{
-			Labels: labels,
-			Value:  value,
-		}
-	}
-
-	return value
+	return nil, err
 }
 
-func (metric *untyped) Reset(labels map[string]string) {
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	delete(metric.values, signature)
+// GetMetricWith replaces the method of the same name in MetricVec. The
+// difference is that this method returns an Untyped and not a Metric so that no
+// type conversion is required.
+func (m *UntypedVec) GetMetricWith(labels Labels) (Untyped, error) {
+	metric, err := m.MetricVec.GetMetricWith(labels)
+	if metric != nil {
+		return metric.(Untyped), err
+	}
+	return nil, err
 }
 
-func (metric *untyped) ResetAll() {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	for key, value := range metric.values {
-		for label := range value.Labels {
-			delete(value.Labels, label)
-		}
-		delete(metric.values, key)
-	}
+// WithLabelValues works as GetMetricWithLabelValues, but panics where
+// GetMetricWithLabelValues would have returned an error. That allows shortcuts
+// like
+//     myVec.WithLabelValues("foo", "bar").Add(42)
+func (m *UntypedVec) WithLabelValues(lvs ...string) Untyped {
+	return m.MetricVec.WithLabelValues(lvs...).(Untyped)
 }
 
-func (metric *untyped) MarshalJSON() ([]byte, error) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	values := make([]*untypedVector, 0, len(metric.values))
-	for _, value := range metric.values {
-		values = append(values, value)
-	}
-
-	return json.Marshal(map[string]interface{}{
-		typeKey:  untypedTypeValue,
-		valueKey: values,
-	})
-}
-
-func (metric *untyped) dumpChildren(f *dto.MetricFamily) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	f.Type = dto.MetricType_UNTYPED.Enum()
-
-	for _, child := range metric.values {
-		c := &dto.Untyped{
-			Value: proto.Float64(child.Value),
-		}
-
-		m := &dto.Metric{
-			Untyped: c,
-		}
-
-		for name, value := range child.Labels {
-			p := &dto.LabelPair{
-				Name:  proto.String(name),
-				Value: proto.String(value),
-			}
-
-			m.Label = append(m.Label, p)
-		}
-
-		f.Metric = append(f.Metric, m)
-	}
+// With works as GetMetricWith, but panics where GetMetricWithLabels would
+// have returned an error. That allows shortcuts like
+//     myVec.With(Labels{"dings": "foo", "bums": "bar"}).Add(42)
+func (m *UntypedVec) With(labels Labels) Untyped {
+	return m.MetricVec.With(labels).(Untyped)
 }

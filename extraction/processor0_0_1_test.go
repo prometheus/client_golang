@@ -20,8 +20,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/prometheus/prometheus/utility/test"
+
 	"github.com/prometheus/client_golang/model"
-	"github.com/prometheus/client_golang/test"
 )
 
 var test001Time = model.Now()
@@ -37,7 +38,7 @@ func (s *testProcessor001ProcessScenario) Ingest(r *Result) error {
 	return nil
 }
 
-func (s *testProcessor001ProcessScenario) test(t test.Tester, set int) {
+func (s *testProcessor001ProcessScenario) test(t testing.TB, set int) {
 	reader, err := os.Open(path.Join("fixtures", s.in))
 	if err != nil {
 		t.Fatalf("%d. couldn't open scenario input file %s: %s", set, s.in, err)
@@ -64,7 +65,7 @@ func (s *testProcessor001ProcessScenario) test(t test.Tester, set int) {
 	}
 }
 
-func testProcessor001Process(t test.Tester) {
+func testProcessor001Process(t testing.TB) {
 	var scenarios = []testProcessor001ProcessScenario{
 		{
 			in:  "empty.json",

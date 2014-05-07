@@ -1,194 +1,149 @@
-// Copyright (c) 2013, Prometheus Team
-// All rights reserved.
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package prometheus
 
 import (
-	"encoding/json"
-	"fmt"
-	"sync"
-
-	dto "github.com/prometheus/client_model/go"
-
-	"code.google.com/p/goprotobuf/proto"
-
-	"github.com/prometheus/client_golang/model"
+	"errors"
+	"hash/fnv"
 )
 
-// TODO(matt): Refactor to de-duplicate behaviors.
-
+// Counter is a Metric that represents a single numerical value that only ever
+// goes up. That implies that it cannot be used to count items whose number can
+// also go down, e.g. the number of currently running goroutines. Those
+// "counters" are represented by Gauges.
+//
+// A Counter is typically used to count requests served, tasks completed, errors
+// occurred, etc.
+//
+// To create Counter instances, use NewCounter.
 type Counter interface {
 	Metric
+	Collector
 
-	Decrement(labels map[string]string) float64
-	DecrementBy(labels map[string]string, value float64) float64
-	Increment(labels map[string]string) float64
-	IncrementBy(labels map[string]string, value float64) float64
-	Set(labels map[string]string, value float64) float64
+	// Set is used to set the Counter to an arbitrary value. It is only used
+	// if you have to transfer a value from an external counter into this
+	// Prometheus metrics. Do not use it for regular handling of a
+	// Prometheus counter (as it can be used to break the contract of
+	// monotonically increasing values).
+	Set(float64)
+	// Inc increments the counter by 1.
+	Inc()
+	// Add adds the given value to the counter. It panics if the value is <
+	// 0.
+	Add(float64)
 }
 
-type counterVector struct {
-	Labels map[string]string `json:"labels"`
-	Value  float64           `json:"value"`
-}
+// CounterOpts is an alias for Opts. See there for doc comments.
+type CounterOpts Opts
 
-func NewCounter() Counter {
-	return &counter{
-		values: map[uint64]*counterVector{},
-	}
+// NewCounter creates a new Counter based on the provided CounterOpts.
+func NewCounter(opts CounterOpts) Counter {
+	desc := NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		nil,
+		opts.ConstLabels,
+	)
+	result := &counter{value: value{desc: desc, valType: CounterValue}}
+	result.Init(result) // Init self-collection.
+	return result
 }
 
 type counter struct {
-	mutex  sync.RWMutex
-	values map[uint64]*counterVector
+	value
 }
 
-func (metric *counter) Set(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
+func (c *counter) Add(v float64) {
+	if v < 0 {
+		panic(errors.New("counter cannot decrease in value"))
 	}
+	c.value.Add(v)
+}
 
-	signature := model.LabelValuesToSignature(labels)
+// CounterVec is a Collector that bundles a set of Counters that all share the
+// same Desc, but have different values for their variable labels. This is used
+// if you want to count the same thing partitioned by various dimensions
+// (e.g. number of http requests, partitioned by response code and
+// method). Create instances with NewCounterVec.
+//
+// CounterVec embeds MetricVec. See there for a full list of methods with
+// detailed documentation.
+type CounterVec struct {
+	MetricVec
+}
 
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value = value
-	} else {
-		metric.values[signature] = &counterVector{
-			Labels: labels,
-			Value:  value,
-		}
+// NewCounterVec creates a new CounterVec based on the provided CounterOpts and
+// partitioned by the given label names. At least one label name must be
+// provided.
+func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
+	desc := NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		labelNames,
+		opts.ConstLabels,
+	)
+	return &CounterVec{
+		MetricVec: MetricVec{
+			children: map[uint64]Metric{},
+			desc:     desc,
+			hash:     fnv.New64a(),
+			newMetric: func(lvs ...string) Metric {
+				result := &counter{value: value{
+					desc:       desc,
+					valType:    CounterValue,
+					labelPairs: makeLabelPairs(desc, lvs),
+				}}
+				result.Init(result) // Init self-collection.
+				return result
+			},
+		},
 	}
-
-	return value
 }
 
-func (metric *counter) Reset(labels map[string]string) {
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-	delete(metric.values, signature)
-}
-
-func (metric *counter) ResetAll() {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	for key, value := range metric.values {
-		for label := range value.Labels {
-			delete(value.Labels, label)
-		}
-		delete(metric.values, key)
+// GetMetricWithLabelValues replaces the method of the same name in
+// MetricVec. The difference is that this method returns a Counter and not a
+// Metric so that no type conversion is required.
+func (m *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
+	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
+	if metric != nil {
+		return metric.(Counter), err
 	}
+	return nil, err
 }
 
-func (metric *counter) String() string {
-	formatString := "[Counter %s]"
-
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	return fmt.Sprintf(formatString, metric.values)
-}
-
-func (metric *counter) IncrementBy(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
+// GetMetricWith replaces the method of the same name in MetricVec. The
+// difference is that this method returns a Counter and not a Metric so that no
+// type conversion is required.
+func (m *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
+	metric, err := m.MetricVec.GetMetricWith(labels)
+	if metric != nil {
+		return metric.(Counter), err
 	}
-
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value += value
-	} else {
-		metric.values[signature] = &counterVector{
-			Labels: labels,
-			Value:  value,
-		}
-	}
-
-	return value
+	return nil, err
 }
 
-func (metric *counter) Increment(labels map[string]string) float64 {
-	return metric.IncrementBy(labels, 1)
+// WithLabelValues works as GetMetricWithLabelValues, but panics where
+// GetMetricWithLabelValues would have returned an error. That allows shortcuts
+// like
+//     myVec.WithLabelValues("foo", "bar").Add(42)
+func (m *CounterVec) WithLabelValues(lvs ...string) Counter {
+	return m.MetricVec.WithLabelValues(lvs...).(Counter)
 }
 
-func (metric *counter) DecrementBy(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
-	}
-
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value -= value
-	} else {
-		metric.values[signature] = &counterVector{
-			Labels: labels,
-			Value:  -1 * value,
-		}
-	}
-
-	return value
-}
-
-func (metric *counter) Decrement(labels map[string]string) float64 {
-	return metric.DecrementBy(labels, 1)
-}
-
-func (metric *counter) MarshalJSON() ([]byte, error) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	values := make([]*counterVector, 0, len(metric.values))
-
-	for _, value := range metric.values {
-		values = append(values, value)
-	}
-
-	return json.Marshal(map[string]interface{}{
-		valueKey: values,
-		typeKey:  counterTypeValue,
-	})
-}
-
-func (metric *counter) dumpChildren(f *dto.MetricFamily) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	f.Type = dto.MetricType_COUNTER.Enum()
-
-	for _, child := range metric.values {
-		c := &dto.Counter{
-			Value: proto.Float64(child.Value),
-		}
-
-		m := &dto.Metric{
-			Counter: c,
-		}
-
-		for name, value := range child.Labels {
-			p := &dto.LabelPair{
-				Name:  proto.String(name),
-				Value: proto.String(value),
-			}
-
-			m.Label = append(m.Label, p)
-		}
-
-		f.Metric = append(f.Metric, m)
-	}
+// With works as GetMetricWith, but panics where GetMetricWithLabels would have
+// returned an error. That allows shortcuts like
+//     myVec.With(Labels{"dings": "foo", "bums": "bar"}).Add(42)
+func (m *CounterVec) With(labels Labels) Counter {
+	return m.MetricVec.With(labels).(Counter)
 }

@@ -14,19 +14,29 @@
 OS   = $(shell uname)
 ARCH = $(shell uname -m)
 
+MAC_OS_X_VERSION ?= 10.8
+
 BUILD_PATH = $(PWD)/.build
 
-export GO_VERSION = 1.1
+export GO_VERSION = 1.2.1
 export GOOS 	    = $(subst Darwin,darwin,$(subst Linux,linux,$(OS)))
+
+ifeq ($(GOOS),darwin)
+RELEASE_SUFFIX ?= -osx$(MAC_OS_X_VERSION)
+else
+RELEASE_SUFFIX ?=
+endif
+
 export GOARCH		  = $(subst x86_64,amd64,$(ARCH))
-export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH).tar.gz
+export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
 export GOROOT		  = $(BUILD_PATH)/root/go
 export GOPATH		  = $(BUILD_PATH)/root/gopath
-export GOCC		    = $(GOROOT)/bin/go
+export GOCC		  = $(GOROOT)/bin/go
 export TMPDIR		  = /tmp
 export GOENV		  = TMPDIR=$(TMPDIR) GOROOT=$(GOROOT) GOPATH=$(GOPATH)
-export GO	        = $(GOENV) $(GOCC)
+export GO	          = $(GOENV) $(GOCC)
 export GOFMT		  = $(GOROOT)/bin/gofmt
+export GODOC              = $(GOENV) $(GOROOT)/bin/godoc
 
 BENCHMARK_FILTER ?= .
 
@@ -54,11 +64,10 @@ $(GOCC): $(BUILD_PATH)/root $(BUILD_PATH)/cache/$(GOPKG)
 	touch $@
 
 build: source_path dependencies
-	$(MAKE) -C prometheus build
-	$(MAKE) -C examples build
+	$(GO) build ./...
 
 dependencies: source_path $(GOCC)
-	$(GO) get github.com/matttproud/gocheck
+	$(GO) get -d -t ./...
 
 test: build
 	$(GO) test ./...
@@ -67,14 +76,13 @@ benchmark: build
 	$(GO) test -benchmem -test.bench="$(BENCHMARK_FILTER)" ./...
 
 advice: test
-	$(MAKE) -C prometheus advice
-	$(MAKE) -C examples advice
+	$(GO) vet ./...
 
 format:
 	find . -iname '*.go' | grep -v './.build/' | xargs -n1 -P1 $(GOFMT) -w -s=true
 
 search_index:
-	godoc -index -write_index -index_files='search_index'
+	$(GODOC) -index -write_index -index_files='search_index'
 
 # source_path is responsible for ensuring that the builder has not done anything
 # stupid like working on Prometheus outside of ${GOPATH}.
@@ -83,10 +91,9 @@ source_path:
 	[ -d "$(FULL_GOPATH)" ]
 
 documentation: search_index
-	godoc -http=:6060 -index -index_files='search_index'
+	$(GODOC) -http=:6060 -index -index_files='search_index'
 
 clean:
-	$(MAKE) -C examples clean
 	rm -rf $(MAKE_ARTIFACTS)
 	find . -iname '*~' -exec rm -f '{}' ';'
 	find . -iname '*#' -exec rm -f '{}' ';'
