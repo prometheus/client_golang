@@ -1,238 +1,45 @@
-// Copyright (c) 2013, Prometheus Team
-// All rights reserved.
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package prometheus
 
-import (
-	"encoding/json"
-	"testing"
+import "testing"
 
-	"github.com/prometheus/client_golang/test"
-)
-
-func testCounter(t test.Tester) {
-	type input struct {
-		steps []func(g Counter)
+func TestCounterAdd(t *testing.T) {
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+	counter.Inc()
+	if expected, got := 1., counter.val; expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	type output struct {
-		value string
-	}
-
-	var scenarios = []struct {
-		in  input
-		out output
-	}{
-		{
-			in: input{
-				steps: []func(g Counter){},
-			},
-			out: output{
-				value: `{"type":"counter","value":[]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(nil, 1)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{},"value":1}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{}, 2)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{},"value":2}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{}, 3)
-					},
-					func(g Counter) {
-						g.Set(map[string]string{}, 5)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{},"value":5}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
-					},
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
-					},
-					func(g Counter) {
-						g.Reset(map[string]string{"handler": "/bar"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":13}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
-					},
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
-					},
-					func(g Counter) {
-						g.ResetAll()
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 19)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 23)
-					},
-					func(g Counter) {
-						g.Increment(map[string]string{"handler": "/foo"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":24}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Increment(map[string]string{"handler": "/foo"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":1}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Decrement(map[string]string{"handler": "/foo"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":-1}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 29)
-					},
-					func(g Counter) {
-						g.Decrement(map[string]string{"handler": "/foo"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":28}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 31)
-					},
-					func(g Counter) {
-						g.IncrementBy(map[string]string{"handler": "/foo"}, 5)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":36}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Counter){
-					func(g Counter) {
-						g.Set(map[string]string{"handler": "/foo"}, 37)
-					},
-					func(g Counter) {
-						g.DecrementBy(map[string]string{"handler": "/foo"}, 10)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"counter","value":[{"labels":{"handler":"/foo"},"value":27}]}`,
-			},
-		},
+	counter.Add(42)
+	if expected, got := 43., counter.val; expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 
-	for i, scenario := range scenarios {
-		counter := NewCounter()
-
-		for _, step := range scenario.in.steps {
-			step(counter)
-		}
-
-		bytes, err := json.Marshal(counter)
-		if err != nil {
-			t.Errorf("%d. could not marshal into JSON %s", i, err)
-			continue
-		}
-
-		asString := string(bytes)
-
-		if scenario.out.value != asString {
-			t.Errorf("%d. expected %q, got %q", i, scenario.out.value, asString)
-		}
+	if expected, got := "counter cannot decrease in value", decreaseCounter(counter).Error(); expected != got {
+		t.Errorf("Expected error %q, got %q.", expected, got)
 	}
 }
 
-func TestCounter(t *testing.T) {
-	testCounter(t)
-}
-
-func BenchmarkCounter(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		testCounter(b)
-	}
+func decreaseCounter(c *counter) (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = e.(error)
+		}
+	}()
+	c.Add(-1)
+	return nil
 }
