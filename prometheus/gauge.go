@@ -1,4 +1,4 @@
-// Copyright (c) 2013, Prometheus Team
+// Copyright (c) 2014, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -7,133 +7,236 @@
 package prometheus
 
 import (
-	"encoding/json"
-	"fmt"
+	"sort"
 	"sync"
-
-	"code.google.com/p/goprotobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/prometheus/client_golang/model"
+	"code.google.com/p/goprotobuf/proto"
 )
 
-// A gauge metric merely provides an instantaneous representation of a scalar
-// value or an accumulation.  For instance, if one wants to expose the current
-// temperature or the hitherto bandwidth used, this would be the metric for such
-// circumstances.
+// XXX: Callback protocol for gauges.
+
+// Gauge proxies a scalar value.
 type Gauge interface {
 	Metric
-	Set(labels map[string]string, value float64) float64
+
+	// Set assigns the value of this Gauge to the proxied value.
+	Set(float64)
 }
 
-type gaugeVector struct {
-	Labels map[string]string `json:"labels"`
-	Value  float64           `json:"value"`
+// GaugeDesc is the descriptor for a scalar Gauge.
+type GaugeDesc struct {
+	Desc
 }
 
-func NewGauge() Gauge {
+func (d GaugeDesc) build() Gauge {
 	return &gauge{
-		values: map[uint64]*gaugeVector{},
+		desc: d,
 	}
 }
 
 type gauge struct {
-	mutex  sync.RWMutex
-	values map[uint64]*gaugeVector
+	Gauge
+
+	mtx  sync.RWMutex
+	val  float64
+	desc GaugeDesc
 }
 
-func (metric *gauge) String() string {
-	formatString := "[Gauge %s]"
-
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	return fmt.Sprintf(formatString, metric.values)
+func (g *gauge) Desc() Desc {
+	return g.desc.Desc
 }
 
-func (metric *gauge) Set(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
+func (g *gauge) Set(v float64) {
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	g.val = v
+}
+
+func (g *gauge) Write(out *dto.MetricFamily) {
+	g.mtx.RLock()
+	gDto := &dto.Gauge{
+		Value: proto.Float64(g.val),
 	}
+	g.mtx.RUnlock()
 
-	signature := model.LabelValuesToSignature(labels)
+	out.Type = dto.MetricType_GAUGE.Enum()
 
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value = value
-	} else {
-		metric.values[signature] = &gaugeVector{
-			Labels: labels,
-			Value:  value,
-		}
-	}
-
-	return value
-}
-
-func (metric *gauge) Reset(labels map[string]string) {
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	delete(metric.values, signature)
-}
-
-func (metric *gauge) ResetAll() {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	for key, value := range metric.values {
-		for label := range value.Labels {
-			delete(value.Labels, label)
-		}
-		delete(metric.values, key)
-	}
-}
-
-func (metric *gauge) MarshalJSON() ([]byte, error) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	values := make([]*gaugeVector, 0, len(metric.values))
-	for _, value := range metric.values {
-		values = append(values, value)
-	}
-
-	return json.Marshal(map[string]interface{}{
-		typeKey:  gaugeTypeValue,
-		valueKey: values,
+	out.Metric = append(out.Metric, &dto.Metric{
+		Gauge: gDto,
 	})
 }
 
-func (metric *gauge) dumpChildren(f *dto.MetricFamily) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
+// NewGauge emits a new Gauge from the provided GaugeDesc descriptor.
+func NewGauge(desc GaugeDesc) Gauge {
+	return desc.build()
+}
 
-	f.Type = dto.MetricType_GAUGE.Enum()
+// GaugeVec proxies vector values, whereby metrics fan out per the provided
+// label dimensions.
+type GaugeVec interface {
+	Metric
 
-	for _, child := range metric.values {
-		c := &dto.Gauge{
-			Value: proto.Float64(child.Value),
-		}
+	// Set assigns the value of this GaugeVec for the provided label values.
+	// The labels are provided as positional arguments and must match the
+	// order defined in GaugeDesc.Labels.
+	Set(float64, ...string)
+	// Del deletes a given label set from this GaugeVec, indicating whether the
+	// label set was deleted.
+	Del(...string) bool
+}
 
-		m := &dto.Metric{
-			Gauge: c,
-		}
+// GaugeVecDesc is the descriptor for a vector GaugeVec.
+type GaugeVecDesc struct {
+	Desc
 
-		for name, value := range child.Labels {
-			p := &dto.LabelPair{
-				Name:  proto.String(name),
-				Value: proto.String(value),
-			}
+	Labels []string // XXX
+}
 
-			m.Label = append(m.Label, p)
-		}
-
-		f.Metric = append(f.Metric, m)
+func (d *GaugeVecDesc) build() GaugeVec {
+	if len(d.Labels) == 0 {
+		panic(errZeroCardinalityForVec)
 	}
+	ls := map[string]bool{}
+	for _, l := range d.Labels {
+		if l == "" {
+			panic(errEmptyLabelDesc)
+		}
+		ls[l] = true
+	}
+	if len(ls) != len(d.Labels) {
+		panic(errDuplLabelDesc)
+	}
+
+	return &gaugeVec{
+		desc:     *d,
+		children: make(map[uint64]*gaugeVecElem),
+	}
+}
+
+type gaugeVecElem struct {
+	mtx  sync.RWMutex
+	val  float64
+	dims []string
+	desc GaugeVecDesc
+}
+
+func (g *gaugeVecElem) Set(v float64) {
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	g.val = v
+}
+
+func (g *gaugeVecElem) Get() float64 {
+	g.mtx.RLock()
+	defer g.mtx.RUnlock()
+
+	return g.val
+}
+
+func (g *gaugeVecElem) Write(o *dto.Metric) {
+	o.Gauge = &dto.Gauge{
+		Value: proto.Float64(g.Get()),
+	}
+
+	dims := make([]*dto.LabelPair, 0, len(g.desc.Labels))
+	for i, n := range g.desc.Labels {
+		dims = append(dims, &dto.LabelPair{
+			Name:  proto.String(n),
+			Value: proto.String(g.dims[i]),
+		})
+	}
+	sort.Sort(lpSorter(dims))
+	o.Label = dims
+}
+
+type gaugeVec struct {
+	GaugeVec
+
+	desc     GaugeVecDesc
+	mtx      sync.RWMutex
+	children map[uint64]*gaugeVecElem
+}
+
+func (g *gaugeVec) Desc() Desc {
+	return g.desc.Desc
+}
+
+func (g *gaugeVec) Write(out *dto.MetricFamily) {
+	out.Type = dto.MetricType_GAUGE.Enum()
+
+	g.mtx.RLock()
+	elems := map[uint64]*gaugeVecElem{}
+	hashes := make([]uint64, 0, len(elems))
+	for h, e := range g.children {
+		elems[h] = e
+		hashes = append(hashes, h)
+	}
+	g.mtx.RUnlock()
+
+	sort.Sort(hashSorter(hashes))
+
+	gs := make([]*dto.Metric, 0, len(hashes))
+	for _, h := range hashes {
+		c := new(dto.Metric)
+		elems[h].Write(c)
+		gs = append(gs, c)
+	}
+
+	out.Metric = gs
+}
+
+func (g *gaugeVec) Set(v float64, ls ...string) {
+	if len(ls) != len(g.desc.Labels) || len(ls) == 0 {
+		panic(errInconsistentCardinality)
+	}
+
+	h := hashLabelValues(ls...)
+
+	g.mtx.RLock()
+	if vec, ok := g.children[h]; ok {
+		g.mtx.RUnlock()
+		vec.Set(v)
+		return
+	}
+	g.mtx.RUnlock()
+
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+	if vec, ok := g.children[h]; ok {
+		vec.Set(v)
+		return
+	}
+	g.children[h] = &gaugeVecElem{
+		val:  v,
+		dims: ls,
+		desc: g.desc,
+	}
+	g.children[h].Set(v)
+}
+
+func (g *gaugeVec) Del(ls ...string) bool {
+	if len(ls) != len(g.desc.Labels) || len(ls) == 0 {
+		panic(errInconsistentCardinality)
+	}
+
+	h := hashLabelValues(ls...)
+
+	g.mtx.Lock()
+	defer g.mtx.Unlock()
+
+	_, has := g.children[h]
+	if !has {
+		return false
+	}
+	delete(g.children, h)
+	return true
+}
+
+// NewGaugeVec emits a new GaugeVec from the provided GaugeVecDesc descriptor.
+func NewGaugeVec(desc GaugeVecDesc) GaugeVec {
+	return desc.build()
 }

@@ -793,3 +793,35 @@ func BenchmarkDumpToWriter(b *testing.B) {
 		testDumpToWriter(b)
 	}
 }
+
+func ExampleMustRegister() {
+	var gauge = NewGauge(GaugeDesc{
+		Desc{
+			Name: "my_spiffy_metric",
+			Help: "it's spiffy description",
+		},
+	})
+
+	MustRegister(gauge)
+}
+
+func ExampleMustRegisterOrGet() {
+	// I may have already registered this.
+	var gauge = MustRegisterOrGet(NewGauge(GaugeDesc{
+		Desc{
+			Name: "my_spiffy_metric",
+			Help: "it's spiffy description",
+		},
+	})).(Gauge)
+
+	gauge.Set(42)
+}
+
+func ExampleUnregister() {
+	var oldAndBusted Gauge // I no longer need this!
+	Unregister(oldAndBusted)
+}
+
+func ExampleHandler() {
+	http.Handle("/metrics", Handler) // Easy!
+}

@@ -1,4 +1,4 @@
-// Copyright (c) 2013, Prometheus Team
+// Copyright (c) 2014, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -7,148 +7,183 @@
 package prometheus
 
 import (
-	"encoding/json"
+	"math/rand"
+	"sync"
 	"testing"
-
-	"github.com/prometheus/client_golang/test"
+	"testing/quick"
 )
 
-func testGauge(t test.Tester) {
-	type input struct {
-		steps []func(g Gauge)
-	}
-	type output struct {
-		value string
-	}
+func ExampleGauge() {
+	delOps := NewGauge(GaugeDesc{
+		Desc{
+			Namespace: "our_company",
+			Subsystem: "blob_storage",
+			Name:      "deletes",
 
-	var scenarios = []struct {
-		in  input
-		out output
-	}{
-		{
-			in: input{
-				steps: []func(g Gauge){},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[]}`,
-			},
+			Help: "How many delete operations we have conducted against our blob storage system.",
 		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(nil, 1)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[{"labels":{},"value":1}]}`,
-			},
+	})
+
+	delOps.Set(900) // That's all, folks!
+}
+
+func ExampleGaugeVec() {
+	delOps := NewGaugeVec(GaugeVecDesc{
+		Desc: Desc{
+			Namespace: "our_company",
+			Subsystem: "blob_storage",
+			Name:      "deletes",
+
+			Help: "How many delete operations we have conducted against our blob storage system, partitioned by data corpus and qos.",
 		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(map[string]string{}, 2)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[{"labels":{},"value":2}]}`,
-			},
+
+		Labels: []string{
+			// What is the body of data being deleted?
+			"corpus",
+			// How urgently do we need to delete the data?
+			"qos",
 		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(map[string]string{}, 3)
-					},
-					func(g Gauge) {
-						g.Set(map[string]string{}, 5)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[{"labels":{},"value":5}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
-					},
-					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
-					},
-					func(g Gauge) {
-						g.Reset(map[string]string{"handler": "/bar"})
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[{"labels":{"handler":"/foo"},"value":13}]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/foo"}, 13)
-					},
-					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/bar"}, 17)
-					},
-					func(g Gauge) {
-						g.ResetAll()
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[]}`,
-			},
-		},
-		{
-			in: input{
-				steps: []func(g Gauge){
-					func(g Gauge) {
-						g.Set(map[string]string{"handler": "/foo"}, 19)
-					},
-				},
-			},
-			out: output{
-				value: `{"type":"gauge","value":[{"labels":{"handler":"/foo"},"value":19}]}`,
-			},
-		},
+	})
+
+	// Oops, we need to delete that embarrassing picture of ourselves.
+	delOps.Set(4, "profile-pictures", "immediate")
+	// Those bad cat memes finally get deleted.
+	delOps.Set(1, "cat-memes", "lazy")
+}
+
+func listenGaugeStream(vals, final chan float64,  done chan struct{}) {
+	var last float64
+	outer: for {
+		select {
+		case <- done:
+			close(vals)
+			for last = range vals {}
+
+			break outer
+		case v := <- vals :
+			last = v
+		}
 	}
+	final <- last
+	close(final)
+}
 
-	for i, scenario := range scenarios {
-		gauge := NewGauge()
+func TestGaugeConcurrency(t *testing.T) {
+	it := func (n uint32) bool {
+		mutations := int(n % 10000)
+		concLevel := int((n % 15) + 1)
 
-		for _, step := range scenario.in.steps {
-			step(gauge)
+		start := &sync.WaitGroup{}
+		start.Add(1)
+		end := &sync.WaitGroup{}
+		end.Add(concLevel)
+
+		sStream  := make(chan float64, mutations * concLevel)
+		final := make(chan float64)
+		done := make(chan struct{})
+
+		go listenGaugeStream(sStream, final, done)
+		go func() {
+			end.Wait()
+			close(done)
+		}()
+
+		gge := NewGauge(GaugeDesc{
+			Desc: Desc{
+				Name: "test_gauge",
+				Help: "no help can be found here",
+			},
+		})
+
+		for i := 0 ; i < concLevel; i++ {
+			vals := make([]float64, 0, mutations)
+			for j := 0; j < mutations; j++ {
+				vals = append(vals, rand.NormFloat64())
+			}
+
+			go func(vals []float64) {
+				start.Wait()
+				for _, v := range vals {
+					sStream <- v
+					gge.Set(v)
+				}
+				end.Done()
+			}(vals)
 		}
 
-		bytes, err := json.Marshal(gauge)
-		if err != nil {
-			t.Errorf("%d. could not marshal into JSON %s", i, err)
-			continue
+		start.Done()
+
+		last := <- final
+
+		if last != gge.(*gauge).val {
+			t.Fatalf("expected %f, got %f", last, gge.(*gauge).val)
+			return false;
 		}
 
-		asString := string(bytes)
+		return true
+	}
 
-		if scenario.out.value != asString {
-			t.Errorf("%d. expected %q, got %q", i, scenario.out.value, asString)
-		}
+	if err := quick.Check(it, nil); err != nil {
+		t.Fatal(err)
 	}
 }
 
-func TestGauge(t *testing.T) {
-	testGauge(t)
-}
+func TestGaugeVecConcurrency(t *testing.T) {
+	it := func (n uint32) bool {
+		mutations := int(n % 10000)
+		concLevel := int((n % 15) + 1)
 
-func BenchmarkGauge(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		testGauge(b)
+		start := &sync.WaitGroup{}
+		start.Add(1)
+		end := &sync.WaitGroup{}
+		end.Add(concLevel)
+
+		sStream  := make(chan float64, mutations * concLevel)
+		final := make(chan float64)
+		done := make(chan struct{})
+
+		go listenGaugeStream(sStream, final, done)
+		go func() {
+			end.Wait()
+			close(done)
+		}()
+
+		gge := NewGauge(GaugeDesc{
+			Desc: Desc{
+				Name: "test_gauge",
+				Help: "no help can be found here",
+			},
+		})
+
+		for i := 0 ; i < concLevel; i++ {
+			vals := make([]float64, 0, mutations)
+			for j := 0; j < mutations; j++ {
+				vals = append(vals, rand.NormFloat64())
+			}
+
+			go func(vals []float64) {
+				start.Wait()
+				for _, v := range vals {
+					sStream <- v
+					gge.Set(v)
+				}
+				end.Done()
+			}(vals)
+		}
+
+		start.Done()
+
+		last := <- final
+
+		if last != gge.(*gauge).val {
+			t.Fatalf("expected %f, got %f", last, gge.(*gauge).val)
+			return false;
+		}
+
+		return true
+	}
+
+	if err := quick.Check(it, nil); err != nil {
+		t.Fatal(err)
 	}
 }
