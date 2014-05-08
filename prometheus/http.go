@@ -1,8 +1,15 @@
-// Copyright (c) 2014, Prometheus Team
-// All rights reserved.
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package prometheus
 
@@ -37,7 +44,7 @@ func nowSeries(t ...time.Time) nower {
 	})
 }
 
-func InstrumentHandler(path string, hnd http.Handler) http.Handler {
+func InstrumentHandler(path string, hnd http.Handler) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 
@@ -50,10 +57,10 @@ func InstrumentHandler(path string, hnd http.Handler) http.Handler {
 
 		method := sanitizeMethod(r.Method)
 		code := sanitizeCode(delegate.status)
-		reqCnt.Inc(path, method, code)
-		reqDur.Observe(elapsed, path, method, code)
-		resSz.Observe(float64(delegate.written), path, method, code)
-		reqSz.Observe(float64(<-out), path, method, code)
+		reqCnt.WithLabelValues(path, method, code).Inc()
+		reqDur.WithLabelValues(path, method, code).Observe(elapsed)
+		resSz.WithLabelValues(path, method, code).Observe(float64(delegate.written))
+		reqSz.WithLabelValues(path, method, code).Observe(float64(<-out))
 	})
 }
 
@@ -225,47 +232,49 @@ func sanitizeCode(s int) string {
 	}
 }
 
-var instLabels = []string{"handler", "method", "code"}
+var (
+	instLabels = []string{"handler", "method", "code"}
 
-var reqCnt = NewCounterVec(CounterVecDesc{
-	Desc: Desc{
-		Subsystem: "http",
-		Name:      "requests_total",
+	reqCnt = MustNewCounterVec(&Desc{
+		Subsystem:      "http",
+		Name:           "requests_total",
+		Help:           "Total no. of HTTP requests made.",
+		VariableLabels: instLabels,
+	})
 
-		Help: "Total no. of HTTP requests made.",
-	},
-	Labels: instLabels,
-})
+	reqDur = MustNewSummaryVec(
+		&Desc{
+			Subsystem: "http",
+			Name:      "requests_duration_ms",
 
-var reqDur = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
-		Subsystem: "http",
-		Name:      "requests_duration_ms",
+			Help:           "The request latencies.",
+			VariableLabels: instLabels,
+		},
+		&SummaryOptions{},
+	)
 
-		Help: "The request latencies.",
-	},
-	Labels: instLabels,
-})
+	reqSz = MustNewSummaryVec(
+		&Desc{
+			Subsystem: "http",
+			Name:      "requests_size_bytes",
 
-var reqSz = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
-		Subsystem: "http",
-		Name:      "requests_size_bytes",
+			Help:           "The request sizes.",
+			VariableLabels: instLabels,
+		},
+		&SummaryOptions{},
+	)
 
-		Help: "The request sizes.",
-	},
-	Labels: instLabels,
-})
+	resSz = MustNewSummaryVec(
+		&Desc{
+			Subsystem: "http",
+			Name:      "response_size_bytes",
 
-var resSz = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
-		Subsystem: "http",
-		Name:      "response_size_bytes",
-
-		Help: "The response sizes.",
-	},
-	Labels: instLabels,
-})
+			Help:           "The response sizes.",
+			VariableLabels: instLabels,
+		},
+		&SummaryOptions{},
+	)
+)
 
 func init() {
 	MustRegister(reqCnt)

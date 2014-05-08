@@ -1,3 +1,16 @@
+// Copyright 2014 Prometheus Team
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Copyright (c) 2013, Prometheus Team
 // All rights reserved.
 //
@@ -8,18 +21,24 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
+	"fmt"
+	"hash/fnv"
 	"io"
 	"net/http"
+	"sort"
 	"sync"
 
 	dto "github.com/prometheus/client_model/go"
+
+	"code.google.com/p/goprotobuf/proto"
 
 	"github.com/prometheus/client_golang/_vendor/goautoneg"
 	"github.com/prometheus/client_golang/text"
 )
 
-var errAlreadyReg = errors.New("duplicate metric registration attempted")
+var errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
 
 const (
 	numBufs = 4
@@ -54,52 +73,95 @@ type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
 type registry struct {
 	mtx                       sync.RWMutex
-	metrics                   map[string]Metric
+	metricsCollectorsByID     map[uint64]MetricsCollector // ID is a hash of the descIDs.
+	descIDs                   map[uint64]struct{}
+	dimHashesByName           map[string]uint64
 	bufs                      chan *bytes.Buffer
 	metricFamilyInjectionHook func() []*dto.MetricFamily
 }
 
-func (r *registry) Register(m Metric) (Metric, error) {
-	desc := m.Desc()
-	if err := desc.build(); err != nil {
-		return nil, err
+func (r *registry) Register(m MetricsCollector) (MetricsCollector, error) {
+	descs := m.DescribeMetrics()
+	collectorID, err := buildDescsAndCalculateCollectorID(descs)
+	if err != nil {
+		return m, err
 	}
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if existing, exists := r.metrics[desc.canonName]; exists {
+	if existing, exists := r.metricsCollectorsByID[collectorID]; exists {
 		return existing, errAlreadyReg
 	}
 
-	r.metrics[desc.canonName] = m
-
+	// Test consistency and uniqueness.
+	newDescIDs := map[uint64]struct{}{}
+	newDimHashesByName := map[string]uint64{}
+	for _, desc := range descs {
+		// descID uniqueness, i.e. canonName and preset label values.
+		if _, exists := r.descIDs[desc.id]; exists {
+			return nil, fmt.Errorf("descriptor %+v already exists with the same fully-qualified name and preset label values", desc)
+		}
+		if _, exists := newDescIDs[desc.id]; exists {
+			return nil, fmt.Errorf("metrics collector has two descriptors with the same fully-qualified name and preset label values, offender is %+v", desc)
+		}
+		newDescIDs[desc.id] = struct{}{}
+		// Dimension consistency, i.e. label names, type, help.
+		if dimHash, exists := r.dimHashesByName[desc.canonName]; exists {
+			if dimHash != desc.dimHash {
+				return nil, fmt.Errorf("previously registered descriptors with the same fully qualified name as %+v have different label dimensions, help string, or type", desc)
+			}
+		} else {
+			if dimHash, exists := newDimHashesByName[desc.canonName]; exists {
+				if dimHash != desc.dimHash {
+					return nil, fmt.Errorf("metrics collector has inconsistent label dimensions, help string, or type for the same fully-qualified name, offender is %+v", desc)
+				}
+			}
+			newDimHashesByName[desc.canonName] = desc.dimHash
+		}
+	}
+	// Only after all tests have passed, actually register.
+	r.metricsCollectorsByID[collectorID] = m
+	for hash := range newDescIDs {
+		r.descIDs[hash] = struct{}{}
+	}
+	for name, dimHash := range newDimHashesByName {
+		r.dimHashesByName[name] = dimHash
+	}
 	return m, nil
 }
 
-func (r *registry) RegisterOrGet(m Metric) (Metric, error) {
+func (r *registry) RegisterOrGet(m MetricsCollector) (MetricsCollector, error) {
 	existing, err := r.Register(m)
 	if err != nil && err != errAlreadyReg {
 		return nil, err
 	}
-
 	return existing, nil
 }
 
-func (r *registry) Unregister(m Metric) (bool, error) {
-	desc := m.Desc()
-	if err := desc.build(); err != nil {
+func (r *registry) Unregister(m MetricsCollector) (bool, error) {
+	descs := m.DescribeMetrics()
+	collectorID, err := buildDescsAndCalculateCollectorID(descs)
+	if err != nil {
 		return false, err
 	}
+
+	r.mtx.RLock()
+	if _, ok := r.metricsCollectorsByID[collectorID]; !ok {
+		r.mtx.RUnlock()
+		return false, nil
+	}
+	r.mtx.RUnlock()
 
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 
-	if _, ok := r.metrics[desc.canonName]; !ok {
-		return false, nil
+	delete(r.metricsCollectorsByID, collectorID)
+	for _, desc := range descs {
+		delete(r.descIDs, desc.id)
 	}
-	delete(r.metrics, desc.canonName)
-
+	// dimHashesByName is left untouched as those must be consistent
+	// throughout the lifetime of a program.
 	return true, nil
 }
 
@@ -120,10 +182,29 @@ func (r *registry) giveBuf(buf *bytes.Buffer) {
 	}
 }
 
+func buildDescsAndCalculateCollectorID(descs []*Desc) (uint64, error) {
+	if len(descs) == 0 {
+		return 0, errNoDesc
+	}
+	h := fnv.New64a()
+	buf := make([]byte, 8)
+	for _, desc := range descs {
+		if err := desc.build(); err != nil {
+			return 0, err
+		}
+		binary.BigEndian.PutUint64(buf, desc.id)
+		h.Write(buf)
+	}
+	return h.Sum64(), nil
+}
+
+// TODO: Consider a way to give access to non-default registries.
 func newRegistry() *registry {
 	return &registry{
-		metrics: make(map[string]Metric),
-		bufs:    make(chan *bytes.Buffer, numBufs),
+		metricsCollectorsByID: map[uint64]MetricsCollector{},
+		descIDs:               map[uint64]struct{}{},
+		dimHashesByName:       map[string]uint64{},
+		bufs:                  make(chan *bytes.Buffer, numBufs),
 	}
 }
 
@@ -133,22 +214,38 @@ var defRegistry = newRegistry()
 // registry.
 var Handler = InstrumentHandler("prometheus", defRegistry)
 
-// MustRegister enrolls a new metric.  It panics if the provided Desc is
-// problematic or the metric is already registered.  It returns the enrolled
-// metric.
-func MustRegister(m Metric) Metric {
-	m, err := defRegistry.Register(m)
+// Register enrolls a new metrics collector.  It returns an error if the
+// provided descriptors are problematic or at least one of them shares the same
+// name and preset labels with one that is already registered.  It returns the
+// enrolled metrics collector. Do not register the same MetricsCollector
+// multiple times concurrently.
+func Register(m MetricsCollector) (MetricsCollector, error) {
+	return defRegistry.Register(m)
+}
+
+// MustRegister works like Register but panics where Register would have
+// returned an error.
+func MustRegister(m MetricsCollector) MetricsCollector {
+	m, err := Register(m)
 	if err != nil {
 		panic(err)
 	}
 	return m
 }
 
-// MustRegisterOrGet enrolls a new metric once and only once.  It panics if the
-// provided Desc is invalid.  It returns the enrolled metric or the existing
-// one.
-func MustRegisterOrGet(m Metric) Metric {
-	existing, err := defRegistry.RegisterOrGet(m)
+// RegisterOrGet enrolls a new metrics collector once and only once. It returns
+// an error if the provided descriptors are problematic or at least one of them
+// shares the same name and preset labels with one that is already registered.
+// It returns the enrolled metric or the existing one. Do not register the same
+// MetricsCollector multiple times concurrently.
+func RegisterOrGet(m MetricsCollector) (MetricsCollector, error) {
+	return defRegistry.RegisterOrGet(m)
+}
+
+// MustRegisterOrGet works like Register but panics where RegisterOrGet would
+// have returned an error.
+func MustRegisterOrGet(m MetricsCollector) MetricsCollector {
+	existing, err := RegisterOrGet(m)
 	if err != nil {
 		panic(err)
 	}
@@ -157,7 +254,7 @@ func MustRegisterOrGet(m Metric) Metric {
 
 // Unregister unenrolls a metric returning whether the metric was unenrolled and
 // whether an error existed.
-func Unregister(m Metric) (bool, error) {
+func Unregister(m MetricsCollector) (bool, error) {
 	return defRegistry.Unregister(m)
 }
 
@@ -213,8 +310,60 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
-	// TODO implement
-	return 0, nil
+	// - Write resulting merged MetricFamilies with encoder (sorted by name).
+
+	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
+	collectorIDs := make([]uint64, 0, len(r.metricsCollectorsByID))
+	collectors := make([]MetricsCollector, 0, len(r.metricsCollectorsByID))
+
+	r.mtx.RLock()
+	// For reproducible order, sort MetricsCollectors by their ID.
+	for collectorID := range r.metricsCollectorsByID {
+		collectorIDs = append(collectorIDs, collectorID)
+	}
+	sort.Sort(hashSorter(collectorIDs))
+	for _, collectorID := range collectorIDs {
+		collectors = append(collectors, r.metricsCollectorsByID[collectorID])
+	}
+	defer r.mtx.RUnlock()
+
+	for _, collector := range collectors {
+		// TODO: Vet concurrent collection of metrics.
+		for _, metric := range collector.CollectMetrics() {
+			desc := metric.Desc()
+			// TODO: Configurable check if desc is an element of collector.DescribeMetrics().
+			metricFamily, ok := metricFamiliesByName[desc.canonName]
+			if !ok {
+				// TODO: Vet getting MetricFamily object from pool.
+				metricFamily = &dto.MetricFamily{
+					Name: proto.String(desc.canonName),
+					Help: proto.String(desc.Help),
+					Type: desc.Type.Enum(),
+				}
+				metricFamiliesByName[desc.canonName] = metricFamily
+			}
+			// TODO: Vet getting Metric object from pool.
+			dtoMetric := &dto.Metric{}
+			metric.Write(dtoMetric)
+			// TODO: Configurable check if dtoMetric is consistent with desc.
+			metricFamily.Metric = append(metricFamily.Metric, dtoMetric)
+		}
+	}
+	names := make([]string, 0, len(metricFamiliesByName))
+	for name := range metricFamiliesByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var written int
+	for _, name := range names {
+		w, err := writeEncoded(w, metricFamiliesByName[name])
+		written += w
+		if err != nil {
+			return written, err
+		}
+	}
+	return written, nil
 }
 
 func (r *registry) writeExternalPB(w io.Writer, writeEncoded encoder) (int, error) {
