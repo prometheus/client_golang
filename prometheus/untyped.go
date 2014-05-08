@@ -1,4 +1,4 @@
-// Copyright (c) 2013, Prometheus Team
+// Copyright (c) 2014, Prometheus Team
 // All rights reserved.
 //
 // Use of this source code is governed by a BSD-style
@@ -7,134 +7,65 @@
 package prometheus
 
 import (
-	"encoding/json"
-	"fmt"
-	"sync"
-
-	"code.google.com/p/goprotobuf/proto"
+	"hash/fnv"
 
 	dto "github.com/prometheus/client_model/go"
-
-	"github.com/prometheus/client_golang/model"
 )
 
-// An Untyped metric represents scalar values without any type implications
-// whatsoever. If you need to handle values that cannot be represented by any of
-// the existing metric types, you can use an Untyped type and rely on contracts
-// outside of Prometheus to ensure that these values are understood correctly.
+// Untyped proxies an untyped scalar value.
 type Untyped interface {
 	Metric
-	Set(labels map[string]string, value float64) float64
+	MetricsCollector
+
+	Set(float64)
+	Inc()
+	Dec()
+	Add(float64)
+	Sub(float64)
 }
 
-type untypedVector struct {
-	Labels map[string]string `json:"labels"`
-	Value  float64           `json:"value"`
-}
-
-// NewUntyped returns a newly allocated Untyped metric ready to be used.
-func NewUntyped() Untyped {
-	return &untyped{
-		values: map[uint64]*untypedVector{},
+// NewUntyped emits a new Untyped metric from the provided descriptor.
+// The descriptor's Type field is ignored and forcefully set to MetricType_UNTYPED.
+func NewUntyped(desc *Desc) (Untyped, error) {
+	if len(desc.VariableLabels) > 0 {
+		return nil, errLabelsForSimpleMetric
 	}
+	desc.Type = dto.MetricType_UNTYPED
+	return NewValue(desc, 0)
 }
 
-type untyped struct {
-	mutex  sync.RWMutex
-	values map[uint64]*untypedVector
+type UntypedVec struct {
+	MetricVec
 }
 
-func (metric *untyped) String() string {
-	formatString := "[Untyped %s]"
-
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	return fmt.Sprintf(formatString, metric.values)
-}
-
-func (metric *untyped) Set(labels map[string]string, value float64) float64 {
-	if labels == nil {
-		labels = blankLabelsSingleton
+func NewUntypedVec(desc *Desc) (*UntypedVec, error) {
+	if len(desc.VariableLabels) == 0 {
+		return nil, errNoLabelsForVecMetric
 	}
-
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	if original, ok := metric.values[signature]; ok {
-		original.Value = value
-	} else {
-		metric.values[signature] = &untypedVector{
-			Labels: labels,
-			Value:  value,
-		}
-	}
-
-	return value
+	desc.Type = dto.MetricType_UNTYPED
+	return &UntypedVec{
+		MetricVec: MetricVec{
+			children: map[uint64]Metric{},
+			desc:     desc,
+			hash:     fnv.New64a(),
+		},
+	}, nil
 }
 
-func (metric *untyped) Reset(labels map[string]string) {
-	signature := model.LabelValuesToSignature(labels)
-
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	delete(metric.values, signature)
+func (m *UntypedVec) GetMetricWithLabelValues(dims ...string) (Untyped, error) {
+	metric, err := m.MetricVec.GetMetricWithLabelValues(dims...)
+	return metric.(Untyped), err
 }
 
-func (metric *untyped) ResetAll() {
-	metric.mutex.Lock()
-	defer metric.mutex.Unlock()
-
-	for key, value := range metric.values {
-		for label := range value.Labels {
-			delete(value.Labels, label)
-		}
-		delete(metric.values, key)
-	}
+func (m *UntypedVec) GetMetricWithLabels(labels map[string]string) (Untyped, error) {
+	metric, err := m.MetricVec.GetMetricWithLabels(labels)
+	return metric.(Untyped), err
 }
 
-func (metric *untyped) MarshalJSON() ([]byte, error) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	values := make([]*untypedVector, 0, len(metric.values))
-	for _, value := range metric.values {
-		values = append(values, value)
-	}
-
-	return json.Marshal(map[string]interface{}{
-		typeKey:  untypedTypeValue,
-		valueKey: values,
-	})
+func (m *UntypedVec) WithLabelValues(dims ...string) Untyped {
+	return m.MetricVec.WithLabelValues(dims...).(Untyped)
 }
 
-func (metric *untyped) dumpChildren(f *dto.MetricFamily) {
-	metric.mutex.RLock()
-	defer metric.mutex.RUnlock()
-
-	f.Type = dto.MetricType_UNTYPED.Enum()
-
-	for _, child := range metric.values {
-		c := &dto.Untyped{
-			Value: proto.Float64(child.Value),
-		}
-
-		m := &dto.Metric{
-			Untyped: c,
-		}
-
-		for name, value := range child.Labels {
-			p := &dto.LabelPair{
-				Name:  proto.String(name),
-				Value: proto.String(value),
-			}
-
-			m.Label = append(m.Label, p)
-		}
-
-		f.Metric = append(f.Metric, m)
-	}
+func (m *UntypedVec) WithLabels(labels map[string]string) Untyped {
+	return m.MetricVec.WithLabels(labels).(Untyped)
 }
