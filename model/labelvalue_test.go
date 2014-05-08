@@ -16,11 +16,9 @@ package model
 import (
 	"sort"
 	"testing"
-
-	"github.com/prometheus/client_golang/test"
 )
 
-func testLabelValues(t test.Tester) {
+func testLabelValues(t testing.TB) {
 	var scenarios = []struct {
 		in  LabelValues
 		out LabelValues

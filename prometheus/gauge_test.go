@@ -14,30 +14,23 @@ import (
 )
 
 func ExampleGauge() {
-	delOps := NewGauge(GaugeDesc{
-		Desc{
-			Namespace: "our_company",
-			Subsystem: "blob_storage",
-			Name:      "deletes",
-
-			Help: "How many delete operations we have conducted against our blob storage system.",
-		},
+	delOps := MustNewGauge(&Desc{
+		Namespace: "our_company",
+		Subsystem: "blob_storage",
+		Name:      "deletes",
+		Help:      "How many delete operations we have conducted against our blob storage system.",
 	})
 
 	delOps.Set(900) // That's all, folks!
 }
 
 func ExampleGaugeVec() {
-	delOps := NewGaugeVec(GaugeVecDesc{
-		Desc: Desc{
-			Namespace: "our_company",
-			Subsystem: "blob_storage",
-			Name:      "deletes",
-
-			Help: "How many delete operations we have conducted against our blob storage system, partitioned by data corpus and qos.",
-		},
-
-		Labels: []string{
+	delOps := MustNewGaugeVec(&Desc{
+		Namespace: "our_company",
+		Subsystem: "blob_storage",
+		Name:      "deletes",
+		Help:      "How many delete operations we have conducted against our blob storage system, partitioned by data corpus and qos.",
+		VariableLabels: []string{
 			// What is the body of data being deleted?
 			"corpus",
 			// How urgently do we need to delete the data?
@@ -46,21 +39,23 @@ func ExampleGaugeVec() {
 	})
 
 	// Oops, we need to delete that embarrassing picture of ourselves.
-	delOps.Set(4, "profile-pictures", "immediate")
+	delOps.WithLabelValues("profile-pictures", "immediate").Set(4)
 	// Those bad cat memes finally get deleted.
-	delOps.Set(1, "cat-memes", "lazy")
+	delOps.WithLabels(map[string]string{"corpus": "cat-memes", "qos": "lazy"}).Set(1)
 }
 
-func listenGaugeStream(vals, final chan float64,  done chan struct{}) {
+func listenGaugeStream(vals, final chan float64, done chan struct{}) {
 	var last float64
-	outer: for {
+outer:
+	for {
 		select {
-		case <- done:
+		case <-done:
 			close(vals)
-			for last = range vals {}
+			for last = range vals {
+			}
 
 			break outer
-		case v := <- vals :
+		case v := <-vals:
 			last = v
 		}
 	}
@@ -69,7 +64,7 @@ func listenGaugeStream(vals, final chan float64,  done chan struct{}) {
 }
 
 func TestGaugeConcurrency(t *testing.T) {
-	it := func (n uint32) bool {
+	it := func(n uint32) bool {
 		mutations := int(n % 10000)
 		concLevel := int((n % 15) + 1)
 
@@ -78,7 +73,7 @@ func TestGaugeConcurrency(t *testing.T) {
 		end := &sync.WaitGroup{}
 		end.Add(concLevel)
 
-		sStream  := make(chan float64, mutations * concLevel)
+		sStream := make(chan float64, mutations*concLevel)
 		final := make(chan float64)
 		done := make(chan struct{})
 
@@ -88,14 +83,12 @@ func TestGaugeConcurrency(t *testing.T) {
 			close(done)
 		}()
 
-		gge := NewGauge(GaugeDesc{
-			Desc: Desc{
-				Name: "test_gauge",
-				Help: "no help can be found here",
-			},
+		gge := MustNewGauge(&Desc{
+			Name: "test_gauge",
+			Help: "no help can be found here",
 		})
 
-		for i := 0 ; i < concLevel; i++ {
+		for i := 0; i < concLevel; i++ {
 			vals := make([]float64, 0, mutations)
 			for j := 0; j < mutations; j++ {
 				vals = append(vals, rand.NormFloat64())
@@ -113,11 +106,11 @@ func TestGaugeConcurrency(t *testing.T) {
 
 		start.Done()
 
-		last := <- final
+		last := <-final
 
-		if last != gge.(*gauge).val {
-			t.Fatalf("expected %f, got %f", last, gge.(*gauge).val)
-			return false;
+		if last != gge.(*Value).val {
+			t.Fatalf("expected %f, got %f", last, gge.(*Value).val)
+			return false
 		}
 
 		return true
@@ -129,7 +122,7 @@ func TestGaugeConcurrency(t *testing.T) {
 }
 
 func TestGaugeVecConcurrency(t *testing.T) {
-	it := func (n uint32) bool {
+	it := func(n uint32) bool {
 		mutations := int(n % 10000)
 		concLevel := int((n % 15) + 1)
 
@@ -138,7 +131,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 		end := &sync.WaitGroup{}
 		end.Add(concLevel)
 
-		sStream  := make(chan float64, mutations * concLevel)
+		sStream := make(chan float64, mutations*concLevel)
 		final := make(chan float64)
 		done := make(chan struct{})
 
@@ -148,14 +141,12 @@ func TestGaugeVecConcurrency(t *testing.T) {
 			close(done)
 		}()
 
-		gge := NewGauge(GaugeDesc{
-			Desc: Desc{
-				Name: "test_gauge",
-				Help: "no help can be found here",
-			},
+		gge := MustNewGauge(&Desc{
+			Name: "test_gauge",
+			Help: "no help can be found here",
 		})
 
-		for i := 0 ; i < concLevel; i++ {
+		for i := 0; i < concLevel; i++ {
 			vals := make([]float64, 0, mutations)
 			for j := 0; j < mutations; j++ {
 				vals = append(vals, rand.NormFloat64())
@@ -173,11 +164,11 @@ func TestGaugeVecConcurrency(t *testing.T) {
 
 		start.Done()
 
-		last := <- final
+		last := <-final
 
-		if last != gge.(*gauge).val {
-			t.Fatalf("expected %f, got %f", last, gge.(*gauge).val)
-			return false;
+		if last != gge.(*Value).val {
+			t.Fatalf("expected %f, got %f", last, gge.(*Value).val)
+			return false
 		}
 
 		return true

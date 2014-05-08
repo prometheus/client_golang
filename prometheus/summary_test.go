@@ -22,7 +22,10 @@ func benchmarkSummaryObserve(w int, b *testing.B) {
 	g := new(sync.WaitGroup)
 	g.Add(1)
 
-	s := NewSummary(SummaryDesc{})
+	s, err := NewSummary(&Desc{}, &SummaryOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	for i := 0; i < w; i++ {
 		go func() {
@@ -66,16 +69,19 @@ func benchmarkSummaryWrite(w int, b *testing.B) {
 	g := new(sync.WaitGroup)
 	g.Add(1)
 
-	s := NewSummary(SummaryDesc{})
+	s, err := NewSummary(&Desc{}, &SummaryOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	for i := 0; i < 1000000; i++ {
 		s.Observe(float64(i))
 	}
 
 	for j := 0; j < w; j++ {
-		outs := make([]dto.MetricFamily, b.N)
+		outs := make([]dto.Metric, b.N)
 
-		go func(o []dto.MetricFamily) {
+		go func(o []dto.Metric) {
 			g.Wait()
 
 			for i := 0; i < b.N; i++ {
@@ -108,13 +114,13 @@ func BenchmarkSummaryWrite8(b *testing.B) {
 }
 
 func ExampleSummary() {
-	temps := NewSummary(SummaryDesc{
-		Desc: Desc{
+	temps := MustNewSummary(
+		&Desc{
 			Name: "pond_temperature",
-
 			Help: "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
 		},
-	})
+		&SummaryOptions{},
+	)
 
 	temps.Observe(37)
 	// - count:   1
@@ -125,21 +131,20 @@ func ExampleSummary() {
 }
 
 func ExampleSummaryVec() {
-	temps := NewSummaryVec(SummaryVecDesc{
-		Desc: Desc{
-			Name: "pond_temperature",
-
-			Help: "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
+	temps := MustNewSummaryVec(
+		&Desc{
+			Name:           "pond_temperature",
+			Help:           "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
+			VariableLabels: []string{"species"},
 		},
+		&SummaryOptions{},
+	)
 
-		Labels: []string{"species"},
-	})
+	temps.WithLabelValues("litoria-caerulea").Observe(37) // Not so stinky.
 
-	temps.Observe(37, "litoria-caerulea") // Not so stinky.
-
-	temps.Observe(40, "lithobates-catesbeianus") // Quite stinky!
+	temps.WithLabelValues("lithobates-catesbeianus").Observe(40) // Quite stinky!
 	// Grab a beer to drown away the pain of the smell before sampling again.
-	temps.Observe(42, "lithobates-catesbeianus")
+	temps.WithLabelValues("lithobates-catesbeianus").Observe(42)
 	// species: litoria-caerulea
 	// - count:   1
 	// - sum:    37

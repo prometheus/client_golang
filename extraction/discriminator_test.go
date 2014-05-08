@@ -17,11 +17,9 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-
-	"github.com/prometheus/client_golang/test"
 )
 
-func testDiscriminatorHTTPHeader(t test.Tester) {
+func testDiscriminatorHTTPHeader(t testing.TB) {
 	var scenarios = []struct {
 		input  map[string]string
 		output Processor

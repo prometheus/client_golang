@@ -13,13 +13,9 @@
 
 package model
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/prometheus/client_golang/test"
-)
-
-func testMetric(t test.Tester) {
+func testMetric(t testing.TB) {
 	var scenarios = []struct {
 		input  map[string]string
 		hash   uint64

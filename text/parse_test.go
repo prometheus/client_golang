@@ -17,15 +17,14 @@ import (
 	"math"
 	"strings"
 	"testing"
-	"code.google.com/p/goprotobuf/proto"
 
-	"github.com/prometheus/client_golang/test"
+	"code.google.com/p/goprotobuf/proto"
 	dto "github.com/prometheus/client_model/go"
 )
 
 var parser Parser
 
-func testParse(t test.Tester) {
+func testParse(t testing.TB) {
 	var scenarios = []struct {
 		in  string
 		out []*dto.MetricFamily
@@ -379,7 +378,7 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
-func testParseError(t test.Tester) {
+func testParseError(t testing.TB) {
 	var scenarios = []struct {
 		in  string
 		err string
