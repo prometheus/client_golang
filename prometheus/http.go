@@ -23,7 +23,7 @@ func (n nowFunc) Now() time.Time {
 	return n()
 }
 
-var now nower = nowFunc(func() time.Time {
+var now = nowFunc(func() time.Time {
 	return time.Now()
 })
 
@@ -227,45 +227,45 @@ func sanitizeCode(s int) string {
 
 var instLabels = []string{"handler", "method", "code"}
 
-var reqCnt = NewCounterVec(CounterVecDesc{
-	Desc: Desc{
-		Subsystem: "http",
-		Name:      "requests_total",
-
-		Help: "Total no. of HTTP requests made.",
-	},
-	Labels: instLabels,
+var reqCnt = NewCounter(&Desc{
+	Subsystem:      "http",
+	Name:           "requests_total",
+	Help:           "Total no. of HTTP requests made.",
+	VariableLabels: instLabels,
 })
 
-var reqDur = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
+var reqDur = NewSummary(
+	&Desc{
 		Subsystem: "http",
 		Name:      "requests_duration_ms",
 
-		Help: "The request latencies.",
+		Help:           "The request latencies.",
+		VariableLabels: instLabels,
 	},
-	Labels: instLabels,
-})
+	&SummaryOptions{},
+)
 
-var reqSz = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
+var reqSz = NewSummary(
+	&Desc{
 		Subsystem: "http",
 		Name:      "requests_size_bytes",
 
-		Help: "The request sizes.",
+		Help:           "The request sizes.",
+		VariableLabels: instLabels,
 	},
-	Labels: instLabels,
-})
+	&SummaryOptions{},
+)
 
-var resSz = NewSummaryVec(SummaryVecDesc{
-	Desc: Desc{
+var resSz = NewSummary(
+	&Desc{
 		Subsystem: "http",
 		Name:      "response_size_bytes",
 
-		Help: "The response sizes.",
+		Help:           "The response sizes.",
+		VariableLabels: instLabels,
 	},
-	Labels: instLabels,
-})
+	&SummaryOptions{},
+)
 
 func init() {
 	MustRegister(reqCnt)
