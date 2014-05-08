@@ -18,13 +18,12 @@ import (
 	"math"
 	"strings"
 	"testing"
-	"code.google.com/p/goprotobuf/proto"
 
-	"github.com/prometheus/client_golang/test"
+	"code.google.com/p/goprotobuf/proto"
 	dto "github.com/prometheus/client_model/go"
 )
 
-func testCreate(t test.Tester) {
+func testCreate(t testing.TB) {
 	var scenarios = []struct {
 		in  *dto.MetricFamily
 		out string
@@ -257,7 +256,7 @@ func BenchmarkCreate(b *testing.B) {
 	}
 }
 
-func testCreateError(t test.Tester) {
+func testCreateError(t testing.TB) {
 	var scenarios = []struct {
 		in  *dto.MetricFamily
 		err string

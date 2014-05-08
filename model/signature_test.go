@@ -9,11 +9,9 @@ package model
 import (
 	"runtime"
 	"testing"
-
-	"github.com/prometheus/client_golang/test"
 )
 
-func testLabelsToSignature(t test.Tester) {
+func testLabelsToSignature(t testing.TB) {
 	var scenarios = []struct {
 		in  map[string]string
 		out uint64

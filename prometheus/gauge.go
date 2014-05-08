@@ -7,236 +7,65 @@
 package prometheus
 
 import (
-	"sort"
-	"sync"
+	"hash/fnv"
 
 	dto "github.com/prometheus/client_model/go"
-
-	"code.google.com/p/goprotobuf/proto"
 )
-
-// XXX: Callback protocol for gauges.
 
 // Gauge proxies a scalar value.
 type Gauge interface {
 	Metric
+	MetricsCollector
 
-	// Set assigns the value of this Gauge to the proxied value.
 	Set(float64)
+	Inc()
+	Dec()
+	Add(float64)
+	Sub(float64)
 }
 
-// GaugeDesc is the descriptor for a scalar Gauge.
-type GaugeDesc struct {
-	Desc
-}
-
-func (d GaugeDesc) build() Gauge {
-	return &gauge{
-		desc: d,
+// NewGauge emits a new Gauge from the provided descriptor.
+// The descriptor's Type field is ignored and forcefully set to MetricType_GAUGE.
+func NewGauge(desc *Desc) (Gauge, error) {
+	if len(desc.VariableLabels) > 0 {
+		return nil, errLabelsForSimpleMetric
 	}
+	desc.Type = dto.MetricType_GAUGE
+	return NewValue(desc, 0)
 }
 
-type gauge struct {
-	Gauge
-
-	mtx  sync.RWMutex
-	val  float64
-	desc GaugeDesc
+type GaugeVec struct {
+	MetricVec
 }
 
-func (g *gauge) Desc() Desc {
-	return g.desc.Desc
-}
-
-func (g *gauge) Set(v float64) {
-	g.mtx.Lock()
-	defer g.mtx.Unlock()
-
-	g.val = v
-}
-
-func (g *gauge) Write(out *dto.MetricFamily) {
-	g.mtx.RLock()
-	gDto := &dto.Gauge{
-		Value: proto.Float64(g.val),
+func NewGaugeVec(desc *Desc) (*GaugeVec, error) {
+	if len(desc.VariableLabels) == 0 {
+		return nil, errNoLabelsForVecMetric
 	}
-	g.mtx.RUnlock()
-
-	out.Type = dto.MetricType_GAUGE.Enum()
-
-	out.Metric = append(out.Metric, &dto.Metric{
-		Gauge: gDto,
-	})
+	desc.Type = dto.MetricType_GAUGE
+	return &GaugeVec{
+		MetricVec: MetricVec{
+			children: map[uint64]Metric{},
+			desc:     desc,
+			hash:     fnv.New64a(),
+		},
+	}, nil
 }
 
-// NewGauge emits a new Gauge from the provided GaugeDesc descriptor.
-func NewGauge(desc GaugeDesc) Gauge {
-	return desc.build()
+func (m *GaugeVec) GetMetricWithLabelValues(dims ...string) (Gauge, error) {
+	metric, err := m.MetricVec.GetMetricWithLabelValues(dims...)
+	return metric.(Gauge), err
 }
 
-// GaugeVec proxies vector values, whereby metrics fan out per the provided
-// label dimensions.
-type GaugeVec interface {
-	Metric
-
-	// Set assigns the value of this GaugeVec for the provided label values.
-	// The labels are provided as positional arguments and must match the
-	// order defined in GaugeDesc.Labels.
-	Set(float64, ...string)
-	// Del deletes a given label set from this GaugeVec, indicating whether the
-	// label set was deleted.
-	Del(...string) bool
+func (m *GaugeVec) GetMetricWithLabels(labels map[string]string) (Gauge, error) {
+	metric, err := m.MetricVec.GetMetricWithLabels(labels)
+	return metric.(Gauge), err
 }
 
-// GaugeVecDesc is the descriptor for a vector GaugeVec.
-type GaugeVecDesc struct {
-	Desc
-
-	Labels []string // XXX
+func (m *GaugeVec) WithLabelValues(dims ...string) Gauge {
+	return m.MetricVec.WithLabelValues(dims...).(Gauge)
 }
 
-func (d *GaugeVecDesc) build() GaugeVec {
-	if len(d.Labels) == 0 {
-		panic(errZeroCardinalityForVec)
-	}
-	ls := map[string]bool{}
-	for _, l := range d.Labels {
-		if l == "" {
-			panic(errEmptyLabelDesc)
-		}
-		ls[l] = true
-	}
-	if len(ls) != len(d.Labels) {
-		panic(errDuplLabelDesc)
-	}
-
-	return &gaugeVec{
-		desc:     *d,
-		children: make(map[uint64]*gaugeVecElem),
-	}
-}
-
-type gaugeVecElem struct {
-	mtx  sync.RWMutex
-	val  float64
-	dims []string
-	desc GaugeVecDesc
-}
-
-func (g *gaugeVecElem) Set(v float64) {
-	g.mtx.Lock()
-	defer g.mtx.Unlock()
-
-	g.val = v
-}
-
-func (g *gaugeVecElem) Get() float64 {
-	g.mtx.RLock()
-	defer g.mtx.RUnlock()
-
-	return g.val
-}
-
-func (g *gaugeVecElem) Write(o *dto.Metric) {
-	o.Gauge = &dto.Gauge{
-		Value: proto.Float64(g.Get()),
-	}
-
-	dims := make([]*dto.LabelPair, 0, len(g.desc.Labels))
-	for i, n := range g.desc.Labels {
-		dims = append(dims, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(g.dims[i]),
-		})
-	}
-	sort.Sort(lpSorter(dims))
-	o.Label = dims
-}
-
-type gaugeVec struct {
-	GaugeVec
-
-	desc     GaugeVecDesc
-	mtx      sync.RWMutex
-	children map[uint64]*gaugeVecElem
-}
-
-func (g *gaugeVec) Desc() Desc {
-	return g.desc.Desc
-}
-
-func (g *gaugeVec) Write(out *dto.MetricFamily) {
-	out.Type = dto.MetricType_GAUGE.Enum()
-
-	g.mtx.RLock()
-	elems := map[uint64]*gaugeVecElem{}
-	hashes := make([]uint64, 0, len(elems))
-	for h, e := range g.children {
-		elems[h] = e
-		hashes = append(hashes, h)
-	}
-	g.mtx.RUnlock()
-
-	sort.Sort(hashSorter(hashes))
-
-	gs := make([]*dto.Metric, 0, len(hashes))
-	for _, h := range hashes {
-		c := new(dto.Metric)
-		elems[h].Write(c)
-		gs = append(gs, c)
-	}
-
-	out.Metric = gs
-}
-
-func (g *gaugeVec) Set(v float64, ls ...string) {
-	if len(ls) != len(g.desc.Labels) || len(ls) == 0 {
-		panic(errInconsistentCardinality)
-	}
-
-	h := hashLabelValues(ls...)
-
-	g.mtx.RLock()
-	if vec, ok := g.children[h]; ok {
-		g.mtx.RUnlock()
-		vec.Set(v)
-		return
-	}
-	g.mtx.RUnlock()
-
-	g.mtx.Lock()
-	defer g.mtx.Unlock()
-	if vec, ok := g.children[h]; ok {
-		vec.Set(v)
-		return
-	}
-	g.children[h] = &gaugeVecElem{
-		val:  v,
-		dims: ls,
-		desc: g.desc,
-	}
-	g.children[h].Set(v)
-}
-
-func (g *gaugeVec) Del(ls ...string) bool {
-	if len(ls) != len(g.desc.Labels) || len(ls) == 0 {
-		panic(errInconsistentCardinality)
-	}
-
-	h := hashLabelValues(ls...)
-
-	g.mtx.Lock()
-	defer g.mtx.Unlock()
-
-	_, has := g.children[h]
-	if !has {
-		return false
-	}
-	delete(g.children, h)
-	return true
-}
-
-// NewGaugeVec emits a new GaugeVec from the provided GaugeVecDesc descriptor.
-func NewGaugeVec(desc GaugeVecDesc) GaugeVec {
-	return desc.build()
+func (m *GaugeVec) WithLabels(labels map[string]string) Gauge {
+	return m.MetricVec.WithLabels(labels).(Gauge)
 }
