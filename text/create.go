@@ -54,7 +54,8 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 	if in.Help != nil {
 		n, err := fmt.Fprintf(
 			out, "# HELP %s %s\n",
-			name, strings.Replace(*in.Help, "\n", `\n`, -1))
+			name, escapeString(*in.Help, true),
+		)
 		written += n
 		if err != nil {
 			return written, err
@@ -217,7 +218,7 @@ func labelPairsToText(
 	for _, lp := range in {
 		n, err := fmt.Fprintf(
 			out, `%c%s="%s"`,
-			separator, lp.GetName(), escapeLabelValue(lp.GetValue()),
+			separator, lp.GetName(), escapeString(lp.GetValue(), true),
 		)
 		written += n
 		if err != nil {
@@ -229,7 +230,7 @@ func labelPairsToText(
 		n, err := fmt.Fprintf(
 			out, `%c%s="%s"`,
 			separator, additionalLabelName,
-			escapeLabelValue(additionalLabelValue),
+			escapeString(additionalLabelValue, true),
 		)
 		written += n
 		if err != nil {
@@ -244,16 +245,17 @@ func labelPairsToText(
 	return written, nil
 }
 
-// escapeLabelValue replaces '\' by '\\', '"' by '\"', and new line character by '\n'.
-func escapeLabelValue(v string) string {
+// escapeString replaces '\' by '\\', new line character by '\n', and - if
+// includeDoubleQuote is true - '"' by '\"'.
+func escapeString(v string, includeDoubleQuote bool) string {
 	result := bytes.NewBuffer(make([]byte, 0, len(v)))
 	for _, c := range v {
-		switch c {
-		case '\\':
+		switch {
+		case c == '\\':
 			result.WriteString(`\\`)
-		case '"':
+		case includeDoubleQuote && c == '"':
 			result.WriteString(`\"`)
-		case '\n':
+		case c == '\n':
 			result.WriteString(`\n`)
 		default:
 			result.WriteRune(c)
