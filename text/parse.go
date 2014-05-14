@@ -422,7 +422,9 @@ func (p *Parser) readingHelp() stateFn {
 	if p.readTokenUntilNewline(); p.err != nil {
 		return nil // Unexpected end of input.
 	}
-	p.currentMF.Help = proto.String(p.currentToken.String())
+	p.currentMF.Help = proto.String(
+		strings.Replace(p.currentToken.String(), `\n`, "\n", -1),
+	)
 	return p.startOfLine
 }
 

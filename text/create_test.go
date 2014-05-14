@@ -33,7 +33,7 @@ func testCreate(t test.Tester) {
 		{
 			in: &dto.MetricFamily{
 				Name: proto.String("name"),
-				Help: proto.String("doc string"),
+				Help: proto.String("two-line\n doc  string"),
 				Type: dto.MetricType_COUNTER.Enum(),
 				Metric: []*dto.Metric{
 					&dto.Metric{
@@ -69,7 +69,7 @@ func testCreate(t test.Tester) {
 					},
 				},
 			},
-			out: `# HELP name doc string
+			out: `# HELP name two-line\n doc  string
 # TYPE name counter
 name{labelname="val1",basename="basevalue"} NaN
 name{labelname="val2",basename="basevalue"} 0.23 1234567890
