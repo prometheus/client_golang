@@ -91,9 +91,9 @@ no_labels{} 3
 # TYPE name counter
 name{labelname="val1",basename="basevalue"} NaN
 name {labelname="val2",basename="base\"v\\al\nue"} 0.23 1234567890
-# HELP name two-line\n doc  string
+# HELP name two-line\n doc  str\\ing
 
- # HELP  name2  	doc string 2
+ # HELP  name2  	doc str"ing 2
   #    TYPE    name2 gauge
 name2{labelname="val2"	,basename   =   "basevalue2"		} +Inf 54321
 name2{ labelname = "val1" }-Inf
@@ -101,7 +101,7 @@ name2{ labelname = "val1" }-Inf
 			out: []*dto.MetricFamily{
 				&dto.MetricFamily{
 					Name: proto.String("name"),
-					Help: proto.String("two-line\n doc  string"),
+					Help: proto.String("two-line\n doc  str\\ing"),
 					Type: dto.MetricType_COUNTER.Enum(),
 					Metric: []*dto.Metric{
 						&dto.Metric{
@@ -139,7 +139,7 @@ name2{ labelname = "val1" }-Inf
 				},
 				&dto.MetricFamily{
 					Name: proto.String("name2"),
-					Help: proto.String("doc string 2"),
+					Help: proto.String("doc str\"ing 2"),
 					Type: dto.MetricType_GAUGE.Enum(),
 					Metric: []*dto.Metric{
 						&dto.Metric{

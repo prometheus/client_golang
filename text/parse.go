@@ -401,7 +401,7 @@ func (p *Parser) startTimestamp() stateFn {
 		return nil
 	}
 	p.currentMetric.TimestampMs = proto.Int64(timestamp)
-	if p.readTokenUntilNewline(); p.err != nil {
+	if p.readTokenUntilNewline(false); p.err != nil {
 		return nil // Unexpected end of input.
 	}
 	if p.currentToken.Len() > 0 {
@@ -419,12 +419,10 @@ func (p *Parser) readingHelp() stateFn {
 		return nil
 	}
 	// Rest of line is the docstring.
-	if p.readTokenUntilNewline(); p.err != nil {
+	if p.readTokenUntilNewline(true); p.err != nil {
 		return nil // Unexpected end of input.
 	}
-	p.currentMF.Help = proto.String(
-		strings.Replace(p.currentToken.String(), `\n`, "\n", -1),
-	)
+	p.currentMF.Help = proto.String(p.currentToken.String())
 	return p.startOfLine
 }
 
@@ -436,7 +434,7 @@ func (p *Parser) readingType() stateFn {
 		return nil
 	}
 	// Rest of line is the type.
-	if p.readTokenUntilNewline(); p.err != nil {
+	if p.readTokenUntilNewline(false); p.err != nil {
 		return nil // Unexpected end of input.
 	}
 	metricType, ok := dto.MetricType_value[strings.ToUpper(p.currentToken.String())]
@@ -490,11 +488,34 @@ func (p *Parser) readTokenUntilWhitespace() {
 // readTokenUntilNewline copies bytes from p.buf into p.currentToken.  The first
 // byte considered is the byte already read (now in p.currentByte).  The first
 // newline byte encountered is still copied into p.currentByte, but not into
-// p.currentToken.
-func (p *Parser) readTokenUntilNewline() {
+// p.currentToken. If recognizeEscapeSequence is true, two escape sequences are
+// recognized: '\\' tranlates into '\', and '\n' into a line-feed character. All
+// other escape sequences are invalid and cause an error.
+func (p *Parser) readTokenUntilNewline(recognizeEscapeSequence bool) {
 	p.currentToken.Reset()
-	for p.err == nil && p.currentByte != '\n' {
-		p.currentToken.WriteByte(p.currentByte)
+	escaped := false
+	for p.err == nil {
+		if recognizeEscapeSequence && escaped {
+			switch p.currentByte {
+			case '\\':
+				p.currentToken.WriteByte(p.currentByte)
+			case 'n':
+				p.currentToken.WriteByte('\n')
+			default:
+				p.parseError(fmt.Sprintf("invalid escape sequence '\\%c'", p.currentByte))
+				return
+			}
+			escaped = false
+		} else {
+			switch p.currentByte {
+			case '\n':
+				return
+			case '\\':
+				escaped = true
+			default:
+				p.currentToken.WriteByte(p.currentByte)
+			}
+		}
 		p.currentByte, p.err = p.buf.ReadByte()
 	}
 }

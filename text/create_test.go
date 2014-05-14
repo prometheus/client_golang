@@ -33,7 +33,7 @@ func testCreate(t test.Tester) {
 		{
 			in: &dto.MetricFamily{
 				Name: proto.String("name"),
-				Help: proto.String("two-line\n doc  string"),
+				Help: proto.String("two-line\n doc  str\\ing"),
 				Type: dto.MetricType_COUNTER.Enum(),
 				Metric: []*dto.Metric{
 					&dto.Metric{
@@ -69,7 +69,7 @@ func testCreate(t test.Tester) {
 					},
 				},
 			},
-			out: `# HELP name two-line\n doc  string
+			out: `# HELP name two-line\n doc  str\\ing
 # TYPE name counter
 name{labelname="val1",basename="basevalue"} NaN
 name{labelname="val2",basename="basevalue"} 0.23 1234567890
@@ -79,7 +79,7 @@ name{labelname="val2",basename="basevalue"} 0.23 1234567890
 		{
 			in: &dto.MetricFamily{
 				Name: proto.String("gauge_name"),
-				Help: proto.String("gauge\ndoc\nstring"),
+				Help: proto.String("gauge\ndoc\nstr\"ing"),
 				Type: dto.MetricType_GAUGE.Enum(),
 				Metric: []*dto.Metric{
 					&dto.Metric{
@@ -114,7 +114,7 @@ name{labelname="val2",basename="basevalue"} 0.23 1234567890
 					},
 				},
 			},
-			out: `# HELP gauge_name gauge\ndoc\nstring
+			out: `# HELP gauge_name gauge\ndoc\nstr"ing
 # TYPE gauge_name gauge
 gauge_name{name_1="val with\nnew line",name_2="val with \\backslash and \"quotes\""} +Inf
 gauge_name{name_1="Björn",name_2="佖佥"} 3.14e+42
