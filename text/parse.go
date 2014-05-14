@@ -294,7 +294,7 @@ func (p *Parser) startLabelValue() stateFn {
 	p.currentLabelPair.Value = proto.String(p.currentToken.String())
 	// Once more, special treatment of summaries:
 	// - Quantile labels are special, will result in dto.Quantile later.
-	// - Othel labels have to be added to currentLabels for signature calculation.
+	// - Other labels have to be added to currentLabels for signature calculation.
 	if p.currentMF.GetType() == dto.MetricType_SUMMARY {
 		if p.currentLabelPair.GetName() == "quantile" {
 			if p.currentQuantile, p.err = strconv.ParseFloat(p.currentLabelPair.GetValue(), 64); p.err != nil {
