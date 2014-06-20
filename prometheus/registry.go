@@ -334,9 +334,7 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if r.panicOnCollectError {
 			panic(err)
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		header.Set(contentTypeHeader, "text/plain")
-		fmt.Fprintf(w, "An error has occurred:\n\n%s", err)
+		http.Error(w, "An error has occurred:\n\n"+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	header.Set(contentTypeHeader, contentType)

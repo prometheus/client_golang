@@ -92,6 +92,17 @@ func nowSeries(t ...time.Time) nower {
 // (SummaryVec). Each has three labels: handler, method, code. The value of the
 // handler label is set by the handlerName parameter of this function.
 func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFunc {
+	return InstrumentHandlerFunc(handlerName, handler.ServeHTTP)
+}
+
+// InstrumentHandlerFunc wraps the given function for instrumentation. It
+// registers four metric vector collectors (if not already done) and reports
+// http metrics to the (newly or already) registered collectors:
+// http_requests_total (CounterVec), http_request_duration_microseconds
+// (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
+// (SummaryVec). Each has three labels: handler, method, code. The value of the
+// handler label is set by the handlerName parameter of this function.
+func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	regReqCnt := MustRegisterOrGet(reqCnt).(*CounterVec)
 	regReqDur := MustRegisterOrGet(reqDur).(*SummaryVec)
 	regReqSz := MustRegisterOrGet(reqSz).(*SummaryVec)
@@ -103,9 +114,9 @@ func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFun
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 		out := make(chan int)
 		go computeApproximateRequestSize(r, out)
-		handler.ServeHTTP(delegate, r)
+		handlerFunc(delegate, r)
 
-		elapsed := float64(time.Since(now)) / float64(time.Second)
+		elapsed := float64(time.Since(now)) / float64(time.Microsecond)
 
 		method := sanitizeMethod(r.Method)
 		code := sanitizeCode(delegate.status)

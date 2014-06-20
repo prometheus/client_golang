@@ -168,7 +168,7 @@ func (d *Desc) String() string {
 	for _, lp := range d.constLabelPairs {
 		lpStrings = append(
 			lpStrings,
-			fmt.Sprintf("%s=%q", lp.Name, lp.Value),
+			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),
 		)
 	}
 	return fmt.Sprintf(
