@@ -21,9 +21,10 @@ import (
 	"time"
 
 	"code.google.com/p/goprotobuf/proto"
-	"github.com/bmizerany/perks/quantile" // TODO: Vendorize?
 
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/_vendor/perks/quantile"
 )
 
 // A Summary captures individual observations from an event or sample stream and
