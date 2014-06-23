@@ -170,12 +170,11 @@ func PanicOnCollectError(b bool) {
 }
 
 // EnableCollectChecks enables (or disables) additional consistency checks
-// during metrics collection. By default, These additional checks are not
-// enabled by default because they inflict a performance penalty and the errors
-// they check for can only happen if the used Metric and Collector types have
-// internal programming errors. It can be helpful to enable these checks while
-// working with custom Collectors or Metrics whose correctness is not well
-// established yet.
+// during metrics collection. These additional checks are not enabled by default
+// because they inflict a performance penalty and the errors they check for can
+// only happen if the used Metric and Collector types have internal programming
+// errors. It can be helpful to enable these checks while working with custom
+// Collectors or Metrics whose correctness is not well established yet.
 func EnableCollectChecks(b bool) {
 	defRegistry.collectChecksEnabled = b
 }
