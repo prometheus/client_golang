@@ -119,3 +119,24 @@ func (m *UntypedVec) WithLabelValues(lvs ...string) Untyped {
 func (m *UntypedVec) With(labels Labels) Untyped {
 	return m.MetricVec.With(labels).(Untyped)
 }
+
+// UntypedFunc is a Untyped whose value is determined at collect time by calling
+// a provided function.
+//
+// To create UntypedFunc instances, use NewUntypedFunc.
+type UntypedFunc interface {
+	Metric
+	Collector
+}
+
+// NewUntypedFunc creates a new UntypedFunc based on the provided
+// UntypedOpts. The value reported is determined at collect time by calling the
+// given function, which must be concurrency-safe.
+func NewUntypedFunc(opts UntypedOpts, function func() float64) UntypedFunc {
+	return newValueFunc(NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		nil,
+		opts.ConstLabels,
+	), UntypedValue, function)
+}

@@ -147,3 +147,26 @@ func (m *CounterVec) WithLabelValues(lvs ...string) Counter {
 func (m *CounterVec) With(labels Labels) Counter {
 	return m.MetricVec.With(labels).(Counter)
 }
+
+// CounterFunc is a Counter whose value is determined at collect time by calling a
+// provided function.
+//
+// To create CounterFunc instances, use NewCounterFunc.
+type CounterFunc interface {
+	Metric
+	Collector
+}
+
+// NewCounterFunc creates a new CounterFunc based on the provided
+// CounterOpts. The value reported is determined at collect time by calling the
+// given function, which must be concurrency-safe. The function should also
+// honor the contract for a counter (values only go up, not down), but
+// compliance will not be checked.
+func NewCounterFunc(opts CounterOpts, function func() float64) CounterFunc {
+	return newValueFunc(NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		nil,
+		opts.ConstLabels,
+	), CounterValue, function)
+}

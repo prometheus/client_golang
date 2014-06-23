@@ -121,3 +121,24 @@ func (m *GaugeVec) WithLabelValues(lvs ...string) Gauge {
 func (m *GaugeVec) With(labels Labels) Gauge {
 	return m.MetricVec.With(labels).(Gauge)
 }
+
+// GaugeFunc is a Gauge whose value is determined at collect time by calling a
+// provided function.
+//
+// To create GaugeFunc instances, use NewGaugeFunc.
+type GaugeFunc interface {
+	Metric
+	Collector
+}
+
+// NewGaugeFunc creates a new GaugeFunc based on the provided GaugeOpts. The
+// value reported is determined at collect time by calling the given function,
+// which must be concurrency-safe.
+func NewGaugeFunc(opts GaugeOpts, function func() float64) GaugeFunc {
+	return newValueFunc(NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		nil,
+		opts.ConstLabels,
+	), GaugeValue, function)
+}
