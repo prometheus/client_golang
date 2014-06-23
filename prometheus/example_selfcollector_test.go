@@ -29,14 +29,15 @@ func NewCallbackMetric(desc *prometheus.Desc, callback func() float64) *Callback
 	return result
 }
 
+// TODO: Come up with a better example.
+
 // CallbackMetric is an example for a user-defined Metric that exports the
 // result of a function call as a metric of type "untyped" without any
 // labels. It uses SelfCollector to turn the Metric into a Collector so that it
 // can be registered with Prometheus.
 //
-// Note that this is a pretty low-level approach. A more high-level approach is
-// to implement a Collector directly and not an individual Metric, see the
-// Collector examples.
+// Note that this example is pretty much academic as the prometheus package
+// already provides an UntypedFunc type.
 type CallbackMetric struct {
 	prometheus.SelfCollector
 

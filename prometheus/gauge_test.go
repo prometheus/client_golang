@@ -19,6 +19,8 @@ import (
 	"sync"
 	"testing"
 	"testing/quick"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 func listenGaugeStream(vals, result chan float64, done chan struct{}) {
@@ -154,5 +156,27 @@ func TestGaugeVecConcurrency(t *testing.T) {
 
 	if err := quick.Check(it, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGaugeFunc(t *testing.T) {
+	gf := NewGaugeFunc(
+		GaugeOpts{
+			Name:        "test_name",
+			Help:        "test help",
+			ConstLabels: Labels{"a": "1", "b": "2"},
+		},
+		func() float64 { return 3.1415 },
+	)
+
+	if expected, got := `Desc{fqName: "test_name", help: "test help", constLabels: {a="1",b="2"}, variableLabels: []}`, gf.Desc().String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+
+	m := &dto.Metric{}
+	gf.Write(m)
+
+	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > gauge:<value:3.1415 > `, m.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
 	}
 }

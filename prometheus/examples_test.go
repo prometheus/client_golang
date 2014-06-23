@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"runtime"
 	"sort"
 
 	dto "github.com/prometheus/client_model/go"
@@ -70,6 +71,24 @@ func ExampleGaugeVec() {
 	// Increase a value with a map using WithLabels. More verbose, but order
 	// doesn't matter anymore.
 	opsQueued.With(prometheus.Labels{"type": "delete", "user": "alice"}).Inc()
+}
+
+func ExampleGaugeFunc() {
+	if _, err := prometheus.Register(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Subsystem: "runtime",
+			Name:      "goroutines_count",
+			Help:      "Number of goroutines that currently exist.",
+		},
+		func() float64 { return float64(runtime.NumGoroutine()) },
+	)); err == nil {
+		fmt.Println("GaugeFunc 'goroutines_count' registered.\n")
+	}
+	// Note that the count of goroutines is a gauge (and not a counter) as
+	// it can go up and down.
+
+	// Output:
+	// GaugeFunc 'goroutines_count' registered.
 }
 
 func ExampleCounter() {

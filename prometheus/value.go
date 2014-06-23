@@ -51,7 +51,7 @@ type value struct {
 	labelPairs []*dto.LabelPair
 }
 
-// newValue returns a newly allocated Value with the given Desc, ValueType,
+// newValue returns a newly allocated value with the given Desc, ValueType,
 // sample value and label values. It panics if the number of label
 // values is different from the number of variable labels in Desc.
 func newValue(desc *Desc, valueType ValueType, val float64, labelValues ...string) *value {
@@ -104,6 +104,45 @@ func (v *value) Write(out *dto.Metric) {
 	v.mtx.RUnlock()
 
 	populateMetric(v.valType, val, v.labelPairs, out)
+}
+
+// valueFunc is a generic metric for simple values retrieved on collect time
+// from a function. It implements Metric and Collector. Its effective type is
+// determined by ValueType. This is a low-level building block used by the
+// library to back the implementations of CounterFunc, GaugeFunc, and
+// UntypedFunc.
+type valueFunc struct {
+	SelfCollector
+
+	desc       *Desc
+	valType    ValueType
+	function   func() float64
+	labelPairs []*dto.LabelPair
+}
+
+// newValueFunc returns a newly allocated valueFunc with the given Desc and
+// ValueType. The value reported is determined by calling the given function
+// from within the Write method. Take into account that metric collection may
+// happen concurrently. If that results in concurrent calls to Write, like in
+// the case where a valueFunc is directly registered with Prometheus, the
+// provided function must be concurrency-safe.
+func newValueFunc(desc *Desc, valueType ValueType, function func() float64) *valueFunc {
+	result := &valueFunc{
+		desc:       desc,
+		valType:    valueType,
+		function:   function,
+		labelPairs: makeLabelPairs(desc, nil),
+	}
+	result.Init(result)
+	return result
+}
+
+func (v *valueFunc) Desc() *Desc {
+	return v.desc
+}
+
+func (v *valueFunc) Write(out *dto.Metric) {
+	populateMetric(v.valType, v.function(), v.labelPairs, out)
 }
 
 // NewConstMetric returns a metric with one fixed value that cannot be
