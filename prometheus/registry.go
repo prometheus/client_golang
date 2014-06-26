@@ -21,7 +21,6 @@ package prometheus
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -207,8 +206,7 @@ func (r *registry) Register(c Collector) (Collector, error) {
 
 	newDescIDs := map[uint64]struct{}{}
 	newDimHashesByName := map[string]uint64{}
-	collectorIDHash := fnv.New64a()
-	buf := make([]byte, 8)
+	var collectorID uint64 // Just a sum of all desc IDs.
 	var duplicateDescErr error
 
 	r.mtx.Lock()
@@ -227,12 +225,11 @@ func (r *registry) Register(c Collector) (Collector, error) {
 			duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
 		}
 		// If it is not a duplicate desc in this collector, add it to
-		// the hash.  (We allow duplicate descs within the same
+		// the collectorID.  (We allow duplicate descs within the same
 		// collector, but their existence must be a no-op.)
 		if _, exists := newDescIDs[desc.id]; !exists {
 			newDescIDs[desc.id] = struct{}{}
-			binary.BigEndian.PutUint64(buf, desc.id)
-			collectorIDHash.Write(buf)
+			collectorID += desc.id
 		}
 
 		// Are all the label names and the help string consistent with
@@ -257,7 +254,6 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	if len(newDescIDs) == 0 {
 		return nil, errors.New("collector has no descriptors")
 	}
-	collectorID := collectorIDHash.Sum64()
 	if existing, exists := r.collectorsByID[collectorID]; exists {
 		return existing, errAlreadyReg
 	}
@@ -294,16 +290,13 @@ func (r *registry) Unregister(c Collector) bool {
 	}()
 
 	descIDs := map[uint64]struct{}{}
-	collectorIDHash := fnv.New64a()
-	buf := make([]byte, 8)
+	var collectorID uint64 // Just a sum of the desc IDs.
 	for desc := range descChan {
 		if _, exists := descIDs[desc.id]; !exists {
-			binary.BigEndian.PutUint64(buf, desc.id)
-			collectorIDHash.Write(buf)
+			collectorID += desc.id
 			descIDs[desc.id] = struct{}{}
 		}
 	}
-	collectorID := collectorIDHash.Sum64()
 
 	r.mtx.RLock()
 	if _, exists := r.collectorsByID[collectorID]; !exists {
