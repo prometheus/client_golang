@@ -29,7 +29,7 @@ func testLabelsToSignature(t testing.TB) {
 		},
 		{
 			in:  map[string]string{"name": "garland, briggs", "fear": "love is not enough"},
-			out: 12256296522964301276,
+			out: 12952432476264840823,
 		},
 	}
 
@@ -88,11 +88,11 @@ func BenchmarkLabelValuesToSignatureSingle(b *testing.B) {
 }
 
 func BenchmarkLabelValuesToSignatureDouble(b *testing.B) {
-	benchmarkLabelValuesToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value"}, 5670080368112985613)
+	benchmarkLabelValuesToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value"}, 8893559499616767364)
 }
 
 func BenchmarkLabelValuesToSignatureTriple(b *testing.B) {
-	benchmarkLabelValuesToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value", "third-label": "third-label-value"}, 2503588453955211397)
+	benchmarkLabelValuesToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value", "third-label": "third-label-value"}, 1685970066862087833)
 }
 
 func benchmarkLabelToSignature(b *testing.B, l map[string]string, e uint64) {
@@ -108,13 +108,13 @@ func BenchmarkLabelToSignatureScalar(b *testing.B) {
 }
 
 func BenchmarkLabelToSignatureSingle(b *testing.B) {
-	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value"}, 2231159900647003583)
+	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value"}, 5147259542624943964)
 }
 
 func BenchmarkLabelToSignatureDouble(b *testing.B) {
-	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value"}, 14091549261072856487)
+	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value"}, 18269973311206963528)
 }
 
 func BenchmarkLabelToSignatureTriple(b *testing.B) {
-	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value", "third-label": "third-label-value"}, 9120920685107702735)
+	benchmarkLabelToSignature(b, map[string]string{"first-label": "first-label-value", "second-label": "second-label-value", "third-label": "third-label-value"}, 15738406913934009676)
 }

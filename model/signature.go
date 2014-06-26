@@ -14,56 +14,84 @@
 package model
 
 import (
+	"bytes"
+	"hash"
 	"hash/fnv"
-	"sort"
 )
 
-// cache the signature of an empty label set.
-var emptyLabelSignature = fnv.New64a().Sum64()
+// SeparatorByte is a byte that cannot occur in valid UTF-8 sequences and is
+// used to separate label names, label values, and other strings from each other
+// when calculating their combined hash value (aka signature aka fingerprint).
+const SeparatorByte byte = 255
 
-// LabelsToSignature provides a way of building a unique signature
-// (i.e., fingerprint) for a given label set sequence.
+var (
+	// cache the signature of an empty label set.
+	emptyLabelSignature = fnv.New64a().Sum64()
+
+	hashAndBufPool = make(chan *hashAndBuf, 1024)
+)
+
+type hashAndBuf struct {
+	h hash.Hash64
+	b bytes.Buffer
+}
+
+func getHashAndBuf() *hashAndBuf {
+	select {
+	case hb := <-hashAndBufPool:
+		return hb
+	default:
+		return &hashAndBuf{h: fnv.New64a()}
+	}
+}
+
+func putHashAndBuf(hb *hashAndBuf) {
+	select {
+	case hashAndBufPool <- hb:
+	default:
+	}
+}
+
+// LabelsToSignature returns a unique signature (i.e., fingerprint) for a given
+// label set.
 func LabelsToSignature(labels map[string]string) uint64 {
 	if len(labels) == 0 {
 		return emptyLabelSignature
 	}
 
-	names := make([]string, 0, len(labels))
-	for name := range labels {
-		names = append(names, name)
+	var result uint64
+	hb := getHashAndBuf()
+	defer putHashAndBuf(hb)
+
+	for k, v := range labels {
+		hb.b.WriteString(k)
+		hb.b.WriteByte(SeparatorByte)
+		hb.b.WriteString(v)
+		hb.h.Write(hb.b.Bytes())
+		result ^= hb.h.Sum64()
+		hb.h.Reset()
+		hb.b.Reset()
 	}
-
-	sort.Strings(names)
-
-	hasher := fnv.New64a()
-
-	for _, name := range names {
-		hasher.Write([]byte(name))
-		hasher.Write([]byte(labels[name]))
-	}
-
-	return hasher.Sum64()
+	return result
 }
 
-// LabelValuesToSignature provides a way of building a unique signature
-// (i.e., fingerprint) for a given set of label's values.
+// LabelValuesToSignature returns a unique signature (i.e., fingerprint) for the
+// values of a given label set.
 func LabelValuesToSignature(labels map[string]string) uint64 {
 	if len(labels) == 0 {
 		return emptyLabelSignature
 	}
 
-	names := make([]string, 0, len(labels))
-	for name := range labels {
-		names = append(names, name)
+	var result uint64
+	hb := getHashAndBuf()
+	defer putHashAndBuf(hb)
+
+	for _, v := range labels {
+		hb.b.WriteString(v)
+		hb.h.Write(hb.b.Bytes())
+		result ^= hb.h.Sum64()
+		hb.h.Reset()
+		hb.b.Reset()
 	}
-
-	sort.Strings(names)
-
-	hasher := fnv.New64a()
-
-	for _, name := range names {
-		hasher.Write([]byte(labels[name]))
-	}
-
-	return hasher.Sum64()
+	return result
 }

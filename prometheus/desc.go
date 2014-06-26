@@ -134,6 +134,7 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	for _, val := range labelValues {
 		b.Reset()
 		b.WriteString(val)
+		b.WriteByte(model.SeparatorByte)
 		h.Write(b.Bytes())
 	}
 	d.id = h.Sum64()
@@ -144,10 +145,12 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	h.Reset()
 	b.Reset()
 	b.WriteString(help)
+	b.WriteByte(model.SeparatorByte)
 	h.Write(b.Bytes())
 	for _, labelName := range labelNames {
 		b.Reset()
 		b.WriteString(labelName)
+		b.WriteByte(model.SeparatorByte)
 		h.Write(b.Bytes())
 	}
 	d.dimHash = h.Sum64()
