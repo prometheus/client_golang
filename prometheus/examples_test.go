@@ -82,7 +82,7 @@ func ExampleGaugeFunc() {
 		},
 		func() float64 { return float64(runtime.NumGoroutine()) },
 	)); err == nil {
-		fmt.Println("GaugeFunc 'goroutines_count' registered.\n")
+		fmt.Println("GaugeFunc 'goroutines_count' registered.")
 	}
 	// Note that the count of goroutines is a gauge (and not a counter) as
 	// it can go up and down.

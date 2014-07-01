@@ -26,6 +26,7 @@ import (
 	"hash/fnv"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"sync"
 
@@ -179,6 +180,26 @@ func EnableCollectChecks(b bool) {
 	defRegistry.collectChecksEnabled = b
 }
 
+// Push triggers a metric collection and pushes all collected metrics to the
+// Pushgateway specified by addr. See the Pushgateway documentation for detailed
+// implications of the job and instance parameter. instance can be left
+// empty. The Pushgateway will then use the client's IP number instead. Use just
+// host:port or ip:port ass addr. (Don't add 'http://' or any path.)
+//
+// Note that all previously pushed metrics with the same job and instance will
+// be replaced with the metrics pushed by this call. (It uses HTTP method 'PUT'
+// to push to the Pushgateway.)
+func Push(job, instance, addr string) error {
+	return defRegistry.Push(job, instance, addr, false)
+}
+
+// PushAdd works like Push, but only previously pushed metric with the same name
+// (and the same job and instance) will be replaced. (It uses HTTP method 'POST'
+// to push to the Pushgateway.)
+func PushAdd(job, instance, addr string) error {
+	return defRegistry.Push(job, instance, addr, true)
+}
+
 // encoder is a function that writes a dto.MetricFamily to an io.Writer in a
 // certain encoding. It returns the number of bytes written and any error
 // encountered.  Note that ext.WriteDelimited and text.MetricFamilyToText are
@@ -316,6 +337,36 @@ func (r *registry) Unregister(c Collector) bool {
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.
 	return true
+}
+
+func (r *registry) Push(job, instance, addr string, keepMetrics bool) error {
+	u := fmt.Sprintf("http://%s/metrics/jobs/%s", addr, url.QueryEscape(job))
+	method := "PUT"
+	if keepMetrics {
+		method = "POST"
+	}
+	if instance != "" {
+		u += "/instances/" + url.QueryEscape(instance)
+	}
+	buf := r.getBuf()
+	defer r.giveBuf(buf)
+	if _, err := r.writePB(buf, text.WriteProtoDelimited); err != nil {
+		if r.panicOnCollectError {
+			panic(err)
+		}
+		return err
+	}
+	req, err := http.NewRequest(method, u, buf)
+	req.Header.Set("Content-Type", DelimitedTelemetryContentType)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 202 {
+		return fmt.Errorf("unexpected status code %d while pushing to %s", resp.StatusCode, u)
+	}
+	return nil
 }
 
 func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
