@@ -74,7 +74,8 @@ const (
 	capMetricChan = 1000
 	capDescChan   = 10
 
-	contentTypeHeader = "Content-Type"
+	contentTypeHeader   = "Content-Type"
+	contentLengthHeader = "Content-Length"
 )
 
 // Handler returns the HTTP handler for the global Prometheus registry. It is
@@ -353,7 +354,7 @@ func (r *registry) Push(job, instance, addr, method string) error {
 		return err
 	}
 	req, err := http.NewRequest(method, u, buf)
-	req.Header.Set("Content-Type", DelimitedTelemetryContentType)
+	req.Header.Set(contentTypeHeader, DelimitedTelemetryContentType)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -369,7 +370,6 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	enc, contentType := chooseEncoder(req)
 	buf := r.getBuf()
 	defer r.giveBuf(buf)
-	header := w.Header()
 	if _, err := r.writePB(buf, enc); err != nil {
 		if r.panicOnCollectError {
 			panic(err)
@@ -377,7 +377,9 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "An error has occurred:\n\n"+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	header := w.Header()
 	header.Set(contentTypeHeader, contentType)
+	header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
 	w.Write(buf.Bytes())
 }
 
