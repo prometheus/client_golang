@@ -28,10 +28,12 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 
 	dto "github.com/prometheus/client_model/go"
 
+	"compress/gzip"
 	"code.google.com/p/goprotobuf/proto"
 
 	"github.com/prometheus/client_golang/_vendor/goautoneg"
@@ -74,8 +76,12 @@ const (
 	capMetricChan = 1000
 	capDescChan   = 10
 
-	contentTypeHeader   = "Content-Type"
-	contentLengthHeader = "Content-Length"
+	contentTypeHeader     = "Content-Type"
+	contentLengthHeader   = "Content-Length"
+	contentEncodingHeader = "Content-Encoding"
+
+	acceptEncodingHeader = "Accept-Encoding"
+	acceptHeader         = "Accept"
 )
 
 // Handler returns the HTTP handler for the global Prometheus registry. It is
@@ -370,16 +376,23 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	enc, contentType := chooseEncoder(req)
 	buf := r.getBuf()
 	defer r.giveBuf(buf)
-	if _, err := r.writePB(buf, enc); err != nil {
+	writer, encoding := decorateWriter(req, buf)
+	if _, err := r.writePB(writer, enc); err != nil {
 		if r.panicOnCollectError {
 			panic(err)
 		}
 		http.Error(w, "An error has occurred:\n\n"+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if closer, ok := writer.(io.Closer); ok {
+		closer.Close()
+	}
 	header := w.Header()
 	header.Set(contentTypeHeader, contentType)
 	header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
+	if encoding != "" {
+		header.Set(contentEncodingHeader, encoding)
+	}
 	w.Write(buf.Bytes())
 }
 
@@ -622,7 +635,7 @@ func newRegistry() *registry {
 }
 
 func chooseEncoder(req *http.Request) (encoder, string) {
-	accepts := goautoneg.ParseAccept(req.Header.Get("Accept"))
+	accepts := goautoneg.ParseAccept(req.Header.Get(acceptHeader))
 	for _, accept := range accepts {
 		switch {
 		case accept.Type == "application" &&
@@ -647,6 +660,21 @@ func chooseEncoder(req *http.Request) (encoder, string) {
 		}
 	}
 	return text.MetricFamilyToText, TextTelemetryContentType
+}
+
+// decorateWriter wraps a writer to handle gzip compression if requested.  It
+// returns the decorated writer and the appropriate "Content-Encoding" header
+// (which is empty if no compression is enabled).
+func decorateWriter(request *http.Request, writer io.Writer) (io.Writer, string) {
+	header := request.Header.Get(acceptEncodingHeader)
+	parts := strings.Split(header, ",")
+	for _, part := range parts {
+		part := strings.TrimSpace(part)
+		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
+			return gzip.NewWriter(writer), "gzip"
+		}
+	}
+	return writer, ""
 }
 
 type metricSorter []*dto.Metric
