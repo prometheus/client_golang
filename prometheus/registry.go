@@ -55,17 +55,17 @@ const (
 
 	// DelimitedTelemetryContentType is the content type set on telemetry
 	// data responses in delimited protobuf format.
-	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`
+	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`
 	// TextTelemetryContentType is the content type set on telemetry data
 	// responses in text format.
 	TextTelemetryContentType = `text/plain; version=` + APIVersion
 	// ProtoTextTelemetryContentType is the content type set on telemetry
 	// data responses in protobuf text format.  (Only used for debugging.)
-	ProtoTextTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="text"`
+	ProtoTextTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=text`
 	// ProtoCompactTextTelemetryContentType is the content type set on
 	// telemetry data responses in protobuf compact text format.  (Only used
 	// for debugging.)
-	ProtoCompactTextTelemetryContentType = `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="compact-text"`
+	ProtoCompactTextTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=compact-text`
 
 	// Constants for object pools.
 	numBufs           = 4

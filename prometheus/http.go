@@ -20,45 +20,7 @@ import (
 	"time"
 )
 
-var (
-	instLabels = []string{"handler", "method", "code"}
-
-	reqCnt = NewCounterVec(
-		CounterOpts{
-			Subsystem: "http",
-			Name:      "requests_total",
-			Help:      "Total number of HTTP requests made.",
-		},
-		instLabels,
-	)
-
-	reqDur = NewSummaryVec(
-		SummaryOpts{
-			Subsystem: "http",
-			Name:      "request_duration_microseconds",
-			Help:      "The HTTP request latencies in microseconds.",
-		},
-		instLabels,
-	)
-
-	reqSz = NewSummaryVec(
-		SummaryOpts{
-			Subsystem: "http",
-			Name:      "request_size_bytes",
-			Help:      "The HTTP request sizes in bytes.",
-		},
-		instLabels,
-	)
-
-	resSz = NewSummaryVec(
-		SummaryOpts{
-			Subsystem: "http",
-			Name:      "response_size_bytes",
-			Help:      "The HTTP response sizes in bytes.",
-		},
-		instLabels,
-	)
-)
+var instLabels = []string{"method", "code"}
 
 type nower interface {
 	Now() time.Time
@@ -103,6 +65,71 @@ func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFun
 // (SummaryVec). Each has three labels: handler, method, code. The value of the
 // handler label is set by the handlerName parameter of this function.
 func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	return InstrumentHandlerFuncWithOpts(
+		SummaryOpts{
+			Subsystem:   "http",
+			ConstLabels: Labels{"handler": handlerName},
+		},
+		handlerFunc,
+	)
+}
+
+// InstrumentHandlerWithOpts works like InstrumentHandler but provides more
+// flexibility (at the cost of a more complex call syntax). As
+// InstrumentHandler, this function registers four metric vector collectors, but
+// it uses the provided SummaryOpts to create them. However, the fields "Name"
+// and "Help" in the SummaryOpts are ignored. "Name" is replaced by
+// "requests_total", "request_duration_microseconds", "request_size_bytes", and
+// "response_size_bytes", respectively. "Help" is replaced by an appropriate
+// help string. The names of the variable labels of the vector collectors are
+// "method" (get, post, etc.), and "code" (HTTP status code).
+//
+// If InstrumentHandlerWithOpts is called as follows, it mimics exactly the
+// behavior of InstrumentHandler:
+//
+//     prometheus.InstrumentHandlerWithOpts(
+//         prometheus.SummaryOpts{
+//              Subsystem:   "http",
+//              ConstLabels: prometheus.Labels{"handler": handlerName},
+//         },
+//         handler,
+//     )
+//
+// Technical detail: "requests_total" is a CounterVec, not a SummaryVec, so it
+// cannot use SummaryOpts. Instead, a CounterOpts struct is created internally,
+// and all its fields are set to the equally named fields in the provided
+// SummaryOpts.
+func InstrumentHandlerWithOpts(opts SummaryOpts, handler http.Handler) http.HandlerFunc {
+	return InstrumentHandlerFuncWithOpts(opts, handler.ServeHTTP)
+}
+
+// InstrumentHandlerFuncWithOpts works like InstrumentHandlerFunc but provides
+// more flexibility (at the cost of a more complex call syntax). See
+// InstrumentHandlerWithOpts for details how the provided SummaryOpts are used.
+func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+	reqCnt := NewCounterVec(
+		CounterOpts{
+			Namespace:   opts.Namespace,
+			Subsystem:   opts.Subsystem,
+			Name:        "requests_total",
+			Help:        "Total number of HTTP requests made.",
+			ConstLabels: opts.ConstLabels,
+		},
+		instLabels,
+	)
+
+	opts.Name = "request_duration_microseconds"
+	opts.Help = "The HTTP request latencies in microseconds."
+	reqDur := NewSummaryVec(opts, instLabels)
+
+	opts.Name = "request_size_bytes"
+	opts.Help = "The HTTP request sizes in bytes."
+	reqSz := NewSummaryVec(opts, instLabels)
+
+	opts.Name = "response_size_bytes"
+	opts.Help = "The HTTP response sizes in bytes."
+	resSz := NewSummaryVec(opts, instLabels)
+
 	regReqCnt := MustRegisterOrGet(reqCnt).(*CounterVec)
 	regReqDur := MustRegisterOrGet(reqDur).(*SummaryVec)
 	regReqSz := MustRegisterOrGet(reqSz).(*SummaryVec)
@@ -120,10 +147,10 @@ func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWri
 
 		method := sanitizeMethod(r.Method)
 		code := sanitizeCode(delegate.status)
-		regReqCnt.WithLabelValues(handlerName, method, code).Inc()
-		regReqDur.WithLabelValues(handlerName, method, code).Observe(elapsed)
-		regResSz.WithLabelValues(handlerName, method, code).Observe(float64(delegate.written))
-		regReqSz.WithLabelValues(handlerName, method, code).Observe(float64(<-out))
+		regReqCnt.WithLabelValues(method, code).Inc()
+		regReqDur.WithLabelValues(method, code).Observe(elapsed)
+		regResSz.WithLabelValues(method, code).Observe(float64(delegate.written))
+		regReqSz.WithLabelValues(method, code).Observe(float64(<-out))
 	})
 }
 

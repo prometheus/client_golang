@@ -266,7 +266,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`,
 				},
 				body: []byte{},
 			},
@@ -289,7 +289,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`,
 				},
 				body: expectedMetricFamilyAsBytes,
 			},
@@ -313,7 +313,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`,
 				},
 				body: externalMetricFamilyAsBytes,
 			},
@@ -325,7 +325,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`,
 				},
 				body: bytes.Join(
 					[][]byte{
@@ -386,7 +386,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="delimited"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`,
 				},
 				body: bytes.Join(
 					[][]byte{
@@ -405,7 +405,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="text"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=text`,
 				},
 				body: bytes.Join(
 					[][]byte{
@@ -424,7 +424,7 @@ metric: <
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `application/vnd.google.protobuf; proto="io.prometheus.client.MetricFamily"; encoding="compact-text"`,
+					"Content-Type": `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=compact-text`,
 				},
 				body: bytes.Join(
 					[][]byte{

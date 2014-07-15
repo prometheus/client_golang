@@ -37,14 +37,42 @@ func TestInstrumentHandler(t *testing.T) {
 	instant := time.Now()
 	end := instant.Add(30 * time.Second)
 	now = nowSeries(instant, end)
+	respBody := respBody("Howdy there!")
+
+	hndlr := InstrumentHandler("test-handler", respBody)
+
+	opts := SummaryOpts{
+		Subsystem:   "http",
+		ConstLabels: Labels{"handler": "test-handler"},
+	}
+
+	reqCnt := MustRegisterOrGet(NewCounterVec(
+		CounterOpts{
+			Namespace:   opts.Namespace,
+			Subsystem:   opts.Subsystem,
+			Name:        "requests_total",
+			Help:        "Total number of HTTP requests made.",
+			ConstLabels: opts.ConstLabels,
+		},
+		instLabels,
+	)).(*CounterVec)
+
+	opts.Name = "request_duration_microseconds"
+	opts.Help = "The HTTP request latencies in microseconds."
+	reqDur := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+
+	opts.Name = "request_size_bytes"
+	opts.Help = "The HTTP request sizes in bytes."
+	reqSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+
+	opts.Name = "response_size_bytes"
+	opts.Help = "The HTTP response sizes in bytes."
+	resSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+
 	reqCnt.Reset()
 	reqDur.Reset()
 	reqSz.Reset()
 	resSz.Reset()
-
-	respBody := respBody("Howdy there!")
-
-	hndlr := InstrumentHandler("test-handler", respBody)
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
@@ -63,7 +91,7 @@ func TestInstrumentHandler(t *testing.T) {
 	if want, got := 1, len(reqDur.children); want != got {
 		t.Errorf("want %d children in reqDur, got %d", want, got)
 	}
-	sum, err := reqDur.GetMetricWithLabelValues("test-handler", "get", "418")
+	sum, err := reqDur.GetMetricWithLabelValues("get", "418")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +114,7 @@ func TestInstrumentHandler(t *testing.T) {
 	if want, got := 1, len(reqCnt.children); want != got {
 		t.Errorf("want %d children in reqCnt, got %d", want, got)
 	}
-	cnt, err := reqCnt.GetMetricWithLabelValues("test-handler", "get", "418")
+	cnt, err := reqCnt.GetMetricWithLabelValues("get", "418")
 	if err != nil {
 		t.Fatal(err)
 	}
