@@ -17,51 +17,32 @@ import "testing"
 
 func testMetric(t testing.TB) {
 	var scenarios = []struct {
-		input  map[string]string
-		hash   uint64
-		rowkey string
+		input       Metric
+		fingerprint Fingerprint
 	}{
 		{
-			input:  map[string]string{},
-			rowkey: "02676020557754725067--0-",
-			hash:   2676020557754725067,
+			input:       Metric{},
+			fingerprint: 2676020557754725067,
 		},
 		{
-			input: map[string]string{
+			input: Metric{
 				"first_name":   "electro",
 				"occupation":   "robot",
 				"manufacturer": "westinghouse",
 			},
-			rowkey: "04776841610193542734-f-6-t",
-			hash:   4776841610193542734,
+			fingerprint: 13260944541294022935,
 		},
 		{
-			input: map[string]string{
+			input: Metric{
 				"x": "y",
 			},
-			rowkey: "01306929544689993150-x-2-y",
-			hash:   1306929544689993150,
+			fingerprint: 1470933794305433534,
 		},
 	}
 
 	for i, scenario := range scenarios {
-		metric := Metric{}
-		for key, value := range scenario.input {
-			metric[LabelName(key)] = LabelValue(value)
-		}
-
-		expectedRowKey := scenario.rowkey
-		expectedHash := scenario.hash
-		fingerprint := &Fingerprint{}
-		fingerprint.LoadFromMetric(metric)
-		actualRowKey := fingerprint.String()
-		actualHash := fingerprint.Hash
-
-		if expectedRowKey != actualRowKey {
-			t.Errorf("%d. expected %s, got %s", i, expectedRowKey, actualRowKey)
-		}
-		if actualHash != expectedHash {
-			t.Errorf("%d. expected %d, got %d", i, expectedHash, actualHash)
+		if scenario.fingerprint != scenario.input.Fingerprint() {
+			t.Errorf("%d. expected %d, got %d", i, scenario.fingerprint, scenario.input.Fingerprint())
 		}
 	}
 }

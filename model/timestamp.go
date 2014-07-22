@@ -30,9 +30,11 @@ type Timestamp int64
 const (
 	// MinimumTick is the minimum supported time resolution. This has to be
 	// at least native_time.Second in order for the code below to work.
-	MinimumTick = native_time.Second
+	MinimumTick = native_time.Millisecond
 	// second is the timestamp duration equivalent to one second.
 	second = int64(native_time.Second / MinimumTick)
+	// The number of nanoseconds per minimum tick.
+	nanosPerTick = int64(MinimumTick / native_time.Nanosecond)
 )
 
 // Equal reports whether two timestamps represent the same instant.
@@ -62,7 +64,7 @@ func (t Timestamp) Sub(o Timestamp) native_time.Duration {
 
 // Time returns the time.Time representation of t.
 func (t Timestamp) Time() native_time.Time {
-	return native_time.Unix(int64(t)/second, (int64(t) % second))
+	return native_time.Unix(int64(t)/second, (int64(t)%second)*nanosPerTick)
 }
 
 // Unix returns t as a Unix time, the number of seconds elapsed
@@ -71,9 +73,19 @@ func (t Timestamp) Unix() int64 {
 	return int64(t) / second
 }
 
+// UnixNano returns t as a Unix time, the number of nanoseconds elapsed
+// since January 1, 1970 UTC.
+func (t Timestamp) UnixNano() int64 {
+	return int64(t) * nanosPerTick
+}
+
 // String returns a string representation of the timestamp.
 func (t Timestamp) String() string {
-	return fmt.Sprint(int64(t))
+	return fmt.Sprintf("%f", float64(t)/float64(second))
+}
+
+func (t Timestamp) MarshalJSON() ([]byte, error) {
+	return []byte(t.String()), nil
 }
 
 // Now returns the current time as a Timestamp.
@@ -83,10 +95,17 @@ func Now() Timestamp {
 
 // TimestampFromTime returns the Timestamp equivalent to the time.Time t.
 func TimestampFromTime(t native_time.Time) Timestamp {
-	return TimestampFromUnix(t.Unix())
+	return TimestampFromUnixNano(t.UnixNano())
 }
 
-// TimestampFromUnix returns the Timestamp equivalent to the Unix timestamp t.
+// TimestampFromUnix returns the Timestamp equivalent to the Unix timestamp t
+// provided in seconds.
 func TimestampFromUnix(t int64) Timestamp {
 	return Timestamp(t * second)
+}
+
+// TimestampFromUnixNano returns the Timestamp equivalent to the Unix timestamp
+// t provided in nanoseconds.
+func TimestampFromUnixNano(t int64) Timestamp {
+	return Timestamp(t / nanosPerTick)
 }

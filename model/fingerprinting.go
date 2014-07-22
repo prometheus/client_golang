@@ -19,95 +19,34 @@ import (
 	"hash/fnv"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 // Fingerprint provides a hash-capable representation of a Metric.
-type Fingerprint struct {
-	// A hashed representation of the underyling entity.  For our purposes, FNV-1A
-	// 64-bit is used.
-	Hash                           uint64
-	FirstCharacterOfFirstLabelName string
-	LabelMatterLength              uint
-	LastCharacterOfLastLabelValue  string
+// For our purposes, FNV-1A 64-bit is used.
+type Fingerprint uint64
+
+func (f Fingerprint) String() string {
+	return fmt.Sprintf("%016x", uint64(f))
 }
 
-func (f *Fingerprint) String() string {
-	return strings.Join([]string{fmt.Sprintf("%020d", f.Hash), f.FirstCharacterOfFirstLabelName, fmt.Sprint(f.LabelMatterLength), f.LastCharacterOfLastLabelValue}, "-")
+// Less implements sort.Interface.
+func (f Fingerprint) Less(o Fingerprint) bool {
+	return f < o
 }
 
-// Less compares first the Hash, then the FirstCharacterOfFirstLabelName, then
-// the LabelMatterLength, then the LastCharacterOfLastLabelValue.
-func (f *Fingerprint) Less(o *Fingerprint) bool {
-	if f.Hash < o.Hash {
-		return true
-	}
-	if f.Hash > o.Hash {
-		return false
-	}
-
-	if f.FirstCharacterOfFirstLabelName < o.FirstCharacterOfFirstLabelName {
-		return true
-	}
-	if f.FirstCharacterOfFirstLabelName > o.FirstCharacterOfFirstLabelName {
-		return false
-	}
-
-	if f.LabelMatterLength < o.LabelMatterLength {
-		return true
-	}
-	if f.LabelMatterLength > o.LabelMatterLength {
-		return false
-	}
-
-	if f.LastCharacterOfLastLabelValue < o.LastCharacterOfLastLabelValue {
-		return true
-	}
-	if f.LastCharacterOfLastLabelValue > o.LastCharacterOfLastLabelValue {
-		return false
-	}
-	return false
+// Equal implements sort.Interface.
+func (f Fingerprint) Equal(o Fingerprint) bool {
+	return f == o
 }
 
-// Equal uses the same semantics as Less.
-func (f *Fingerprint) Equal(o *Fingerprint) bool {
-	if f.Hash != o.Hash {
-		return false
-	}
-
-	if f.FirstCharacterOfFirstLabelName != o.FirstCharacterOfFirstLabelName {
-		return false
-	}
-
-	if f.LabelMatterLength != o.LabelMatterLength {
-		return false
-	}
-
-	return f.LastCharacterOfLastLabelValue == o.LastCharacterOfLastLabelValue
-}
-
-const rowKeyDelimiter = "-"
-
-// LoadFromString transforms a string representation into a Fingerprint,
-// resetting any previous attributes.
+// LoadFromString transforms a string representation into a Fingerprint.
 func (f *Fingerprint) LoadFromString(s string) {
-	components := strings.Split(s, rowKeyDelimiter)
-	hash, err := strconv.ParseUint(components[0], 10, 64)
+	num, err := strconv.ParseUint(s, 16, 64)
 	if err != nil {
 		panic(err)
 	}
-	labelMatterLength, err := strconv.ParseUint(components[2], 10, 0)
-	if err != nil {
-		panic(err)
-	}
-
-	f.Hash = hash
-	f.FirstCharacterOfFirstLabelName = components[1]
-	f.LabelMatterLength = uint(labelMatterLength)
-	f.LastCharacterOfLastLabelValue = components[3]
+	*f = Fingerprint(num)
 }
-
-const reservedDelimiter = `"`
 
 // LoadFromMetric decomposes a Metric into this Fingerprint
 func (f *Fingerprint) LoadFromMetric(m Metric) {
@@ -121,46 +60,33 @@ func (f *Fingerprint) LoadFromMetric(m Metric) {
 	sort.Strings(labelNames)
 
 	summer := fnv.New64a()
-	firstCharacterOfFirstLabelName := ""
-	lastCharacterOfLastLabelValue := ""
-	labelMatterLength := 0
 
-	for i, labelName := range labelNames {
+	for _, labelName := range labelNames {
 		labelValue := m[LabelName(labelName)]
-		labelNameLength := len(labelName)
-		labelValueLength := len(labelValue)
-		labelMatterLength += labelNameLength + labelValueLength
-
-		if i == 0 {
-			firstCharacterOfFirstLabelName = labelName[0:1]
-		}
-		if i == labelLength-1 {
-			lastCharacterOfLastLabelValue = string(labelValue[labelValueLength-1 : labelValueLength])
-		}
 
 		summer.Write([]byte(labelName))
-		summer.Write([]byte(reservedDelimiter))
+		summer.Write([]byte{0})
 		summer.Write([]byte(labelValue))
 	}
 
-	f.FirstCharacterOfFirstLabelName = firstCharacterOfFirstLabelName
-	f.Hash = binary.LittleEndian.Uint64(summer.Sum(nil))
-	f.LabelMatterLength = uint(labelMatterLength % 10)
-	f.LastCharacterOfLastLabelValue = lastCharacterOfLastLabelValue
+	*f = Fingerprint(binary.LittleEndian.Uint64(summer.Sum(nil)))
 }
 
 // Fingerprints represents a collection of Fingerprint subject to a given
 // natural sorting scheme. It implements sort.Interface.
-type Fingerprints []*Fingerprint
+type Fingerprints []Fingerprint
 
+// Len implements sort.Interface.
 func (f Fingerprints) Len() int {
 	return len(f)
 }
 
+// Less implements sort.Interface.
 func (f Fingerprints) Less(i, j int) bool {
-	return f[i].Less(f[j])
+	return f[i] < f[j]
 }
 
+// Swap implements sort.Interface.
 func (f Fingerprints) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }

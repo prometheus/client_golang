@@ -46,13 +46,16 @@ func TestComparators(t *testing.T) {
 }
 
 func TestTimestampConversions(t *testing.T) {
-	unix := int64(1136239445)
-	t1 := native_time.Unix(unix, 0)
-	t2 := native_time.Unix(unix, second-1)
+	unixSecs := int64(1136239445)
+	unixNsecs := int64(123456789)
+	unixNano := unixSecs*1000000000 + unixNsecs
 
-	ts := TimestampFromUnix(unix)
+	t1 := native_time.Unix(unixSecs, unixNsecs-unixNsecs%nanosPerTick)
+	t2 := native_time.Unix(unixSecs, unixNsecs)
+
+	ts := TimestampFromUnixNano(unixNano)
 	if !ts.Time().Equal(t1) {
-		t.Fatalf("Expected %s, got %s", t1, ts.Time())
+		t.Fatalf("Expected %s, got %s %d", t1, ts.Time())
 	}
 
 	// Test available precision.
@@ -61,8 +64,8 @@ func TestTimestampConversions(t *testing.T) {
 		t.Fatalf("Expected %s, got %s", t1, ts.Time())
 	}
 
-	if ts.Unix() != unix {
-		t.Fatalf("Expected %d, got %d", unix, ts.Unix())
+	if ts.UnixNano() != unixNano-unixNano%nanosPerTick {
+		t.Fatalf("Expected %d, got %d", unixNano, ts.UnixNano())
 	}
 }
 
