@@ -360,6 +360,9 @@ func (r *registry) Push(job, instance, addr, method string) error {
 		return err
 	}
 	req, err := http.NewRequest(method, u, buf)
+	if err != nil {
+		return err
+	}
 	req.Header.Set(contentTypeHeader, DelimitedTelemetryContentType)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
