@@ -134,7 +134,7 @@ func (m *MetricVec) With(labels Labels) Metric {
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
-// as those passed in as labels (same error as the VariableLabels in Desc). It
+// as those passed in as labels (same order as the VariableLabels in Desc). It
 // returns true if a metric was deleted.
 //
 // It is not an error if the number of label values is not the same as the
