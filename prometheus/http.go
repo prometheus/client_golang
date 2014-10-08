@@ -140,7 +140,11 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 		out := make(chan int)
-		go computeApproximateRequestSize(r, out)
+		urlLen := 0
+		if r.URL != nil {
+			urlLen = len(r.URL.String())
+		}
+		go computeApproximateRequestSize(r, out, urlLen)
 		handlerFunc(delegate, r)
 
 		elapsed := float64(time.Since(now)) / float64(time.Microsecond)
@@ -154,11 +158,8 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 	})
 }
 
-func computeApproximateRequestSize(r *http.Request, out chan int) {
-	s := len(r.Method)
-	if r.URL != nil {
-		s += len(r.URL.String())
-	}
+func computeApproximateRequestSize(r *http.Request, out chan int, s int) {
+	s += len(r.Method)
 	s += len(r.Proto)
 	for name, values := range r.Header {
 		s += len(name)
