@@ -52,7 +52,7 @@ func (m *metricFamilyProcessor) ProcessSingle(i io.Reader, out Ingester, o *Proc
 }
 
 func extractMetricFamily(out Ingester, o *ProcessOptions, family *dto.MetricFamily) error {
-	switch *family.Type {
+	switch family.GetType() {
 	case dto.MetricType_COUNTER:
 		if err := extractCounter(out, o, family); err != nil {
 			return err
