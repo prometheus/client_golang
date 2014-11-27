@@ -40,12 +40,20 @@ func (f Fingerprint) Equal(o Fingerprint) bool {
 }
 
 // LoadFromString transforms a string representation into a Fingerprint.
-func (f *Fingerprint) LoadFromString(s string) {
+func (f *Fingerprint) LoadFromString(s string) error {
 	num, err := strconv.ParseUint(s, 16, 64)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	*f = Fingerprint(num)
+	return nil
+}
+
+// MustLoadFromString works like LoadFromString but panics in case of an error.
+func (f *Fingerprint) MustLoadFromString(s string) {
+	if err := f.LoadFromString(s); err != nil {
+		panic(err)
+	}
 }
 
 // LoadFromMetric decomposes a Metric into this Fingerprint
