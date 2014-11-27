@@ -49,13 +49,6 @@ func (f *Fingerprint) LoadFromString(s string) error {
 	return nil
 }
 
-// MustLoadFromString works like LoadFromString but panics in case of an error.
-func (f *Fingerprint) MustLoadFromString(s string) {
-	if err := f.LoadFromString(s); err != nil {
-		panic(err)
-	}
-}
-
 // LoadFromMetric decomposes a Metric into this Fingerprint
 func (f *Fingerprint) LoadFromMetric(m Metric) {
 	labelLength := len(m)
