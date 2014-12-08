@@ -5,6 +5,8 @@ import (
 )
 
 func BenchmarkInsertTargeted(b *testing.B) {
+	b.ReportAllocs()
+
 	s := NewTargeted(0.01, 0.5, 0.9, 0.99)
 	b.ResetTimer()
 	for i := float64(0); i < float64(b.N); i++ {

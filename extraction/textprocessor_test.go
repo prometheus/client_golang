@@ -38,7 +38,7 @@ mf2 4
 				&model.Sample{
 					Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value1"},
 					Value:     -3.14,
-					Timestamp: 123,
+					Timestamp: 123456,
 				},
 				&model.Sample{
 					Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value2"},

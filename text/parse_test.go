@@ -95,7 +95,7 @@ name {labelname="val2",basename="base\"v\\al\nue"} 0.23 1234567890
  # HELP  name2  	doc str"ing 2
   #    TYPE    name2 gauge
 name2{labelname="val2"	,basename   =   "basevalue2"		} +Inf 54321
-name2{ labelname = "val1" }-Inf
+name2{ labelname = "val1" , }-Inf
 `,
 			out: []*dto.MetricFamily{
 				&dto.MetricFamily{
@@ -189,7 +189,7 @@ my_summary_count{n2="val2",n1="val1"} 5 5
 another_summary{n1="val1",n2="val2",quantile=".3"} -1.2
 my_summary_sum{n1="val2"} 08 15
 my_summary{n1="val3", quantile="0.2"} 4711
-  my_summary{n1="val1",n2="val2",quantile="-12.34"} NaN
+  my_summary{n1="val1",n2="val2",quantile="-12.34",} NaN
 # some
 # funny comments
 # HELP 

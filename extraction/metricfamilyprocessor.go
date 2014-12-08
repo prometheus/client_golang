@@ -85,7 +85,7 @@ func extractCounter(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		samples = append(samples, sample)
 
 		if m.TimestampMs != nil {
-			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+			sample.Timestamp = model.TimestampFromUnixNano(*m.TimestampMs * 1000000)
 		} else {
 			sample.Timestamp = o.Timestamp
 		}
@@ -116,7 +116,7 @@ func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 		samples = append(samples, sample)
 
 		if m.TimestampMs != nil {
-			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+			sample.Timestamp = model.TimestampFromUnixNano(*m.TimestampMs * 1000000)
 		} else {
 			sample.Timestamp = o.Timestamp
 		}
@@ -145,7 +145,7 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 
 		timestamp := o.Timestamp
 		if m.TimestampMs != nil {
-			timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+			timestamp = model.TimestampFromUnixNano(*m.TimestampMs * 1000000)
 		}
 
 		for _, q := range m.Summary.Quantile {
@@ -209,7 +209,7 @@ func extractUntyped(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		samples = append(samples, sample)
 
 		if m.TimestampMs != nil {
-			sample.Timestamp = model.TimestampFromUnix(*m.TimestampMs / 1000)
+			sample.Timestamp = model.TimestampFromUnixNano(*m.TimestampMs * 1000000)
 		} else {
 			sample.Timestamp = o.Timestamp
 		}
