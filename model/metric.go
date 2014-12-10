@@ -14,7 +14,10 @@
 package model
 
 import (
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 )
@@ -33,6 +36,7 @@ func (m Metric) Before(o Metric) bool {
 	return m.Fingerprint().Less(o.Fingerprint())
 }
 
+// String implements Stringer.
 func (m Metric) String() string {
 	metricName, hasName := m[MetricNameLabel]
 	numLabels := len(m) - 1
@@ -50,19 +54,45 @@ func (m Metric) String() string {
 	case 0:
 		if hasName {
 			return string(metricName)
-		} else {
-			return "{}"
 		}
+		return "{}"
 	default:
 		sort.Strings(labelStrings)
 		return fmt.Sprintf("%s{%s}", metricName, strings.Join(labelStrings, ", "))
 	}
 }
 
+// Fingerprint returns a Metric's Fingerprint.
 func (m Metric) Fingerprint() Fingerprint {
-	var fp Fingerprint
-	fp.LoadFromMetric(m)
-	return fp
+	labelLength := len(m)
+	labelNames := make([]string, 0, labelLength)
+
+	for labelName := range m {
+		labelNames = append(labelNames, string(labelName))
+	}
+
+	sort.Strings(labelNames)
+
+	summer := fnv.New64a()
+
+	for _, labelName := range labelNames {
+		labelValue := m[LabelName(labelName)]
+
+		summer.Write([]byte(labelName))
+		summer.Write([]byte{0})
+		summer.Write([]byte(labelValue))
+	}
+
+	return Fingerprint(binary.LittleEndian.Uint64(summer.Sum(nil)))
+}
+
+// Clone returns a copy of the Metric.
+func (m Metric) Clone() Metric {
+	clone := Metric{}
+	for k, v := range m {
+		clone[k] = v
+	}
+	return clone
 }
 
 // MergeFromLabelSet merges a label set into this Metric, prefixing a collision
@@ -80,4 +110,42 @@ func (m Metric) MergeFromLabelSet(labels LabelSet, collisionPrefix LabelName) {
 
 		m[k] = v
 	}
+}
+
+// COWMetric wraps a Metric to enable copy-on-write access patterns.
+type COWMetric struct {
+	Copied bool
+	Metric Metric
+}
+
+// Set sets a label name in the wrapped Metric to a given value and copies the
+// Metric initially, if it is not already a copy.
+func (m COWMetric) Set(ln LabelName, lv LabelValue) {
+	m.doCOW()
+	m.Metric[ln] = lv
+}
+
+// Delete deletes a given label name from the wrapped Metric and copies the
+// Metric initially, if it is not already a copy.
+func (m *COWMetric) Delete(ln LabelName) {
+	m.doCOW()
+	delete(m.Metric, ln)
+}
+
+// doCOW copies the underlying Metric if it is not already a copy.
+func (m *COWMetric) doCOW() {
+	if !m.Copied {
+		m.Metric = m.Metric.Clone()
+		m.Copied = true
+	}
+}
+
+// String implements fmt.Stringer.
+func (m COWMetric) String() string {
+	return m.Metric.String()
+}
+
+// MarshalJSON implements json.Marshaler.
+func (m COWMetric) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.Metric)
 }

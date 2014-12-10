@@ -14,10 +14,7 @@
 package model
 
 import (
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
-	"sort"
 	"strconv"
 )
 
@@ -47,30 +44,6 @@ func (f *Fingerprint) LoadFromString(s string) error {
 	}
 	*f = Fingerprint(num)
 	return nil
-}
-
-// LoadFromMetric decomposes a Metric into this Fingerprint
-func (f *Fingerprint) LoadFromMetric(m Metric) {
-	labelLength := len(m)
-	labelNames := make([]string, 0, labelLength)
-
-	for labelName := range m {
-		labelNames = append(labelNames, string(labelName))
-	}
-
-	sort.Strings(labelNames)
-
-	summer := fnv.New64a()
-
-	for _, labelName := range labelNames {
-		labelValue := m[LabelName(labelName)]
-
-		summer.Write([]byte(labelName))
-		summer.Write([]byte{0})
-		summer.Write([]byte(labelValue))
-	}
-
-	*f = Fingerprint(binary.LittleEndian.Uint64(summer.Sum(nil)))
 }
 
 // Fingerprints represents a collection of Fingerprint subject to a given
