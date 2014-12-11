@@ -90,6 +90,20 @@ func TestFileDescriptors(t *testing.T) {
 	}
 }
 
+func TestFileDescriptorsLen(t *testing.T) {
+	p1, err := testProcess(26231)
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, err := p1.FileDescriptorsLen()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want, got := 5, l; want != got {
+		t.Errorf("want fds %d, got %d", want, got)
+	}
+}
+
 func testProcess(pid int) (*ProcProcess, error) {
 	fs, err := NewFS("fixtures")
 	if err != nil {

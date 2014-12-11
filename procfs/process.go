@@ -94,15 +94,9 @@ func (p *ProcProcess) CmdLine() ([]string, error) {
 
 // FileDescriptors returns the currently open file descriptors of a process.
 func (p *ProcProcess) FileDescriptors() ([]uintptr, error) {
-	d, err := p.open("fd")
+	names, err := p.fileDescriptors()
 	if err != nil {
 		return nil, err
-	}
-	defer d.Close()
-
-	names, err := d.Readdirnames(-1)
-	if err != nil {
-		return nil, fmt.Errorf("could not read %s: %s", d.Name(), err)
 	}
 
 	fds := make([]uintptr, len(names))
@@ -115,6 +109,32 @@ func (p *ProcProcess) FileDescriptors() ([]uintptr, error) {
 	}
 
 	return fds, nil
+}
+
+// FileDescriptorsLen returns the number of currently open file descriptors of
+// a process.
+func (p *ProcProcess) FileDescriptorsLen() (int, error) {
+	fds, err := p.fileDescriptors()
+	if err != nil {
+		return 0, err
+	}
+
+	return len(fds), nil
+}
+
+func (p *ProcProcess) fileDescriptors() ([]string, error) {
+	d, err := p.open("fd")
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+
+	names, err := d.Readdirnames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("could not read %s: %s", d.Name(), err)
+	}
+
+	return names, nil
 }
 
 func (p *ProcProcess) open(pa string) (*os.File, error) {

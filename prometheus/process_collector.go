@@ -96,8 +96,8 @@ func (c *processCollector) procfsCollect(ch chan<- Metric) {
 		}
 	}
 
-	if fds, err := p.FileDescriptors(); err == nil {
-		c.openFDs.Set(float64(len(fds)))
+	if fds, err := p.FileDescriptorsLen(); err == nil {
+		c.openFDs.Set(float64(fds))
 		c.openFDs.Collect(ch)
 	}
 
