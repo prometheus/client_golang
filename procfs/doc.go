@@ -36,7 +36,7 @@
 //    		log.Fatalf("could not get process stat: %s", err)
 //    	}
 //
-//    	fmt.Printf("command:  %s\n", stat.Executable())
+//    	fmt.Printf("command:  %s\n", stat.Comm)
 //    	fmt.Printf("cpu time: %fs\n", stat.CPUTime())
 //    	fmt.Printf("vsize:    %dB\n", stat.VirtualMemory())
 //    	fmt.Printf("rss:      %dB\n", stat.ResidentMemory())

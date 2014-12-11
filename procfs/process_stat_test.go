@@ -36,14 +36,21 @@ func TestProcessStat(t *testing.T) {
 	}
 }
 
-func TestProcessStatExecutable(t *testing.T) {
-	s, err := testProcessStat(26231)
+func TestProcessStatComm(t *testing.T) {
+	s1, err := testProcessStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if want, got := "vim", s1.Comm; want != got {
+		t.Errorf("want comm %s, got %s", want, got)
+	}
 
-	if want, got := "vim", s.Executable(); want != got {
-		t.Errorf("want executable %s, got %s", want, got)
+	s2, err := testProcessStat(584)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want, got := "(a b ) ( c d) ", s2.Comm; want != got {
+		t.Errorf("want comm %s, got %s", want, got)
 	}
 }
 

@@ -1,9 +1,10 @@
 package procfs
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
-	"strings"
 )
 
 // #include <unistd.h>
@@ -82,14 +83,29 @@ func (p *ProcProcess) Stat() (*ProcessStat, error) {
 	}
 	defer f.Close()
 
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
-		s      = ProcessStat{fs: p.fs}
 		ignore int
+
+		s = ProcessStat{PID: p.PID, fs: p.fs}
+		l = bytes.Index(data, []byte("("))
+		r = bytes.LastIndex(data, []byte(")"))
 	)
+
+	if l < 0 || r < 0 {
+		return nil, fmt.Errorf(
+			"unexpected format, couldn't extract comm: %s",
+			data,
+		)
+	}
+
+	s.Comm = string(data[l+1 : r])
 	_, err = fmt.Fscan(
-		f,
-		&s.PID,
-		&s.Comm,
+		bytes.NewBuffer(data[r+2:]),
 		&s.State,
 		&s.PPID,
 		&s.PGRP,
@@ -118,11 +134,6 @@ func (p *ProcProcess) Stat() (*ProcessStat, error) {
 	}
 
 	return &s, nil
-}
-
-// Executable returns the name of the executable.
-func (s *ProcessStat) Executable() string {
-	return strings.Trim(s.Comm, "()")
 }
 
 // VirtualMemory returns the virtual memory size in bytes.
