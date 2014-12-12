@@ -4,7 +4,8 @@ import "github.com/prometheus/client_golang/procfs"
 
 type processCollector struct {
 	pid             int
-	fn              func(chan<- Metric)
+	collectFn       func(chan<- Metric)
+	pidFn           func() int
 	cpuTotal        Counter
 	openFDs, maxFDs Gauge
 	vsize, rss      Gauge
@@ -15,9 +16,21 @@ type processCollector struct {
 // process metrics including cpu, memory and file descriptor usage as well as
 // the process start time for the given process id under the given namespace.
 func NewProcessCollector(pid int, namepsace string) *processCollector {
+	return NewProcessCollectorPIDFn(func() int { return pid }, namepsace)
+}
+
+// NewProcessCollectorPIDFn returns a collector which exports the current state
+// of process metrics including cpu, memory and file descriptor usage as well
+// as the process start time under the given namespace. The given pidFn is
+// called on each collect and is used to determine the process to export
+// metrics for.
+func NewProcessCollectorPIDFn(
+	pidFn func() int,
+	namepsace string,
+) *processCollector {
 	c := processCollector{
-		fn:  noopCollect,
-		pid: pid,
+		pidFn:     pidFn,
+		collectFn: noopCollect,
 
 		cpuTotal: NewCounter(CounterOpts{
 			Namespace: namepsace,
@@ -53,7 +66,7 @@ func NewProcessCollector(pid int, namepsace string) *processCollector {
 
 	// Use procfs to export metrics if available.
 	if _, err := procfs.Stat(); err == nil {
-		c.fn = c.procfsCollect
+		c.collectFn = c.procfsCollect
 	}
 
 	return &c
@@ -71,13 +84,13 @@ func (c *processCollector) Describe(ch chan<- *Desc) {
 
 // Collect returns the current state of all metrics of the collector.
 func (c *processCollector) Collect(ch chan<- Metric) {
-	c.fn(ch)
+	c.collectFn(ch)
 }
 
 func noopCollect(ch chan<- Metric) {}
 
 func (c *processCollector) procfsCollect(ch chan<- Metric) {
-	p, err := procfs.Process(c.pid)
+	p, err := procfs.Process(c.pidFn())
 	if err != nil {
 		return
 	}
