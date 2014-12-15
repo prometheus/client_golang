@@ -46,7 +46,7 @@ import (
 var (
 	// DefaultRegistry is a global Registry used by the convenience package level
 	// methods matching the Registry interface.
-	DefaultRegistry = MustRegistry(NewProcessCollector(os.Getpid(), ""), NewGoCollector())
+	DefaultRegistry = MustNewRegistry(NewProcessCollector(os.Getpid(), ""), NewGoCollector())
 
 	errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
 )
@@ -225,9 +225,9 @@ func NewRegistry(cs ...Collector) (Registry, error) {
 	return r, nil
 }
 
-// MustRegistry calls NewRegistry with the given Collectors but panics if any
+// MustNewRegistry calls NewRegistry with the given Collectors but panics if any
 // error is returned.
-func MustRegistry(cs ...Collector) Registry {
+func MustNewRegistry(cs ...Collector) Registry {
 	r, err := NewRegistry(cs...)
 	if err != nil {
 		panic(err)
