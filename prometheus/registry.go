@@ -91,7 +91,7 @@ const (
 
 // Registry defines an interface for registering and unregistering Collectors.
 type Registry interface {
-	// Handler returns the HTTP handler for the global Prometheus registry. It is
+	// Handler returns an HTTP handler for this Registry. It is
 	// already instrumented with InstrumentHandler (using "prometheus" as handler
 	// name). Usually the handler is used to handle the "/metrics" endpoint.
 	//
