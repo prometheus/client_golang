@@ -117,7 +117,7 @@ func InstrumentHandlerWithOpts(opts SummaryOpts, hnd http.Handler) http.Handler 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 
-		delegate := &responseWriterDelegator{ResponseWriter: w}
+		delegate := &responseWriterDelegator{ResponseWriter: w, status: 200}
 		out := make(chan int)
 		urlLen := 0
 		if r.URL != nil {
