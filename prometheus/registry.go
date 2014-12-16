@@ -125,6 +125,10 @@ type Registry interface {
 	// makes more sense.
 	Register(Collector) (Collector, error)
 
+	// MustRegister works like Register but panics where Register would have
+	// returned an error.
+	MustRegister(Collector) Collector
+
 	// RegisterOrGet works like Register but does not return an error if a Collector
 	// is registered that equals a previously registered Collector. (Two Collectors
 	// are considered equal if their Describe method yields the same set of
@@ -139,6 +143,10 @@ type Registry interface {
 	// Collector, it isn't very idiomatic to return it. Returning only an error
 	// makes more sense.
 	RegisterOrGet(Collector) (Collector, error)
+
+	// MustRegisterOrGet works like Register but panics where RegisterOrGet would
+	// have returned an error.
+	MustRegisterOrGet(Collector) Collector
 
 	// Unregister unregisters the Collector that equals the Collector passed in as
 	// an argument. (Two Collectors are considered equal if their Describe method
@@ -268,11 +276,7 @@ func Register(m Collector) (Collector, error) {
 // MustRegister works like Register but panics where Register would have
 // returned an error.
 func MustRegister(m Collector) Collector {
-	m, err := Register(m)
-	if err != nil {
-		panic(err)
-	}
-	return m
+	return DefaultRegistry.MustRegister(m)
 }
 
 // RegisterOrGet works like Register but does not return an error if a Collector
@@ -378,7 +382,7 @@ type registry struct {
 }
 
 func (r *registry) Handler() http.Handler {
-	return InstrumentHandler("prometheus", r.UninstrumentedHandler())
+	return InstrumentHandler("prometheus", r, r.UninstrumentedHandler())
 }
 
 func (r *registry) UninstrumentedHandler() http.Handler {
@@ -462,12 +466,28 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	return c, nil
 }
 
+func (r *registry) MustRegister(m Collector) Collector {
+	m, err := r.Register(m)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
 	existing, err := r.Register(m)
 	if err != nil && err != errAlreadyReg {
 		return nil, err
 	}
 	return existing, nil
+}
+
+func (r *registry) MustRegisterOrGet(m Collector) Collector {
+	m, err := r.RegisterOrGet(m)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 func (r *registry) Unregister(c Collector) bool {

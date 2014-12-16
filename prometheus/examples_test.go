@@ -161,7 +161,7 @@ func ExampleInstrumentHandler() {
 	// exported to Prometheus, partitioned by HTTP status code and method
 	// and by the handler name (here "fileserver").
 	http.Handle("/doc", prometheus.InstrumentHandler(
-		"fileserver", http.FileServer(http.Dir("/usr/share/doc")),
+		"fileserver", prometheus.DefaultRegistry, http.FileServer(http.Dir("/usr/share/doc")),
 	))
 	// The Prometheus handler still has to be registered to handle the
 	// "/metrics" endpoint. The handler returned by prometheus.Handler() is
@@ -169,7 +169,7 @@ func ExampleInstrumentHandler() {
 	// example, we want the handler name to be "metrics", so we instrument
 	// the uninstrumented Prometheus handler ourselves.
 	http.Handle("/metrics", prometheus.InstrumentHandler(
-		"metrics", prometheus.UninstrumentedHandler(),
+		"metrics", prometheus.DefaultRegistry, prometheus.UninstrumentedHandler(),
 	))
 }
 

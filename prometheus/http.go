@@ -46,16 +46,16 @@ func nowSeries(t ...time.Time) nower {
 	})
 }
 
-// InstrumentHandler wraps the given HTTP handler for instrumentation. It
-// registers four metric vector collectors (if not already done) and reports
-// http metrics to the (newly or already) registered collectors:
+// InstrumentHandler wraps the given HTTP handler with instrumentation.
+// It registers four metric vector collectors in the provided Registry.
 // http_requests_total (CounterVec), http_request_duration_microseconds
 // (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
 // (SummaryVec). Each has three labels: handler, method, code. The value of the
 // handler label is set by the handlerName parameter of this function.
-func InstrumentHandler(name string, hnd http.Handler) http.Handler {
+func InstrumentHandler(name string, r Registry, hnd http.Handler) http.Handler {
 	return InstrumentHandlerWithOpts(
 		SummaryOpts{Subsystem: "http", ConstLabels: Labels{"handler": name}},
+		r,
 		hnd,
 	)
 }
@@ -85,7 +85,7 @@ func InstrumentHandler(name string, hnd http.Handler) http.Handler {
 // cannot use SummaryOpts. Instead, a CounterOpts struct is created internally,
 // and all its fields are set to the equally named fields in the provided
 // SummaryOpts.
-func InstrumentHandlerWithOpts(opts SummaryOpts, hnd http.Handler) http.Handler {
+func InstrumentHandlerWithOpts(opts SummaryOpts, r Registry, hnd http.Handler) http.Handler {
 	reqCnt := NewCounterVec(
 		CounterOpts{
 			Namespace:   opts.Namespace,
@@ -109,10 +109,10 @@ func InstrumentHandlerWithOpts(opts SummaryOpts, hnd http.Handler) http.Handler 
 	opts.Help = "The HTTP response sizes in bytes."
 	resSz := NewSummaryVec(opts, instLabels)
 
-	regReqCnt := MustRegisterOrGet(reqCnt).(*CounterVec)
-	regReqDur := MustRegisterOrGet(reqDur).(*SummaryVec)
-	regReqSz := MustRegisterOrGet(reqSz).(*SummaryVec)
-	regResSz := MustRegisterOrGet(resSz).(*SummaryVec)
+	regReqCnt := r.MustRegisterOrGet(reqCnt).(*CounterVec)
+	regReqDur := r.MustRegisterOrGet(reqDur).(*SummaryVec)
+	regReqSz := r.MustRegisterOrGet(reqSz).(*SummaryVec)
+	regResSz := r.MustRegisterOrGet(resSz).(*SummaryVec)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()

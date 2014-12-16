@@ -39,14 +39,12 @@ func TestInstrumentHandler(t *testing.T) {
 	now = nowSeries(instant, end)
 	respBody := respBody("Howdy there!")
 
-	hndlr := InstrumentHandler("test-handler", respBody)
-
 	opts := SummaryOpts{
 		Subsystem:   "http",
 		ConstLabels: Labels{"handler": "test-handler"},
 	}
 
-	reqCnt := MustRegisterOrGet(NewCounterVec(
+	reqCnt := NewCounterVec(
 		CounterOpts{
 			Namespace:   opts.Namespace,
 			Subsystem:   opts.Subsystem,
@@ -55,30 +53,21 @@ func TestInstrumentHandler(t *testing.T) {
 			ConstLabels: opts.ConstLabels,
 		},
 		instLabels,
-	)).(*CounterVec)
+	)
 
 	opts.Name = "request_duration_microseconds"
 	opts.Help = "The HTTP request latencies in microseconds."
-	reqDur := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+	reqDur := NewSummaryVec(opts, instLabels)
 
-	opts.Name = "request_size_bytes"
-	opts.Help = "The HTTP request sizes in bytes."
-	reqSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
-
-	opts.Name = "response_size_bytes"
-	opts.Help = "The HTTP response sizes in bytes."
-	resSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
-
-	reqCnt.Reset()
-	reqDur.Reset()
-	reqSz.Reset()
-	resSz.Reset()
-
-	resp := httptest.NewRecorder()
-	req := &http.Request{
-		Method: "GET",
+	reg, err := NewRegistry(reqCnt, reqDur)
+	if err != nil {
+		t.Fatalf("got err: %v", err)
 	}
 
+	resp := httptest.NewRecorder()
+	req := &http.Request{Method: "GET"}
+
+	hndlr := InstrumentHandler("test-handler", reg, respBody)
 	hndlr.ServeHTTP(resp, req)
 
 	if resp.Code != http.StatusTeapot {
