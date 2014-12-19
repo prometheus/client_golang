@@ -28,6 +28,15 @@ type ProcessLimits struct {
 	RealtimeTimeout  int
 }
 
+const (
+	limitsFields    = 3
+	limitsUnlimited = "unlimited"
+)
+
+var (
+	limitsDelimiter = regexp.MustCompile("  +")
+)
+
 // Limits returns the current soft limits of the process.
 func (p *ProcProcess) Limits() (*ProcessLimits, error) {
 	f, err := p.open("limits")
@@ -37,66 +46,66 @@ func (p *ProcProcess) Limits() (*ProcessLimits, error) {
 	defer f.Close()
 
 	var (
-		d = regexp.MustCompile("  +")
+		l = ProcessLimits{}
 		s = bufio.NewScanner(f)
-		l ProcessLimits
 	)
 	for s.Scan() {
 		line := s.Text()
-		fields := d.Split(line, 3)
-		if len(fields) != 3 {
+		fields := limitsDelimiter.Split(line, limitsFields)
+		if len(fields) != limitsFields {
 			return nil, fmt.Errorf("couldn't parse %s line %s", f.Name(), line)
 		}
 
-		var field *int
 		switch fields[0] {
 		case "Max cpu time":
-			field = &l.CPUTime
+			l.CPUTime, err = parseInt(fields[1])
 		case "Max file size":
-			field = &l.FileLocks
+			l.FileLocks, err = parseInt(fields[1])
 		case "Max data size":
-			field = &l.DataSize
+			l.DataSize, err = parseInt(fields[1])
 		case "Max stack size":
-			field = &l.StackSize
+			l.StackSize, err = parseInt(fields[1])
 		case "Max core file size":
-			field = &l.CoreFileSize
+			l.CoreFileSize, err = parseInt(fields[1])
 		case "Max resident set":
-			field = &l.ResidentSet
+			l.ResidentSet, err = parseInt(fields[1])
 		case "Max processes":
-			field = &l.Processes
+			l.Processes, err = parseInt(fields[1])
 		case "Max open files":
-			field = &l.OpenFiles
+			l.OpenFiles, err = parseInt(fields[1])
 		case "Max locked memory":
-			field = &l.LockedMemory
+			l.LockedMemory, err = parseInt(fields[1])
 		case "Max address space":
-			field = &l.AddressSpace
+			l.AddressSpace, err = parseInt(fields[1])
 		case "Max file locks":
-			field = &l.FileLocks
+			l.FileLocks, err = parseInt(fields[1])
 		case "Max pending signals":
-			field = &l.PendingSignals
+			l.PendingSignals, err = parseInt(fields[1])
 		case "Max msgqueue size":
-			field = &l.MsqqueueSize
+			l.MsqqueueSize, err = parseInt(fields[1])
 		case "Max nice priority":
-			field = &l.NicePriority
+			l.NicePriority, err = parseInt(fields[1])
 		case "Max realtime priority":
-			field = &l.RealtimePriority
+			l.RealtimePriority, err = parseInt(fields[1])
 		case "Max realtime timeout":
-			field = &l.RealtimeTimeout
-		default:
-			continue
+			l.RealtimeTimeout, err = parseInt(fields[1])
 		}
 
-		if fields[1] == "unlimited" {
-			*field = -1
-		} else {
-			i, err := strconv.ParseInt(fields[1], 10, 32)
-			if err != nil {
-				f := "couldn't parse value %s: %s"
-				return nil, fmt.Errorf(f, fields[1], err)
-			}
-			*field = int(i)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &l, s.Err()
+}
+
+func parseInt(s string) (int, error) {
+	if s == limitsUnlimited {
+		return -1, nil
+	}
+	i, err := strconv.ParseInt(s, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("couldn't parse value %s: %s", s, err)
+	}
+	return int(i), nil
 }
