@@ -24,7 +24,7 @@ func Stat() (*ProcStat, error) {
 }
 
 // Stat returns an information about current kernel/system statistics.
-func (fs *ProcFS) Stat() (*ProcStat, error) {
+func (fs *FS) Stat() (*ProcStat, error) {
 	f, err := fs.open("stat")
 	if err != nil {
 		return nil, err

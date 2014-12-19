@@ -14,7 +14,7 @@ type ProcProcess struct {
 	// The process ID.
 	PID int
 
-	fs *ProcFS
+	fs FS
 }
 
 // Self returns a process for the current process.
@@ -43,7 +43,7 @@ func Processes() ([]*ProcProcess, error) {
 }
 
 // Process returns a process for the given pid.
-func (fs *ProcFS) Process(pid int) (*ProcProcess, error) {
+func (fs FS) Process(pid int) (*ProcProcess, error) {
 	if _, err := fs.stat(strconv.Itoa(pid)); err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (fs *ProcFS) Process(pid int) (*ProcProcess, error) {
 }
 
 // Processes returns a list of all currently avaible processes.
-func (fs *ProcFS) Processes() ([]*ProcProcess, error) {
+func (fs FS) Processes() ([]*ProcProcess, error) {
 	d, err := fs.open("")
 	if err != nil {
 		return nil, err
@@ -138,8 +138,5 @@ func (p *ProcProcess) fileDescriptors() ([]string, error) {
 }
 
 func (p *ProcProcess) open(pa string) (*os.File, error) {
-	if p.fs == nil {
-		return nil, fmt.Errorf("missing procfs")
-	}
 	return p.fs.open(path.Join(strconv.Itoa(p.PID), pa))
 }

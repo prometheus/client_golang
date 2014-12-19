@@ -72,7 +72,7 @@ type ProcessStat struct {
 	// Resident set size in pages.
 	RSS int
 
-	fs *ProcFS
+	fs FS
 }
 
 // Stat returns the current status information of the process.
@@ -148,9 +148,6 @@ func (s *ProcessStat) ResidentMemory() int {
 
 // StartTime returns the unix timestamp of the process in seconds.
 func (s *ProcessStat) StartTime() (float64, error) {
-	if s.fs == nil {
-		return 0, fmt.Errorf("missing procfs")
-	}
 	stat, err := s.fs.Stat()
 	if err != nil {
 		return 0, err
