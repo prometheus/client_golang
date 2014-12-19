@@ -10,9 +10,9 @@ import (
 // #include <unistd.h>
 import "C"
 
-// ProcessStat provides status information about the process,
+// ProcStat provides status information about the process,
 // read from /proc/[pid]/stat.
-type ProcessStat struct {
+type ProcStat struct {
 	// The process ID.
 	PID int
 	// The filename of the executable.
@@ -76,7 +76,7 @@ type ProcessStat struct {
 }
 
 // Stat returns the current status information of the process.
-func (p *ProcProcess) Stat() (*ProcessStat, error) {
+func (p *Proc) Stat() (*ProcStat, error) {
 	f, err := p.open("stat")
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (p *ProcProcess) Stat() (*ProcessStat, error) {
 	var (
 		ignore int
 
-		s = ProcessStat{PID: p.PID, fs: p.fs}
+		s = ProcStat{PID: p.PID, fs: p.fs}
 		l = bytes.Index(data, []byte("("))
 		r = bytes.LastIndex(data, []byte(")"))
 	)
@@ -137,17 +137,17 @@ func (p *ProcProcess) Stat() (*ProcessStat, error) {
 }
 
 // VirtualMemory returns the virtual memory size in bytes.
-func (s *ProcessStat) VirtualMemory() int {
+func (s *ProcStat) VirtualMemory() int {
 	return s.VSize
 }
 
 // ResidentMemory returns the resident memory size in bytes.
-func (s *ProcessStat) ResidentMemory() int {
+func (s *ProcStat) ResidentMemory() int {
 	return s.RSS * os.Getpagesize()
 }
 
 // StartTime returns the unix timestamp of the process in seconds.
-func (s *ProcessStat) StartTime() (float64, error) {
+func (s *ProcStat) StartTime() (float64, error) {
 	stat, err := s.fs.NewStat()
 	if err != nil {
 		return 0, err
@@ -156,7 +156,7 @@ func (s *ProcessStat) StartTime() (float64, error) {
 }
 
 // CPUTime returns the total CPU user and system time in seconds.
-func (s *ProcessStat) CPUTime() float64 {
+func (s *ProcStat) CPUTime() float64 {
 	return float64(s.UTime+s.STime) / ticks()
 }
 

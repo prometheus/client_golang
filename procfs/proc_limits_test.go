@@ -2,7 +2,7 @@ package procfs
 
 import "testing"
 
-func TestLimits(t *testing.T) {
+func TestNewLimits(t *testing.T) {
 	fs, err := NewFS("fixtures")
 	if err != nil {
 		t.Fatal(err)
@@ -13,7 +13,7 @@ func TestLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	l, err := p.Limits()
+	l, err := p.NewLimits()
 	if err != nil {
 		t.Fatal(err)
 	}

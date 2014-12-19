@@ -7,9 +7,9 @@ import (
 	"strconv"
 )
 
-// ProcessLimits represents the soft limits for each of the process's resource
+// ProcLimits represents the soft limits for each of the process's resource
 // limits.
-type ProcessLimits struct {
+type ProcLimits struct {
 	CPUTime          int
 	FileSize         int
 	DataSize         int
@@ -37,23 +37,23 @@ var (
 	limitsDelimiter = regexp.MustCompile("  +")
 )
 
-// Limits returns the current soft limits of the process.
-func (p *ProcProcess) Limits() (*ProcessLimits, error) {
+// NewLimits returns the current soft limits of the process.
+func (p Proc) NewLimits() (ProcLimits, error) {
 	f, err := p.open("limits")
 	if err != nil {
-		return nil, err
+		return ProcLimits{}, err
 	}
 	defer f.Close()
 
 	var (
-		l = ProcessLimits{}
+		l = ProcLimits{}
 		s = bufio.NewScanner(f)
 	)
 	for s.Scan() {
-		line := s.Text()
-		fields := limitsDelimiter.Split(line, limitsFields)
+		fields := limitsDelimiter.Split(s.Text(), limitsFields)
 		if len(fields) != limitsFields {
-			return nil, fmt.Errorf("couldn't parse %s line %s", f.Name(), line)
+			return ProcLimits{}, fmt.Errorf(
+				"couldn't parse %s line %s", f.Name(), s.Text())
 		}
 
 		switch fields[0] {
@@ -92,11 +92,11 @@ func (p *ProcProcess) Limits() (*ProcessLimits, error) {
 		}
 
 		if err != nil {
-			return nil, err
+			return ProcLimits{}, err
 		}
 	}
 
-	return &l, s.Err()
+	return l, s.Err()
 }
 
 func parseInt(s string) (int, error) {

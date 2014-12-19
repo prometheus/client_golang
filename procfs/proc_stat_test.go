@@ -2,7 +2,7 @@ package procfs
 
 import "testing"
 
-func TestProcessStat(t *testing.T) {
+func TestProcStat(t *testing.T) {
 	fs, err := NewFS("fixtures")
 	if err != nil {
 		t.Fatal(err)
@@ -36,8 +36,8 @@ func TestProcessStat(t *testing.T) {
 	}
 }
 
-func TestProcessStatComm(t *testing.T) {
-	s1, err := testProcessStat(26231)
+func TestProcStatComm(t *testing.T) {
+	s1, err := testProcStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestProcessStatComm(t *testing.T) {
 		t.Errorf("want comm %s, got %s", want, got)
 	}
 
-	s2, err := testProcessStat(584)
+	s2, err := testProcStat(584)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,8 +54,8 @@ func TestProcessStatComm(t *testing.T) {
 	}
 }
 
-func TestProcessStatVirtualMemory(t *testing.T) {
-	s, err := testProcessStat(26231)
+func TestProcStatVirtualMemory(t *testing.T) {
+	s, err := testProcStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,8 +65,8 @@ func TestProcessStatVirtualMemory(t *testing.T) {
 	}
 }
 
-func TestProcessStatResidentMemory(t *testing.T) {
-	s, err := testProcessStat(26231)
+func TestProcStatResidentMemory(t *testing.T) {
+	s, err := testProcStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +76,8 @@ func TestProcessStatResidentMemory(t *testing.T) {
 	}
 }
 
-func TestProcessStatStartTime(t *testing.T) {
-	s, err := testProcessStat(26231)
+func TestProcStatStartTime(t *testing.T) {
+	s, err := testProcStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +91,8 @@ func TestProcessStatStartTime(t *testing.T) {
 	}
 }
 
-func TestProcessStatCPUTime(t *testing.T) {
-	s, err := testProcessStat(26231)
+func TestProcStatCPUTime(t *testing.T) {
+	s, err := testProcStat(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestProcessStatCPUTime(t *testing.T) {
 	}
 }
 
-func testProcessStat(pid int) (*ProcessStat, error) {
+func testProcStat(pid int) (*ProcStat, error) {
 	p, err := testProcess(pid)
 	if err != nil {
 		return nil, err

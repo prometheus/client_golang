@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// ProcProcess provides information about a running process.
-type ProcProcess struct {
+// Proc provides information about a running process.
+type Proc struct {
 	// The process ID.
 	PID int
 
@@ -18,12 +18,12 @@ type ProcProcess struct {
 }
 
 // Self returns a process for the current process.
-func Self() (*ProcProcess, error) {
+func Self() (*Proc, error) {
 	return Process(os.Getpid())
 }
 
 // Process returns a process for the given pid under /proc.
-func Process(pid int) (*ProcProcess, error) {
+func Process(pid int) (*Proc, error) {
 	fs, err := NewFS(DefaultMountPoint)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func Process(pid int) (*ProcProcess, error) {
 }
 
 // Processes returns a list of all currently avaible processes under /proc.
-func Processes() ([]*ProcProcess, error) {
+func Processes() ([]*Proc, error) {
 	fs, err := NewFS(DefaultMountPoint)
 	if err != nil {
 		return nil, err
@@ -43,16 +43,16 @@ func Processes() ([]*ProcProcess, error) {
 }
 
 // Process returns a process for the given pid.
-func (fs FS) Process(pid int) (*ProcProcess, error) {
+func (fs FS) Process(pid int) (*Proc, error) {
 	if _, err := fs.stat(strconv.Itoa(pid)); err != nil {
 		return nil, err
 	}
 
-	return &ProcProcess{PID: pid, fs: fs}, nil
+	return &Proc{PID: pid, fs: fs}, nil
 }
 
 // Processes returns a list of all currently avaible processes.
-func (fs FS) Processes() ([]*ProcProcess, error) {
+func (fs FS) Processes() ([]*Proc, error) {
 	d, err := fs.open("")
 	if err != nil {
 		return nil, err
@@ -64,20 +64,20 @@ func (fs FS) Processes() ([]*ProcProcess, error) {
 		return nil, fmt.Errorf("could not read %s: %s", d.Name(), err)
 	}
 
-	p := []*ProcProcess{}
+	p := []*Proc{}
 	for _, n := range names {
 		pid, err := strconv.ParseInt(n, 10, 64)
 		if err != nil {
 			continue
 		}
-		p = append(p, &ProcProcess{PID: int(pid), fs: fs})
+		p = append(p, &Proc{PID: int(pid), fs: fs})
 	}
 
 	return p, nil
 }
 
 // CmdLine returns the command line of a process.
-func (p *ProcProcess) CmdLine() ([]string, error) {
+func (p *Proc) CmdLine() ([]string, error) {
 	f, err := p.open("cmdline")
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func (p *ProcProcess) CmdLine() ([]string, error) {
 }
 
 // FileDescriptors returns the currently open file descriptors of a process.
-func (p *ProcProcess) FileDescriptors() ([]uintptr, error) {
+func (p *Proc) FileDescriptors() ([]uintptr, error) {
 	names, err := p.fileDescriptors()
 	if err != nil {
 		return nil, err
@@ -113,7 +113,7 @@ func (p *ProcProcess) FileDescriptors() ([]uintptr, error) {
 
 // FileDescriptorsLen returns the number of currently open file descriptors of
 // a process.
-func (p *ProcProcess) FileDescriptorsLen() (int, error) {
+func (p *Proc) FileDescriptorsLen() (int, error) {
 	fds, err := p.fileDescriptors()
 	if err != nil {
 		return 0, err
@@ -122,7 +122,7 @@ func (p *ProcProcess) FileDescriptorsLen() (int, error) {
 	return len(fds), nil
 }
 
-func (p *ProcProcess) fileDescriptors() ([]string, error) {
+func (p *Proc) fileDescriptors() ([]string, error) {
 	d, err := p.open("fd")
 	if err != nil {
 		return nil, err
@@ -137,6 +137,6 @@ func (p *ProcProcess) fileDescriptors() ([]string, error) {
 	return names, nil
 }
 
-func (p *ProcProcess) open(pa string) (*os.File, error) {
+func (p *Proc) open(pa string) (*os.File, error) {
 	return p.fs.open(path.Join(strconv.Itoa(p.PID), pa))
 }

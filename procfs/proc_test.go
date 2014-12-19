@@ -30,7 +30,7 @@ func TestProcesses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, p := range []*ProcProcess{{PID: 584}, {PID: 26231}} {
+	for i, p := range []*Proc{{PID: 584}, {PID: 26231}} {
 		if want, got := p.PID, procs[i].PID; want != got {
 			t.Errorf("want processes %d, got %d", want, got)
 		}
@@ -104,7 +104,7 @@ func TestFileDescriptorsLen(t *testing.T) {
 	}
 }
 
-func testProcess(pid int) (*ProcProcess, error) {
+func testProcess(pid int) (*Proc, error) {
 	fs, err := NewFS("fixtures")
 	if err != nil {
 		return nil, err
