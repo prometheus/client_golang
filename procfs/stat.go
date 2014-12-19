@@ -7,27 +7,27 @@ import (
 	"strings"
 )
 
-// ProcStat represents kernel/system statistics.
-type ProcStat struct {
+// Stat represents kernel/system statistics.
+type Stat struct {
 	// Boot time in seconds since the Epoch.
 	BootTime int64
 }
 
-// Stat returns kernel/system statistics read from /proc/stat.
-func Stat() (*ProcStat, error) {
+// NewStat returns kernel/system statistics read from /proc/stat.
+func NewStat() (Stat, error) {
 	fs, err := NewFS(DefaultMountPoint)
 	if err != nil {
-		return nil, err
+		return Stat{}, err
 	}
 
-	return fs.Stat()
+	return fs.NewStat()
 }
 
-// Stat returns an information about current kernel/system statistics.
-func (fs *FS) Stat() (*ProcStat, error) {
+// NewStat returns an information about current kernel/system statistics.
+func (fs FS) NewStat() (Stat, error) {
 	f, err := fs.open("stat")
 	if err != nil {
-		return nil, err
+		return Stat{}, err
 	}
 	defer f.Close()
 
@@ -39,17 +39,17 @@ func (fs *FS) Stat() (*ProcStat, error) {
 		}
 		fields := strings.Fields(line)
 		if len(fields) != 2 {
-			return nil, fmt.Errorf("couldn't parse %s line %s", f.Name(), line)
+			return Stat{}, fmt.Errorf("couldn't parse %s line %s", f.Name(), line)
 		}
 		i, err := strconv.ParseInt(fields[1], 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("couldn't parse %s: %s", fields[1], err)
+			return Stat{}, fmt.Errorf("couldn't parse %s: %s", fields[1], err)
 		}
-		return &ProcStat{BootTime: i}, nil
+		return Stat{BootTime: i}, nil
 	}
 	if err := s.Err(); err != nil {
-		return nil, fmt.Errorf("couldn't parse %s: %s", f.Name(), err)
+		return Stat{}, fmt.Errorf("couldn't parse %s: %s", f.Name(), err)
 	}
 
-	return nil, fmt.Errorf("couldn't parse %s, missing btime", f.Name())
+	return Stat{}, fmt.Errorf("couldn't parse %s, missing btime", f.Name())
 }

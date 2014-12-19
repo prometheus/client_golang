@@ -8,7 +8,7 @@ func TestStat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s, err := fs.Stat()
+	s, err := fs.NewStat()
 	if err != nil {
 		t.Fatal(err)
 	}

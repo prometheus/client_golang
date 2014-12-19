@@ -148,7 +148,7 @@ func (s *ProcessStat) ResidentMemory() int {
 
 // StartTime returns the unix timestamp of the process in seconds.
 func (s *ProcessStat) StartTime() (float64, error) {
-	stat, err := s.fs.Stat()
+	stat, err := s.fs.NewStat()
 	if err != nil {
 		return 0, err
 	}
