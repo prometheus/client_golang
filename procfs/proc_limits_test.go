@@ -8,7 +8,7 @@ func TestNewLimits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := fs.Process(26231)
+	p, err := fs.NewProc(26231)
 	if err != nil {
 		t.Fatal(err)
 	}

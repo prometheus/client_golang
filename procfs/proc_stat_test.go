@@ -8,12 +8,12 @@ func TestProcStat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, err := fs.Process(26231)
+	p, err := fs.NewProc(26231)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	s, err := p.Stat()
+	s, err := p.NewStat()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,11 +102,11 @@ func TestProcStatCPUTime(t *testing.T) {
 	}
 }
 
-func testProcStat(pid int) (*ProcStat, error) {
+func testProcStat(pid int) (ProcStat, error) {
 	p, err := testProcess(pid)
 	if err != nil {
-		return nil, err
+		return ProcStat{}, err
 	}
 
-	return p.Stat()
+	return p.NewStat()
 }

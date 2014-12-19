@@ -7,7 +7,7 @@ import (
 )
 
 func TestSelf(t *testing.T) {
-	p1, err := Process(os.Getpid())
+	p1, err := NewProc(os.Getpid())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,12 +21,12 @@ func TestSelf(t *testing.T) {
 	}
 }
 
-func TestProcesses(t *testing.T) {
+func TestAllProcs(t *testing.T) {
 	fs, err := NewFS("fixtures")
 	if err != nil {
 		t.Fatal(err)
 	}
-	procs, err := fs.Processes()
+	procs, err := fs.AllProcs()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,11 +104,11 @@ func TestFileDescriptorsLen(t *testing.T) {
 	}
 }
 
-func testProcess(pid int) (*Proc, error) {
+func testProcess(pid int) (Proc, error) {
 	fs, err := NewFS("fixtures")
 	if err != nil {
-		return nil, err
+		return Proc{}, err
 	}
 
-	return fs.Process(pid)
+	return fs.NewProc(pid)
 }

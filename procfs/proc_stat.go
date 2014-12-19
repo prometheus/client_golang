@@ -75,17 +75,17 @@ type ProcStat struct {
 	fs FS
 }
 
-// Stat returns the current status information of the process.
-func (p *Proc) Stat() (*ProcStat, error) {
+// NewStat returns the current status information of the process.
+func (p Proc) NewStat() (ProcStat, error) {
 	f, err := p.open("stat")
 	if err != nil {
-		return nil, err
+		return ProcStat{}, err
 	}
 	defer f.Close()
 
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
-		return nil, err
+		return ProcStat{}, err
 	}
 
 	var (
@@ -97,7 +97,7 @@ func (p *Proc) Stat() (*ProcStat, error) {
 	)
 
 	if l < 0 || r < 0 {
-		return nil, fmt.Errorf(
+		return ProcStat{}, fmt.Errorf(
 			"unexpected format, couldn't extract comm: %s",
 			data,
 		)
@@ -130,24 +130,24 @@ func (p *Proc) Stat() (*ProcStat, error) {
 		&s.RSS,
 	)
 	if err != nil {
-		return nil, err
+		return ProcStat{}, err
 	}
 
-	return &s, nil
+	return s, nil
 }
 
 // VirtualMemory returns the virtual memory size in bytes.
-func (s *ProcStat) VirtualMemory() int {
+func (s ProcStat) VirtualMemory() int {
 	return s.VSize
 }
 
 // ResidentMemory returns the resident memory size in bytes.
-func (s *ProcStat) ResidentMemory() int {
+func (s ProcStat) ResidentMemory() int {
 	return s.RSS * os.Getpagesize()
 }
 
 // StartTime returns the unix timestamp of the process in seconds.
-func (s *ProcStat) StartTime() (float64, error) {
+func (s ProcStat) StartTime() (float64, error) {
 	stat, err := s.fs.NewStat()
 	if err != nil {
 		return 0, err
@@ -156,7 +156,7 @@ func (s *ProcStat) StartTime() (float64, error) {
 }
 
 // CPUTime returns the total CPU user and system time in seconds.
-func (s *ProcStat) CPUTime() float64 {
+func (s ProcStat) CPUTime() float64 {
 	return float64(s.UTime+s.STime) / ticks()
 }
 
