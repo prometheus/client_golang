@@ -18,7 +18,7 @@ MAC_OS_X_VERSION ?= 10.8
 
 BUILD_PATH = $(PWD)/.build
 
-export GO_VERSION = 1.2.1
+export GO_VERSION = 1.4
 export GOOS 	    = $(subst Darwin,darwin,$(subst Linux,linux,$(OS)))
 
 ifeq ($(GOOS),darwin)
@@ -29,6 +29,7 @@ endif
 
 export GOARCH		  = $(subst x86_64,amd64,$(ARCH))
 export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
+export GOURL		  = http://golang.org/dl
 export GOROOT		  = $(BUILD_PATH)/root/go
 export GOPATH		  = $(BUILD_PATH)/root/gopath
 export GOCC		  = $(GOROOT)/bin/go
@@ -57,7 +58,7 @@ $(BUILD_PATH)/root: $(BUILD_PATH)
 	mkdir -vp $(BUILD_PATH)/root
 
 $(BUILD_PATH)/cache/$(GOPKG): $(BUILD_PATH)/cache
-	curl -o $@ http://go.googlecode.com/files/$(GOPKG)
+	curl -o $@ -L $(GOURL)/$(GOPKG)
 
 $(GOCC): $(BUILD_PATH)/root $(BUILD_PATH)/cache/$(GOPKG)
 	tar -C $(BUILD_PATH)/root -xzf $(BUILD_PATH)/cache/$(GOPKG)

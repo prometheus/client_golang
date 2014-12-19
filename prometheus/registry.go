@@ -33,8 +33,8 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"compress/gzip"
 	"code.google.com/p/goprotobuf/proto"
+	"compress/gzip"
 
 	"github.com/prometheus/client_golang/_vendor/goautoneg"
 	"github.com/prometheus/client_golang/model"
@@ -423,6 +423,12 @@ func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
 		}(collector)
 	}
 	r.mtx.RUnlock()
+
+	// Drain metricChan in case of premature return.
+	defer func() {
+		for range metricChan {
+		}
+	}()
 
 	// Gather.
 	for metric := range metricChan {
