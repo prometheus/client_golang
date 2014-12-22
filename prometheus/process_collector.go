@@ -1,6 +1,6 @@
 package prometheus
 
-import "github.com/prometheus/client_golang/procfs"
+import "github.com/prometheus/procfs"
 
 type processCollector struct {
 	pid             int
@@ -65,7 +65,7 @@ func NewProcessCollectorPIDFn(
 	}
 
 	// Use procfs to export metrics if available.
-	if _, err := procfs.Stat(); err == nil {
+	if _, err := procfs.NewStat(); err == nil {
 		c.collectFn = c.procfsCollect
 	}
 
@@ -90,12 +90,12 @@ func (c *processCollector) Collect(ch chan<- Metric) {
 func noopCollect(ch chan<- Metric) {}
 
 func (c *processCollector) procfsCollect(ch chan<- Metric) {
-	p, err := procfs.Process(c.pidFn())
+	p, err := procfs.NewProc(c.pidFn())
 	if err != nil {
 		return
 	}
 
-	if stat, err := p.Stat(); err == nil {
+	if stat, err := p.NewStat(); err == nil {
 		c.cpuTotal.Set(stat.CPUTime())
 		c.cpuTotal.Collect(ch)
 		c.vsize.Set(float64(stat.VirtualMemory()))
@@ -114,7 +114,7 @@ func (c *processCollector) procfsCollect(ch chan<- Metric) {
 		c.openFDs.Collect(ch)
 	}
 
-	if limits, err := p.Limits(); err == nil {
+	if limits, err := p.NewLimits(); err == nil {
 		c.maxFDs.Set(float64(limits.OpenFiles))
 		c.maxFDs.Collect(ch)
 	}
