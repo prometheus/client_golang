@@ -46,31 +46,17 @@ func nowSeries(t ...time.Time) nower {
 	})
 }
 
-// InstrumentHandler wraps the given HTTP handler for instrumentation. It
-// registers four metric vector collectors (if not already done) and reports
-// http metrics to the (newly or already) registered collectors:
+// InstrumentHandler wraps the given HTTP handler with instrumentation.
+// It registers four metric vector collectors in the provided Registry.
 // http_requests_total (CounterVec), http_request_duration_microseconds
 // (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
 // (SummaryVec). Each has three labels: handler, method, code. The value of the
 // handler label is set by the handlerName parameter of this function.
-func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFunc {
-	return InstrumentHandlerFunc(handlerName, handler.ServeHTTP)
-}
-
-// InstrumentHandlerFunc wraps the given function for instrumentation. It
-// registers four metric vector collectors (if not already done) and reports
-// http metrics to the (newly or already) registered collectors:
-// http_requests_total (CounterVec), http_request_duration_microseconds
-// (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
-// (SummaryVec). Each has three labels: handler, method, code. The value of the
-// handler label is set by the handlerName parameter of this function.
-func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return InstrumentHandlerFuncWithOpts(
-		SummaryOpts{
-			Subsystem:   "http",
-			ConstLabels: Labels{"handler": handlerName},
-		},
-		handlerFunc,
+func InstrumentHandler(name string, r Registry, hnd http.Handler) http.Handler {
+	return InstrumentHandlerWithOpts(
+		SummaryOpts{Subsystem: "http", ConstLabels: Labels{"handler": name}},
+		r,
+		hnd,
 	)
 }
 
@@ -99,14 +85,7 @@ func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWri
 // cannot use SummaryOpts. Instead, a CounterOpts struct is created internally,
 // and all its fields are set to the equally named fields in the provided
 // SummaryOpts.
-func InstrumentHandlerWithOpts(opts SummaryOpts, handler http.Handler) http.HandlerFunc {
-	return InstrumentHandlerFuncWithOpts(opts, handler.ServeHTTP)
-}
-
-// InstrumentHandlerFuncWithOpts works like InstrumentHandlerFunc but provides
-// more flexibility (at the cost of a more complex call syntax). See
-// InstrumentHandlerWithOpts for details how the provided SummaryOpts are used.
-func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
+func InstrumentHandlerWithOpts(opts SummaryOpts, r Registry, hnd http.Handler) http.Handler {
 	reqCnt := NewCounterVec(
 		CounterOpts{
 			Namespace:   opts.Namespace,
@@ -130,22 +109,22 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 	opts.Help = "The HTTP response sizes in bytes."
 	resSz := NewSummaryVec(opts, instLabels)
 
-	regReqCnt := MustRegisterOrGet(reqCnt).(*CounterVec)
-	regReqDur := MustRegisterOrGet(reqDur).(*SummaryVec)
-	regReqSz := MustRegisterOrGet(reqSz).(*SummaryVec)
-	regResSz := MustRegisterOrGet(resSz).(*SummaryVec)
+	regReqCnt := r.MustRegisterOrGet(reqCnt).(*CounterVec)
+	regReqDur := r.MustRegisterOrGet(reqDur).(*SummaryVec)
+	regReqSz := r.MustRegisterOrGet(reqSz).(*SummaryVec)
+	regResSz := r.MustRegisterOrGet(resSz).(*SummaryVec)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 
-		delegate := &responseWriterDelegator{ResponseWriter: w}
+		delegate := &responseWriterDelegator{ResponseWriter: w, status: 200}
 		out := make(chan int)
 		urlLen := 0
 		if r.URL != nil {
 			urlLen = len(r.URL.String())
 		}
 		go computeApproximateRequestSize(r, out, urlLen)
-		handlerFunc(delegate, r)
+		hnd.ServeHTTP(delegate, r)
 
 		elapsed := float64(time.Since(now)) / float64(time.Microsecond)
 

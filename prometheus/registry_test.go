@@ -439,26 +439,29 @@ metric: <
 		},
 	}
 	for i, scenario := range scenarios {
-		registry := newRegistry()
-		registry.collectChecksEnabled = true
+		registry, err := NewRegistry()
+		if err != nil {
+			t.Fatalf("got err: %v", err)
+		}
+		registry.EnableCollectChecks(true)
 
 		if scenario.withCounter {
 			registry.Register(metricVec)
 		}
 		if scenario.withExternalMF {
-			registry.metricFamilyInjectionHook = func() []*dto.MetricFamily {
+			registry.SetMetricFamilyInjectionHook(func() []*dto.MetricFamily {
 				return externalMetricFamily
-			}
+			})
 		}
 		writer := &fakeResponseWriter{
 			header: http.Header{},
 		}
-		handler := InstrumentHandler("prometheus", registry)
+		handler := registry.Handler()
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
 		}
-		handler(writer, request)
+		handler.ServeHTTP(writer, request)
 
 		for key, value := range scenario.out.headers {
 			if writer.Header().Get(key) != value {

@@ -16,12 +16,15 @@ func TestProcessCollector(t *testing.T) {
 		t.Skipf("skipping TestProcessCollector, procfs not available: %s", err)
 	}
 
-	registry := newRegistry()
-	registry.Register(NewProcessCollector(os.Getpid(), ""))
-	registry.Register(NewProcessCollectorPIDFn(
-		func() int { return os.Getpid() }, "foobar"))
+	registry, err := NewRegistry(
+		NewProcessCollector(os.Getpid(), ""),
+		NewProcessCollectorPIDFn(func() int { return os.Getpid() }, "foobar"),
+	)
+	if err != nil {
+		t.Fatalf("got err %v", err)
+	}
 
-	s := httptest.NewServer(InstrumentHandler("prometheus", registry))
+	s := httptest.NewServer(registry.Handler())
 	defer s.Close()
 	r, err := http.Get(s.URL)
 	if err != nil {

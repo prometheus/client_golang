@@ -17,8 +17,7 @@
 // All exported functions and methods are safe to be used concurrently unless
 // specified otherwise.
 //
-// To expose metrics registered with the Prometheus registry, an HTTP server
-// needs to know about the Prometheus handler. The usual endpoint is "/metrics".
+// To expose the DefaultRegistry metrics over HTTP in the usual "/metrics" path:
 //
 //     http.Handle("/metrics", prometheus.Handler())
 //
@@ -81,18 +80,18 @@
 // The Untyped metric behaves like a Gauge, but signals the Prometheus server
 // not to assume anything about its type.
 //
-// Functions to fine-tune how the metric registry works: EnableCollectChecks,
-// PanicOnCollectError, Register, Unregister, SetMetricFamilyInjectionHook.
+// Collectors are registered and unregistered in a Registry.
+// Package level methods that match the Registry interface methods
+// act upon the global DefaultRegistry.
 //
 // For custom metric collection, there are two entry points: Custom Metric
 // implementations and custom Collector implementations. A Metric is the
 // fundamental unit in the Prometheus data model: a sample at a point in time
 // together with its meta-data (like its fully-qualified name and any number of
 // pairs of label name and label value) that knows how to marshal itself into a
-// data transfer object (aka DTO, implemented as a protocol buffer). A Collector
-// gets registered with the Prometheus registry and manages the collection of
-// one or more Metrics. Many parts of this package are building blocks for
-// Metrics and Collectors. Desc is the metric descriptor, actually used by all
+// data transfer object (aka DTO, implemented as a protocol buffer).
+// Many parts of this package are building blocks for Metrics and Collectors.
+// Desc is the metric descriptor, actually used by all
 // metrics under the hood, and by Collectors to describe the Metrics to be
 // collected, but only to be dealt with by users if they implement their own
 // Metrics or Collectors. To create a Desc, the BuildFQName function will come

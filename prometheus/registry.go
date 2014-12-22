@@ -44,7 +44,10 @@ import (
 )
 
 var (
-	defRegistry   = newDefaultRegistry()
+	// DefaultRegistry is a global Registry used by the convenience package level
+	// methods matching the Registry interface.
+	DefaultRegistry = MustNewRegistry(NewProcessCollector(os.Getpid(), ""), NewGoCollector())
+
 	errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
 )
 
@@ -86,11 +89,165 @@ const (
 	acceptHeader         = "Accept"
 )
 
+// Registry defines an interface for registering and unregistering Collectors.
+type Registry interface {
+	// Handler returns an HTTP handler for this Registry. It is
+	// already instrumented with InstrumentHandler (using "prometheus" as handler
+	// name). Usually the handler is used to handle the "/metrics" endpoint.
+	//
+	// TODO(tsenart): Extract all HTTP related code out of the Registry realm,
+	// into a dedicated `handlers` package.
+	Handler() http.Handler
+
+	// UninstrumentedHandler works in the same way as Handler, but the returned HTTP
+	// handler is not instrumented. This is useful if no instrumentation is desired
+	// (for whatever reason) or if the instrumentation has to happen with a
+	// different handler name (or with a different instrumentation approach
+	// altogether). See the InstrumentHandler example.
+	//
+	// TODO(tsenart): Extract all HTTP related code out of the Registry realm,
+	// into a dedicated `handlers` package.
+	UninstrumentedHandler() http.Handler
+
+	// Register registers a new Collector to be included in metrics collection. It
+	// returns an error if the descriptors provided by the Collector are invalid or
+	// if they - in combination with descriptors of already registered Collectors -
+	// do not fulfill the consistency and uniqueness criteria described in the Desc
+	// documentation. If the registration is successful, the registered Collector
+	// is returned.
+	//
+	// Do not register the same Collector multiple times concurrently. (Registering
+	// the same Collector twice would result in an error anyway, but on top of that,
+	// it is not safe to do so concurrently.)
+	//
+	// TODO(tsenart): Since the caller already has a reference to the given
+	// Collector, it isn't very idiomatic to return it. Returning only an error
+	// makes more sense.
+	Register(Collector) (Collector, error)
+
+	// MustRegister works like Register but panics where Register would have
+	// returned an error.
+	MustRegister(Collector) Collector
+
+	// RegisterOrGet works like Register but does not return an error if a Collector
+	// is registered that equals a previously registered Collector. (Two Collectors
+	// are considered equal if their Describe method yields the same set of
+	// descriptors.) Instead, the previously registered Collector is returned (which
+	// is helpful if the new and previously registered Collectors are equal but not
+	// identical, i.e. not pointers to the same object).
+	//
+	// As for Register, it is still not safe to call RegisterOrGet with the same
+	// Collector multiple times concurrently.
+	//
+	// TODO(tsenart): Since the caller already has a reference to the given
+	// Collector, it isn't very idiomatic to return it. Returning only an error
+	// makes more sense.
+	RegisterOrGet(Collector) (Collector, error)
+
+	// MustRegisterOrGet works like Register but panics where RegisterOrGet would
+	// have returned an error.
+	MustRegisterOrGet(Collector) Collector
+
+	// Unregister unregisters the Collector that equals the Collector passed in as
+	// an argument. (Two Collectors are considered equal if their Describe method
+	// yields the same set of descriptors.) The function returns whether a Collector
+	// was unregistered.
+	Unregister(Collector) bool
+
+	// SetMetricFamilyInjectionHook sets a function that is called whenever metrics
+	// are collected. The hook function must be set before metrics collection begins
+	// (i.e. call SetMetricFamilyInjectionHook before setting the HTTP handler.) The
+	// MetricFamily protobufs returned by the hook function are added to the
+	// delivered metrics. Each returned MetricFamily must have a unique name (also
+	// taking into account the MetricFamilies created in the regular way).
+	//
+	// This is a way to directly inject MetricFamily protobufs managed and owned by
+	// the caller. The caller has full responsibility. No sanity checks are
+	// performed on the returned protobufs (besides the name checks described
+	// above). The function must be callable at any time and concurrently.
+	//
+	// TODO(tsenart): Rethink a more orthogonal approach to hooks that doesn't
+	// pollute the core Registry interface.
+	SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily)
+
+	// PanicOnCollectError sets the behavior whether a panic is caused upon an error
+	// while metrics are collected and served to the http endpoint. By default, an
+	// internal server error (status code 500) is served with an error message.
+	//
+	// NOTE(tsenart): This behaviour shouldn't belong to the Registry interface.
+	// This state would be better passed to a http.Handler constructor that serves
+	// a Registry. i.e. func NewRegistryHandler(r Registry, _panic bool) http.Handler
+	PanicOnCollectError(bool)
+
+	// EnableCollectChecks enables (or disables) additional consistency checks
+	// during metrics collection. These additional checks are not enabled by default
+	// because they inflict a performance penalty and the errors they check for can
+	// only happen if the used Metric and Collector types have internal programming
+	// errors. It can be helpful to enable these checks while working with custom
+	// Collectors or Metrics whose correctness is not well established yet.
+	//
+	// TODO(tsenart) Use interface wrapping to provide the same functionality
+	// without polluting the core Registry interface.
+	// i.e. type CheckedRegistry which wraps another Registry with checks.
+	EnableCollectChecks(bool)
+
+	// Push triggers a metric collection and pushes all collected metrics to the
+	// Pushgateway specified by addr. See the Pushgateway documentation for detailed
+	// implications of the job and instance parameter. instance can be left
+	// empty. The Pushgateway will then use the client's IP number instead. Use just
+	// host:port or ip:port ass addr. (Don't add 'http://' or any path.)
+	//
+	// Note that all previously pushed metrics with the same job and instance will
+	// be replaced with the metrics pushed by this call. (It uses HTTP method 'PUT'
+	// to push to the Pushgateway.)
+	//
+	// TODO(tsenart): Extract this concern out of the core Registry.
+	Push(job, instance, addr string) error
+
+	// PushAdd works like Push, but only previously pushed metrics with the same
+	// name (and the same job and instance) will be replaced. (It uses HTTP method
+	// 'POST' to push to the Pushgateway.)
+	//
+	// TODO(tsenart): Extract this concern out of the core Registry.
+	PushAdd(job, instance, addr string) error
+}
+
+// NewRegistry returns a Registry with the given Collectors registered, or an
+// error if that fails.
+func NewRegistry(cs ...Collector) (Registry, error) {
+	r := &registry{
+		collectorsByID:   map[uint64]Collector{},
+		descIDs:          map[uint64]struct{}{},
+		dimHashesByName:  map[string]uint64{},
+		bufPool:          make(chan *bytes.Buffer, numBufs),
+		metricFamilyPool: make(chan *dto.MetricFamily, numMetricFamilies),
+		metricPool:       make(chan *dto.Metric, numMetrics),
+	}
+
+	for _, collector := range cs {
+		if _, err := r.Register(collector); err != nil {
+			return nil, err
+		}
+	}
+
+	return r, nil
+}
+
+// MustNewRegistry calls NewRegistry with the given Collectors but panics if any
+// error is returned.
+func MustNewRegistry(cs ...Collector) Registry {
+	r, err := NewRegistry(cs...)
+	if err != nil {
+		panic(err)
+	}
+	return r
+}
+
 // Handler returns the HTTP handler for the global Prometheus registry. It is
 // already instrumented with InstrumentHandler (using "prometheus" as handler
 // name). Usually the handler is used to handle the "/metrics" endpoint.
 func Handler() http.Handler {
-	return InstrumentHandler("prometheus", defRegistry)
+	return DefaultRegistry.Handler()
 }
 
 // UninstrumentedHandler works in the same way as Handler, but the returned HTTP
@@ -99,7 +256,7 @@ func Handler() http.Handler {
 // different handler name (or with a different instrumentation approach
 // altogether). See the InstrumentHandler example.
 func UninstrumentedHandler() http.Handler {
-	return defRegistry
+	return DefaultRegistry.UninstrumentedHandler()
 }
 
 // Register registers a new Collector to be included in metrics collection. It
@@ -113,17 +270,13 @@ func UninstrumentedHandler() http.Handler {
 // the same Collector twice would result in an error anyway, but on top of that,
 // it is not safe to do so concurrently.)
 func Register(m Collector) (Collector, error) {
-	return defRegistry.Register(m)
+	return DefaultRegistry.Register(m)
 }
 
 // MustRegister works like Register but panics where Register would have
 // returned an error.
 func MustRegister(m Collector) Collector {
-	m, err := Register(m)
-	if err != nil {
-		panic(err)
-	}
-	return m
+	return DefaultRegistry.MustRegister(m)
 }
 
 // RegisterOrGet works like Register but does not return an error if a Collector
@@ -136,7 +289,7 @@ func MustRegister(m Collector) Collector {
 // As for Register, it is still not safe to call RegisterOrGet with the same
 // Collector multiple times concurrently.
 func RegisterOrGet(m Collector) (Collector, error) {
-	return defRegistry.RegisterOrGet(m)
+	return DefaultRegistry.RegisterOrGet(m)
 }
 
 // MustRegisterOrGet works like Register but panics where RegisterOrGet would
@@ -154,7 +307,7 @@ func MustRegisterOrGet(m Collector) Collector {
 // yields the same set of descriptors.) The function returns whether a Collector
 // was unregistered.
 func Unregister(c Collector) bool {
-	return defRegistry.Unregister(c)
+	return DefaultRegistry.Unregister(c)
 }
 
 // SetMetricFamilyInjectionHook sets a function that is called whenever metrics
@@ -169,14 +322,14 @@ func Unregister(c Collector) bool {
 // performed on the returned protobufs (besides the name checks described
 // above). The function must be callable at any time and concurrently.
 func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
-	defRegistry.metricFamilyInjectionHook = hook
+	DefaultRegistry.SetMetricFamilyInjectionHook(hook)
 }
 
 // PanicOnCollectError sets the behavior whether a panic is caused upon an error
 // while metrics are collected and served to the http endpoint. By default, an
 // internal server error (status code 500) is served with an error message.
 func PanicOnCollectError(b bool) {
-	defRegistry.panicOnCollectError = b
+	DefaultRegistry.PanicOnCollectError(b)
 }
 
 // EnableCollectChecks enables (or disables) additional consistency checks
@@ -186,7 +339,7 @@ func PanicOnCollectError(b bool) {
 // errors. It can be helpful to enable these checks while working with custom
 // Collectors or Metrics whose correctness is not well established yet.
 func EnableCollectChecks(b bool) {
-	defRegistry.collectChecksEnabled = b
+	DefaultRegistry.EnableCollectChecks(b)
 }
 
 // Push triggers a metric collection and pushes all collected metrics to the
@@ -199,14 +352,14 @@ func EnableCollectChecks(b bool) {
 // be replaced with the metrics pushed by this call. (It uses HTTP method 'PUT'
 // to push to the Pushgateway.)
 func Push(job, instance, addr string) error {
-	return defRegistry.Push(job, instance, addr, "PUT")
+	return DefaultRegistry.Push(job, instance, addr)
 }
 
 // PushAdd works like Push, but only previously pushed metrics with the same
 // name (and the same job and instance) will be replaced. (It uses HTTP method
 // 'POST' to push to the Pushgateway.)
 func PushAdd(job, instance, addr string) error {
-	return defRegistry.Push(job, instance, addr, "POST")
+	return DefaultRegistry.PushAdd(job, instance, addr)
 }
 
 // encoder is a function that writes a dto.MetricFamily to an io.Writer in a
@@ -226,6 +379,14 @@ type registry struct {
 	metricFamilyInjectionHook func() []*dto.MetricFamily
 
 	panicOnCollectError, collectChecksEnabled bool
+}
+
+func (r *registry) Handler() http.Handler {
+	return InstrumentHandler("prometheus", r, r.UninstrumentedHandler())
+}
+
+func (r *registry) UninstrumentedHandler() http.Handler {
+	return r
 }
 
 func (r *registry) Register(c Collector) (Collector, error) {
@@ -305,12 +466,28 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	return c, nil
 }
 
+func (r *registry) MustRegister(m Collector) Collector {
+	m, err := r.Register(m)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
 	existing, err := r.Register(m)
 	if err != nil && err != errAlreadyReg {
 		return nil, err
 	}
 	return existing, nil
+}
+
+func (r *registry) MustRegisterOrGet(m Collector) Collector {
+	m, err := r.RegisterOrGet(m)
+	if err != nil {
+		panic(err)
+	}
+	return m
 }
 
 func (r *registry) Unregister(c Collector) bool {
@@ -348,7 +525,33 @@ func (r *registry) Unregister(c Collector) bool {
 	return true
 }
 
-func (r *registry) Push(job, instance, addr, method string) error {
+func (r *registry) SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
+	r.mtx.Lock()
+	r.metricFamilyInjectionHook = hook
+	r.mtx.Unlock()
+}
+
+func (r *registry) PanicOnCollectError(b bool) {
+	r.mtx.Lock()
+	r.panicOnCollectError = b
+	r.mtx.Unlock()
+}
+
+func (r *registry) EnableCollectChecks(b bool) {
+	r.mtx.Lock()
+	r.collectChecksEnabled = b
+	r.mtx.Unlock()
+}
+
+func (r *registry) Push(job, instance, addr string) error {
+	return r.push(job, instance, addr, "PUT")
+}
+
+func (r *registry) PushAdd(job, instance, addr string) error {
+	return r.push(job, instance, addr, "POST")
+}
+
+func (r *registry) push(job, instance, addr, method string) error {
 	u := fmt.Sprintf("http://%s/metrics/jobs/%s", addr, url.QueryEscape(job))
 	if instance != "" {
 		u += "/instances/" + url.QueryEscape(instance)
@@ -626,24 +829,6 @@ func (r *registry) giveMetric(m *dto.Metric) {
 	case r.metricPool <- m:
 	default:
 	}
-}
-
-func newRegistry() *registry {
-	return &registry{
-		collectorsByID:   map[uint64]Collector{},
-		descIDs:          map[uint64]struct{}{},
-		dimHashesByName:  map[string]uint64{},
-		bufPool:          make(chan *bytes.Buffer, numBufs),
-		metricFamilyPool: make(chan *dto.MetricFamily, numMetricFamilies),
-		metricPool:       make(chan *dto.Metric, numMetrics),
-	}
-}
-
-func newDefaultRegistry() *registry {
-	r := newRegistry()
-	r.Register(NewProcessCollector(os.Getpid(), ""))
-	r.Register(NewGoCollector())
-	return r
 }
 
 func chooseEncoder(req *http.Request) (encoder, string) {
