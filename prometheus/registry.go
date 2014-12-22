@@ -21,12 +21,14 @@ package prometheus
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -34,7 +36,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"code.google.com/p/goprotobuf/proto"
-	"compress/gzip"
 
 	"github.com/prometheus/client_golang/_vendor/goautoneg"
 	"github.com/prometheus/client_golang/model"
@@ -42,7 +43,7 @@ import (
 )
 
 var (
-	defRegistry   = newRegistry()
+	defRegistry   = newDefaultRegistry()
 	errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
 )
 
@@ -641,6 +642,13 @@ func newRegistry() *registry {
 		metricFamilyPool: make(chan *dto.MetricFamily, numMetricFamilies),
 		metricPool:       make(chan *dto.Metric, numMetrics),
 	}
+}
+
+func newDefaultRegistry() *registry {
+	r := newRegistry()
+	r.Register(NewProcessCollector(os.Getpid(), ""))
+	r.Register(NewGoCollector())
+	return r
 }
 
 func chooseEncoder(req *http.Request) (encoder, string) {
