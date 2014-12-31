@@ -32,44 +32,40 @@ mf1{label="value1"} -3.14 123456
 mf1{label="value2"} 42
 mf2 4
 `
-	out = map[model.LabelValue]*Result{
-		"mf1": {
-			Samples: model.Samples{
-				&model.Sample{
-					Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value1"},
-					Value:     -3.14,
-					Timestamp: 123456,
-				},
-				&model.Sample{
-					Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value2"},
-					Value:     42,
-					Timestamp: ts,
-				},
+	out = map[model.LabelValue]model.Samples{
+		"mf1": model.Samples{
+			&model.Sample{
+				Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value1"},
+				Value:     -3.14,
+				Timestamp: 123456,
+			},
+			&model.Sample{
+				Metric:    model.Metric{model.MetricNameLabel: "mf1", "label": "value2"},
+				Value:     42,
+				Timestamp: ts,
 			},
 		},
-		"mf2": {
-			Samples: model.Samples{
-				&model.Sample{
-					Metric:    model.Metric{model.MetricNameLabel: "mf2"},
-					Value:     3,
-					Timestamp: ts,
-				},
-				&model.Sample{
-					Metric:    model.Metric{model.MetricNameLabel: "mf2"},
-					Value:     4,
-					Timestamp: ts,
-				},
+		"mf2": model.Samples{
+			&model.Sample{
+				Metric:    model.Metric{model.MetricNameLabel: "mf2"},
+				Value:     3,
+				Timestamp: ts,
+			},
+			&model.Sample{
+				Metric:    model.Metric{model.MetricNameLabel: "mf2"},
+				Value:     4,
+				Timestamp: ts,
 			},
 		},
 	}
 )
 
 type testIngester struct {
-	results []*Result
+	results []model.Samples
 }
 
-func (i *testIngester) Ingest(r *Result) error {
-	i.results = append(i.results, r)
+func (i *testIngester) Ingest(s model.Samples) error {
+	i.results = append(i.results, s)
 	return nil
 }
 
@@ -88,16 +84,16 @@ func TestTextProcessor(t *testing.T) {
 		t.Fatalf("Expected length %d, got %d", expected, got)
 	}
 	for _, r := range ingester.results {
-		expected, ok := out[r.Samples[0].Metric[model.MetricNameLabel]]
+		expected, ok := out[r[0].Metric[model.MetricNameLabel]]
 		if !ok {
 			t.Fatalf(
 				"Unexpected metric name %q",
-				r.Samples[0].Metric[model.MetricNameLabel],
+				r[0].Metric[model.MetricNameLabel],
 			)
 		}
-		sort.Sort(expected.Samples)
-		sort.Sort(r.Samples)
-		if !expected.equal(r) {
+		sort.Sort(expected)
+		sort.Sort(r)
+		if !expected.Equal(r) {
 			t.Errorf("expected %s, got %s", expected, r)
 		}
 	}

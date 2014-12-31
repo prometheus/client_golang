@@ -77,11 +77,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			case gauge001, counter001:
 				sampleValue, ok := value.Value.(float64)
 				if !ok {
-					err = fmt.Errorf("could not convert value from %s %s to float64", entity, value)
-					if err := out.Ingest(&Result{Err: err}); err != nil {
-						return err
-					}
-					continue
+					return fmt.Errorf("could not convert value from %s %s to float64", entity, value)
 				}
 
 				pendingSamples = append(pendingSamples, &model.Sample{
@@ -95,21 +91,13 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			case histogram001:
 				sampleValue, ok := value.Value.(map[string]interface{})
 				if !ok {
-					err = fmt.Errorf("could not convert value from %q to a map[string]interface{}", value.Value)
-					if err := out.Ingest(&Result{Err: err}); err != nil {
-						return err
-					}
-					continue
+					return fmt.Errorf("could not convert value from %q to a map[string]interface{}", value.Value)
 				}
 
 				for percentile, percentileValue := range sampleValue {
 					individualValue, ok := percentileValue.(float64)
 					if !ok {
-						err = fmt.Errorf("could not convert value from %q to a float64", percentileValue)
-						if err := out.Ingest(&Result{Err: err}); err != nil {
-							return err
-						}
-						continue
+						return fmt.Errorf("could not convert value from %q to a float64", percentileValue)
 					}
 
 					childMetric := make(map[model.LabelName]model.LabelValue, len(labels)+1)
@@ -132,7 +120,7 @@ func (p *processor001) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 		}
 	}
 	if len(pendingSamples) > 0 {
-		return out.Ingest(&Result{Samples: pendingSamples})
+		return out.Ingest(pendingSamples)
 	}
 
 	return nil

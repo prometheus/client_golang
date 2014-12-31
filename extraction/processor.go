@@ -30,7 +30,7 @@ type ProcessOptions struct {
 
 // Ingester consumes result streams in whatever way is desired by the user.
 type Ingester interface {
-	Ingest(*Result) error
+	Ingest(model.Samples) error
 }
 
 // Processor is responsible for decoding the actual message responses from
@@ -54,42 +54,6 @@ func labelSet(labels map[string]string) model.LabelSet {
 	}
 
 	return labelset
-}
-
-// Result encapsulates the outcome from processing samples from a source.
-type Result struct {
-	Err     error
-	Samples model.Samples
-}
-
-func (r *Result) equal(o *Result) bool {
-	if r == o {
-		return true
-	}
-
-	if r.Err != o.Err {
-		if r.Err == nil || o.Err == nil {
-			return false
-		}
-
-		if r.Err.Error() != o.Err.Error() {
-			return false
-		}
-	}
-
-	if len(r.Samples) != len(o.Samples) {
-		return false
-	}
-
-	for i, mine := range r.Samples {
-		other := o.Samples[i]
-
-		if !mine.Equal(other) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // A basic interface only useful in testing contexts for dispensing the time

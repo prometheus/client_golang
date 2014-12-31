@@ -101,7 +101,7 @@ func extractCounter(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		sample.Value = model.SampleValue(m.Counter.GetValue())
 	}
 
-	return out.Ingest(&Result{Samples: samples})
+	return out.Ingest(samples)
 }
 
 func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
@@ -132,7 +132,7 @@ func extractGauge(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
 		sample.Value = model.SampleValue(m.Gauge.GetValue())
 	}
 
-	return out.Ingest(&Result{Samples: samples})
+	return out.Ingest(samples)
 }
 
 func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
@@ -194,7 +194,7 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		}
 	}
 
-	return out.Ingest(&Result{Samples: samples})
+	return out.Ingest(samples)
 }
 
 func extractUntyped(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
@@ -225,5 +225,5 @@ func extractUntyped(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		sample.Value = model.SampleValue(m.Untyped.GetValue())
 	}
 
-	return out.Ingest(&Result{Samples: samples})
+	return out.Ingest(samples)
 }

@@ -29,12 +29,12 @@ var test001Time = model.Now()
 
 type testProcessor001ProcessScenario struct {
 	in               string
-	expected, actual []*Result
+	expected, actual []model.Samples
 	err              error
 }
 
-func (s *testProcessor001ProcessScenario) Ingest(r *Result) error {
-	s.actual = append(s.actual, r)
+func (s *testProcessor001ProcessScenario) Ingest(samples model.Samples) error {
+	s.actual = append(s.actual, samples)
 	return nil
 }
 
@@ -56,10 +56,10 @@ func (s *testProcessor001ProcessScenario) test(t testing.TB, set int) {
 	}
 
 	for i, expected := range s.expected {
-		sort.Sort(s.actual[i].Samples)
-		sort.Sort(expected.Samples)
+		sort.Sort(s.actual[i])
+		sort.Sort(expected)
 
-		if !expected.equal(s.actual[i]) {
+		if !expected.Equal(s.actual[i]) {
 			t.Errorf("%d.%d. expected %s, got %s", set, i, expected, s.actual[i])
 		}
 	}
@@ -73,101 +73,97 @@ func testProcessor001Process(t testing.TB) {
 		},
 		{
 			in: "test0_0_1-0_0_2.json",
-			expected: []*Result{
-				{
-					Samples: model.Samples{
-						&model.Sample{
-							Metric:    model.Metric{"service": "zed", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
-							Value:     25,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"service": "bar", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
-							Value:     25,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"service": "foo", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
-							Value:     25,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
-							Value:     0.0459814091918713,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
-							Value:     78.48563317257356,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
-							Value:     15.890724674774395,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-
-							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
-							Value:     0.0459814091918713,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
-							Value:     78.48563317257356,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
-							Value:     15.890724674774395,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
-							Value:     0.6120456642749681,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-
-							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
-							Value:     97.31798360385088,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
-							Value:     84.63044031436561,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
-							Value:     1.355915069887731,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
-							Value:     109.89202084295582,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
-							Value:     160.21100853053224,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
-							Value:     1.772733213161236,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
-							Value:     109.99626121011262,
-							Timestamp: test001Time,
-						},
-						&model.Sample{
-							Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
-							Value:     172.49828748957728,
-							Timestamp: test001Time,
-						},
+			expected: []model.Samples{
+				model.Samples{
+					&model.Sample{
+						Metric:    model.Metric{"service": "zed", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+						Value:     25,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"service": "bar", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+						Value:     25,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"service": "foo", model.MetricNameLabel: "rpc_calls_total", "job": "batch_job"},
+						Value:     25,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+						Value:     0.0459814091918713,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+						Value:     78.48563317257356,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.010000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+						Value:     15.890724674774395,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+						Value:     0.0459814091918713,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+						Value:     78.48563317257356,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.050000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+						Value:     15.890724674774395,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+						Value:     0.6120456642749681,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+						Value:     97.31798360385088,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.500000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+						Value:     84.63044031436561,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+						Value:     1.355915069887731,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+						Value:     109.89202084295582,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.900000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+						Value:     160.21100853053224,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "zed"},
+						Value:     1.772733213161236,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "bar"},
+						Value:     109.99626121011262,
+						Timestamp: test001Time,
+					},
+					&model.Sample{
+						Metric:    model.Metric{"percentile": "0.990000", model.MetricNameLabel: "rpc_latency_microseconds", "service": "foo"},
+						Value:     172.49828748957728,
+						Timestamp: test001Time,
 					},
 				},
 			},
