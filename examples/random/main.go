@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"math"
 	"math/rand"
 	"net/http"
 	"time"
@@ -26,10 +27,11 @@ import (
 )
 
 var (
-	addr          = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-	uniformDomain = flag.Float64("random.uniform.domain", 200, "The domain for the uniform distribution.")
-	normDomain    = flag.Float64("random.exponential.domain", 200, "The domain for the normal distribution.")
-	normMean      = flag.Float64("random.exponential.mean", 10, "The mean for the normal distribution.")
+	addr              = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+	uniformDomain     = flag.Float64("uniform.domain", 200, "The domain for the uniform distribution.")
+	normDomain        = flag.Float64("exponential.domain", 200, "The domain for the normal distribution.")
+	normMean          = flag.Float64("exponential.mean", 10, "The mean for the normal distribution.")
+	oscillationPeriod = flag.Duration("oscillation-period", 10*time.Minute, "The duration of the rate oscillation period.")
 )
 
 var (
@@ -53,14 +55,31 @@ func init() {
 func main() {
 	flag.Parse()
 
+	start := time.Now()
+
+	oscillationFactor := func() float64 {
+		return 2 + math.Sin(math.Sin(2*math.Pi*float64(time.Since(start))/float64(*oscillationPeriod)))
+	}
+
+	// Periodically record some sample latencies for the three services.
 	go func() {
 		for {
-			// Periodically record some sample latencies for the three services.
 			rpcDurations.WithLabelValues("uniform").Observe(rand.Float64() * *uniformDomain)
-			rpcDurations.WithLabelValues("normal").Observe((rand.NormFloat64() * *normDomain) + *normMean)
-			rpcDurations.WithLabelValues("exponential").Observe(rand.ExpFloat64())
+			time.Sleep(time.Duration(100*oscillationFactor()) * time.Millisecond)
+		}
+	}()
 
-			time.Sleep(100 * time.Millisecond)
+	go func() {
+		for {
+			rpcDurations.WithLabelValues("normal").Observe((rand.NormFloat64() * *normDomain) + *normMean)
+			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
+		}
+	}()
+
+	go func() {
+		for {
+			rpcDurations.WithLabelValues("exponential").Observe(rand.ExpFloat64())
+			time.Sleep(time.Duration(50*oscillationFactor()) * time.Millisecond)
 		}
 	}()
 
