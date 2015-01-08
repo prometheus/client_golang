@@ -60,11 +60,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			var values []counter002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				err := fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
-				if err := out.Ingest(&Result{Err: err}); err != nil {
-					return err
-				}
-				continue
+				return fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
 			}
 
 			for _, counter := range values {
@@ -81,11 +77,7 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			var values []histogram002
 
 			if err := json.Unmarshal(entity.Metric.Values, &values); err != nil {
-				err := fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
-				if err := out.Ingest(&Result{Err: err}); err != nil {
-					return err
-				}
-				continue
+				return fmt.Errorf("could not extract %s value: %s", entity.Metric.Type, err)
 			}
 
 			for _, histogram := range values {
@@ -102,15 +94,12 @@ func (p *processor002) ProcessSingle(in io.Reader, out Ingester, o *ProcessOptio
 			}
 
 		default:
-			err := fmt.Errorf("unknown metric type %q", entity.Metric.Type)
-			if err := out.Ingest(&Result{Err: err}); err != nil {
-				return err
-			}
+			return fmt.Errorf("unknown metric type %q", entity.Metric.Type)
 		}
 	}
 
 	if len(pendingSamples) > 0 {
-		return out.Ingest(&Result{Samples: pendingSamples})
+		return out.Ingest(pendingSamples)
 	}
 
 	return nil

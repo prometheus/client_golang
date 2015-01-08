@@ -25,11 +25,11 @@ var testTime = model.Now()
 
 type metricFamilyProcessorScenario struct {
 	in               string
-	expected, actual []*Result
+	expected, actual []model.Samples
 }
 
-func (s *metricFamilyProcessorScenario) Ingest(r *Result) error {
-	s.actual = append(s.actual, r)
+func (s *metricFamilyProcessorScenario) Ingest(samples model.Samples) error {
+	s.actual = append(s.actual, samples)
 	return nil
 }
 
@@ -50,10 +50,10 @@ func (s *metricFamilyProcessorScenario) test(t *testing.T, set int) {
 	}
 
 	for i, expected := range s.expected {
-		sort.Sort(s.actual[i].Samples)
-		sort.Sort(expected.Samples)
+		sort.Sort(s.actual[i])
+		sort.Sort(expected)
 
-		if !expected.equal(s.actual[i]) {
+		if !expected.Equal(s.actual[i]) {
 			t.Errorf("%d.%d. expected %s, got %s", set, i, expected, s.actual[i])
 		}
 	}
@@ -66,43 +66,39 @@ func TestMetricFamilyProcessor(t *testing.T) {
 		},
 		{
 			in: "\x8f\x01\n\rrequest_count\x12\x12Number of requests\x18\x00\"0\n#\n\x0fsome_label_name\x12\x10some_label_value\x1a\t\t\x00\x00\x00\x00\x00\x00E\xc0\"6\n)\n\x12another_label_name\x12\x13another_label_value\x1a\t\t\x00\x00\x00\x00\x00\x00U@",
-			expected: []*Result{
-				{
-					Samples: model.Samples{
-						&model.Sample{
-							Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value"},
-							Value:     -42,
-							Timestamp: testTime,
-						},
-						&model.Sample{
-							Metric:    model.Metric{model.MetricNameLabel: "request_count", "another_label_name": "another_label_value"},
-							Value:     84,
-							Timestamp: testTime,
-						},
+			expected: []model.Samples{
+				model.Samples{
+					&model.Sample{
+						Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value"},
+						Value:     -42,
+						Timestamp: testTime,
+					},
+					&model.Sample{
+						Metric:    model.Metric{model.MetricNameLabel: "request_count", "another_label_name": "another_label_value"},
+						Value:     84,
+						Timestamp: testTime,
 					},
 				},
 			},
 		},
 		{
 			in: "\xb9\x01\n\rrequest_count\x12\x12Number of requests\x18\x02\"O\n#\n\x0fsome_label_name\x12\x10some_label_value\"(\x1a\x12\t\xaeG\xe1z\x14\xae\xef?\x11\x00\x00\x00\x00\x00\x00E\xc0\x1a\x12\t+\x87\x16\xd9\xce\xf7\xef?\x11\x00\x00\x00\x00\x00\x00U\xc0\"A\n)\n\x12another_label_name\x12\x13another_label_value\"\x14\x1a\x12\t\x00\x00\x00\x00\x00\x00\xe0?\x11\x00\x00\x00\x00\x00\x00$@",
-			expected: []*Result{
-				{
-					Samples: model.Samples{
-						&model.Sample{
-							Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value", "quantile": "0.99"},
-							Value:     -42,
-							Timestamp: testTime,
-						},
-						&model.Sample{
-							Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value", "quantile": "0.999"},
-							Value:     -84,
-							Timestamp: testTime,
-						},
-						&model.Sample{
-							Metric:    model.Metric{model.MetricNameLabel: "request_count", "another_label_name": "another_label_value", "quantile": "0.5"},
-							Value:     10,
-							Timestamp: testTime,
-						},
+			expected: []model.Samples{
+				model.Samples{
+					&model.Sample{
+						Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value", "quantile": "0.99"},
+						Value:     -42,
+						Timestamp: testTime,
+					},
+					&model.Sample{
+						Metric:    model.Metric{model.MetricNameLabel: "request_count", "some_label_name": "some_label_value", "quantile": "0.999"},
+						Value:     -84,
+						Timestamp: testTime,
+					},
+					&model.Sample{
+						Metric:    model.Metric{model.MetricNameLabel: "request_count", "another_label_name": "another_label_value", "quantile": "0.5"},
+						Value:     10,
+						Timestamp: testTime,
 					},
 				},
 			},
