@@ -105,24 +105,23 @@ func UninstrumentedHandler() http.Handler {
 // returns an error if the descriptors provided by the Collector are invalid or
 // if they - in combination with descriptors of already registered Collectors -
 // do not fulfill the consistency and uniqueness criteria described in the Desc
-// documentation. If the registration is successful, the registered Collector
-// is returned.
+// documentation.
 //
 // Do not register the same Collector multiple times concurrently. (Registering
 // the same Collector twice would result in an error anyway, but on top of that,
 // it is not safe to do so concurrently.)
-func Register(m Collector) (Collector, error) {
-	return defRegistry.Register(m)
+func Register(m Collector) error {
+	_, err := defRegistry.Register(m)
+	return err
 }
 
 // MustRegister works like Register but panics where Register would have
 // returned an error.
-func MustRegister(m Collector) Collector {
-	m, err := Register(m)
+func MustRegister(m Collector) {
+	err := Register(m)
 	if err != nil {
 		panic(err)
 	}
-	return m
 }
 
 // RegisterOrGet works like Register but does not return an error if a Collector
@@ -447,7 +446,12 @@ func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
 		}
 		dtoMetric := r.getMetric()
 		defer r.giveMetric(dtoMetric)
-		metric.Write(dtoMetric)
+		if err := metric.Write(dtoMetric); err != nil {
+			// TODO: Consider different means of error reporting so
+			// that a single erroneous metric could be skipped
+			// instead of blowing up the whole collection.
+			return 0, fmt.Errorf("error collecting metric %v: %s", desc, err)
+		}
 		switch {
 		case metricFamily.Type != nil:
 			// Type already set. We are good.

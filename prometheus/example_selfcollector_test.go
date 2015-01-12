@@ -49,8 +49,9 @@ func (cm *CallbackMetric) Desc() *prometheus.Desc {
 	return cm.desc
 }
 
-func (cm *CallbackMetric) Write(m *dto.Metric) {
+func (cm *CallbackMetric) Write(m *dto.Metric) error {
 	m.Untyped = &dto.Untyped{Value: proto.Float64(cm.callback())}
+	return nil
 }
 
 func ExampleSelfCollector() {

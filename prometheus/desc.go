@@ -166,6 +166,16 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	return d
 }
 
+// NewInvalidDesc returns an invalid descriptor, i.e. a descriptor with the
+// provided error set. If a collector returning such a descriptor is registered,
+// registration will fail with the provided error. NewInvalidDesc can be used by
+// a Collector to signal inability to describe itself.
+func NewInvalidDesc(err error) *Desc {
+	return &Desc{
+		err: err,
+	}
+}
+
 func (d *Desc) String() string {
 	lpStrings := make([]string, 0, len(d.constLabelPairs))
 	for _, lp := range d.constLabelPairs {

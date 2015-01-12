@@ -98,12 +98,12 @@ func (v *value) Sub(val float64) {
 	v.Add(val * -1)
 }
 
-func (v *value) Write(out *dto.Metric) {
+func (v *value) Write(out *dto.Metric) error {
 	v.mtx.RLock()
 	val := v.val
 	v.mtx.RUnlock()
 
-	populateMetric(v.valType, val, v.labelPairs, out)
+	return populateMetric(v.valType, val, v.labelPairs, out)
 }
 
 // valueFunc is a generic metric for simple values retrieved on collect time
@@ -141,8 +141,8 @@ func (v *valueFunc) Desc() *Desc {
 	return v.desc
 }
 
-func (v *valueFunc) Write(out *dto.Metric) {
-	populateMetric(v.valType, v.function(), v.labelPairs, out)
+func (v *valueFunc) Write(out *dto.Metric) error {
+	return populateMetric(v.valType, v.function(), v.labelPairs, out)
 }
 
 // NewConstMetric returns a metric with one fixed value that cannot be
@@ -184,8 +184,8 @@ func (m *constMetric) Desc() *Desc {
 	return m.desc
 }
 
-func (m *constMetric) Write(out *dto.Metric) {
-	populateMetric(m.valType, m.val, m.labelPairs, out)
+func (m *constMetric) Write(out *dto.Metric) error {
+	return populateMetric(m.valType, m.val, m.labelPairs, out)
 }
 
 func populateMetric(
@@ -193,7 +193,7 @@ func populateMetric(
 	v float64,
 	labelPairs []*dto.LabelPair,
 	m *dto.Metric,
-) {
+) error {
 	m.Label = labelPairs
 	switch t {
 	case CounterValue:
@@ -203,8 +203,9 @@ func populateMetric(
 	case UntypedValue:
 		m.Untyped = &dto.Untyped{Value: proto.Float64(v)}
 	default:
-		panic(fmt.Errorf("encountered unknown type %v", t))
+		return fmt.Errorf("encountered unknown type %v", t)
 	}
+	return nil
 }
 
 func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {

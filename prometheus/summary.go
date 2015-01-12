@@ -242,7 +242,7 @@ func (s *summary) Observe(v float64) {
 	}
 }
 
-func (s *summary) Write(out *dto.Metric) {
+func (s *summary) Write(out *dto.Metric) error {
 	sum := &dto.Summary{}
 	qs := make([]*dto.Quantile, 0, len(s.objectives))
 
@@ -277,6 +277,7 @@ func (s *summary) Write(out *dto.Metric) {
 
 	out.Summary = sum
 	out.Label = s.labelPairs
+	return nil
 }
 
 func (s *summary) newStream() *quantile.Stream {

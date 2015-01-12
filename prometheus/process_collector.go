@@ -92,10 +92,23 @@ func noopCollect(ch chan<- Metric) {}
 func (c *processCollector) procfsCollect(ch chan<- Metric) {
 	p, err := procfs.NewProc(c.pidFn())
 	if err != nil {
+		// Report collect errors for all metrics.
+		ch <- NewInvalidMetric(c.cpuTotal.Desc(), err)
+		ch <- NewInvalidMetric(c.openFDs.Desc(), err)
+		ch <- NewInvalidMetric(c.maxFDs.Desc(), err)
+		ch <- NewInvalidMetric(c.vsize.Desc(), err)
+		ch <- NewInvalidMetric(c.rss.Desc(), err)
+		ch <- NewInvalidMetric(c.startTime.Desc(), err)
 		return
 	}
 
-	if stat, err := p.NewStat(); err == nil {
+	if stat, err := p.NewStat(); err != nil {
+		// Report collect errors for metrics depending on stat.
+		ch <- NewInvalidMetric(c.vsize.Desc(), err)
+		ch <- NewInvalidMetric(c.rss.Desc(), err)
+		ch <- NewInvalidMetric(c.startTime.Desc(), err)
+		ch <- NewInvalidMetric(c.cpuTotal.Desc(), err)
+	} else {
 		c.cpuTotal.Set(stat.CPUTime())
 		ch <- c.cpuTotal
 		c.vsize.Set(float64(stat.VirtualMemory()))
@@ -103,18 +116,24 @@ func (c *processCollector) procfsCollect(ch chan<- Metric) {
 		c.rss.Set(float64(stat.ResidentMemory()))
 		ch <- c.rss
 
-		if startTime, err := stat.StartTime(); err == nil {
+		if startTime, err := stat.StartTime(); err != nil {
+			ch <- NewInvalidMetric(c.startTime.Desc(), err)
+		} else {
 			c.startTime.Set(startTime)
 			ch <- c.startTime
 		}
 	}
 
-	if fds, err := p.FileDescriptorsLen(); err == nil {
+	if fds, err := p.FileDescriptorsLen(); err != nil {
+		ch <- NewInvalidMetric(c.openFDs.Desc(), err)
+	} else {
 		c.openFDs.Set(float64(fds))
 		ch <- c.openFDs
 	}
 
-	if limits, err := p.NewLimits(); err == nil {
+	if limits, err := p.NewLimits(); err != nil {
+		ch <- NewInvalidMetric(c.maxFDs.Desc(), err)
+	} else {
 		c.maxFDs.Set(float64(limits.OpenFiles))
 		ch <- c.maxFDs
 	}
