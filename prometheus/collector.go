@@ -33,8 +33,9 @@ type Collector interface {
 	// duplicate descriptors. Those duplicates are simply ignored. However,
 	// two different Collectors must not send duplicate descriptors.) This
 	// method idempotently sends the same descriptors throughout the
-	// lifetime of the Collector. A Collector unable to describe itself must
-	// send an invalid descriptor (created with NewInvalidDesc).
+	// lifetime of the Collector. If a Collector encounters an error while
+	// executing this method, it must send an invalid descriptor (created
+	// with NewInvalidDesc) to signal the error to the registry.
 	Describe(chan<- *Desc)
 	// Collect is called by Prometheus when collecting metrics. The
 	// implementation sends each collected metric via the provided channel
