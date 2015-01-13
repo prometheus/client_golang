@@ -120,20 +120,20 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 
 	opts.Name = "request_duration_microseconds"
 	opts.Help = "The HTTP request latencies in microseconds."
-	reqDur := NewSummaryVec(opts, instLabels)
+	reqDur := NewSummary(opts)
 
 	opts.Name = "request_size_bytes"
 	opts.Help = "The HTTP request sizes in bytes."
-	reqSz := NewSummaryVec(opts, instLabels)
+	reqSz := NewSummary(opts)
 
 	opts.Name = "response_size_bytes"
 	opts.Help = "The HTTP response sizes in bytes."
-	resSz := NewSummaryVec(opts, instLabels)
+	resSz := NewSummary(opts)
 
 	regReqCnt := MustRegisterOrGet(reqCnt).(*CounterVec)
-	regReqDur := MustRegisterOrGet(reqDur).(*SummaryVec)
-	regReqSz := MustRegisterOrGet(reqSz).(*SummaryVec)
-	regResSz := MustRegisterOrGet(resSz).(*SummaryVec)
+	regReqDur := MustRegisterOrGet(reqDur).(Summary)
+	regReqSz := MustRegisterOrGet(reqSz).(Summary)
+	regResSz := MustRegisterOrGet(resSz).(Summary)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
@@ -152,9 +152,9 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 		method := sanitizeMethod(r.Method)
 		code := sanitizeCode(delegate.status)
 		regReqCnt.WithLabelValues(method, code).Inc()
-		regReqDur.WithLabelValues(method, code).Observe(elapsed)
-		regResSz.WithLabelValues(method, code).Observe(float64(delegate.written))
-		regReqSz.WithLabelValues(method, code).Observe(float64(<-out))
+		regReqDur.Observe(elapsed)
+		regResSz.Observe(float64(delegate.written))
+		regReqSz.Observe(float64(<-out))
 	})
 }
 
