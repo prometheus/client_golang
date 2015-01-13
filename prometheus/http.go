@@ -47,23 +47,19 @@ func nowSeries(t ...time.Time) nower {
 }
 
 // InstrumentHandler wraps the given HTTP handler for instrumentation. It
-// registers four metric vector collectors (if not already done) and reports
-// http metrics to the (newly or already) registered collectors:
-// http_requests_total (CounterVec), http_request_duration_microseconds
-// (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
-// (SummaryVec). Each has three labels: handler, method, code. The value of the
-// handler label is set by the handlerName parameter of this function.
+// registers four metric collectors (if not already done) and reports http
+// metrics to the (newly or already) registered collectors: http_requests_total
+// (CounterVec), http_request_duration_microseconds (Summary),
+// http_request_size_bytes (Summary), http_response_size_bytes (Summary). Each
+// has a constant label named "handler" with the provided handlerName as
+// value. http_requests_total is a metric vector partitioned by HTTP method
+// (label name "method") and HTTP status code (label name "code").
 func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFunc {
 	return InstrumentHandlerFunc(handlerName, handler.ServeHTTP)
 }
 
 // InstrumentHandlerFunc wraps the given function for instrumentation. It
-// registers four metric vector collectors (if not already done) and reports
-// http metrics to the (newly or already) registered collectors:
-// http_requests_total (CounterVec), http_request_duration_microseconds
-// (SummaryVec), http_request_size_bytes (SummaryVec), http_response_size_bytes
-// (SummaryVec). Each has three labels: handler, method, code. The value of the
-// handler label is set by the handlerName parameter of this function.
+// otherwise works in the same way as InstrumentHandler.
 func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return InstrumentHandlerFuncWithOpts(
 		SummaryOpts{
@@ -76,13 +72,13 @@ func InstrumentHandlerFunc(handlerName string, handlerFunc func(http.ResponseWri
 
 // InstrumentHandlerWithOpts works like InstrumentHandler but provides more
 // flexibility (at the cost of a more complex call syntax). As
-// InstrumentHandler, this function registers four metric vector collectors, but
-// it uses the provided SummaryOpts to create them. However, the fields "Name"
-// and "Help" in the SummaryOpts are ignored. "Name" is replaced by
+// InstrumentHandler, this function registers four metric collectors, but it
+// uses the provided SummaryOpts to create them. However, the fields "Name" and
+// "Help" in the SummaryOpts are ignored. "Name" is replaced by
 // "requests_total", "request_duration_microseconds", "request_size_bytes", and
 // "response_size_bytes", respectively. "Help" is replaced by an appropriate
-// help string. The names of the variable labels of the vector collectors are
-// "method" (get, post, etc.), and "code" (HTTP status code).
+// help string. The names of the variable labels of the http_requests_total
+// CounterVec are "method" (get, post, etc.), and "code" (HTTP status code).
 //
 // If InstrumentHandlerWithOpts is called as follows, it mimics exactly the
 // behavior of InstrumentHandler:
