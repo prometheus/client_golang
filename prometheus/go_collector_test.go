@@ -31,7 +31,7 @@ func TestGoCollector(t *testing.T) {
 		select {
 		case metric := <-ch:
 			switch m := metric.(type) {
-			// Attention, this als catches Counter ...
+			// Attention, this also catches Counter...
 			case Gauge:
 				pb := &dto.Metric{}
 				m.Write(pb)
@@ -43,7 +43,7 @@ func TestGoCollector(t *testing.T) {
 				}
 
 				if diff := int(pb.GetGauge().GetValue()) - old; diff != 1 {
-					t.Errorf("want 1 new goroutine, got %f", diff)
+					t.Errorf("want 1 new goroutine, got %d", diff)
 				}
 
 				return

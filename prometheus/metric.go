@@ -27,7 +27,9 @@ import (
 type Metric interface {
 	// Desc returns the descriptor for the Metric. This method idempotently
 	// returns the same descriptor throughout the lifetime of the
-	// Metric. The returned descriptor is immutable by contract.
+	// Metric. The returned descriptor is immutable by contract. A Metric
+	// unable to describe itself must return an invalid descriptor (created
+	// with NewInvalidDesc).
 	Desc() *Desc
 	// Write encodes the Metric into a "Metric" Protocol Buffer data
 	// transmission object.
@@ -46,7 +48,7 @@ type Metric interface {
 	//
 	// While populating dto.Metric, labels must be sorted lexicographically.
 	// (Implementers may find LabelPairSorter useful for that.)
-	Write(*dto.Metric)
+	Write(*dto.Metric) error
 }
 
 // Opts bundles the options for creating most Metric types. Each metric
@@ -144,3 +146,19 @@ func (s hashSorter) Swap(i, j int) {
 func (s hashSorter) Less(i, j int) bool {
 	return s[i] < s[j]
 }
+
+type invalidMetric struct {
+	desc *Desc
+	err  error
+}
+
+// NewInvalidMetric returns a metric whose Write method always returns the
+// provided error. It is useful if a Collector finds itself unable to collect
+// a metric and wishes to report an error to the registry.
+func NewInvalidMetric(desc *Desc, err error) Metric {
+	return &invalidMetric{desc, err}
+}
+
+func (m *invalidMetric) Desc() *Desc { return m.desc }
+
+func (m *invalidMetric) Write(*dto.Metric) error { return m.err }
