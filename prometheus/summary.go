@@ -46,7 +46,7 @@ type Summary interface {
 
 // DefObjectives are the default Summary quantile values.
 var (
-	DefObjectives = []float64{0.5, 0.9, 0.99}
+	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 )
 
 // Default values for SummaryOpts.
@@ -59,8 +59,6 @@ const (
 	DefAgeBuckets = 10
 	// DefBufCap is the standard buffer size for collecting Summary observations.
 	DefBufCap = 500
-	// DefEpsilon is the default error epsilon for the quantile rank estimates.
-	DefEpsilon = 0.001
 )
 
 // SummaryOpts bundles the options for creating a Summary metric. It is
@@ -101,9 +99,9 @@ type SummaryOpts struct {
 	// metric name).
 	ConstLabels Labels
 
-	// Objectives defines the quantile rank estimates. The default value is
-	// DefObjectives.
-	Objectives []float64
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. The default value is DefObjectives.
+	Objectives map[float64]float64
 
 	// MaxAge defines the duration for which an observation stays relevant
 	// for the summary. Must be positive. The default value is DefMaxAge.
@@ -164,18 +162,11 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		opts.BufCap = DefBufCap
 	}
 
-	if opts.Epsilon < 0 {
-		panic(fmt.Errorf("illegal value for Epsilon=%f", opts.Epsilon))
-	}
-	if opts.Epsilon == 0. {
-		opts.Epsilon = DefEpsilon
-	}
-
 	s := &summary{
 		desc: desc,
 
-		objectives: opts.Objectives,
-		epsilon:    opts.Epsilon,
+		objectives:       opts.Objectives,
+		sortedObjectives: make([]float64, 0, len(opts.Objectives)),
 
 		labelPairs: makeLabelPairs(desc, labelValues),
 
@@ -193,6 +184,11 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	}
 	s.headStream = s.streams[0]
 
+	for qu := range DefObjectives {
+		s.sortedObjectives = append(s.sortedObjectives, qu)
+	}
+	sort.Float64s(s.sortedObjectives)
+
 	s.Init(s) // Init self-collection.
 	return s
 }
@@ -206,8 +202,8 @@ type summary struct {
 
 	desc *Desc
 
-	objectives []float64
-	epsilon    float64
+	objectives       map[float64]float64
+	sortedObjectives []float64
 
 	labelPairs []*dto.LabelPair
 
@@ -260,7 +256,7 @@ func (s *summary) Write(out *dto.Metric) error {
 	sum.SampleCount = proto.Uint64(s.cnt)
 	sum.SampleSum = proto.Float64(s.sum)
 
-	for _, rank := range s.objectives {
+	for _, rank := range s.sortedObjectives {
 		qs = append(qs, &dto.Quantile{
 			Quantile: proto.Float64(rank),
 			Value:    proto.Float64(s.mergedAllStreams.Query(rank)),
@@ -281,9 +277,7 @@ func (s *summary) Write(out *dto.Metric) error {
 }
 
 func (s *summary) newStream() *quantile.Stream {
-	stream := quantile.NewTargeted(s.objectives...)
-	stream.SetEpsilon(s.epsilon)
-	return stream
+	return quantile.NewTargeted(s.objectives)
 }
 
 // asyncFlush needs bufMtx locked.

@@ -126,16 +126,14 @@ func TestSummaryConcurrency(t *testing.T) {
 		mutations := int(n%10000 + 1)
 		concLevel := int(n%15 + 1)
 		total := mutations * concLevel
-		ε := 0.001
 
 		var start, end sync.WaitGroup
 		start.Add(1)
 		end.Add(concLevel)
 
 		sum := NewSummary(SummaryOpts{
-			Name:    "test_summary",
-			Help:    "helpless",
-			Epsilon: ε,
+			Name: "test_summary",
+			Help: "helpless",
 		})
 
 		allVars := make([]float64, total)
@@ -170,14 +168,21 @@ func TestSummaryConcurrency(t *testing.T) {
 			t.Errorf("got sample sum %f, want %f", got, want)
 		}
 
-		for i, wantQ := range DefObjectives {
+		objectives := make([]float64, 0, len(DefObjectives))
+		for qu := range DefObjectives {
+			objectives = append(objectives, qu)
+		}
+		sort.Float64s(objectives)
+
+		for i, wantQ := range objectives {
+			ε := DefObjectives[wantQ]
 			gotQ := *m.Summary.Quantile[i].Quantile
 			gotV := *m.Summary.Quantile[i].Value
 			min, max := getBounds(allVars, wantQ, ε)
 			if gotQ != wantQ {
 				t.Errorf("got quantile %f, want %f", gotQ, wantQ)
 			}
-			if (gotV < min || gotV > max) && len(allVars) > 500 { // Avoid statistical outliers.
+			if gotV < min || gotV > max {
 				t.Errorf("got %f for quantile %f, want [%f,%f]", gotV, gotQ, min, max)
 			}
 		}
@@ -192,10 +197,15 @@ func TestSummaryConcurrency(t *testing.T) {
 func TestSummaryVecConcurrency(t *testing.T) {
 	rand.Seed(42)
 
+	objectives := make([]float64, 0, len(DefObjectives))
+	for qu := range DefObjectives {
+		objectives = append(objectives, qu)
+	}
+	sort.Float64s(objectives)
+
 	it := func(n uint32) bool {
 		mutations := int(n%10000 + 1)
 		concLevel := int(n%15 + 1)
-		ε := 0.001
 		vecLength := int(n%5 + 1)
 
 		var start, end sync.WaitGroup
@@ -204,9 +214,8 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 		sum := NewSummaryVec(
 			SummaryOpts{
-				Name:    "test_summary",
-				Help:    "helpless",
-				Epsilon: ε,
+				Name: "test_summary",
+				Help: "helpless",
 			},
 			[]string{"label"},
 		)
@@ -249,14 +258,15 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			if got, want := *m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
 				t.Errorf("got sample sum %f for label %c, want %f", got, 'A'+i, want)
 			}
-			for j, wantQ := range DefObjectives {
+			for j, wantQ := range objectives {
+				ε := DefObjectives[wantQ]
 				gotQ := *m.Summary.Quantile[j].Quantile
 				gotV := *m.Summary.Quantile[j].Value
 				min, max := getBounds(allVars[i], wantQ, ε)
 				if gotQ != wantQ {
 					t.Errorf("got quantile %f for label %c, want %f", gotQ, 'A'+i, wantQ)
 				}
-				if (gotV < min || gotV > max) && len(allVars[i]) > 500 { // Avoid statistical outliers.
+				if gotV < min || gotV > max {
 					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, min, max)
 					t.Log(len(allVars[i]))
 				}
@@ -276,9 +286,8 @@ func XTestSummaryDecay(t *testing.T) {
 	sum := NewSummary(SummaryOpts{
 		Name:       "test_summary",
 		Help:       "helpless",
-		Epsilon:    0.001,
 		MaxAge:     10 * time.Millisecond,
-		Objectives: []float64{0.1},
+		Objectives: map[float64]float64{0.1: 0.001},
 	})
 
 	m := &dto.Metric{}
@@ -302,15 +311,16 @@ func XTestSummaryDecay(t *testing.T) {
 }
 
 func getBounds(vars []float64, q, ε float64) (min, max float64) {
-	lower := int((q - 4*ε) * float64(len(vars)))
-	upper := int((q+4*ε)*float64(len(vars))) + 1
+	n := float64(len(vars))
+	lower := int((q - ε) * n)
+	upper := int(math.Ceil((q + ε) * n))
 	min = vars[0]
-	if lower > 0 {
-		min = vars[lower]
+	if lower > 1 {
+		min = vars[lower-1]
 	}
 	max = vars[len(vars)-1]
-	if upper < len(vars)-1 {
-		max = vars[upper]
+	if upper < len(vars) {
+		max = vars[upper-1]
 	}
 	return
 }

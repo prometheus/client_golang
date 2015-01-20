@@ -7,7 +7,7 @@ import (
 func BenchmarkInsertTargeted(b *testing.B) {
 	b.ReportAllocs()
 
-	s := NewTargeted(0.01, 0.5, 0.9, 0.99)
+	s := NewTargeted(Targets)
 	b.ResetTimer()
 	for i := float64(0); i < float64(b.N); i++ {
 		s.Insert(i)
@@ -15,8 +15,7 @@ func BenchmarkInsertTargeted(b *testing.B) {
 }
 
 func BenchmarkInsertTargetedSmallEpsilon(b *testing.B) {
-	s := NewTargeted(0.01, 0.5, 0.9, 0.99)
-	s.SetEpsilon(0.0001)
+	s := NewTargeted(TargetsSmallEpsilon)
 	b.ResetTimer()
 	for i := float64(0); i < float64(b.N); i++ {
 		s.Insert(i)
@@ -24,7 +23,7 @@ func BenchmarkInsertTargetedSmallEpsilon(b *testing.B) {
 }
 
 func BenchmarkInsertBiased(b *testing.B) {
-	s := NewBiased()
+	s := NewLowBiased(0.01)
 	b.ResetTimer()
 	for i := float64(0); i < float64(b.N); i++ {
 		s.Insert(i)
@@ -32,8 +31,7 @@ func BenchmarkInsertBiased(b *testing.B) {
 }
 
 func BenchmarkInsertBiasedSmallEpsilon(b *testing.B) {
-	s := NewBiased()
-	s.SetEpsilon(0.0001)
+	s := NewLowBiased(0.0001)
 	b.ResetTimer()
 	for i := float64(0); i < float64(b.N); i++ {
 		s.Insert(i)
@@ -41,7 +39,7 @@ func BenchmarkInsertBiasedSmallEpsilon(b *testing.B) {
 }
 
 func BenchmarkQuery(b *testing.B) {
-	s := NewTargeted(0.01, 0.5, 0.9, 0.99)
+	s := NewTargeted(Targets)
 	for i := float64(0); i < 1e6; i++ {
 		s.Insert(i)
 	}
@@ -53,8 +51,7 @@ func BenchmarkQuery(b *testing.B) {
 }
 
 func BenchmarkQuerySmallEpsilon(b *testing.B) {
-	s := NewTargeted(0.01, 0.5, 0.9, 0.99)
-	s.SetEpsilon(0.0001)
+	s := NewTargeted(TargetsSmallEpsilon)
 	for i := float64(0); i < 1e6; i++ {
 		s.Insert(i)
 	}
