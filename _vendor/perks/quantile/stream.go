@@ -36,30 +36,56 @@ func (a Samples) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type invariant func(s *stream, r float64) float64
 
-// NewBiased returns an initialized Stream for high-biased quantiles (e.g.
-// 50th, 90th, 99th) not known a priori with finer error guarantees for the
-// higher ranks of the data distribution.
-// See http://www.cs.rutgers.edu/~muthu/bquant.pdf for time, space, and error properties.
-func NewBiased() *Stream {
+// NewLowBiased returns an initialized Stream for low-biased quantiles
+// (e.g. 0.01, 0.1, 0.5) where the needed quantiles are not known a priori, but
+// error guarantees can still be given even for the lower ranks of the data
+// distribution.
+//
+// The provided epsilon is a relative error, i.e. the true quantile of a value
+// returned by a query is guaranteed to be within (1±Epsilon)*Quantile.
+//
+// See http://www.cs.rutgers.edu/~muthu/bquant.pdf for time, space, and error
+// properties.
+func NewLowBiased(epsilon float64) *Stream {
 	ƒ := func(s *stream, r float64) float64 {
-		return 2 * s.epsilon * r
+		return 2 * epsilon * r
+	}
+	return newStream(ƒ)
+}
+
+// NewHighBiased returns an initialized Stream for high-biased quantiles
+// (e.g. 0.01, 0.1, 0.5) where the needed quantiles are not known a priori, but
+// error guarantees can still be given even for the higher ranks of the data
+// distribution.
+//
+// The provided epsilon is a relative error, i.e. the true quantile of a value
+// returned by a query is guaranteed to be within 1-(1±Epsilon)*(1-Quantile).
+//
+// See http://www.cs.rutgers.edu/~muthu/bquant.pdf for time, space, and error
+// properties.
+func NewHighBiased(epsilon float64) *Stream {
+	ƒ := func(s *stream, r float64) float64 {
+		return 2 * epsilon * (s.n - r)
 	}
 	return newStream(ƒ)
 }
 
 // NewTargeted returns an initialized Stream concerned with a particular set of
 // quantile values that are supplied a priori. Knowing these a priori reduces
-// space and computation time.
+// space and computation time. The targets map maps the desired quantiles to
+// their absolute errors, i.e. the true quantile of a value returned by a query
+// is guaranteed to be within (Quantile±Epsilon).
+//
 // See http://www.cs.rutgers.edu/~muthu/bquant.pdf for time, space, and error properties.
-func NewTargeted(quantiles ...float64) *Stream {
+func NewTargeted(targets map[float64]float64) *Stream {
 	ƒ := func(s *stream, r float64) float64 {
-		var m float64 = math.MaxFloat64
+		var m = math.MaxFloat64
 		var f float64
-		for _, q := range quantiles {
-			if q*s.n <= r {
-				f = (2 * s.epsilon * r) / q
+		for quantile, epsilon := range targets {
+			if quantile*s.n <= r {
+				f = (2 * epsilon * r) / quantile
 			} else {
-				f = (2 * s.epsilon * (s.n - r)) / (1 - q)
+				f = (2 * epsilon * (s.n - r)) / (1 - quantile)
 			}
 			if f < m {
 				m = f
@@ -79,8 +105,7 @@ type Stream struct {
 }
 
 func newStream(ƒ invariant) *Stream {
-	const defaultEpsilon = 0.01
-	x := &stream{epsilon: defaultEpsilon, ƒ: ƒ}
+	x := &stream{ƒ: ƒ}
 	return &Stream{x, make(Samples, 0, 500), true}
 }
 
@@ -94,7 +119,6 @@ func (s *Stream) insert(sample Sample) {
 	s.sorted = false
 	if len(s.b) == cap(s.b) {
 		s.flush()
-		s.compress()
 	}
 }
 
@@ -122,6 +146,9 @@ func (s *Stream) Query(q float64) float64 {
 
 // Merge merges samples into the underlying streams samples. This is handy when
 // merging multiple streams from separate threads, database shards, etc.
+//
+// ATTENTION: This method is broken and does not yield correct results. The
+// underlying algorithm is not capable of merging streams correctly.
 func (s *Stream) Merge(samples Samples) {
 	sort.Sort(samples)
 	s.stream.merge(samples)
@@ -139,7 +166,6 @@ func (s *Stream) Samples() Samples {
 		return s.b
 	}
 	s.flush()
-	s.compress()
 	return s.stream.samples()
 }
 
@@ -167,18 +193,9 @@ func (s *Stream) flushed() bool {
 }
 
 type stream struct {
-	epsilon float64
-	n       float64
-	l       []Sample
-	ƒ       invariant
-}
-
-// SetEpsilon sets the error epsilon for the Stream. The default epsilon is
-// 0.01 and is usually satisfactory. If needed, this must be called before all
-// Inserts.
-// To learn more, see: http://www.cs.rutgers.edu/~muthu/bquant.pdf
-func (s *stream) SetEpsilon(epsilon float64) {
-	s.epsilon = epsilon
+	n float64
+	l []Sample
+	ƒ invariant
 }
 
 func (s *stream) reset() {
@@ -191,6 +208,10 @@ func (s *stream) insert(v float64) {
 }
 
 func (s *stream) merge(samples Samples) {
+	// TODO(beorn7): This tries to merge not only individual samples, but
+	// whole summaries. The paper doesn't mention merging summaries at
+	// all. Unittests show that the merging is inaccurate. Find out how to
+	// do merges properly.
 	var r float64
 	i := 0
 	for _, sample := range samples {
@@ -200,7 +221,12 @@ func (s *stream) merge(samples Samples) {
 				// Insert at position i.
 				s.l = append(s.l, Sample{})
 				copy(s.l[i+1:], s.l[i:])
-				s.l[i] = Sample{sample.Value, sample.Width, math.Floor(s.ƒ(s, r)) - 1}
+				s.l[i] = Sample{
+					sample.Value,
+					sample.Width,
+					math.Max(sample.Delta, math.Floor(s.ƒ(s, r))-1),
+					// TODO(beorn7): How to calculate delta correctly?
+				}
 				i++
 				goto inserted
 			}
@@ -210,7 +236,9 @@ func (s *stream) merge(samples Samples) {
 		i++
 	inserted:
 		s.n += sample.Width
+		r += sample.Width
 	}
+	s.compress()
 }
 
 func (s *stream) count() int {
@@ -221,12 +249,12 @@ func (s *stream) query(q float64) float64 {
 	t := math.Ceil(q * s.n)
 	t += math.Ceil(s.ƒ(s, t) / 2)
 	p := s.l[0]
-	r := float64(0)
+	var r float64
 	for _, c := range s.l[1:] {
+		r += p.Width
 		if r+c.Width+c.Delta > t {
 			return p.Value
 		}
-		r += p.Width
 		p = c
 	}
 	return p.Value

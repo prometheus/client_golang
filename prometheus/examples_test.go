@@ -362,11 +362,11 @@ func ExampleSummary() {
 	//   sample_sum: 29969.50000000001
 	//   quantile: <
 	//     quantile: 0.5
-	//     value: 30.2
+	//     value: 31.1
 	//   >
 	//   quantile: <
 	//     quantile: 0.9
-	//     value: 41.4
+	//     value: 41.3
 	//   >
 	//   quantile: <
 	//     quantile: 0.99
@@ -419,11 +419,11 @@ func ExampleSummaryVec() {
 	//   sample_sum: 31956.100000000017
 	//   quantile: <
 	//     quantile: 0.5
-	//     value: 32
+	//     value: 32.4
 	//   >
 	//   quantile: <
 	//     quantile: 0.9
-	//     value: 41.5
+	//     value: 41.4
 	//   >
 	//   quantile: <
 	//     quantile: 0.99
@@ -439,11 +439,11 @@ func ExampleSummaryVec() {
 	//   sample_sum: 29969.50000000001
 	//   quantile: <
 	//     quantile: 0.5
-	//     value: 30.2
+	//     value: 31.1
 	//   >
 	//   quantile: <
 	//     quantile: 0.9
-	//     value: 41.4
+	//     value: 41.3
 	//   >
 	//   quantile: <
 	//     quantile: 0.99

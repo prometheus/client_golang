@@ -46,7 +46,7 @@ type Summary interface {
 
 // DefObjectives are the default Summary quantile values.
 var (
-	DefObjectives = []float64{0.5, 0.9, 0.99}
+	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 )
 
 // Default values for SummaryOpts.
@@ -56,11 +56,9 @@ const (
 	DefMaxAge time.Duration = 10 * time.Minute
 	// DefAgeBuckets is the default number of buckets used to calculate the
 	// age of observations.
-	DefAgeBuckets = 10
+	DefAgeBuckets = 5
 	// DefBufCap is the standard buffer size for collecting Summary observations.
 	DefBufCap = 500
-	// DefEpsilon is the default error epsilon for the quantile rank estimates.
-	DefEpsilon = 0.001
 )
 
 // SummaryOpts bundles the options for creating a Summary metric. It is
@@ -101,9 +99,9 @@ type SummaryOpts struct {
 	// metric name).
 	ConstLabels Labels
 
-	// Objectives defines the quantile rank estimates. The default value is
-	// DefObjectives.
-	Objectives []float64
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. The default value is DefObjectives.
+	Objectives map[float64]float64
 
 	// MaxAge defines the duration for which an observation stays relevant
 	// for the summary. Must be positive. The default value is DefMaxAge.
@@ -126,6 +124,21 @@ type SummaryOpts struct {
 	// positive. The default is DefEpsilon.
 	Epsilon float64
 }
+
+// TODO: Great fuck-up with the sliding-window decay algorithm... The Merge
+// method of perk/quantile is actually not working as advertised - and it might
+// be unfixable, as the underlying algorithm is apparently not capable of
+// merging summaries in the first place. To avoid using Merge, we are currently
+// adding observations to _each_ age bucket, i.e. the effort to add a sample is
+// essentially multiplied by the number of age buckets. When rotating age
+// buckets, we empty the previous head stream. On scrape time, we simply take
+// the quantiles from the head stream (no merging required). Result: More effort
+// on observation time, less effort on scrape time, which is exactly the
+// opposite of what we try to accomplish, but at least the results are correct.
+//
+// The quite elegant previous contraption to merge the age buckets efficiently
+// on scrape time (see code up commit 6b9530d72ea715f0ba612c0120e6e09fbf1d49d0)
+// can't be used anymore.
 
 // NewSummary creates a new Summary based on the provided SummaryOpts.
 func NewSummary(opts SummaryOpts) Summary {
@@ -164,18 +177,11 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		opts.BufCap = DefBufCap
 	}
 
-	if opts.Epsilon < 0 {
-		panic(fmt.Errorf("illegal value for Epsilon=%f", opts.Epsilon))
-	}
-	if opts.Epsilon == 0. {
-		opts.Epsilon = DefEpsilon
-	}
-
 	s := &summary{
 		desc: desc,
 
-		objectives: opts.Objectives,
-		epsilon:    opts.Epsilon,
+		objectives:       opts.Objectives,
+		sortedObjectives: make([]float64, 0, len(opts.Objectives)),
 
 		labelPairs: makeLabelPairs(desc, labelValues),
 
@@ -183,8 +189,6 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		coldBuf:        make([]float64, 0, opts.BufCap),
 		streamDuration: opts.MaxAge / time.Duration(opts.AgeBuckets),
 	}
-	s.mergedTailStreams = s.newStream()
-	s.mergedAllStreams = s.newStream()
 	s.headStreamExpTime = time.Now().Add(s.streamDuration)
 	s.hotBufExpTime = s.headStreamExpTime
 
@@ -192,6 +196,11 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		s.streams = append(s.streams, s.newStream())
 	}
 	s.headStream = s.streams[0]
+
+	for qu := range s.objectives {
+		s.sortedObjectives = append(s.sortedObjectives, qu)
+	}
+	sort.Float64s(s.sortedObjectives)
 
 	s.Init(s) // Init self-collection.
 	return s
@@ -206,8 +215,8 @@ type summary struct {
 
 	desc *Desc
 
-	objectives []float64
-	epsilon    float64
+	objectives       map[float64]float64
+	sortedObjectives []float64
 
 	labelPairs []*dto.LabelPair
 
@@ -218,10 +227,9 @@ type summary struct {
 
 	streams                          []*quantile.Stream
 	streamDuration                   time.Duration
+	headStream                       *quantile.Stream
 	headStreamIdx                    int
 	headStreamExpTime, hotBufExpTime time.Time
-
-	headStream, mergedTailStreams, mergedAllStreams *quantile.Stream
 }
 
 func (s *summary) Desc() *Desc {
@@ -255,18 +263,15 @@ func (s *summary) Write(out *dto.Metric) error {
 	s.bufMtx.Unlock()
 
 	s.flushColdBuf()
-	s.mergedAllStreams.Merge(s.mergedTailStreams.Samples())
-	s.mergedAllStreams.Merge(s.headStream.Samples())
 	sum.SampleCount = proto.Uint64(s.cnt)
 	sum.SampleSum = proto.Float64(s.sum)
 
-	for _, rank := range s.objectives {
+	for _, rank := range s.sortedObjectives {
 		qs = append(qs, &dto.Quantile{
 			Quantile: proto.Float64(rank),
-			Value:    proto.Float64(s.mergedAllStreams.Query(rank)),
+			Value:    proto.Float64(s.headStream.Query(rank)),
 		})
 	}
-	s.mergedAllStreams.Reset()
 
 	s.mtx.Unlock()
 
@@ -281,9 +286,7 @@ func (s *summary) Write(out *dto.Metric) error {
 }
 
 func (s *summary) newStream() *quantile.Stream {
-	stream := quantile.NewTargeted(s.objectives...)
-	stream.SetEpsilon(s.epsilon)
-	return stream
+	return quantile.NewTargeted(s.objectives)
 }
 
 // asyncFlush needs bufMtx locked.
@@ -302,32 +305,23 @@ func (s *summary) asyncFlush(now time.Time) {
 
 // rotateStreams needs mtx AND bufMtx locked.
 func (s *summary) maybeRotateStreams() {
-	if s.hotBufExpTime.Equal(s.headStreamExpTime) {
-		// Fast return to avoid re-merging s.mergedTailStreams.
-		return
-	}
 	for !s.hotBufExpTime.Equal(s.headStreamExpTime) {
+		s.headStream.Reset()
 		s.headStreamIdx++
 		if s.headStreamIdx >= len(s.streams) {
 			s.headStreamIdx = 0
 		}
 		s.headStream = s.streams[s.headStreamIdx]
-		s.headStream.Reset()
 		s.headStreamExpTime = s.headStreamExpTime.Add(s.streamDuration)
 	}
-	s.mergedTailStreams.Reset()
-	for _, stream := range s.streams {
-		if stream != s.headStream {
-			s.mergedTailStreams.Merge(stream.Samples())
-		}
-	}
-
 }
 
 // flushColdBuf needs mtx locked.
 func (s *summary) flushColdBuf() {
 	for _, v := range s.coldBuf {
-		s.headStream.Insert(v)
+		for _, stream := range s.streams {
+			stream.Insert(v)
+		}
 		s.cnt++
 		s.sum += v
 	}
@@ -337,6 +331,9 @@ func (s *summary) flushColdBuf() {
 
 // swapBufs needs mtx AND bufMtx locked, coldBuf must be empty.
 func (s *summary) swapBufs(now time.Time) {
+	if len(s.coldBuf) != 0 {
+		panic("coldBuf is not empty")
+	}
 	s.hotBuf, s.coldBuf = s.coldBuf, s.hotBuf
 	// hotBuf is now empty and gets new expiration set.
 	for now.After(s.hotBufExpTime) {
