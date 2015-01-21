@@ -43,6 +43,7 @@ func TestGoCollector(t *testing.T) {
 				}
 
 				if diff := int(pb.GetGauge().GetValue()) - old; diff != 1 {
+					// TODO: This is flaky in highly concurrent situations.
 					t.Errorf("want 1 new goroutine, got %d", diff)
 				}
 
