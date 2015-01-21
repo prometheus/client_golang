@@ -123,7 +123,7 @@ func TestSummaryConcurrency(t *testing.T) {
 	rand.Seed(42)
 
 	it := func(n uint32) bool {
-		mutations := int(n%10000 + 1e4)
+		mutations := int(n%1e4 + 1e4)
 		concLevel := int(n%5 + 1)
 		total := mutations * concLevel
 
@@ -205,7 +205,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 	sort.Float64s(objectives)
 
 	it := func(n uint32) bool {
-		mutations := int(n%10000 + 1e4)
+		mutations := int(n%1e4 + 1e4)
 		concLevel := int(n%7 + 1)
 		vecLength := int(n%3 + 1)
 
