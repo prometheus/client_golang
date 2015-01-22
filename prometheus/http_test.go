@@ -59,20 +59,17 @@ func TestInstrumentHandler(t *testing.T) {
 
 	opts.Name = "request_duration_microseconds"
 	opts.Help = "The HTTP request latencies in microseconds."
-	reqDur := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+	reqDur := MustRegisterOrGet(NewSummary(opts)).(Summary)
 
 	opts.Name = "request_size_bytes"
 	opts.Help = "The HTTP request sizes in bytes."
-	reqSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+	MustRegisterOrGet(NewSummary(opts))
 
 	opts.Name = "response_size_bytes"
 	opts.Help = "The HTTP response sizes in bytes."
-	resSz := MustRegisterOrGet(NewSummaryVec(opts, instLabels)).(*SummaryVec)
+	MustRegisterOrGet(NewSummary(opts))
 
 	reqCnt.Reset()
-	reqDur.Reset()
-	reqSz.Reset()
-	resSz.Reset()
 
 	resp := httptest.NewRecorder()
 	req := &http.Request{
@@ -88,22 +85,9 @@ func TestInstrumentHandler(t *testing.T) {
 		t.Fatalf("expected body %s, got %s", "Howdy there!", string(resp.Body.Bytes()))
 	}
 
-	if want, got := 1, len(reqDur.children); want != got {
-		t.Errorf("want %d children in reqDur, got %d", want, got)
-	}
-	sum, err := reqDur.GetMetricWithLabelValues("get", "418")
-	if err != nil {
-		t.Fatal(err)
-	}
 	out := &dto.Metric{}
-	sum.Write(out)
-	if want, got := "418", out.Label[0].GetValue(); want != got {
-		t.Errorf("want label value %q in reqDur, got %q", want, got)
-	}
-	if want, got := "test-handler", out.Label[1].GetValue(); want != got {
-		t.Errorf("want label value %q in reqDur, got %q", want, got)
-	}
-	if want, got := "get", out.Label[2].GetValue(); want != got {
+	reqDur.Write(out)
+	if want, got := "test-handler", out.Label[0].GetValue(); want != got {
 		t.Errorf("want label value %q in reqDur, got %q", want, got)
 	}
 	if want, got := uint64(1), out.Summary.GetSampleCount(); want != got {

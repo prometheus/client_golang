@@ -55,7 +55,7 @@ func TestTimestampConversions(t *testing.T) {
 
 	ts := TimestampFromUnixNano(unixNano)
 	if !ts.Time().Equal(t1) {
-		t.Fatalf("Expected %s, got %s %d", t1, ts.Time())
+		t.Fatalf("Expected %s, got %s", t1, ts.Time())
 	}
 
 	// Test available precision.
