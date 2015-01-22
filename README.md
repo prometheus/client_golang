@@ -27,4 +27,4 @@ continue your journey:
 
 ##  Contributing
 
-See the contributing guidelines for the [Prometheus server](https://github.com/prometheus/prometheus/blob/master/CONTRIBUTING.md).
+See the [contributing guidelines](CONTRIBUTING.md).
