@@ -14,7 +14,8 @@
 package model
 
 import (
-	"fmt"
+	"strconv"
+
 	native_time "time"
 )
 
@@ -81,7 +82,7 @@ func (t Timestamp) UnixNano() int64 {
 
 // String returns a string representation of the timestamp.
 func (t Timestamp) String() string {
-	return fmt.Sprintf("%f", float64(t)/float64(second))
+	return strconv.FormatFloat(float64(t)/float64(second), 'f', -1, 64)
 }
 
 func (t Timestamp) MarshalJSON() ([]byte, error) {
