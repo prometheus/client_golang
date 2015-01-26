@@ -44,7 +44,7 @@ BENCHMARK_FILTER ?= .
 FULL_GOPATH = $(GOPATH)/src/github.com/prometheus/client_golang
 FULL_GOPATH_BASE = $(GOPATH)/src/github.com/prometheus
 
-MAKE_ARTIFACTS = search_index $(BUILD_PATH)
+MAKE_ARTIFACTS = search_index $(BUILD_PATH) example_random example_simple
 
 all: test
 
@@ -69,6 +69,12 @@ build: source_path dependencies
 
 dependencies: source_path $(GOCC)
 	$(GO) get -d -t ./...
+
+example_random: source_path dependencies examples/random/main.go
+	$(GO) build -o example_random examples/random/main.go
+
+example_simple: source_path dependencies examples/simple/main.go
+	$(GO) build -o example_simple examples/simple/main.go
 
 test: build
 	$(GO) test ./...
