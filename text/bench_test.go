@@ -24,7 +24,7 @@ import (
 	"github.com/matttproud/golang_protobuf_extensions/ext"
 )
 
-// Benchmarks to show how much penalty text format parsing accually inflicts.
+// Benchmarks to show how much penalty text format parsing actually inflicts.
 //
 // Example results on Linux 3.13.0, Intel(R) Core(TM) i7-4700MQ CPU @ 2.40GHz, go1.4.
 //
@@ -82,8 +82,8 @@ func BenchmarkParseTextGzip(b *testing.B) {
 	}
 }
 
-// BenchmarkParseProto benchmarks the parsinge of a protobuf-format scrape into
-// metric family DTOs. Note that this does not build a map of matric families
+// BenchmarkParseProto benchmarks the parsing of a protobuf-format scrape into
+// metric family DTOs. Note that this does not build a map of metric families
 // (as the text version does), because it is not required for Prometheus
 // ingestion either. (However, it is required for the text-format parsing, as
 // the metric family might be sprinkled all over the text, while the
