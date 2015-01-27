@@ -14,7 +14,9 @@
 package extraction
 
 import (
+	"bytes"
 	"errors"
+	"io/ioutil"
 	"os"
 	"path"
 	"runtime"
@@ -199,4 +201,26 @@ func BenchmarkProcessor002Process(b *testing.B) {
 	allocated := post.TotalAlloc - pre.TotalAlloc
 
 	b.Logf("Allocated %d at %f per cycle with %d cycles.", allocated, float64(allocated)/float64(b.N), b.N)
+}
+
+func BenchmarkProcessor002ParseOnly(b *testing.B) {
+	b.StopTimer()
+	data, err := ioutil.ReadFile("fixtures/test0_0_1-0_0_2-large.json")
+	if err != nil {
+		b.Fatal(err)
+	}
+	ing := fakeIngester{}
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		if err := Processor002.ProcessSingle(bytes.NewReader(data), ing, &ProcessOptions{}); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+type fakeIngester struct{}
+
+func (i fakeIngester) Ingest(model.Samples) error {
+	return nil
 }
