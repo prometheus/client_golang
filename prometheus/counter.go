@@ -55,7 +55,7 @@ func NewCounter(opts CounterOpts) Counter {
 		nil,
 		opts.ConstLabels,
 	)
-	result := &counter{value: value{desc: desc, valType: CounterValue}}
+	result := &counter{value: value{desc: desc, valType: CounterValue, labelPairs: desc.constLabelPairs}}
 	result.Init(result) // Init self-collection.
 	return result
 }
