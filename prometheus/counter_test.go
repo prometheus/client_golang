@@ -13,12 +13,17 @@
 
 package prometheus
 
-import "testing"
+import (
+	"testing"
+
+	dto "github.com/prometheus/client_model/go"
+)
 
 func TestCounterAdd(t *testing.T) {
 	counter := NewCounter(CounterOpts{
-		Name: "test",
-		Help: "test help",
+		Name:        "test",
+		Help:        "test help",
+		ConstLabels: Labels{"a": "1", "b": "2"},
 	}).(*counter)
 	counter.Inc()
 	if expected, got := 1., counter.val; expected != got {
@@ -31,6 +36,13 @@ func TestCounterAdd(t *testing.T) {
 
 	if expected, got := "counter cannot decrease in value", decreaseCounter(counter).Error(); expected != got {
 		t.Errorf("Expected error %q, got %q.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > counter:<value:43 > `, m.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 
