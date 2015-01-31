@@ -400,7 +400,6 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
-	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
 	var metricHashes map[uint64]struct{}
 	if r.collectChecksEnabled {
 		metricHashes = make(map[uint64]struct{})
@@ -408,9 +407,11 @@ func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
 	metricChan := make(chan Metric, capMetricChan)
 	wg := sync.WaitGroup{}
 
+	r.mtx.RLock()
+	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
+
 	// Scatter.
 	// (Collectors could be complex and slow, so we call them all at once.)
-	r.mtx.RLock()
 	wg.Add(len(r.collectorsByID))
 	go func() {
 		wg.Wait()
