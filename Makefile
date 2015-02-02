@@ -11,6 +11,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+VERSION=$(shell cat `git rev-parse --show-toplevel`/VERSION)
+
 OS   = $(shell uname)
 ARCH = $(shell uname -m)
 
@@ -89,7 +91,11 @@ advice: test
 	$(GO) vet ./...
 
 format:
-	find . -iname '*.go' | grep -v './.build/' | xargs -n1 -P1 $(GOFMT) -w -s=true
+	find . -iname '*.go' | grep -vE '^./(.build|_vendor)/' | xargs -n1 -P1 $(GOFMT) -w -s=true
+
+tag:
+	git tag $(VERSION)
+	git push --tags
 
 search_index:
 	$(GODOC) -index -write_index -index_files='search_index'
