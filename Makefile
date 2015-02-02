@@ -1,4 +1,4 @@
-# Copyright 2013 Prometheus Team
+# Copyright 2013 The Prometheus Authors
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -26,6 +26,9 @@ RELEASE_SUFFIX ?= -osx$(MAC_OS_X_VERSION)
 else
 RELEASE_SUFFIX ?=
 endif
+
+# Never honor GOBIN, should it be set at all.
+unexport GOBIN
 
 export GOARCH		  = $(subst x86_64,amd64,$(ARCH))
 export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
