@@ -19,7 +19,7 @@ func TestProcessCollector(t *testing.T) {
 	registry := newRegistry()
 	registry.Register(NewProcessCollector(os.Getpid(), ""))
 	registry.Register(NewProcessCollectorPIDFn(
-		func() int { return os.Getpid() }, "foobar"))
+		func() (int, error) { return os.Getpid(), nil }, "foobar"))
 
 	s := httptest.NewServer(InstrumentHandler("prometheus", registry))
 	defer s.Close()

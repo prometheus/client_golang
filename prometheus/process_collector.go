@@ -5,7 +5,7 @@ import "github.com/prometheus/procfs"
 type processCollector struct {
 	pid             int
 	collectFn       func(chan<- Metric)
-	pidFn           func() int
+	pidFn           func() (int, error)
 	cpuTotal        Counter
 	openFDs, maxFDs Gauge
 	vsize, rss      Gauge
@@ -16,7 +16,10 @@ type processCollector struct {
 // process metrics including cpu, memory and file descriptor usage as well as
 // the process start time for the given process id under the given namespace.
 func NewProcessCollector(pid int, namespace string) *processCollector {
-	return NewProcessCollectorPIDFn(func() int { return pid }, namespace)
+	return NewProcessCollectorPIDFn(
+		func() (int, error) { return pid, nil },
+		namespace,
+	)
 }
 
 // NewProcessCollectorPIDFn returns a collector which exports the current state
@@ -25,7 +28,7 @@ func NewProcessCollector(pid int, namespace string) *processCollector {
 // called on each collect and is used to determine the process to export
 // metrics for.
 func NewProcessCollectorPIDFn(
-	pidFn func() int,
+	pidFn func() (int, error),
 	namespace string,
 ) *processCollector {
 	c := processCollector{
@@ -90,15 +93,15 @@ func (c *processCollector) Collect(ch chan<- Metric) {
 func noopCollect(ch chan<- Metric) {}
 
 func (c *processCollector) procfsCollect(ch chan<- Metric) {
-	p, err := procfs.NewProc(c.pidFn())
+	pid, err := c.pidFn()
 	if err != nil {
-		// Report collect errors for all metrics.
-		ch <- NewInvalidMetric(c.cpuTotal.Desc(), err)
-		ch <- NewInvalidMetric(c.openFDs.Desc(), err)
-		ch <- NewInvalidMetric(c.maxFDs.Desc(), err)
-		ch <- NewInvalidMetric(c.vsize.Desc(), err)
-		ch <- NewInvalidMetric(c.rss.Desc(), err)
-		ch <- NewInvalidMetric(c.startTime.Desc(), err)
+		c.reportCollectErrors(ch, err)
+		return
+	}
+
+	p, err := procfs.NewProc(pid)
+	if err != nil {
+		c.reportCollectErrors(ch, err)
 		return
 	}
 
@@ -137,4 +140,13 @@ func (c *processCollector) procfsCollect(ch chan<- Metric) {
 		c.maxFDs.Set(float64(limits.OpenFiles))
 		ch <- c.maxFDs
 	}
+}
+
+func (c *processCollector) reportCollectErrors(ch chan<- Metric, err error) {
+	ch <- NewInvalidMetric(c.cpuTotal.Desc(), err)
+	ch <- NewInvalidMetric(c.openFDs.Desc(), err)
+	ch <- NewInvalidMetric(c.maxFDs.Desc(), err)
+	ch <- NewInvalidMetric(c.vsize.Desc(), err)
+	ch <- NewInvalidMetric(c.rss.Desc(), err)
+	ch <- NewInvalidMetric(c.startTime.Desc(), err)
 }
