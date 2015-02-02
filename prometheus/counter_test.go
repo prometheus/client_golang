@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"math"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -26,11 +27,11 @@ func TestCounterAdd(t *testing.T) {
 		ConstLabels: Labels{"a": "1", "b": "2"},
 	}).(*counter)
 	counter.Inc()
-	if expected, got := 1., counter.val; expected != got {
+	if expected, got := 1., math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 	counter.Add(42)
-	if expected, got := 43., counter.val; expected != got {
+	if expected, got := 43., math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 

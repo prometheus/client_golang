@@ -16,8 +16,9 @@ package prometheus
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
-	"sync"
+	"sync/atomic"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -44,10 +45,9 @@ var errInconsistentCardinality = errors.New("inconsistent label cardinality")
 type value struct {
 	SelfCollector
 
-	mtx        sync.RWMutex
 	desc       *Desc
 	valType    ValueType
-	val        float64
+	valBits    uint64 // These are the bits of the represented float64 value.
 	labelPairs []*dto.LabelPair
 }
 
@@ -61,7 +61,7 @@ func newValue(desc *Desc, valueType ValueType, val float64, labelValues ...strin
 	result := &value{
 		desc:       desc,
 		valType:    valueType,
-		val:        val,
+		valBits:    math.Float64bits(val),
 		labelPairs: makeLabelPairs(desc, labelValues),
 	}
 	result.Init(result)
@@ -73,10 +73,7 @@ func (v *value) Desc() *Desc {
 }
 
 func (v *value) Set(val float64) {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
-	v.val = val
+	atomic.StoreUint64(&v.valBits, math.Float64bits(val))
 }
 
 func (v *value) Inc() {
@@ -88,10 +85,13 @@ func (v *value) Dec() {
 }
 
 func (v *value) Add(val float64) {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
-	v.val += val
+	for {
+		oldBits := atomic.LoadUint64(&v.valBits)
+		newBits := math.Float64bits(math.Float64frombits(oldBits) + val)
+		if atomic.CompareAndSwapUint64(&v.valBits, oldBits, newBits) {
+			return
+		}
+	}
 }
 
 func (v *value) Sub(val float64) {
@@ -99,10 +99,7 @@ func (v *value) Sub(val float64) {
 }
 
 func (v *value) Write(out *dto.Metric) error {
-	v.mtx.RLock()
-	val := v.val
-	v.mtx.RUnlock()
-
+	val := math.Float64frombits(atomic.LoadUint64(&v.valBits))
 	return populateMetric(v.valType, val, v.labelPairs, out)
 }
 
