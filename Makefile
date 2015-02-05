@@ -21,7 +21,7 @@ MAC_OS_X_VERSION ?= 10.8
 BUILD_PATH = $(PWD)/.build
 
 export GO_VERSION = 1.4
-export GOOS 	    = $(subst Darwin,darwin,$(subst Linux,linux,$(OS)))
+export GOOS       = $(subst Darwin,darwin,$(subst Linux,linux,$(subst FreeBSD,freebsd,$(OS))))
 
 ifeq ($(GOOS),darwin)
 RELEASE_SUFFIX ?= -osx$(MAC_OS_X_VERSION)
@@ -32,7 +32,7 @@ endif
 # Never honor GOBIN, should it be set at all.
 unexport GOBIN
 
-export GOARCH		  = $(subst x86_64,amd64,$(ARCH))
+export GOARCH		  = $(subst x86_64,amd64,$(patsubst i%86,386,$(ARCH)))
 export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
 export GOURL		  = http://golang.org/dl
 export GOROOT		  = $(BUILD_PATH)/root/go
