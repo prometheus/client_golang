@@ -24,6 +24,8 @@ func processCollectSupported() bool {
 	return false
 }
 
+// TODO(ts): Bring back error reporting by reverting 7faf9e7 as soon as the
+// client allows users to configure the error behavior.
 func (c *processCollector) processCollect(ch chan<- Metric) {
 	pid, err := c.pidFn()
 	if err != nil {
