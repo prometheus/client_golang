@@ -69,6 +69,10 @@ func extractMetricFamily(out Ingester, o *ProcessOptions, family *dto.MetricFami
 		if err := extractUntyped(out, o, family); err != nil {
 			return err
 		}
+	case dto.MetricType_HISTOGRAM:
+		if err := extractHistogram(out, o, family); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -223,6 +227,68 @@ func extractUntyped(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 		metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
 
 		sample.Value = model.SampleValue(m.Untyped.GetValue())
+	}
+
+	return out.Ingest(samples)
+}
+
+func extractHistogram(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error {
+	samples := make(model.Samples, 0, len(f.Metric))
+
+	for _, m := range f.Metric {
+		if m.Histogram == nil {
+			continue
+		}
+
+		timestamp := o.Timestamp
+		if m.TimestampMs != nil {
+			timestamp = model.TimestampFromUnixNano(*m.TimestampMs * 1000000)
+		}
+
+		for _, q := range m.Histogram.Bucket {
+			sample := new(model.Sample)
+			samples = append(samples, sample)
+
+			sample.Timestamp = timestamp
+			sample.Metric = model.Metric{}
+			metric := sample.Metric
+
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			metric[model.LabelName("le")] = model.LabelValue(fmt.Sprint(q.GetUpperBound()))
+
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_bucket")
+
+			sample.Value = model.SampleValue(q.GetCumulativeCount())
+		}
+		// TODO: If +Inf bucket is missing, add it.
+
+		if m.Histogram.SampleSum != nil {
+			sum := new(model.Sample)
+			sum.Timestamp = timestamp
+			metric := model.Metric{}
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_sum")
+			sum.Metric = metric
+			sum.Value = model.SampleValue(m.Histogram.GetSampleSum())
+			samples = append(samples, sum)
+		}
+
+		if m.Histogram.SampleCount != nil {
+			count := new(model.Sample)
+			count.Timestamp = timestamp
+			metric := model.Metric{}
+			for _, p := range m.Label {
+				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
+			}
+			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_count")
+			count.Metric = metric
+			count.Value = model.SampleValue(m.Histogram.GetSampleCount())
+			samples = append(samples, count)
+		}
 	}
 
 	return out.Ingest(samples)
