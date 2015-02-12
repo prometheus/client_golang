@@ -139,6 +139,39 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 				float64(metric.Summary.GetSampleCount()),
 				out,
 			)
+		case dto.MetricType_HISTOGRAM:
+			if metric.Histogram == nil {
+				return written, fmt.Errorf(
+					"expected summary in metric %s", metric,
+				)
+			}
+			for _, q := range metric.Histogram.Bucket {
+				n, err = writeSample(
+					name+"_bucket", metric,
+					"le", fmt.Sprint(q.GetUpperBound()),
+					float64(q.GetCumulativeCount()),
+					out,
+				)
+				written += n
+				if err != nil {
+					return written, err
+				}
+                        // TODO: Add +inf bucket if it's missing.
+			}
+			n, err = writeSample(
+				name+"_sum", metric, "", "",
+				metric.Histogram.GetSampleSum(),
+				out,
+			)
+			if err != nil {
+				return written, err
+			}
+			written += n
+			n, err = writeSample(
+				name+"_count", metric, "", "",
+				float64(metric.Histogram.GetSampleCount()),
+				out,
+			)
 		default:
 			return written, fmt.Errorf(
 				"unexpected type in metric %s", metric,
