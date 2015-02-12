@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -145,6 +146,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 					"expected summary in metric %s", metric,
 				)
 			}
+			infSeen := false
 			for _, q := range metric.Histogram.Bucket {
 				n, err = writeSample(
 					name+"_bucket", metric,
@@ -156,7 +158,21 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 				if err != nil {
 					return written, err
 				}
-                        // TODO: Add +inf bucket if it's missing.
+				if math.IsInf(q.GetUpperBound(), +1) {
+					infSeen = true
+				}
+			}
+			if !infSeen {
+				n, err = writeSample(
+					name+"_bucket", metric,
+					"le", "+Inf",
+					float64(metric.Histogram.GetSampleCount()),
+					out,
+				)
+				if err != nil {
+					return written, err
+				}
+				written += n
 			}
 			n, err = writeSample(
 				name+"_sum", metric, "", "",
