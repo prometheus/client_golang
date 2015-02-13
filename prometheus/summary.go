@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 

@@ -35,7 +35,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"code.google.com/p/goprotobuf/proto"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/prometheus/client_golang/_vendor/goautoneg"
 	"github.com/prometheus/client_golang/model"
