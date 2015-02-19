@@ -39,7 +39,7 @@ import (
 // Note that the rank estimations cannot be aggregated in a meaningful way with
 // the Prometheus query language (i.e. you cannot average or add them). If you
 // need aggregatable quantiles (e.g. you want the 99th percentile latency of all
-// queries served across all instances of a service), check out the Histogram
+// queries served across all instances of a service), consider the Histogram
 // metric type. See the Prometheus documentation for more details.
 //
 // To create Summary instances, use NewSummary.
@@ -379,7 +379,7 @@ func (s quantSort) Less(i, j int) bool {
 // SummaryVec is a Collector that bundles a set of Summaries that all share the
 // same Desc, but have different values for their variable labels. This is used
 // if you want to count the same thing partitioned by various dimensions
-// (e.g. http request latencies, partitioned by status code and method). Create
+// (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewSummaryVec.
 type SummaryVec struct {
 	MetricVec

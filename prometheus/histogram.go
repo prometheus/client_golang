@@ -270,7 +270,7 @@ func (h *histogram) Write(out *dto.Metric) error {
 // HistogramVec is a Collector that bundles a set of Histograms that all share the
 // same Desc, but have different values for their variable labels. This is used
 // if you want to count the same thing partitioned by various dimensions
-// (e.g. http request latencies, partitioned by status code and method). Create
+// (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewHistogramVec.
 type HistogramVec struct {
 	MetricVec

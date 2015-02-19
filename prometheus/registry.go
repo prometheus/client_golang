@@ -171,7 +171,7 @@ func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
 }
 
 // PanicOnCollectError sets the behavior whether a panic is caused upon an error
-// while metrics are collected and served to the http endpoint. By default, an
+// while metrics are collected and served to the HTTP endpoint. By default, an
 // internal server error (status code 500) is served with an error message.
 func PanicOnCollectError(b bool) {
 	defRegistry.panicOnCollectError = b
