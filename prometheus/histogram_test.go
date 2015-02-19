@@ -304,13 +304,13 @@ func getCumulativeCounts(vars []float64) []uint64 {
 }
 
 func TestBuckets(t *testing.T) {
-	got := LinearBuckets(-15, 5, 7)
+	got := LinearBuckets(-15, 5, 6)
 	want := []float64{-15, -10, -5, 0, 5, 10}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("linear buckets: got %v, want %v", got, want)
 	}
 
-	got = ExponentialBuckets(100, 1.2, 4)
+	got = ExponentialBuckets(100, 1.2, 3)
 	want = []float64{100, 120, 144}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("linear buckets: got %v, want %v", got, want)

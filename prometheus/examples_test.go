@@ -457,7 +457,7 @@ func ExampleHistogram() {
 	temps := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pond_temperature_celsius",
 		Help:    "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
-		Buckets: prometheus.LinearBuckets(20, 5, 6),  // 6 buckets, each 5 centigrade wide.
+		Buckets: prometheus.LinearBuckets(20, 5, 5),  // 5 buckets, each 5 centigrade wide.
 	})
 
 	// Simulate some observations.
