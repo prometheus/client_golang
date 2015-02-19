@@ -163,6 +163,17 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		panic(errInconsistentCardinality)
 	}
 
+	for _, n := range desc.variableLabels {
+		if n == "quantile" {
+			panic("'quantile' is not allowed as label name in summaries")
+		}
+	}
+	for _, lp := range desc.constLabelPairs {
+		if lp.GetName() == "quantile" {
+			panic("'quantile' is not allowed as label name in summaries")
+		}
+	}
+
 	if len(opts.Objectives) == 0 {
 		opts.Objectives = DefObjectives
 	}
