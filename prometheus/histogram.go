@@ -21,6 +21,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
+	"github.com/prometheus/client_golang/model"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -33,7 +34,7 @@ import (
 //
 // Note that Histograms, in contrast to Summaries, can be aggregated with the
 // Prometheus query language (see the documentation for detailed
-// procedures). However, Histograms requires the user to pre-define suitable
+// procedures). However, Histograms require the user to pre-define suitable
 // buckets, and they are in general less accurate. The Observe method of a
 // Histogram has a very low performance overhead in comparison with the Observe
 // method of a Summary.
@@ -47,12 +48,16 @@ type Histogram interface {
 	Observe(float64)
 }
 
-// DefBuckets are the default Histogram buckets. The default buckets are
-// tailored to broadly measure response time in seconds for a typical online
-// serving system. Most likely, however, you will be required to define buckets
-// customized to your use case.
 var (
+	// DefBuckets are the default Histogram buckets. The default buckets are
+	// tailored to broadly measure response time in seconds for a typical online
+	// serving system. Most likely, however, you will be required to define buckets
+	// customized to your use case.
 	DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+
+	errBucketLabelNotAllowed = fmt.Errorf(
+		"%q is not allowed as label name in histograms", model.BucketLabel,
+	)
 )
 
 // LinearBuckets creates 'count' buckets, each 'width' wide, where the lowest
@@ -165,13 +170,13 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	}
 
 	for _, n := range desc.variableLabels {
-		if n == "le" {
-			panic("'le' is not allowed as label name in histograms")
+		if n == model.BucketLabel {
+			panic(errBucketLabelNotAllowed)
 		}
 	}
 	for _, lp := range desc.constLabelPairs {
-		if lp.GetName() == "le" {
-			panic("'le' is not allowed as label name in histograms")
+		if lp.GetName() == model.BucketLabel {
+			panic(errBucketLabelNotAllowed)
 		}
 	}
 

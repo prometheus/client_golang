@@ -25,6 +25,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/_vendor/perks/quantile"
+	"github.com/prometheus/client_golang/model"
 )
 
 // A Summary captures individual observations from an event or sample stream and
@@ -50,9 +51,13 @@ type Summary interface {
 	Observe(float64)
 }
 
-// DefObjectives are the default Summary quantile values.
 var (
+	// DefObjectives are the default Summary quantile values.
 	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
+
+	errQuantileLabelNotAllowed = fmt.Errorf(
+		"%q is not allowed as label name in summaries", model.QuantileLabel,
+	)
 )
 
 // Default values for SummaryOpts.
@@ -164,13 +169,13 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	}
 
 	for _, n := range desc.variableLabels {
-		if n == "quantile" {
-			panic("'quantile' is not allowed as label name in summaries")
+		if n == model.QuantileLabel {
+			panic(errQuantileLabelNotAllowed)
 		}
 	}
 	for _, lp := range desc.constLabelPairs {
-		if lp.GetName() == "quantile" {
-			panic("'quantile' is not allowed as label name in summaries")
+		if lp.GetName() == model.QuantileLabel {
+			panic(errQuantileLabelNotAllowed)
 		}
 	}
 

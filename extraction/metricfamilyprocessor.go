@@ -164,7 +164,7 @@ func extractSummary(out Ingester, o *ProcessOptions, f *dto.MetricFamily) error 
 				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 			}
 			// BUG(matt): Update other names to "quantile".
-			metric[model.LabelName("quantile")] = model.LabelValue(fmt.Sprint(q.GetQuantile()))
+			metric[model.LabelName(model.QuantileLabel)] = model.LabelValue(fmt.Sprint(q.GetQuantile()))
 			metric[model.MetricNameLabel] = model.LabelValue(f.GetName())
 		}
 
@@ -259,7 +259,7 @@ func extractHistogram(out Ingester, o *ProcessOptions, f *dto.MetricFamily) erro
 			for _, p := range m.Label {
 				metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 			}
-			metric[model.LabelName("le")] = model.LabelValue(fmt.Sprint(q.GetUpperBound()))
+			metric[model.LabelName(model.BucketLabel)] = model.LabelValue(fmt.Sprint(q.GetUpperBound()))
 			metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_bucket")
 
 			if math.IsInf(q.GetUpperBound(), +1) {
@@ -308,7 +308,7 @@ func extractHistogram(out Ingester, o *ProcessOptions, f *dto.MetricFamily) erro
 				for _, p := range m.Label {
 					metric[model.LabelName(p.GetName())] = model.LabelValue(p.GetValue())
 				}
-				metric[model.LabelName("le")] = model.LabelValue("+Inf")
+				metric[model.LabelName(model.BucketLabel)] = model.LabelValue("+Inf")
 				metric[model.MetricNameLabel] = model.LabelValue(f.GetName() + "_bucket")
 			}
 		}
