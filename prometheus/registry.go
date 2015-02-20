@@ -464,6 +464,8 @@ func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
 			metricFamily.Type = dto.MetricType_SUMMARY.Enum()
 		case dtoMetric.Untyped != nil:
 			metricFamily.Type = dto.MetricType_UNTYPED.Enum()
+		case dtoMetric.Histogram != nil:
+			metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
 		default:
 			return 0, fmt.Errorf("empty metric collected: %s", dtoMetric)
 		}
