@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"sort"
 	"sync/atomic"
 
 	"github.com/golang/protobuf/proto"
@@ -231,11 +232,18 @@ func (h *histogram) Desc() *Desc {
 }
 
 func (h *histogram) Observe(v float64) {
-	for i, upperBound := range h.upperBounds {
-		if v <= upperBound {
-			atomic.AddUint64(&h.counts[i], 1)
-			break
-		}
+	// TODO(beorn7): For small numbers of buckets (<30), a linear search is
+	// slightly faster than the binary search. If we really care, we could
+	// switch from one search strategy to the other depending on the number
+	// of buckets.
+	//
+	// Microbenchmarks (BenchmarkHistogramNoLabels):
+	// 11 buckets: 38.3 ns/op linear - binary 48.7 ns/op
+	// 100 buckets: 78.1 ns/op linear - binary 54.9 ns/op
+	// 300 buckets: 154 ns/op linear - binary 61.6 ns/op
+	i := sort.SearchFloat64s(h.upperBounds, v)
+	if i < len(h.counts) {
+		atomic.AddUint64(&h.counts[i], 1)
 	}
 	atomic.AddUint64(&h.count, 1)
 	for {
