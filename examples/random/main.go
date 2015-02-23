@@ -29,8 +29,8 @@ import (
 var (
 	addr              = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 	uniformDomain     = flag.Float64("uniform.domain", 200, "The domain for the uniform distribution.")
-	normDomain        = flag.Float64("exponential.domain", 200, "The domain for the normal distribution.")
-	normMean          = flag.Float64("exponential.mean", 10, "The mean for the normal distribution.")
+	normDomain        = flag.Float64("normal.domain", 200, "The domain for the normal distribution.")
+	normMean          = flag.Float64("normal.mean", 10, "The mean for the normal distribution.")
 	oscillationPeriod = flag.Duration("oscillation-period", 10*time.Minute, "The duration of the rate oscillation period.")
 )
 
@@ -45,11 +45,21 @@ var (
 		},
 		[]string{"service"},
 	)
+	// The same as above, but now as a histogram, and only for the normal
+	// distribution. The buckets are targeted to the parameters of the
+	// normal distribution, with 20 buckets centered on the mean, each
+	// half-sigma wide.
+	rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "rpc_durations_histogram_microseconds",
+		Help:    "RPC latency distributions.",
+		Buckets: prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
+	})
 )
 
 func init() {
-	// Register the summary with Prometheus's default registry.
+	// Register the summary and the histogram with Prometheus's default registry.
 	prometheus.MustRegister(rpcDurations)
+	prometheus.MustRegister(rpcDurationsHistogram)
 }
 
 func main() {
@@ -64,21 +74,25 @@ func main() {
 	// Periodically record some sample latencies for the three services.
 	go func() {
 		for {
-			rpcDurations.WithLabelValues("uniform").Observe(rand.Float64() * *uniformDomain)
+			v := rand.Float64() * *uniformDomain
+			rpcDurations.WithLabelValues("uniform").Observe(v)
 			time.Sleep(time.Duration(100*oscillationFactor()) * time.Millisecond)
 		}
 	}()
 
 	go func() {
 		for {
-			rpcDurations.WithLabelValues("normal").Observe((rand.NormFloat64() * *normDomain) + *normMean)
+			v := (rand.NormFloat64() * *normDomain) + *normMean
+			rpcDurations.WithLabelValues("normal").Observe(v)
+			rpcDurationsHistogram.Observe(v)
 			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
 		}
 	}()
 
 	go func() {
 		for {
-			rpcDurations.WithLabelValues("exponential").Observe(rand.ExpFloat64())
+			v := rand.ExpFloat64()
+			rpcDurations.WithLabelValues("exponential").Observe(v)
 			time.Sleep(time.Duration(50*oscillationFactor()) * time.Millisecond)
 		}
 	}()
