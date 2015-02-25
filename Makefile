@@ -91,7 +91,7 @@ advice: test
 	$(GO) vet ./...
 
 format:
-	find . -iname '*.go' | grep -vE '^./(.build|_vendor)/' | xargs -n1 -P1 $(GOFMT) -w -s=true
+	find . -iname '*.go' | grep -vE '^./(.build|Godeps)/' | xargs -n1 -P1 $(GOFMT) -w -s=true
 
 tag:
 	git tag $(VERSION)
