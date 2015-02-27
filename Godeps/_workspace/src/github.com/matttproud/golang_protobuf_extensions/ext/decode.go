@@ -19,7 +19,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 var errInvalidVarint = errors.New("invalid varint32 encountered")
