@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/beorn7/perks/quantile"
+	"github.com/beorn7/perks/quantile"
 )
 
 func Example_simple() {

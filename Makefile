@@ -73,7 +73,7 @@ build: source_path dependencies
 	$(GO) build ./...
 
 dependencies: source_path $(GOCC)
-	$(GO) get -d -t ./...
+	cp -a $(CURDIR)/Godeps/_workspace/src/* $(GOPATH)/src
 
 example_random: source_path dependencies examples/random/main.go
 	$(GO) build -o example_random examples/random/main.go

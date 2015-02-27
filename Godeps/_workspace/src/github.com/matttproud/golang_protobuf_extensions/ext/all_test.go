@@ -21,8 +21,8 @@ import (
 	"testing"
 	"testing/quick"
 
-	. "github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/golang/protobuf/proto"
-	. "github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/golang/protobuf/proto/testdata"
+	. "github.com/golang/protobuf/proto"
+	. "github.com/golang/protobuf/proto/testdata"
 )
 
 func TestWriteDelimited(t *testing.T) {

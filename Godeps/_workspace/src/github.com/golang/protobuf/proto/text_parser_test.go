@@ -38,7 +38,7 @@ import (
 
 	proto3pb "./proto3_proto"
 	. "./testdata"
-	. "github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/golang/protobuf/proto"
+	. "github.com/golang/protobuf/proto"
 )
 
 type UnmarshalTextTest struct {

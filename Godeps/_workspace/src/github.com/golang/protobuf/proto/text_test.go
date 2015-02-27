@@ -39,9 +39,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
+
 	proto3pb "./proto3_proto"
 	pb "./testdata"
-	"github.com/prometheus/client_golang/Godeps/_workspace/src/github.com/golang/protobuf/proto"
 )
 
 // textMessage implements the methods that allow it to marshal and unmarshal
