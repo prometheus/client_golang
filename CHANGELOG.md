@@ -1,3 +1,17 @@
+## 0.3.0 / 2015-03-03
+* [CHANGE] Changed the fingerprinting for metrics. THIS WILL INVALIDATE ALL
+  PERSISTED FINGERPRINTS. IF YOU COMPILE THE PROMETHEUS SERVER WITH THIS
+  VERSION, YOU HAVE TO WIPE THE PREVIOUSLY CREATED STORAGE.
+* [CHANGE] LabelValuesToSignature removed. (Nobody had used it, and it was
+  arguably broken.)
+* [CHANGE] Vendored dependencies. Those are only used by the Makefile. If
+  client_golang is used as a library, the vendoring will stay out of your way.
+* [BUGFIX] Remove a weakness in the fingerprinting for metrics. (This made
+  the fingerprinting change above necessary.)
+* [FEATURE] Added new fingerprinting functions SignatureForLabels and
+  SignatureWithoutLabels to be used by the Prometheus server. These functions
+  require fewer allocations than the ones currently used by the server.
+
 ## 0.2.0 / 2015-02-23
 * [FEATURE] Introduce new Histagram metric type.
 * [CHANGE] Ignore process collector errors for now (better error handling
