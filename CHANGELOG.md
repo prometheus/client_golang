@@ -1,3 +1,8 @@
+## 0.3.1 / 2015-03-04
+* [ENHANCEMENT] Switched fingerprinting functions from own free list to
+  sync.Pool.
+* [CHANGE] Makefile uses Go 1.4.2 now (only relevant for examples and tests).
+
 ## 0.3.0 / 2015-03-03
 * [CHANGE] Changed the fingerprinting for metrics. THIS WILL INVALIDATE ALL
   PERSISTED FINGERPRINTS. IF YOU COMPILE THE PROMETHEUS SERVER WITH THIS
