@@ -20,7 +20,7 @@ MAC_OS_X_VERSION ?= 10.8
 
 BUILD_PATH = $(PWD)/.build
 
-export GO_VERSION = 1.4
+export GO_VERSION = 1.4.2
 export GOOS       = $(subst Darwin,darwin,$(subst Linux,linux,$(subst FreeBSD,freebsd,$(OS))))
 
 ifeq ($(GOOS),darwin)
