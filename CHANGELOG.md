@@ -1,3 +1,8 @@
+## 0.3.2 / 2015-03-11
+* [BUGFIX] Fixed the receiver type of COWMetric.Set(). This method is
+  only used by the Prometheus server internally.
+* [CLEANUP] Added licenses of vendored code left out by godep.
+
 ## 0.3.1 / 2015-03-04
 * [ENHANCEMENT] Switched fingerprinting functions from own free list to
   sync.Pool.
