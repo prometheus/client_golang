@@ -158,14 +158,19 @@ func Unregister(c Collector) bool {
 // SetMetricFamilyInjectionHook sets a function that is called whenever metrics
 // are collected. The hook function must be set before metrics collection begins
 // (i.e. call SetMetricFamilyInjectionHook before setting the HTTP handler.) The
-// MetricFamily protobufs returned by the hook function are added to the
-// delivered metrics. Each returned MetricFamily must have a unique name (also
-// taking into account the MetricFamilies created in the regular way).
+// MetricFamily protobufs returned by the hook function are merged with the
+// metrics collected in the usual way.
 //
 // This is a way to directly inject MetricFamily protobufs managed and owned by
-// the caller. The caller has full responsibility. No sanity checks are
-// performed on the returned protobufs (besides the name checks described
-// above). The function must be callable at any time and concurrently.
+// the caller. The caller has full responsibility. As no registration of the
+// injected metrics has happened, there is no descriptor to check against, and
+// there are no registration-time checks. If collect-time checks are disabled
+// (see function EnableCollectChecks), no sanity checks are performed on the
+// returned protobufs at all. If collect-checks are enabled, type and uniqueness
+// checks are performed, but no further consistency checks (which would require
+// knowledge of a metric descriptor).
+//
+// The function must be callable at any time and concurrently.
 func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
 	defRegistry.metricFamilyInjectionHook = hook
 }
@@ -479,10 +484,26 @@ func (r *registry) writePB(w io.Writer, writeEncoded encoder) (int, error) {
 
 	if r.metricFamilyInjectionHook != nil {
 		for _, mf := range r.metricFamilyInjectionHook() {
-			if _, exists := metricFamiliesByName[mf.GetName()]; exists {
-				return 0, fmt.Errorf("metric family with duplicate name injected: %s", mf)
+			existingMF, exists := metricFamiliesByName[mf.GetName()]
+			if !exists {
+				metricFamiliesByName[mf.GetName()] = mf
+				if r.collectChecksEnabled {
+					for _, m := range mf.Metric {
+						if err := r.checkConsistency(mf, m, nil, metricHashes); err != nil {
+							return 0, err
+						}
+					}
+				}
+				continue
 			}
-			metricFamiliesByName[mf.GetName()] = mf
+			for _, m := range mf.Metric {
+				if r.collectChecksEnabled {
+					if err := r.checkConsistency(existingMF, m, nil, metricHashes); err != nil {
+						return 0, err
+					}
+				}
+				existingMF.Metric = append(existingMF.Metric, m)
+			}
 		}
 	}
 
@@ -523,11 +544,42 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 		)
 	}
 
+	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
+	h := fnv.New64a()
+	var buf bytes.Buffer
+	buf.WriteString(metricFamily.GetName())
+	buf.WriteByte(model.SeparatorByte)
+	h.Write(buf.Bytes())
+	for _, lp := range dtoMetric.Label {
+		buf.Reset()
+		buf.WriteString(lp.GetValue())
+		buf.WriteByte(model.SeparatorByte)
+		h.Write(buf.Bytes())
+	}
+	metricHash := h.Sum64()
+	if _, exists := metricHashes[metricHash]; exists {
+		return fmt.Errorf(
+			"collected metric %q was collected before with the same name and label values",
+			dtoMetric,
+		)
+	}
+	metricHashes[metricHash] = struct{}{}
+
+	if desc == nil {
+		return nil // Nothing left to check if we have no desc.
+	}
+
 	// Desc consistency with metric family.
+	if metricFamily.GetName() != desc.fqName {
+		return fmt.Errorf(
+			"collected metric %q has name %q but should have %q",
+			dtoMetric, metricFamily.GetName(), desc.fqName,
+		)
+	}
 	if metricFamily.GetHelp() != desc.help {
 		return fmt.Errorf(
 			"collected metric %q has help %q but should have %q",
-			dtoMetric, desc.help, metricFamily.GetHelp(),
+			dtoMetric, metricFamily.GetHelp(), desc.help,
 		)
 	}
 
@@ -556,27 +608,6 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 			)
 		}
 	}
-
-	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
-	h := fnv.New64a()
-	var buf bytes.Buffer
-	buf.WriteString(desc.fqName)
-	buf.WriteByte(model.SeparatorByte)
-	h.Write(buf.Bytes())
-	for _, lp := range dtoMetric.Label {
-		buf.Reset()
-		buf.WriteString(lp.GetValue())
-		buf.WriteByte(model.SeparatorByte)
-		h.Write(buf.Bytes())
-	}
-	metricHash := h.Sum64()
-	if _, exists := metricHashes[metricHash]; exists {
-		return fmt.Errorf(
-			"collected metric %q was collected before with the same name and label values",
-			dtoMetric,
-		)
-	}
-	metricHashes[metricHash] = struct{}{}
 
 	r.mtx.RLock() // Remaining checks need the read lock.
 	defer r.mtx.RUnlock()
@@ -712,6 +743,15 @@ func (s metricSorter) Swap(i, j int) {
 }
 
 func (s metricSorter) Less(i, j int) bool {
+	if len(s[i].Label) != len(s[j].Label) {
+		// This should not happen. The metrics are
+		// inconsistent. However, we have to deal with the fact, as
+		// people might use custom collectors or metric family injection
+		// to create inconsistent metrics. So let's simply compare the
+		// number of labels in this case. That will still yield
+		// reproducible sorting.
+		return len(s[i].Label) < len(s[j].Label)
+	}
 	for n, lp := range s[i].Label {
 		vi := lp.GetValue()
 		vj := s[j].Label[n].GetValue()
