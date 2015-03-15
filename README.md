@@ -8,7 +8,7 @@ continue your journey:
   1. See the [exposition library](prometheus/README.md) if you want to
      export metrics to a Prometheus server or pushgateway
 
-  2. See the [consumption library](extraction/README.md) if you want to
+  2. See the [consumption library](https://godoc.org/github.com/prometheus/client_golang/extraction) if you want to
      process metrics exported by a Prometheus client. (The Prometheus server
      is using that library.)
 
