@@ -11,8 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build linux,cgo plan9,cgo solaris,cgo
-
 package prometheus
 
 import "github.com/prometheus/procfs"
