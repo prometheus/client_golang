@@ -81,7 +81,7 @@ func NewProcessCollectorPIDFn(
 	}
 
 	// Set up process metric collection if supported by the runtime.
-	if processCollectSupported() {
+	if _, err := procfs.NewStat(); err == nil {
 		c.collectFn = c.processCollect
 	}
 
@@ -101,13 +101,6 @@ func (c *processCollector) Describe(ch chan<- *Desc) {
 // Collect returns the current state of all metrics of the collector.
 func (c *processCollector) Collect(ch chan<- Metric) {
 	c.collectFn(ch)
-}
-
-func processCollectSupported() bool {
-	if _, err := procfs.NewStat(); err == nil {
-		return true
-	}
-	return false
 }
 
 // TODO(ts): Bring back error reporting by reverting 7faf9e7 as soon as the
