@@ -194,8 +194,8 @@ func EnableCollectChecks(b bool) {
 
 // encoder is a function that writes a dto.MetricFamily to an io.Writer in a
 // certain encoding. It returns the number of bytes written and any error
-// encountered.  Note that ext.WriteDelimited and text.MetricFamilyToText are
-// encoders.
+// encountered.  Note that pbutil.WriteDelimited and pbutil.MetricFamilyToText
+// are encoders.
 type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
 type registry struct {
