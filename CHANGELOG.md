@@ -1,3 +1,12 @@
+## 0.4.0 / 2015-04-08
+* [CHANGE] Return NaN when Summaries have no observations yet.
+* [BUGFIX] Properly handle Summary decay upon Write().
+* [BUGFIX] Fix the documentation link to the consumption library.
+* [FEATURE] Allow the metric family injection hook to merge with existing
+  metric families.
+* [ENHANCEMENT] Removed cgo dependency and conditional compilation of procfs.
+* [MAINTENANCE] Adjusted to changes in matttproud/golang_protobuf_extensions.
+
 ## 0.3.2 / 2015-03-11
 * [BUGFIX] Fixed the receiver type of COWMetric.Set(). This method is
   only used by the Prometheus server internally.
