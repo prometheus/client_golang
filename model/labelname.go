@@ -26,13 +26,25 @@ const (
 	// timeseries.
 	MetricNameLabel LabelName = "__name__"
 
+	// AddressLabel is the name of the label that holds the address of
+	// a scrape target.
+	AddressLabel LabelName = "__address__"
+
 	// ReservedLabelPrefix is a prefix which is not legal in user-supplied
 	// label names.
 	ReservedLabelPrefix = "__"
 
+	// HiddenLabelPrefix is a prefix which is legal in user-supplied label names
+	// but will not appear in the eventual metrics.
+	// Reserved labels may be excepted from that rule.
+	HiddenLabelPrefix = "_"
+
 	// JobLabel is the label name indicating the job from which a timeseries
 	// was scraped.
 	JobLabel LabelName = "job"
+
+	// InstanceLabel is the label name used for the instance label.
+	InstanceLabel LabelName = "instance"
 
 	// BucketLabel is used for the label that defines the upper bound of a
 	// bucket of a histogram ("le" -> "less or equal").
