@@ -34,10 +34,10 @@ const (
 	// label names.
 	ReservedLabelPrefix = "__"
 
-	// HiddenLabelPrefix is a prefix which is legal in user-supplied label names
-	// but will not appear in the eventual metrics.
-	// Reserved labels may be excepted from that rule.
-	HiddenLabelPrefix = "_"
+	// MetaLabelPrefix is a prefix for labels that provide meta information.
+	// Labels with this prefix are used for intermediate label processing and
+	// will not be attached to time series.
+	MetaLabelPrefix = "__meta_"
 
 	// JobLabel is the label name indicating the job from which a timeseries
 	// was scraped.
