@@ -1,7 +1,7 @@
 package prometheus
 
 import (
-	"reflect"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -35,6 +35,9 @@ func TestGoCollector(t *testing.T) {
 			case Gauge:
 				pb := &dto.Metric{}
 				m.Write(pb)
+				if pb.GetGauge() == nil {
+					continue
+				}
 
 				if old == -1 {
 					old = int(pb.GetGauge().GetValue())
@@ -48,8 +51,58 @@ func TestGoCollector(t *testing.T) {
 				}
 
 				return
-			default:
-				t.Errorf("want type Gauge, got %s", reflect.TypeOf(metric))
+			}
+		case <-time.After(1 * time.Second):
+			t.Fatalf("expected collect timed out")
+		}
+	}
+}
+
+func TestGCCollector(t *testing.T) {
+	var (
+		c        = NewGoCollector()
+		ch       = make(chan Metric)
+		waitc    = make(chan struct{})
+		closec   = make(chan struct{})
+		oldGC    uint64
+		oldPause float64
+	)
+	defer close(closec)
+
+	go func() {
+		c.Collect(ch)
+		// force GC
+		debug.FreeOSMemory()
+		<-waitc
+		c.Collect(ch)
+	}()
+
+	first := true
+	for {
+		select {
+		case metric := <-ch:
+			switch m := metric.(type) {
+			case *constSummary, *value:
+				pb := &dto.Metric{}
+				m.Write(pb)
+				if pb.GetSummary() == nil {
+					continue
+				}
+
+				if first {
+					first = false
+					oldGC = *pb.GetSummary().SampleCount
+					oldPause = *pb.GetSummary().SampleSum
+					close(waitc)
+					continue
+				}
+				if diff := *pb.GetSummary().SampleCount - oldGC; diff != 1 {
+					t.Errorf("want 1 new garbage collection run, got %d", diff)
+				}
+				if diff := *pb.GetSummary().SampleSum - oldPause; diff <= 0 {
+					t.Errorf("want moar pause, got %f", diff)
+				}
+				return
 			}
 		case <-time.After(1 * time.Second):
 			t.Fatalf("expected collect timed out")
