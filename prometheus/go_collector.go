@@ -3,6 +3,7 @@ package prometheus
 import (
 	"runtime"
 	"runtime/debug"
+	"time"
 )
 
 type goCollector struct {
@@ -37,7 +38,13 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	ch <- c.goroutines
 
 	var stats debug.GCStats
+	stats.PauseQuantiles = make([]time.Duration, 5)
 	debug.ReadGCStats(&stats)
 
-	ch <- MustNewConstSummary(c.gcDesc, uint64(stats.NumGC), float64(stats.PauseTotal.Seconds()), nil)
+	quantiles := make(map[float64]float64)
+	for idx, pq := range stats.PauseQuantiles[1:] {
+		quantiles[float64(idx+1)/float64(len(stats.PauseQuantiles)-1)] = pq.Seconds()
+	}
+	quantiles[0.0] = stats.PauseQuantiles[0].Seconds()
+	ch <- MustNewConstSummary(c.gcDesc, uint64(stats.NumGC), float64(stats.PauseTotal.Seconds()), quantiles)
 }

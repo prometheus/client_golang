@@ -1,7 +1,7 @@
 package prometheus
 
 import (
-	"runtime/debug"
+	"runtime"
 	"testing"
 	"time"
 
@@ -72,7 +72,7 @@ func TestGCCollector(t *testing.T) {
 	go func() {
 		c.Collect(ch)
 		// force GC
-		debug.FreeOSMemory()
+		runtime.GC()
 		<-waitc
 		c.Collect(ch)
 	}()
@@ -89,6 +89,14 @@ func TestGCCollector(t *testing.T) {
 					continue
 				}
 
+				if len(pb.GetSummary().Quantile) != 5 {
+					t.Errorf("expected 4 buckets, got %d", len(pb.GetSummary().Quantile))
+				}
+				for idx, want := range []float64{0.0, 0.25, 0.5, 0.75, 1.0} {
+					if *pb.GetSummary().Quantile[idx].Quantile != want {
+						t.Errorf("bucket #%d is off, got %f, want %f", idx, *pb.GetSummary().Quantile[idx].Quantile, want)
+					}
+				}
 				if first {
 					first = false
 					oldGC = *pb.GetSummary().SampleCount
