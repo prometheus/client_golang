@@ -380,13 +380,13 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 	return nil
 }
 
-// NewConstHistogram returns a metric representing a Prometheus histogram with fixed
-// values for the count, sum, and quantiles. As those parameters cannot be
-// changed, the returned value does not implement the Histogram interface (but
-// only the Metric interface). Users of this package will not have much use for
-// it in regular operations. However, when implementing custom Collectors, it is
-// useful as a throw-away metric that is generated on the fly to send it to
-// Prometheus in the Collect method.
+// NewConstHistogram returns a metric representing a Prometheus histogram with
+// fixed values for the count, sum, and bucket counts. As those parameters
+// cannot be changed, the returned value does not implement the Histogram
+// interface (but only the Metric interface). Users of this package will not
+// have much use for it in regular operations. However, when implementing custom
+// Collectors, it is useful as a throw-away metric that is generated on the fly
+// to send it to Prometheus in the Collect method.
 //
 // buckets is a map of upper bounds to cumulative counts, excluding the +Inf
 // bucket.
