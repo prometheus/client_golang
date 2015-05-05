@@ -28,11 +28,13 @@ type Metric map[LabelName]LabelValue
 
 // Equal compares the fingerprints of both metrics.
 func (m Metric) Equal(o Metric) bool {
+	// TODO do an actual map comparison
 	return m.Fingerprint().Equal(o.Fingerprint())
 }
 
 // Before compares the fingerprints of both metrics.
 func (m Metric) Before(o Metric) bool {
+	// TODO do an actual map comparison
 	return m.Fingerprint().Less(o.Fingerprint())
 }
 
@@ -65,6 +67,12 @@ func (m Metric) String() string {
 // Fingerprint returns a Metric's Fingerprint.
 func (m Metric) Fingerprint() Fingerprint {
 	return metricToFingerprint(m)
+}
+
+// Fingerprint returns a Metric's Fingerprint calculated by a faster hashing
+// algorithm, which is, however, more susceptible to hash collisions.
+func (m Metric) FastFingerprint() Fingerprint {
+	return metricToFastFingerprint(m)
 }
 
 // Clone returns a copy of the Metric.
