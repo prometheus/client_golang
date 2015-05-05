@@ -52,7 +52,7 @@ func putHashAndBuf(hb *hashAndBuf) {
 	hashAndBufPool.Put(hb)
 }
 
-// LabelsToSignature returns an quasi-unique signature (i.e., fingerprint) for a
+// LabelsToSignature returns a quasi-unique signature (i.e., fingerprint) for a
 // given label set. (Collisions are possible but unlikely if the number of label
 // sets the function is applied to is small.)
 func LabelsToSignature(labels map[string]string) uint64 {
