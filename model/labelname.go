@@ -61,6 +61,8 @@ const (
 	QuantileLabel = "quantile"
 )
 
+var labelNameRE = regexp.MustCompile("^[a-zA-Z_][a-zA-Z0-9_]*$")
+
 // A LabelName is a key for a LabelSet or Metric.  It has a value associated
 // therewith.
 type LabelName string
