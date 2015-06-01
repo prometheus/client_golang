@@ -1,3 +1,9 @@
+## 0.6.0 / 2015-06-01
+* [CHANGE] Rename process_goroutines to go_goroutines.
+* [ENHANCEMENT] Validate label names during YAML decoding.
+* [ENHANCEMENT] Add LabelName regular expression.
+* [BUGFIX] Ensure alignment of struct members for 32-bit systems.
+
 ## 0.5.0 / 2015-05-06
 * [BUGFIX] Removed a weakness in the fingerprinting aka signature code.
   This makes fingerprinting slower and more allocation-heavy, but the
