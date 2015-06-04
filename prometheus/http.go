@@ -178,7 +178,7 @@ type responseWriterDelegator struct {
 
 	handler, method string
 	status          int
-	written         int
+	written         int64
 	wroteHeader     bool
 }
 
@@ -193,7 +193,7 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 		r.WriteHeader(http.StatusOK)
 	}
 	n, err := r.ResponseWriter.Write(b)
-	r.written += n
+	r.written += int64(n)
 	return n, err
 }
 
