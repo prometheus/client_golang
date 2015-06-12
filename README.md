@@ -1,30 +1,26 @@
-# Overview
-This is the [Prometheus](http://www.prometheus.io)
-[Go](http://golang.org) client library.  It provides several distinct
-functions, and there is separate documentation for each respective
-component.  You will want to select the appropriate topic below to
-continue your journey:
+# Prometheus Go client library
 
-  1. See the [exposition library](prometheus/README.md) if you want to
-     export metrics to a Prometheus server or pushgateway
+[![Build Status](https://travis-ci.org/prometheus/client_golang.svg?branch=master)](https://travis-ci.org/prometheus/client_golang) [![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/prometheus)
 
-  2. See the [consumption library](https://godoc.org/github.com/prometheus/client_golang/extraction) if you want to
-     process metrics exported by a Prometheus client. (The Prometheus server
-     is using that library.)
+This is the [Go](http://golang.org) client library for
+[Prometheus](http://www.prometheus.io).
 
-[![GoDoc](https://godoc.org/github.com/prometheus/client_golang?status.png)](https://godoc.org/github.com/prometheus/client_golang)
-     
-# Getting Started
+## Instrumenting applications
 
-  * The source code is periodically indexed: [Go Exposition Client](http://godoc.org/github.com/prometheus/client_golang).
-  * All of the core developers are accessible via the [Prometheus Developers Mailinglist](https://groups.google.com/forum/?fromgroups#!forum/prometheus-developers).
+For instrumenting your Go application code with Prometheus metrics, see the
+[documentation of the exposition client](https://godoc.org/github.com/prometheus/client_golang/prometheus).
+
+## Consuming exported metrics
+
+If you want to process metrics exported by a Prometheus client, see the
+[consumption library documentation](https://godoc.org/github.com/prometheus/client_golang/extraction).
+(The Prometheus server is using that library.)
 
 # Testing
+
     $ go test ./...
 
-# Continuous Integration
-[![Build Status](https://secure.travis-ci.org/prometheus/client_golang.png?branch=master)]()
+## Contributing and community
 
-##  Contributing
-
-See the [contributing guidelines](CONTRIBUTING.md).
+See the [contributing guidelines](CONTRIBUTING.md) and the
+[Community section](http://prometheus.io/community/) of the homepage.
