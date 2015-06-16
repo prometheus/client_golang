@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/prometheus/client_golang.svg?branch=master)](https://travis-ci.org/prometheus/client_golang) [![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/prometheus)
 
 This is the [Go](http://golang.org) client library for
-[Prometheus](http://www.prometheus.io).
+[Prometheus](http://prometheus.io).
 
 ## Instrumenting applications
 
