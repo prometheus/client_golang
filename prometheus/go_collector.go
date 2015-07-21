@@ -10,11 +10,11 @@ type goCollector struct {
 	goroutines   Gauge
 	gcDesc       *Desc
 	alloc        Gauge
-	totalAlloc   Gauge
-	sys          Gauge
-	lookups      Gauge
-	mallocs      Gauge
-	frees        Gauge
+	totalAlloc   Counter
+	sys          Counter
+	lookups      Counter
+	mallocs      Counter
+	frees        Counter
 	heapAlloc    Gauge
 	heapSys      Gauge
 	heapIdle     Gauge
@@ -77,7 +77,7 @@ func NewGoCollector() *goCollector {
 			Name:      "heap_alloc_bytes",
 			Help:      "Number heap bytes allocated and still in use.",
 		}),
-		heapSys: NewCounter(GaugeOpts{
+		heapSys: NewGauge(GaugeOpts{
 			Namespace: "go",
 			Subsystem: "memstats",
 			Name:      "heap_sys_bytes",
@@ -114,18 +114,18 @@ func NewGoCollector() *goCollector {
 func (c *goCollector) Describe(ch chan<- *Desc) {
 	ch <- c.goroutines.Desc()
 	ch <- c.gcDesc
-	ch <- m.alloc.Desc()
-	ch <- m.totalAlloc.Desc()
-	ch <- m.sys.Desc()
-	ch <- m.lookups.Desc()
-	ch <- m.mallocs.Desc()
-	ch <- m.frees.Desc()
-	ch <- m.heapAlloc.Desc()
-	ch <- m.heapSys.Desc()
-	ch <- m.heapIdle.Desc()
-	ch <- m.heapInuse.Desc()
-	ch <- m.heapReleased.Desc()
-	ch <- m.heapObjects.Desc()
+	ch <- c.alloc.Desc()
+	ch <- c.totalAlloc.Desc()
+	ch <- c.sys.Desc()
+	ch <- c.lookups.Desc()
+	ch <- c.mallocs.Desc()
+	ch <- c.frees.Desc()
+	ch <- c.heapAlloc.Desc()
+	ch <- c.heapSys.Desc()
+	ch <- c.heapIdle.Desc()
+	ch <- c.heapInuse.Desc()
+	ch <- c.heapReleased.Desc()
+	ch <- c.heapObjects.Desc()
 }
 
 // Collect returns the current state of all metrics of the collector.
@@ -147,28 +147,28 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
 
-	m.alloc.Set(float64(ms.Alloc))
-	ch <- m.alloc
-	m.totalAlloc.Set(float64(ms.TotalAlloc))
-	ch <- m.totalAlloc
-	m.sys.Set(float64(ms.Sys))
-	ch <- m.sys
-	m.lookups.Set(float64(ms.Lookups))
-	ch <- m.lookups
-	m.mallocs.Set(float64(ms.Mallocs))
-	ch <- m.mallocs
-	m.frees.Set(float64(ms.Frees))
-	ch <- m.frees
-	m.heapAlloc.Set(float64(ms.HeapAlloc))
-	ch <- m.heapAlloc
-	m.heapSys.Set(float64(ms.HeapSys))
-	ch <- m.heapSys
-	m.heapIdle.Set(float64(ms.HeapIdle))
-	ch <- m.heapIdle
-	m.heapInuse.Set(float64(ms.HeapInuse))
-	ch <- m.heapInuse
-	m.heapReleased.Set(float64(ms.HeapReleased))
-	ch <- m.heapReleased
-	m.heapObjects.Set(float64(ms.HeapObjects))
-	ch <- m.heapObjects
+	c.alloc.Set(float64(ms.Alloc))
+	ch <- c.alloc
+	c.totalAlloc.Set(float64(ms.TotalAlloc))
+	ch <- c.totalAlloc
+	c.sys.Set(float64(ms.Sys))
+	ch <- c.sys
+	c.lookups.Set(float64(ms.Lookups))
+	ch <- c.lookups
+	c.mallocs.Set(float64(ms.Mallocs))
+	ch <- c.mallocs
+	c.frees.Set(float64(ms.Frees))
+	ch <- c.frees
+	c.heapAlloc.Set(float64(ms.HeapAlloc))
+	ch <- c.heapAlloc
+	c.heapSys.Set(float64(ms.HeapSys))
+	ch <- c.heapSys
+	c.heapIdle.Set(float64(ms.HeapIdle))
+	ch <- c.heapIdle
+	c.heapInuse.Set(float64(ms.HeapInuse))
+	ch <- c.heapInuse
+	c.heapReleased.Set(float64(ms.HeapReleased))
+	ch <- c.heapReleased
+	c.heapObjects.Set(float64(ms.HeapObjects))
+	ch <- c.heapObjects
 }
