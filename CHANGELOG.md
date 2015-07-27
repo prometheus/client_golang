@@ -1,3 +1,13 @@
+## 0.7.0 / 2015-07-27
+* [CHANGE] Rename ExporterLabelPrefix to ExportedLabelPrefix.
+* [BUGFIX] Closed gaps in metric consistency check.
+* [BUGFIX] Validate LabelName/LabelSet on JSON unmarshaling.
+* [ENHANCEMENT] Document the possibility to create "empty" metrics in
+  a metric vector.
+* [ENHANCEMENT] Fix and clarify various doc comments and the README.md.
+* [ENHANCEMENT] (Kind of) solve "The Proxy Problem" of http.InstrumentHandler.
+* [ENHANCEMENT] Change responseWriterDelegator.written to int64.
+
 ## 0.6.0 / 2015-06-01
 * [CHANGE] Rename process_goroutines to go_goroutines.
 * [ENHANCEMENT] Validate label names during YAML decoding.
