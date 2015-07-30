@@ -11,12 +11,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Build only when actually fuzzing
+// +build gofuzz
+
 package text
 
 import "bytes"
-
-// Build only when actually fuzzing
-// +build gofuzz
 
 // Fuzz text metric parser with with github.com/dvyukov/go-fuzz:
 // 
