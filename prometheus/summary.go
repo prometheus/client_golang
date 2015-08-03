@@ -112,7 +112,9 @@ type SummaryOpts struct {
 	ConstLabels Labels
 
 	// Objectives defines the quantile rank estimates with their respective
-	// absolute error. The default value is DefObjectives.
+	// absolute error. If Objectives[q] = e, then the reported q-quantile
+	// value will be the r-quantile value with r between q-e and q+e.
+	// The default value is DefObjectives.
 	Objectives map[float64]float64
 
 	// MaxAge defines the duration for which an observation stays relevant
