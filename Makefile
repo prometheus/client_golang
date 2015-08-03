@@ -32,17 +32,17 @@ endif
 # Never honor GOBIN, should it be set at all.
 unexport GOBIN
 
-export GOARCH		  = $(subst x86_64,amd64,$(patsubst i%86,386,$(ARCH)))
-export GOPKG		  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
-export GOURL		  = https://golang.org/dl
-export GOROOT		  = $(BUILD_PATH)/root/go
-export GOPATH		  = $(BUILD_PATH)/root/gopath
-export GOCC		  = $(GOROOT)/bin/go
-export TMPDIR		  = /tmp
-export GOENV		  = TMPDIR=$(TMPDIR) GOROOT=$(GOROOT) GOPATH=$(GOPATH)
-export GO	          = $(GOENV) $(GOCC)
-export GOFMT		  = $(GOROOT)/bin/gofmt
-export GODOC              = $(GOENV) $(GOROOT)/bin/godoc
+export GOARCH = $(subst x86_64,amd64,$(patsubst i%86,386,$(ARCH)))
+export GOPKG  = go$(GO_VERSION).$(GOOS)-$(GOARCH)$(RELEASE_SUFFIX).tar.gz
+export GOURL  = https://golang.org/dl
+export GOROOT = $(BUILD_PATH)/root/go
+export GOPATH = $(BUILD_PATH)/root/gopath
+export GOCC   = $(GOROOT)/bin/go
+export TMPDIR = /tmp
+export GOENV  = TMPDIR=$(TMPDIR) GOROOT=$(GOROOT) GOPATH=$(GOPATH)
+export GO     = $(GOENV) $(GOCC)
+export GOFMT  = $(GOROOT)/bin/gofmt
+export GODOC  = $(GOENV) $(GOROOT)/bin/godoc
 
 BENCHMARK_FILTER ?= .
 
