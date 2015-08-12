@@ -50,6 +50,12 @@ const (
 	// will not be attached to time series.
 	MetaLabelPrefix = "__meta_"
 
+	// TmpLabelPrefix is a prefix for temporary labels as part of relabelling.
+	// Labels with this prefix are used for intermediate label processing and
+	// will not be attached to time series. This is reserved for use in
+	// Prometheus configuration files by users.
+	TmpLabelPrefix = "__tmp_"
+
 	// ParamLabelPrefix is a prefix for labels that provide URL parameters
 	// used to scrape a target.
 	ParamLabelPrefix = "__param_"
