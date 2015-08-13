@@ -14,7 +14,6 @@
 package model
 
 import (
-	"runtime"
 	"sync"
 	"testing"
 )
@@ -245,25 +244,6 @@ func BenchmarkMetricToFastFingerprintDouble(b *testing.B) {
 
 func BenchmarkMetricToFastFingerprintTriple(b *testing.B) {
 	benchmarkMetricToFastFingerprint(b, Metric{"first-label": "first-label-value", "second-label": "second-label-value", "third-label": "third-label-value"}, 15738406913934009676)
-}
-
-func TestEmptyLabelSignature(t *testing.T) {
-	input := []map[string]string{nil, {}}
-
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-
-	alloc := ms.Alloc
-
-	for _, labels := range input {
-		LabelsToSignature(labels)
-	}
-
-	runtime.ReadMemStats(&ms)
-
-	if got := ms.Alloc; alloc != got {
-		t.Fatal("expected LabelsToSignature with empty labels not to perform allocations")
-	}
 }
 
 func benchmarkMetricToFastFingerprintConc(b *testing.B, m Metric, e Fingerprint, concLevel int) {
