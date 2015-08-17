@@ -51,8 +51,8 @@ func TestGoCollector(t *testing.T) {
 				}
 
 				// GoCollector performs two sends per call.
-				// On line 27 we need to revceive the second send
-				// to shutdown cleanly.
+				// On line 27 we need to receive the second send
+				// to shut down cleanly.
 				<-ch
 				return
 			}
