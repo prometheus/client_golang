@@ -1,7 +1,8 @@
+sudo: false
 language: go
 
 go:
  - 1.4
 
 script:
- - make -f Makefile
+ - go test -short ./... 
