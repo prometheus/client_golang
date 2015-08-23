@@ -38,7 +38,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/prometheus/client_golang/model"
 	"github.com/prometheus/client_golang/text"
 )
 
@@ -537,7 +536,7 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	h := fnv.New64a()
 	var buf bytes.Buffer
 	buf.WriteString(metricFamily.GetName())
-	buf.WriteByte(model.SeparatorByte)
+	buf.WriteByte(separatorByte)
 	h.Write(buf.Bytes())
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check. Label pairs must be sorted by contract. But the point of this
@@ -547,7 +546,7 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	for _, lp := range dtoMetric.Label {
 		buf.Reset()
 		buf.WriteString(lp.GetValue())
-		buf.WriteByte(model.SeparatorByte)
+		buf.WriteByte(separatorByte)
 		h.Write(buf.Bytes())
 	}
 	metricHash := h.Sum64()

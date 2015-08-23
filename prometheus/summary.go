@@ -25,9 +25,11 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
-
-	"github.com/prometheus/client_golang/model"
 )
+
+// quantileLabel is used for the label that defines the quantile in a
+// summary.
+const quantileLabel = "quantile"
 
 // A Summary captures individual observations from an event or sample stream and
 // summarizes them in a manner similar to traditional summary statistics: 1. sum
@@ -57,7 +59,7 @@ var (
 	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	errQuantileLabelNotAllowed = fmt.Errorf(
-		"%q is not allowed as label name in summaries", model.QuantileLabel,
+		"%q is not allowed as label name in summaries", quantileLabel,
 	)
 )
 
@@ -172,12 +174,12 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	}
 
 	for _, n := range desc.variableLabels {
-		if n == model.QuantileLabel {
+		if n == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
 	for _, lp := range desc.constLabelPairs {
-		if lp.GetName() == model.QuantileLabel {
+		if lp.GetName() == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
