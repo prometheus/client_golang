@@ -586,3 +586,27 @@ func BenchmarkParseError(b *testing.B) {
 		testParseError(b)
 	}
 }
+
+func TestLabelsToSignature(t *testing.T) {
+	var scenarios = []struct {
+		in  map[string]string
+		out uint64
+	}{
+		{
+			in:  map[string]string{},
+			out: 14695981039346656037,
+		},
+		{
+			in:  map[string]string{"name": "garland, briggs", "fear": "love is not enough"},
+			out: 5799056148416392346,
+		},
+	}
+
+	for i, scenario := range scenarios {
+		actual := labelsToSignature(scenario.in)
+
+		if actual != scenario.out {
+			t.Errorf("%d. expected %d, got %d", i, scenario.out, actual)
+		}
+	}
+}
