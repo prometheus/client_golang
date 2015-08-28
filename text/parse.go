@@ -17,15 +17,32 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"hash"
+	"hash/fnv"
 	"io"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/client_golang/model"
+)
+
+const (
+	// metricNameLabel is the label name indicating the metric name of a
+	// timeseries.
+	metricNameLabel = "__name__"
+
+	// bucketLabel is used for the label that defines the upper bound of a
+	// bucket of a histogram ("le" -> "less or equal").
+	bucketLabel = "le"
+
+	// quantileLabel is used for the label that defines the quantile in a
+	// summary.
+	quantileLabel = "quantile"
 )
 
 // A stateFn is a function that represents a state in a state machine. By
@@ -245,7 +262,7 @@ func (p *Parser) readingLabels() stateFn {
 	// read labels.
 	if p.currentMF.GetType() == dto.MetricType_SUMMARY || p.currentMF.GetType() == dto.MetricType_HISTOGRAM {
 		p.currentLabels = map[string]string{}
-		p.currentLabels[string(model.MetricNameLabel)] = p.currentMF.GetName()
+		p.currentLabels[string(metricNameLabel)] = p.currentMF.GetName()
 		p.currentQuantile = math.NaN()
 		p.currentBucket = math.NaN()
 	}
@@ -275,14 +292,14 @@ func (p *Parser) startLabelName() stateFn {
 		return nil
 	}
 	p.currentLabelPair = &dto.LabelPair{Name: proto.String(p.currentToken.String())}
-	if p.currentLabelPair.GetName() == string(model.MetricNameLabel) {
-		p.parseError(fmt.Sprintf("label name %q is reserved", model.MetricNameLabel))
+	if p.currentLabelPair.GetName() == string(metricNameLabel) {
+		p.parseError(fmt.Sprintf("label name %q is reserved", metricNameLabel))
 		return nil
 	}
 	// Special summary/histogram treatment. Don't add 'quantile' and 'le'
 	// labels to 'real' labels.
-	if !(p.currentMF.GetType() == dto.MetricType_SUMMARY && p.currentLabelPair.GetName() == model.QuantileLabel) &&
-		!(p.currentMF.GetType() == dto.MetricType_HISTOGRAM && p.currentLabelPair.GetName() == model.BucketLabel) {
+	if !(p.currentMF.GetType() == dto.MetricType_SUMMARY && p.currentLabelPair.GetName() == quantileLabel) &&
+		!(p.currentMF.GetType() == dto.MetricType_HISTOGRAM && p.currentLabelPair.GetName() == bucketLabel) {
 		p.currentMetric.Label = append(p.currentMetric.Label, p.currentLabelPair)
 	}
 	if p.skipBlankTabIfCurrentBlankTab(); p.err != nil {
@@ -313,7 +330,7 @@ func (p *Parser) startLabelValue() stateFn {
 	// - Quantile labels are special, will result in dto.Quantile later.
 	// - Other labels have to be added to currentLabels for signature calculation.
 	if p.currentMF.GetType() == dto.MetricType_SUMMARY {
-		if p.currentLabelPair.GetName() == model.QuantileLabel {
+		if p.currentLabelPair.GetName() == quantileLabel {
 			if p.currentQuantile, p.err = strconv.ParseFloat(p.currentLabelPair.GetValue(), 64); p.err != nil {
 				// Create a more helpful error message.
 				p.parseError(fmt.Sprintf("expected float as value for 'quantile' label, got %q", p.currentLabelPair.GetValue()))
@@ -325,7 +342,7 @@ func (p *Parser) startLabelValue() stateFn {
 	}
 	// Similar special treatment of histograms.
 	if p.currentMF.GetType() == dto.MetricType_HISTOGRAM {
-		if p.currentLabelPair.GetName() == model.BucketLabel {
+		if p.currentLabelPair.GetName() == bucketLabel {
 			if p.currentBucket, p.err = strconv.ParseFloat(p.currentLabelPair.GetValue(), 64); p.err != nil {
 				// Create a more helpful error message.
 				p.parseError(fmt.Sprintf("expected float as value for 'le' label, got %q", p.currentLabelPair.GetValue()))
@@ -360,7 +377,7 @@ func (p *Parser) readingValue() stateFn {
 	// special case of a summary/histogram, we can finally find out
 	// if the metric already exists.
 	if p.currentMF.GetType() == dto.MetricType_SUMMARY {
-		signature := model.LabelsToSignature(p.currentLabels)
+		signature := labelsToSignature(p.currentLabels)
 		if summary := p.summaries[signature]; summary != nil {
 			p.currentMetric = summary
 		} else {
@@ -368,7 +385,7 @@ func (p *Parser) readingValue() stateFn {
 			p.currentMF.Metric = append(p.currentMF.Metric, p.currentMetric)
 		}
 	} else if p.currentMF.GetType() == dto.MetricType_HISTOGRAM {
-		signature := model.LabelsToSignature(p.currentLabels)
+		signature := labelsToSignature(p.currentLabels)
 		if histogram := p.histograms[signature]; histogram != nil {
 			p.currentMetric = histogram
 		} else {
@@ -743,4 +760,63 @@ func histogramMetricName(name string) string {
 	default:
 		return name
 	}
+}
+
+// separatorByte is a byte that cannot occur in valid UTF-8 sequences and is
+// used to separate label names, label values, and other strings from each other
+// when calculating their combined hash value (aka signature aka fingerprint).
+const separatorByte byte = 255
+
+var (
+	// cache the signature of an empty label set.
+	emptyLabelSignature = fnv.New64a().Sum64()
+
+	hashAndBufPool sync.Pool
+)
+
+type hashAndBuf struct {
+	h hash.Hash64
+	b bytes.Buffer
+}
+
+func getHashAndBuf() *hashAndBuf {
+	hb := hashAndBufPool.Get()
+	if hb == nil {
+		return &hashAndBuf{h: fnv.New64a()}
+	}
+	return hb.(*hashAndBuf)
+}
+
+func putHashAndBuf(hb *hashAndBuf) {
+	hb.h.Reset()
+	hb.b.Reset()
+	hashAndBufPool.Put(hb)
+}
+
+// labelsToSignature returns a quasi-unique signature (i.e., fingerprint) for a
+// given label set. (Collisions are possible but unlikely if the number of label
+// sets the function is applied to is small.)
+func labelsToSignature(labels map[string]string) uint64 {
+	if len(labels) == 0 {
+		return emptyLabelSignature
+	}
+
+	labelNames := make([]string, 0, len(labels))
+	for labelName := range labels {
+		labelNames = append(labelNames, labelName)
+	}
+	sort.Strings(labelNames)
+
+	hb := getHashAndBuf()
+	defer putHashAndBuf(hb)
+
+	for _, labelName := range labelNames {
+		hb.b.WriteString(labelName)
+		hb.b.WriteByte(separatorByte)
+		hb.b.WriteString(labels[labelName])
+		hb.b.WriteByte(separatorByte)
+		hb.h.Write(hb.b.Bytes())
+		hb.b.Reset()
+	}
+	return hb.h.Sum64()
 }

@@ -27,7 +27,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/prometheus/client_golang/model"
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -118,7 +117,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 			for _, q := range metric.Summary.Quantile {
 				n, err = writeSample(
 					name, metric,
-					model.QuantileLabel, fmt.Sprint(q.GetQuantile()),
+					quantileLabel, fmt.Sprint(q.GetQuantile()),
 					q.GetValue(),
 					out,
 				)
@@ -151,7 +150,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 			for _, q := range metric.Histogram.Bucket {
 				n, err = writeSample(
 					name+"_bucket", metric,
-					model.BucketLabel, fmt.Sprint(q.GetUpperBound()),
+					bucketLabel, fmt.Sprint(q.GetUpperBound()),
 					float64(q.GetCumulativeCount()),
 					out,
 				)
@@ -166,7 +165,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (int, error) {
 			if !infSeen {
 				n, err = writeSample(
 					name+"_bucket", metric,
-					model.BucketLabel, "+Inf",
+					bucketLabel, "+Inf",
 					float64(metric.Histogram.GetSampleCount()),
 					out,
 				)
