@@ -11,8 +11,6 @@ type goCollector struct {
 	goroutines Gauge
 	gcDesc     *Desc
 
-	// memstats object to reuse
-	ms *runtime.MemStats
 	// metrics to describe and collect
 	metrics memStatsMetrics
 }
@@ -21,7 +19,6 @@ type goCollector struct {
 // go process.
 func NewGoCollector() *goCollector {
 	return &goCollector{
-		ms: new(runtime.MemStats),
 		goroutines: NewGauge(GaugeOpts{
 			Namespace: "go",
 			Name:      "goroutines",
@@ -267,13 +264,14 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	quantiles[0.0] = stats.PauseQuantiles[0].Seconds()
 	ch <- MustNewConstSummary(c.gcDesc, uint64(stats.NumGC), float64(stats.PauseTotal.Seconds()), quantiles)
 
-	runtime.ReadMemStats(c.ms)
+	ms := &runtime.MemStats{}
+	runtime.ReadMemStats(ms)
 	for _, i := range c.metrics {
-		ch <- MustNewConstMetric(i.desc, i.valType, i.eval(c.ms))
+		ch <- MustNewConstMetric(i.desc, i.valType, i.eval(ms))
 	}
 }
 
-// memStatsMetrics provide description, value, and value type for memstat metrics
+// memStatsMetrics provide description, value, and value type for memstat metrics.
 type memStatsMetrics []struct {
 	desc    *Desc
 	eval    func(*runtime.MemStats) float64
