@@ -116,7 +116,7 @@ func NewGoCollector() *goCollector {
 					nil, nil,
 				),
 				eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapReleased) },
-				valType: GaugeValue,
+				valType: CounterValue,
 			}, {
 				desc: NewDesc(
 					memstatNamespace("heap_objects"),
