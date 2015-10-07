@@ -111,8 +111,8 @@ func NewGoCollector() *goCollector {
 				valType: GaugeValue,
 			}, {
 				desc: NewDesc(
-					memstatNamespace("heap_released_bytes"),
-					"Number of bytes in heap released to OS.",
+					memstatNamespace("heap_released_bytes_total"),
+					"Total number of heap bytes released to OS.",
 					nil, nil,
 				),
 				eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapReleased) },
