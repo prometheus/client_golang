@@ -154,7 +154,7 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	if err != nil {
 		return false
 	}
-	if _, has := m.children[h]; !has {
+	if _, ok := m.children[h]; !ok {
 		return false
 	}
 	delete(m.children, h)
@@ -179,7 +179,7 @@ func (m *MetricVec) Delete(labels Labels) bool {
 	if err != nil {
 		return false
 	}
-	if _, has := m.children[h]; !has {
+	if _, ok := m.children[h]; !ok {
 		return false
 	}
 	delete(m.children, h)
