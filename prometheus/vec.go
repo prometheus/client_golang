@@ -14,9 +14,7 @@
 package prometheus
 
 import (
-	"bytes"
 	"fmt"
-	"hash"
 	"sync"
 )
 
@@ -26,15 +24,9 @@ import (
 // type. GaugeVec, CounterVec, SummaryVec, and UntypedVec are examples already
 // provided in this package.
 type MetricVec struct {
-	mtx      sync.RWMutex // Protects not only children, but also hash and buf.
+	mtx      sync.RWMutex // Protects the children.
 	children map[uint64]Metric
 	desc     *Desc
-
-	// hash is our own hash instance to avoid repeated allocations.
-	hash hash.Hash64
-	// buf is used to copy string contents into it for hashing,
-	// again to avoid allocations.
-	buf bytes.Buffer
 
 	newMetric func(labelValues ...string) Metric
 }
@@ -208,30 +200,26 @@ func (m *MetricVec) hashLabelValues(vals []string) (uint64, error) {
 	if len(vals) != len(m.desc.variableLabels) {
 		return 0, errInconsistentCardinality
 	}
-	m.hash.Reset()
+	h := hashNew()
 	for _, val := range vals {
-		m.buf.Reset()
-		m.buf.WriteString(val)
-		m.hash.Write(m.buf.Bytes())
+		h = hashAdd(h, val)
 	}
-	return m.hash.Sum64(), nil
+	return h, nil
 }
 
 func (m *MetricVec) hashLabels(labels Labels) (uint64, error) {
 	if len(labels) != len(m.desc.variableLabels) {
 		return 0, errInconsistentCardinality
 	}
-	m.hash.Reset()
+	h := hashNew()
 	for _, label := range m.desc.variableLabels {
 		val, ok := labels[label]
 		if !ok {
 			return 0, fmt.Errorf("label name %q missing in label map", label)
 		}
-		m.buf.Reset()
-		m.buf.WriteString(val)
-		m.hash.Write(m.buf.Bytes())
+		h = hashAdd(h, val)
 	}
-	return m.hash.Sum64(), nil
+	return h, nil
 }
 
 func (m *MetricVec) getOrCreateMetric(hash uint64, labelValues ...string) Metric {
