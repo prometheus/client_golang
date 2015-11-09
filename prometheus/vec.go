@@ -72,13 +72,20 @@ func (m *MetricVec) Collect(ch chan<- Metric) {
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
 func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	h, err := m.hashLabelValues(lvs)
 	if err != nil {
 		return nil, err
 	}
+
+	m.mtx.RLock()
+	metric, ok := m.children[h]
+	m.mtx.RUnlock()
+	if ok {
+		return metric, nil
+	}
+
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	return m.getOrCreateMetric(h, lvs...), nil
 }
 
@@ -95,17 +102,24 @@ func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
 func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-
 	h, err := m.hashLabels(labels)
 	if err != nil {
 		return nil, err
 	}
+
+	m.mtx.RLock()
+	metric, ok := m.children[h]
+	m.mtx.RUnlock()
+	if ok {
+		return metric, nil
+	}
+
 	lvs := make([]string, len(labels))
 	for i, label := range m.desc.variableLabels {
 		lvs[i] = labels[label]
 	}
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
 	return m.getOrCreateMetric(h, lvs...), nil
 }
 
