@@ -32,6 +32,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
@@ -722,5 +723,26 @@ func (s metricSorter) Less(i, j int) bool {
 			return vi < vj
 		}
 	}
-	return true
+	if s[i].GetTimestampMs() != s[j].GetTimestampMs() {
+		// While this is not strictly supported, until we have
+		// an import API some people are having some success
+		// getting data imported by supplying the same metric
+		// with different timestamps.  At the very least we
+		// shouldn't make things more difficult, so ensure that
+		// metrics get ordered by timestamp to make it possible
+		// for Prometheus to import them.
+		ti, tj := s[i].GetTimestampMs(), s[j].GetTimestampMs()
+		if ti == 0 {
+			ti = nowMillis()
+		} else if tj == 0 {
+			tj = nowMillis()
+		}
+		return ti < tj
+	}
+	return false
+}
+
+func nowMillis() int64 {
+	now := time.Now()
+	return now.Unix()*1000 + int64(now.Nanosecond())/1000000
 }
