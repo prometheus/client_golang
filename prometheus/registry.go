@@ -722,5 +722,18 @@ func (s metricSorter) Less(i, j int) bool {
 			return vi < vj
 		}
 	}
-	return true
+
+	// We should never arrive here. Multiple metrics with the same
+	// label set in the same scrape will lead to undefined ingestion
+	// behavior. However, as above, we have to provide stable sorting
+	// here, even for inconsistent metrics. So sort equal metrics
+	// by their timestamp, with missing timestamps (implying "now")
+	// coming last.
+	if s[i].TimestampMs == nil {
+		return false
+	}
+	if s[j].TimestampMs == nil {
+		return true
+	}
+	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
 }
