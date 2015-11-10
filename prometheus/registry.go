@@ -723,21 +723,17 @@ func (s metricSorter) Less(i, j int) bool {
 		}
 	}
 
-	// While this is not strictly supported, until we have an
-	// import API some people are having some success getting
-	// data imported by supplying the same metric with different
-	// timestamps.  At the very least we shouldn't make things
-	// more difficult, so ensure that metrics get ordered by
-	// timestamp so that Prometheus doesn't complain about
-	// out-of-order metrics. A missing timestamp (implies "now")
-	// will be ordered last.
-	if s[i].TimestampMs == nil && s[j].TimestampMs != nil {
+	// We should never arrive here. Multiple metrics with the same
+	// label set in the same scrape will lead to undefined ingestion
+	// behavior. However, as above, we have to provide stable sorting
+	// here, even for inconsistent metrics. So sort equal metrics
+	// by their timestamp, with missing timestamps (implying "now")
+	// coming last.
+	if s[i].TimestampMs == nil {
 		return false
-	} else if s[i].TimestampMs != nil && s[j].TimestampMs == nil {
-		return true
-	} else if s[i].GetTimestampMs() != s[j].GetTimestampMs() {
-		return s[i].GetTimestampMs() < s[j].GetTimestampMs()
 	}
-
-	return false
+	if s[j].TimestampMs == nil {
+		return true
+	}
+	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
 }
