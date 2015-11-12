@@ -20,3 +20,10 @@ func hashAdd(h uint64, s string) uint64 {
 	}
 	return h
 }
+
+// hashAddByte adds a byte to a fnv64a hash value, returning the updated hash.
+func hashAddByte(h uint64, b byte) uint64 {
+	h ^= uint64(b)
+	h *= prime64
+	return h
+}
