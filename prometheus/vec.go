@@ -241,6 +241,7 @@ func (m *MetricVec) getOrCreateMetric(hash uint64, labelValues ...string) Metric
 	if !ok {
 		// Copy labelValues. Otherwise, they would be allocated even if we don't go
 		// down this code path.
+		// TODO: Use copy.
 		copiedLabelValues := append(make([]string, 0, len(labelValues)), labelValues...)
 		metric = m.newMetric(copiedLabelValues...)
 		m.children[hash] = metric

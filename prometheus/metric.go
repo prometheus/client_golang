@@ -13,11 +13,7 @@
 
 package prometheus
 
-import (
-	"strings"
-
-	dto "github.com/prometheus/client_model/go"
-)
+import dto "github.com/prometheus/client_model/go"
 
 const separatorByte byte = 255
 
@@ -51,6 +47,42 @@ type Metric interface {
 	// While populating dto.Metric, labels must be sorted lexicographically.
 	// (Implementers may find LabelPairSorter useful for that.)
 	Write(*dto.Metric) error
+}
+
+// MetricType is an enumeration of metric types. It deliberately mirrors the
+// MetricType enum from the protobuf specification to avoid exposing protobuf
+// references to the user of this package. (The protobuf parts could be
+// internally vendored.)
+type MetricType int
+
+// Possible values for the MetricType enum.
+const (
+	CounterMetric MetricType = iota
+	GaugeMetric
+	SummaryMetric
+	UntypedMetric
+	HistogramMetric
+)
+
+func (m MetricType) Valid() bool {
+	return m >= CounterMetric && m <= HistogramMetric
+}
+
+func (m MetricType) String() string {
+	switch m {
+	case CounterMetric:
+		return "COUNTER"
+	case GaugeMetric:
+		return "GAUGE"
+	case SummaryMetric:
+		return "SUMMARY"
+	case UntypedMetric:
+		return "UNTYPED"
+	case HistogramMetric:
+		return "HISTOGRAM"
+	default:
+		return "INVALID"
+	}
 }
 
 // Opts bundles the options for creating most Metric types. Each metric
@@ -96,28 +128,6 @@ type Opts struct {
 	ConstLabels Labels
 }
 
-// BuildFQName joins the given three name components by "_". Empty name
-// components are ignored. If the name parameter itself is empty, an empty
-// string is returned, no matter what. Metric implementations included in this
-// library use this function internally to generate the fully-qualified metric
-// name from the name component in their Opts. Users of the library will only
-// need this function if they implement their own Metric or instantiate a Desc
-// (with NewDesc) directly.
-func BuildFQName(namespace, subsystem, name string) string {
-	if name == "" {
-		return ""
-	}
-	switch {
-	case namespace != "" && subsystem != "":
-		return strings.Join([]string{namespace, subsystem, name}, "_")
-	case namespace != "":
-		return strings.Join([]string{namespace, name}, "_")
-	case subsystem != "":
-		return strings.Join([]string{subsystem, name}, "_")
-	}
-	return name
-}
-
 // LabelPairSorter implements sort.Interface. It is used to sort a slice of
 // dto.LabelPair pointers. This is useful for implementing the Write method of
 // custom metrics.
@@ -150,17 +160,18 @@ func (s hashSorter) Less(i, j int) bool {
 }
 
 type invalidMetric struct {
-	desc *Desc
+	desc Desc
 	err  error
 }
 
 // NewInvalidMetric returns a metric whose Write method always returns the
-// provided error. It is useful if a Collector finds itself unable to collect
-// a metric and wishes to report an error to the registry.
-func NewInvalidMetric(desc *Desc, err error) Metric {
-	return &invalidMetric{desc, err}
+// provided error, and whose descriptor is invalid, carrying the provided
+// error. It is useful if a Collector finds itself unable to collect a metric
+// and wishes to report an error to the registry.
+func NewInvalidMetric(err error) Metric {
+	return &invalidMetric{NewInvalidDesc(err), err}
 }
 
-func (m *invalidMetric) Desc() *Desc { return m.desc }
+func (m *invalidMetric) Desc() Desc { return m.desc }
 
 func (m *invalidMetric) Write(*dto.Metric) error { return m.err }
