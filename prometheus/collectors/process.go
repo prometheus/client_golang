@@ -11,13 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package prometheus
+package collectors
 
-import "github.com/prometheus/procfs"
+import (
+	"github.com/prometheus/procfs"
+
+	"github.com/prometheus/client_golang/prometheus/metric"
+)
 
 type processCollector struct {
 	pid             int
-	collectFn       func(chan<- Metric)
+	collectFn       func(chan<- metric.Metric)
 	pidFn           func() (int, error)
 	cpuTotal        Counter
 	openFDs, maxFDs Gauge

@@ -24,6 +24,9 @@ package prometheus
 // already implemented in this library are the metric vectors (i.e. collection
 // of multiple instances of the same Metric but with different label values)
 // like GaugeVec or SummaryVec, and the ExpvarCollector.
+//
+// (Two Collectors are considered equal if their
+// Describe method yields the same set of descriptors.)
 type Collector interface {
 	// Describe sends the super-set of all possible descriptors of metrics
 	// collected by this Collector to the provided channel and returns once
@@ -46,7 +49,9 @@ type Collector interface {
 	// therefore be implemented in a concurrency safe way. Blocking occurs
 	// at the expense of total performance of rendering all registered
 	// metrics. Ideally, Collector implementations support concurrent
-	// readers.
+	// readers. If a Collector finds itself unable to collect a metric, it
+	// can signal the error to the registry by sending a Metric that will
+	// return the error when its Write method is called.
 	Collect(chan<- Metric)
 }
 
