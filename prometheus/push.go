@@ -55,7 +55,7 @@ func PushAddCollectors(job, instance, url string, collectors ...Collector) error
 }
 
 func pushCollectors(job, instance, url, method string, collectors ...Collector) error {
-	r := newRegistry()
+	r := NewRegistry()
 	for _, collector := range collectors {
 		if _, err := r.Register(collector); err != nil {
 			return err
