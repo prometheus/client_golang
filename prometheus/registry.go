@@ -95,6 +95,7 @@ type Registry interface {
 	RegisterOrGet(c Collector) (Collector, error)
 	Unregister(c Collector) bool
 	Push(job, instance, pushURL, method string) error
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
 // UninstrumentedHandler works in the same way as Handler, but the returned HTTP
