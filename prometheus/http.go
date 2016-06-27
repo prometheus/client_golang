@@ -61,16 +61,16 @@ func nowSeries(t ...time.Time) nower {
 // Note that InstrumentHandler has several issues:
 //
 // - It uses Summaries rather than Histograms. Summaries are not useful if
-//   aggregation across multiple instances is required.
+// aggregation across multiple instances is required.
 //
 // - It uses microseconds as unit, which is deprecated and should be replaced by
-//   seconds.
+// seconds.
 //
 // - The size of the request is calculated in a separate goroutine. Since this
-//   calculator requires access to the request header, it creates a race with
-//   any writes to the header performed during request handling.
-//   httputil.ReverseProxy is a prominent example for a handler
-//   performing such writes.
+// calculator requires access to the request header, it creates a race with
+// any writes to the header performed during request handling.
+// httputil.ReverseProxy is a prominent example for a handler
+// performing such writes.
 //
 // Upcoming versions of this package will provide ways of instrumenting HTTP
 // handlers that are more flexible and have fewer issues. Consider this function
