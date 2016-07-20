@@ -17,10 +17,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"runtime"
 	"sort"
-	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -49,10 +47,10 @@ func ExampleGauge() {
 func ExampleGaugeVec() {
 	opsQueued := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Namespace:   "our_company",
-			Subsystem:   "blob_storage",
-			Name:        "ops_queued",
-			Help:        "Number of blob storage operations waiting to be processed, partitioned by user and type.",
+			Namespace: "our_company",
+			Subsystem: "blob_storage",
+			Name:      "ops_queued",
+			Help:      "Number of blob storage operations waiting to be processed, partitioned by user and type.",
 		},
 		[]string{
 			// Which user has requested the operation?
@@ -122,8 +120,8 @@ func ExampleCounter() {
 func ExampleCounterVec() {
 	httpReqs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name:        "http_requests_total",
-			Help:        "How many HTTP requests processed, partitioned by status code and HTTP method.",
+			Name: "http_requests_total",
+			Help: "How many HTTP requests processed, partitioned by status code and HTTP method.",
 		},
 		[]string{"code", "method"},
 	)
@@ -387,89 +385,90 @@ func ExampleSummaryVec() {
 	temps.WithLabelValues("leiopelma-hochstetteri")
 
 	// Just for demonstration, let's check the state of the summary vector
-	// by (ab)using its Collect method and the Write method of its elements
-	// (which is usually only used by Prometheus internally - code like the
-	// following will never appear in your own code).
-	metricChan := make(chan prometheus.Metric)
-	go func() {
-		defer close(metricChan)
-		temps.Collect(metricChan)
-	}()
+	// by registering it with a custom registry and then let it collect the
+	// metrics.
+	reg := prometheus.NewRegistry()
+	prometheus.MustRegisterWith(reg, temps)
 
-	metricStrings := []string{}
-	for metric := range metricChan {
-		dtoMetric := &dto.Metric{}
-		metric.Write(dtoMetric)
-		metricStrings = append(metricStrings, proto.MarshalTextString(dtoMetric))
+	metricFamilies, err := reg.Collect()
+	if err != nil || len(metricFamilies) != 1 {
+		panic("unexpected behavior of custom test registry")
 	}
-	sort.Strings(metricStrings) // For reproducible print order.
-	fmt.Println(metricStrings)
+	fmt.Println(proto.MarshalTextString(metricFamilies[0]))
 
 	// Output:
-	// [label: <
-	//   name: "species"
-	//   value: "leiopelma-hochstetteri"
-	// >
-	// summary: <
-	//   sample_count: 0
-	//   sample_sum: 0
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: nan
+	// name: "pond_temperature_celsius"
+	// help: "The temperature of the frog pond."
+	// type: SUMMARY
+	// metric: <
+	//   label: <
+	//     name: "species"
+	//     value: "leiopelma-hochstetteri"
 	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: nan
-	//   >
-	//   quantile: <
-	//     quantile: 0.99
-	//     value: nan
-	//   >
-	// >
-	//  label: <
-	//   name: "species"
-	//   value: "lithobates-catesbeianus"
-	// >
-	// summary: <
-	//   sample_count: 1000
-	//   sample_sum: 31956.100000000017
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 32.4
-	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 41.4
-	//   >
-	//   quantile: <
-	//     quantile: 0.99
-	//     value: 41.9
+	//   summary: <
+	//     sample_count: 0
+	//     sample_sum: 0
+	//     quantile: <
+	//       quantile: 0.5
+	//       value: nan
+	//     >
+	//     quantile: <
+	//       quantile: 0.9
+	//       value: nan
+	//     >
+	//     quantile: <
+	//       quantile: 0.99
+	//       value: nan
+	//     >
 	//   >
 	// >
-	//  label: <
-	//   name: "species"
-	//   value: "litoria-caerulea"
+	// metric: <
+	//   label: <
+	//     name: "species"
+	//     value: "lithobates-catesbeianus"
+	//   >
+	//   summary: <
+	//     sample_count: 1000
+	//     sample_sum: 31956.100000000017
+	//     quantile: <
+	//       quantile: 0.5
+	//       value: 32.4
+	//     >
+	//     quantile: <
+	//       quantile: 0.9
+	//       value: 41.4
+	//     >
+	//     quantile: <
+	//       quantile: 0.99
+	//       value: 41.9
+	//     >
+	//   >
 	// >
-	// summary: <
-	//   sample_count: 1000
-	//   sample_sum: 29969.50000000001
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 31.1
+	// metric: <
+	//   label: <
+	//     name: "species"
+	//     value: "litoria-caerulea"
 	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 41.3
-	//   >
-	//   quantile: <
-	//     quantile: 0.99
-	//     value: 41.9
+	//   summary: <
+	//     sample_count: 1000
+	//     sample_sum: 29969.50000000001
+	//     quantile: <
+	//       quantile: 0.5
+	//       value: 31.1
+	//     >
+	//     quantile: <
+	//       quantile: 0.9
+	//       value: 41.3
+	//     >
+	//     quantile: <
+	//       quantile: 0.99
+	//       value: 41.9
+	//     >
 	//   >
 	// >
-	// ]
 }
 
-func ExampleConstSummary() {
+func ExampleNewConstSummary() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
@@ -565,7 +564,7 @@ func ExampleHistogram() {
 	// >
 }
 
-func ExampleConstHistogram() {
+func ExampleNewConstHistogram() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
@@ -621,20 +620,4 @@ func ExampleConstHistogram() {
 	//     upper_bound: 200
 	//   >
 	// >
-}
-
-func ExamplePushCollectors() {
-	hostname, _ := os.Hostname()
-	completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "db_backup_last_completion_time",
-		Help: "The timestamp of the last succesful completion of a DB backup.",
-	})
-	completionTime.Set(float64(time.Now().Unix()))
-	if err := prometheus.PushCollectors(
-		"db_backup", hostname,
-		"http://pushgateway:9091",
-		completionTime,
-	); err != nil {
-		fmt.Println("Could not push completion time to Pushgateway:", err)
-	}
 }

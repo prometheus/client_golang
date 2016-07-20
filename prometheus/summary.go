@@ -139,11 +139,11 @@ type SummaryOpts struct {
 	BufCap uint32
 }
 
-// TODO: Great fuck-up with the sliding-window decay algorithm... The Merge
-// method of perk/quantile is actually not working as advertised - and it might
-// be unfixable, as the underlying algorithm is apparently not capable of
-// merging summaries in the first place. To avoid using Merge, we are currently
-// adding observations to _each_ age bucket, i.e. the effort to add a sample is
+// Great fuck-up with the sliding-window decay algorithm... The Merge method of
+// perk/quantile is actually not working as advertised - and it might be
+// unfixable, as the underlying algorithm is apparently not capable of merging
+// summaries in the first place. To avoid using Merge, we are currently adding
+// observations to _each_ age bucket, i.e. the effort to add a sample is
 // essentially multiplied by the number of age buckets. When rotating age
 // buckets, we empty the previous head stream. On scrape time, we simply take
 // the quantiles from the head stream (no merging required). Result: More effort

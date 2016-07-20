@@ -11,224 +11,251 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copyright (c) 2013, The Prometheus Authors
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
 package prometheus
 
 import (
-	"bytes"
-	"compress/gzip"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/expfmt"
+	"github.com/hashicorp/go-multierror"
 
 	dto "github.com/prometheus/client_model/go"
 )
 
-var (
-	defRegistry   = newDefaultRegistry()
-	errAlreadyReg = errors.New("duplicate metrics collector registration attempted")
-)
-
-// Constants relevant to the HTTP interface.
 const (
-	// APIVersion is the version of the format of the exported data.  This
-	// will match this library's version, which subscribes to the Semantic
-	// Versioning scheme.
-	APIVersion = "0.0.4"
-
-	// DelimitedTelemetryContentType is the content type set on telemetry
-	// data responses in delimited protobuf format.
-	DelimitedTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=delimited`
-	// TextTelemetryContentType is the content type set on telemetry data
-	// responses in text format.
-	TextTelemetryContentType = `text/plain; version=` + APIVersion
-	// ProtoTextTelemetryContentType is the content type set on telemetry
-	// data responses in protobuf text format.  (Only used for debugging.)
-	ProtoTextTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=text`
-	// ProtoCompactTextTelemetryContentType is the content type set on
-	// telemetry data responses in protobuf compact text format.  (Only used
-	// for debugging.)
-	ProtoCompactTextTelemetryContentType = `application/vnd.google.protobuf; proto=io.prometheus.client.MetricFamily; encoding=compact-text`
-
-	// Constants for object pools.
-	numBufs           = 4
-	numMetricFamilies = 1000
-	numMetrics        = 10000
-
 	// Capacity for the channel to collect metrics and descriptors.
 	capMetricChan = 1000
 	capDescChan   = 10
-
-	contentTypeHeader     = "Content-Type"
-	contentLengthHeader   = "Content-Length"
-	contentEncodingHeader = "Content-Encoding"
-
-	acceptEncodingHeader = "Accept-Encoding"
-	acceptHeader         = "Accept"
 )
 
-// Handler returns the HTTP handler for the global Prometheus registry. It is
-// already instrumented with InstrumentHandler (using "prometheus" as handler
-// name). Usually the handler is used to handle the "/metrics" endpoint.
+// DefaultRegistry is the default registry implicitly used by a number of
+// convenience functions. It has a ProcessCollector and a GoCollector
+// pre-registered.
+var DefaultRegistry = NewRegistry()
+
+func init() {
+	MustRegister(NewProcessCollector(os.Getpid(), ""))
+	MustRegister(NewGoCollector())
+}
+
+// NewRegistry creates a new vanilla Registry without any Collectors
+// pre-registered.
+func NewRegistry() Registry {
+	return &registry{
+		collectorsByID:  map[uint64]Collector{},
+		descIDs:         map[uint64]struct{}{},
+		dimHashesByName: map[string]uint64{},
+	}
+}
+
+// NewPedanticRegistry returns a registry that checks during collection if each
+// collected Metric is consistent with its reported Desc, and if the Desc has
+// actually been registered with the registry.
 //
-// Please note the issues described in the doc comment of InstrumentHandler. You
-// might want to consider using UninstrumentedHandler instead.
-func Handler() http.Handler {
-	return InstrumentHandler("prometheus", defRegistry)
+// Usually, a Registry will be happy as long as the union of all collected
+// Metrics is consistent and valid even if some metrics are not consistent with
+// their own Desc or with one of the Descs provided by their
+// Collector. Well-behaved Collectors and Metrics will only provide consistent
+// Descs. This Registry is useful to test the implementation of Collectors and
+// Metrics.
+func NewPedanticRegistry() Registry {
+	r := NewRegistry().(*registry)
+	r.pedanticChecksEnabled = true
+	return r
 }
 
-// UninstrumentedHandler works in the same way as Handler, but the returned HTTP
-// handler is not instrumented. This is useful if no instrumentation is desired
-// (for whatever reason) or if the instrumentation has to happen with a
-// different handler name (or with a different instrumentation approach
-// altogether). See the InstrumentHandler example.
-func UninstrumentedHandler() http.Handler {
-	return defRegistry
+// Registry is the interface for the metrics registry.
+type Registry interface {
+	// Register registers a new Collector to be included in metrics
+	// collection. It returns an error if the descriptors provided by the
+	// Collector are invalid or if they - in combination with descriptors of
+	// already registered Collectors - do not fulfill the consistency and
+	// uniqueness criteria described in the documentation of metric.Desc.
+	//
+	// If the provided Collector is equal to a Collector already registered
+	// (which includes the case of re-registering the same Collector), the
+	// returned error is an instance of AlreadyRegisteredError, which
+	// contains the previously registered Collector.
+	//
+	// It is in general not safe to register the same Collector multiple
+	// times concurrently.
+	Register(Collector) error
+	// Unregister unregisters the Collector that equals the Collector passed
+	// in as an argument.  (Two Collectors are considered equal if their
+	// Describe method yields the same set of descriptors.) The function
+	// returns whether a Collector was unregistered.
+	//
+	// Note that even after unregistering, it will not be possible to
+	// register a new Collector that is inconsistent with the unregistered
+	// Collector, e.g. a Collector collecting metrics with the same name but
+	// a different help string. The rationale here is that the same registry
+	// instance must only collect consistent metrics throughout its
+	// lifetime.
+	Unregister(Collector) bool
+	// SetInjectionHook sets the provided hook to inject MetricFamilies. The
+	// hook is a function that is called whenever metrics are collected. The
+	// MetricFamily protobufs returned by the hook function are merged with
+	// the metrics collected in the usual way.
+	//
+	// This is a way to directly inject MetricFamily protobufs managed and
+	// owned by the caller. The caller has full responsibility. As no
+	// registration of the injected metrics has happened, there was no check
+	// at registration time. If the injection results in inconsistent
+	// metrics, the Collect call will return an error. Some problems may
+	// even go undetected, like invalid label names in the injected
+	// protobufs.
+	//
+	// The hook function must be callable at any time and concurrently.
+	SetInjectionHook(hook func() []*dto.MetricFamily)
+	// Collect collects metrics from registered Collectors and returns them
+	// as lexicographically sorted MetricFamily protobufs. Even if an error
+	// occurs, Collect attempts to collect as many metrics as
+	// possible. Hence, if a non-nil error is returned, the returned
+	// MetricFamily slice could be nil (in case of a fatal error that
+	// prevented any meaningful metric collection) or contain a number of
+	// MetricFamily protobufs, some of which might be incomplete, and some
+	// might be missing altogether. The returned error (which might be a
+	// multierror.Error) explains the details. In any case, the MetricFamily
+	// protobufs are consistent and valid for Prometheus to ingest (e.g. no
+	// duplicate metrics, no invalid identifiers). In scenarios where
+	// complete collection is critical, the returned MetricFamily protobufs
+	// should be disregarded if the returned error is non-nil.
+	Collect() ([]*dto.MetricFamily, error)
 }
 
-// Register registers a new Collector to be included in metrics collection. It
-// returns an error if the descriptors provided by the Collector are invalid or
-// if they - in combination with descriptors of already registered Collectors -
-// do not fulfill the consistency and uniqueness criteria described in the Desc
-// documentation.
+// MustRegisterWith registers the provided Collectors with the provided Registry
+// and panics upon the first registration that causes an error.
 //
-// Do not register the same Collector multiple times concurrently. (Registering
-// the same Collector twice would result in an error anyway, but on top of that,
-// it is not safe to do so concurrently.)
-func Register(m Collector) error {
-	_, err := defRegistry.Register(m)
-	return err
-}
-
-// MustRegister works like Register but panics where Register would have
-// returned an error. MustRegister is also Variadic, where Register only
-// accepts a single Collector to register.
-func MustRegister(m ...Collector) {
-	for i := range m {
-		if err := Register(m[i]); err != nil {
+// See Registry.Register for more details of Collector registration.
+func MustRegisterWith(r Registry, cs ...Collector) {
+	for _, c := range cs {
+		if err := r.Register(c); err != nil {
 			panic(err)
 		}
 	}
 }
 
-// RegisterOrGet works like Register but does not return an error if a Collector
-// is registered that equals a previously registered Collector. (Two Collectors
-// are considered equal if their Describe method yields the same set of
-// descriptors.) Instead, the previously registered Collector is returned (which
-// is helpful if the new and previously registered Collectors are equal but not
-// identical, i.e. not pointers to the same object).
+// Register registers the provided Collector with the DefaultRegistry.
 //
-// As for Register, it is still not safe to call RegisterOrGet with the same
-// Collector multiple times concurrently.
-func RegisterOrGet(m Collector) (Collector, error) {
-	return defRegistry.RegisterOrGet(m)
+// Register is a shortcut for DefaultRegistry.Register(c). See there for more
+// details.
+func Register(c Collector) error {
+	return DefaultRegistry.Register(c)
 }
 
-// MustRegisterOrGet works like RegisterOrGet but panics where RegisterOrGet
-// would have returned an error.
-func MustRegisterOrGet(m Collector) Collector {
-	existing, err := RegisterOrGet(m)
+// MustRegister registers the provided Collectors with the DefaultRegistry and
+// panics if any error occurs.
+//
+// MustRegister is a shortcut for MustRegisterWith(DefaultRegistry, cs...). See
+// there for more details.
+func MustRegister(cs ...Collector) {
+	MustRegisterWith(DefaultRegistry, cs...)
+}
+
+// RegisterOrGet registers the provided Collector with the DefaultRegistry and
+// returns the Collector, unless an equal Collector was registered before, in
+// which case that Collector is returned.
+//
+// RegisterOrGet is merely a convenience function for the implementation as
+// described in the documentation for AlreadyRegisteredError. As the use case is
+// relatively rare, this function is DEPRECATED and will be removed in a future
+// version of this package to clean up the namespace.
+func RegisterOrGet(c Collector) (Collector, error) {
+	if err := Register(c); err != nil {
+		if are, ok := err.(AlreadyRegisteredError); ok {
+			return are.ExistingCollector, nil
+		}
+		return nil, err
+	}
+	return c, nil
+}
+
+// MustRegisterOrGet behaves like RegisterOrGet but panics instead of returning
+// an error.
+//
+// It is DEPRECATED for the same reason RegisterOrGet is. See there for details.
+func MustRegisterOrGet(c Collector) Collector {
+	c, err := RegisterOrGet(c)
 	if err != nil {
 		panic(err)
 	}
-	return existing
+	return c
 }
 
-// Unregister unregisters the Collector that equals the Collector passed in as
-// an argument. (Two Collectors are considered equal if their Describe method
-// yields the same set of descriptors.) The function returns whether a Collector
-// was unregistered.
+// Unregister removes the registration of the provided Collector from the
+// DefaultRegistry.
+//
+// Unregister is a shortcut for DefaultRegistry.Unregister(c). See there for
+// more details.
 func Unregister(c Collector) bool {
-	return defRegistry.Unregister(c)
+	return DefaultRegistry.Unregister(c)
 }
 
-// SetMetricFamilyInjectionHook sets a function that is called whenever metrics
-// are collected. The hook function must be set before metrics collection begins
-// (i.e. call SetMetricFamilyInjectionHook before setting the HTTP handler.) The
-// MetricFamily protobufs returned by the hook function are merged with the
-// metrics collected in the usual way.
+// SetMetricFamilyInjectionHook sets a MetricFamily injection hook on the
+// DefaultRegistry.
 //
-// This is a way to directly inject MetricFamily protobufs managed and owned by
-// the caller. The caller has full responsibility. As no registration of the
-// injected metrics has happened, there is no descriptor to check against, and
-// there are no registration-time checks. If collect-time checks are disabled
-// (see function EnableCollectChecks), no sanity checks are performed on the
-// returned protobufs at all. If collect-checks are enabled, type and uniqueness
-// checks are performed, but no further consistency checks (which would require
-// knowledge of a metric descriptor).
+// It's a shortcut for DefaultRegistry.SetInjectionHook(hook). See there for
+// more details.
 //
-// Sorting concerns: The caller is responsible for sorting the label pairs in
-// each metric. However, the order of metrics will be sorted by the registry as
-// it is required anyway after merging with the metric families collected
-// conventionally.
-//
-// The function must be callable at any time and concurrently.
+// This function is DEPRECATED and will be removed in a future version of this
+// package. In the rare cases this call is needed, users should simply call
+// DefaultRegistry.SetInjectionHook directly.
 func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
-	defRegistry.metricFamilyInjectionHook = hook
+	DefaultRegistry.SetInjectionHook(hook)
 }
 
-// PanicOnCollectError sets the behavior whether a panic is caused upon an error
-// while metrics are collected and served to the HTTP endpoint. By default, an
-// internal server error (status code 500) is served with an error message.
-func PanicOnCollectError(b bool) {
-	defRegistry.panicOnCollectError = b
+// AlreadyRegisteredError is returned by the Registry.Register if the Collector
+// to be registered has already been registered before, or a different Collector
+// that collects the same metrics has been registered before. Registration fails
+// in that case, but you can detect from the kind of error what has
+// happened. The error contains fields for the existing Collector and the
+// (rejected) new Collector that equals the existing one. This can be used in
+// the following way:
+//
+//	reqCounter := prometheus.NewCounter( /* ... */ )
+//	if err := registry.Register(reqCounter); err != nil {
+//		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+//			// A counter for that metric has been registered before.
+//			// Use the old counter from now on.
+//			reqCounter = are.ExistingCollector.(prometheus.Counter)
+//		} else {
+//			// Something else went wrong!
+//			panic(err)
+//		}
+//	}
+type AlreadyRegisteredError struct {
+	ExistingCollector, NewCollector Collector
 }
 
-// EnableCollectChecks enables (or disables) additional consistency checks
-// during metrics collection. These additional checks are not enabled by default
-// because they inflict a performance penalty and the errors they check for can
-// only happen if the used Metric and Collector types have internal programming
-// errors. It can be helpful to enable these checks while working with custom
-// Collectors or Metrics whose correctness is not well established yet.
-func EnableCollectChecks(b bool) {
-	defRegistry.collectChecksEnabled = b
+func (err AlreadyRegisteredError) Error() string {
+	return "duplicate metrics collector registration attempted"
 }
-
-// encoder is a function that writes a dto.MetricFamily to an io.Writer in a
-// certain encoding. It returns the number of bytes written and any error
-// encountered.  Note that pbutil.WriteDelimited and pbutil.MetricFamilyToText
-// are encoders.
-type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
 type registry struct {
 	mtx                       sync.RWMutex
 	collectorsByID            map[uint64]Collector // ID is a hash of the descIDs.
 	descIDs                   map[uint64]struct{}
 	dimHashesByName           map[string]uint64
-	bufPool                   chan *bytes.Buffer
-	metricFamilyPool          chan *dto.MetricFamily
-	metricPool                chan *dto.Metric
 	metricFamilyInjectionHook func() []*dto.MetricFamily
-
-	panicOnCollectError, collectChecksEnabled bool
+	pedanticChecksEnabled     bool
 }
 
-func (r *registry) Register(c Collector) (Collector, error) {
-	descChan := make(chan *Desc, capDescChan)
+func (r *registry) Register(c Collector) error {
+	var (
+		descChan           = make(chan *Desc, capDescChan)
+		newDescIDs         = map[uint64]struct{}{}
+		newDimHashesByName = map[string]uint64{}
+		collectorID        uint64 // Just a sum of all desc IDs.
+		duplicateDescErr   error
+	)
 	go func() {
 		c.Describe(descChan)
 		close(descChan)
 	}()
-
-	newDescIDs := map[uint64]struct{}{}
-	newDimHashesByName := map[string]uint64{}
-	var collectorID uint64 // Just a sum of all desc IDs.
-	var duplicateDescErr error
-
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	// Coduct various tests...
@@ -236,7 +263,7 @@ func (r *registry) Register(c Collector) (Collector, error) {
 
 		// Is the descriptor valid at all?
 		if desc.err != nil {
-			return c, fmt.Errorf("descriptor %s is invalid: %s", desc, desc.err)
+			return fmt.Errorf("descriptor %s is invalid: %s", desc, desc.err)
 		}
 
 		// Is the descID unique?
@@ -257,13 +284,13 @@ func (r *registry) Register(c Collector) (Collector, error) {
 		// First check existing descriptors...
 		if dimHash, exists := r.dimHashesByName[desc.fqName]; exists {
 			if dimHash != desc.dimHash {
-				return nil, fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
+				return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
 		} else {
 			// ...then check the new descriptors already seen.
 			if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
 				if dimHash != desc.dimHash {
-					return nil, fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+					return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
 				}
 			} else {
 				newDimHashesByName[desc.fqName] = desc.dimHash
@@ -272,15 +299,18 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	}
 	// Did anything happen at all?
 	if len(newDescIDs) == 0 {
-		return nil, errors.New("collector has no descriptors")
+		return errors.New("collector has no descriptors")
 	}
 	if existing, exists := r.collectorsByID[collectorID]; exists {
-		return existing, errAlreadyReg
+		return AlreadyRegisteredError{
+			ExistingCollector: existing,
+			NewCollector:      c,
+		}
 	}
 	// If the collectorID is new, but at least one of the descs existed
 	// before, we are in trouble.
 	if duplicateDescErr != nil {
-		return nil, duplicateDescErr
+		return duplicateDescErr
 	}
 
 	// Only after all tests have passed, actually register.
@@ -291,26 +321,19 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
 	}
-	return c, nil
-}
-
-func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
-	existing, err := r.Register(m)
-	if err != nil && err != errAlreadyReg {
-		return nil, err
-	}
-	return existing, nil
+	return nil
 }
 
 func (r *registry) Unregister(c Collector) bool {
-	descChan := make(chan *Desc, capDescChan)
+	var (
+		descChan    = make(chan *Desc, capDescChan)
+		descIDs     = map[uint64]struct{}{}
+		collectorID uint64 // Just a sum of the desc IDs.
+	)
 	go func() {
 		c.Describe(descChan)
 		close(descChan)
 	}()
-
-	descIDs := map[uint64]struct{}{}
-	var collectorID uint64 // Just a sum of the desc IDs.
 	for desc := range descChan {
 		if _, exists := descIDs[desc.id]; !exists {
 			collectorID += desc.id
@@ -337,72 +360,14 @@ func (r *registry) Unregister(c Collector) bool {
 	return true
 }
 
-func (r *registry) Push(job, instance, pushURL, method string) error {
-	if !strings.Contains(pushURL, "://") {
-		pushURL = "http://" + pushURL
-	}
-	if strings.HasSuffix(pushURL, "/") {
-		pushURL = pushURL[:len(pushURL)-1]
-	}
-	pushURL = fmt.Sprintf("%s/metrics/jobs/%s", pushURL, url.QueryEscape(job))
-	if instance != "" {
-		pushURL += "/instances/" + url.QueryEscape(instance)
-	}
-	buf := r.getBuf()
-	defer r.giveBuf(buf)
-	if err := r.writePB(expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)); err != nil {
-		if r.panicOnCollectError {
-			panic(err)
-		}
-		return err
-	}
-	req, err := http.NewRequest(method, pushURL, buf)
-	if err != nil {
-		return err
-	}
-	req.Header.Set(contentTypeHeader, DelimitedTelemetryContentType)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 202 {
-		return fmt.Errorf("unexpected status code %d while pushing to %s", resp.StatusCode, pushURL)
-	}
-	return nil
-}
-
-func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	contentType := expfmt.Negotiate(req.Header)
-	buf := r.getBuf()
-	defer r.giveBuf(buf)
-	writer, encoding := decorateWriter(req, buf)
-	if err := r.writePB(expfmt.NewEncoder(writer, contentType)); err != nil {
-		if r.panicOnCollectError {
-			panic(err)
-		}
-		http.Error(w, "An error has occurred:\n\n"+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if closer, ok := writer.(io.Closer); ok {
-		closer.Close()
-	}
-	header := w.Header()
-	header.Set(contentTypeHeader, string(contentType))
-	header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
-	if encoding != "" {
-		header.Set(contentEncodingHeader, encoding)
-	}
-	w.Write(buf.Bytes())
-}
-
-func (r *registry) writePB(encoder expfmt.Encoder) error {
-	var metricHashes map[uint64]struct{}
-	if r.collectChecksEnabled {
-		metricHashes = make(map[uint64]struct{})
-	}
-	metricChan := make(chan Metric, capMetricChan)
-	wg := sync.WaitGroup{}
+func (r *registry) Collect() ([]*dto.MetricFamily, error) {
+	var (
+		metricChan        = make(chan Metric, capMetricChan)
+		metricHashes      = map[uint64]struct{}{}
+		wg                sync.WaitGroup
+		errs              error               // The collected errors to return in the end.
+		registeredDescIDs map[uint64]struct{} // Only used for pedantic checks
+	)
 
 	r.mtx.RLock()
 	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
@@ -420,6 +385,16 @@ func (r *registry) writePB(encoder expfmt.Encoder) error {
 			collector.Collect(metricChan)
 		}(collector)
 	}
+
+	// In case pedantic checks are enabled, we have to copy the map before
+	// giving up the RLock.
+	if r.pedanticChecksEnabled {
+		registeredDescIDs = make(map[uint64]struct{}, len(r.descIDs))
+		for id := range r.descIDs {
+			registeredDescIDs[id] = struct{}{}
+		}
+	}
+
 	r.mtx.RUnlock()
 
 	// Drain metricChan in case of premature return.
@@ -436,19 +411,17 @@ func (r *registry) writePB(encoder expfmt.Encoder) error {
 		desc := metric.Desc()
 		metricFamily, ok := metricFamiliesByName[desc.fqName]
 		if !ok {
-			metricFamily = r.getMetricFamily()
-			defer r.giveMetricFamily(metricFamily)
+			metricFamily = &dto.MetricFamily{}
 			metricFamily.Name = proto.String(desc.fqName)
 			metricFamily.Help = proto.String(desc.help)
 			metricFamiliesByName[desc.fqName] = metricFamily
 		}
-		dtoMetric := r.getMetric()
-		defer r.giveMetric(dtoMetric)
+		dtoMetric := &dto.Metric{}
 		if err := metric.Write(dtoMetric); err != nil {
-			// TODO: Consider different means of error reporting so
-			// that a single erroneous metric could be skipped
-			// instead of blowing up the whole collection.
-			return fmt.Errorf("error collecting metric %v: %s", desc, err)
+			errs = multierror.Append(errs, fmt.Errorf(
+				"error collecting metric %v: %s", desc, err,
+			))
+			continue
 		}
 		switch {
 		case metricFamily.Type != nil:
@@ -464,40 +437,40 @@ func (r *registry) writePB(encoder expfmt.Encoder) error {
 		case dtoMetric.Histogram != nil:
 			metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
 		default:
-			return fmt.Errorf("empty metric collected: %s", dtoMetric)
+			errs = multierror.Append(errs, fmt.Errorf(
+				"empty metric collected: %s", dtoMetric,
+			))
+			continue
 		}
-		if r.collectChecksEnabled {
-			if err := r.checkConsistency(metricFamily, dtoMetric, desc, metricHashes); err != nil {
-				return err
-			}
+		if err := r.checkConsistency(metricFamily, dtoMetric, desc, metricHashes, registeredDescIDs); err != nil {
+			errs = multierror.Append(errs, err)
+			continue
 		}
 		metricFamily.Metric = append(metricFamily.Metric, dtoMetric)
 	}
 
+	r.mtx.RLock()
 	if r.metricFamilyInjectionHook != nil {
 		for _, mf := range r.metricFamilyInjectionHook() {
 			existingMF, exists := metricFamiliesByName[mf.GetName()]
 			if !exists {
-				metricFamiliesByName[mf.GetName()] = mf
-				if r.collectChecksEnabled {
-					for _, m := range mf.Metric {
-						if err := r.checkConsistency(mf, m, nil, metricHashes); err != nil {
-							return err
-						}
-					}
-				}
-				continue
+				existingMF = &dto.MetricFamily{}
+				existingMF.Name = mf.Name
+				existingMF.Help = mf.Help
+				existingMF.Type = mf.Type
+				metricFamiliesByName[mf.GetName()] = existingMF
+
 			}
 			for _, m := range mf.Metric {
-				if r.collectChecksEnabled {
-					if err := r.checkConsistency(existingMF, m, nil, metricHashes); err != nil {
-						return err
-					}
+				if err := r.checkConsistency(existingMF, m, nil, metricHashes, nil); err != nil {
+					errs = multierror.Append(errs, err)
+					continue
 				}
 				existingMF.Metric = append(existingMF.Metric, m)
 			}
 		}
 	}
+	r.mtx.RUnlock()
 
 	// Now that MetricFamilies are all set, sort their Metrics
 	// lexicographically by their label values.
@@ -505,22 +478,30 @@ func (r *registry) writePB(encoder expfmt.Encoder) error {
 		sort.Sort(metricSorter(mf.Metric))
 	}
 
-	// Write out MetricFamilies sorted by their name.
+	// Write out MetricFamilies sorted by their name, skipping those without
+	// metrics.
 	names := make([]string, 0, len(metricFamiliesByName))
-	for name := range metricFamiliesByName {
-		names = append(names, name)
+	for name, mf := range metricFamiliesByName {
+		if len(mf.Metric) > 0 {
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names)
 
+	result := make([]*dto.MetricFamily, 0, len(names))
 	for _, name := range names {
-		if err := encoder.Encode(metricFamiliesByName[name]); err != nil {
-			return err
-		}
+		result = append(result, metricFamiliesByName[name])
 	}
-	return nil
+	return result, errs
 }
 
-func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *dto.Metric, desc *Desc, metricHashes map[uint64]struct{}) error {
+func (r *registry) checkConsistency(
+	metricFamily *dto.MetricFamily,
+	dtoMetric *dto.Metric,
+	desc *Desc,
+	metricHashes map[uint64]struct{},
+	registeredDescIDs map[uint64]struct{},
+) error {
 
 	// Type consistency with metric family.
 	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
@@ -539,9 +520,7 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	h = hashAdd(h, metricFamily.GetName())
 	h = hashAddByte(h, separatorByte)
 	// Make sure label pairs are sorted. We depend on it for the consistency
-	// check. Label pairs must be sorted by contract. But the point of this
-	// method is to check for contract violations. So we better do the sort
-	// now.
+	// check.
 	sort.Sort(LabelPairSorter(dtoMetric.Label))
 	for _, lp := range dtoMetric.Label {
 		h = hashAdd(h, lp.GetValue())
@@ -555,17 +534,11 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	}
 	metricHashes[h] = struct{}{}
 
-	if desc == nil {
+	if desc == nil || !r.pedanticChecksEnabled {
 		return nil // Nothing left to check if we have no desc.
 	}
 
-	// Desc consistency with metric family.
-	if metricFamily.GetName() != desc.fqName {
-		return fmt.Errorf(
-			"collected metric %s %s has name %q but should have %q",
-			metricFamily.GetName(), dtoMetric, metricFamily.GetName(), desc.fqName,
-		)
-	}
+	// Desc help consistency with metric family help.
 	if metricFamily.GetHelp() != desc.help {
 		return fmt.Errorf(
 			"collected metric %s %s has help %q but should have %q",
@@ -599,11 +572,8 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 		}
 	}
 
-	r.mtx.RLock() // Remaining checks need the read lock.
-	defer r.mtx.RUnlock()
-
 	// Is the desc registered?
-	if _, exist := r.descIDs[desc.id]; !exist {
+	if _, exist := registeredDescIDs[desc.id]; !exist {
 		return fmt.Errorf(
 			"collected metric %s %s with unregistered descriptor %s",
 			metricFamily.GetName(), dtoMetric, desc,
@@ -613,90 +583,13 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	return nil
 }
 
-func (r *registry) getBuf() *bytes.Buffer {
-	select {
-	case buf := <-r.bufPool:
-		return buf
-	default:
-		return &bytes.Buffer{}
-	}
+func (r *registry) SetInjectionHook(hook func() []*dto.MetricFamily) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.metricFamilyInjectionHook = hook
 }
 
-func (r *registry) giveBuf(buf *bytes.Buffer) {
-	buf.Reset()
-	select {
-	case r.bufPool <- buf:
-	default:
-	}
-}
-
-func (r *registry) getMetricFamily() *dto.MetricFamily {
-	select {
-	case mf := <-r.metricFamilyPool:
-		return mf
-	default:
-		return &dto.MetricFamily{}
-	}
-}
-
-func (r *registry) giveMetricFamily(mf *dto.MetricFamily) {
-	mf.Reset()
-	select {
-	case r.metricFamilyPool <- mf:
-	default:
-	}
-}
-
-func (r *registry) getMetric() *dto.Metric {
-	select {
-	case m := <-r.metricPool:
-		return m
-	default:
-		return &dto.Metric{}
-	}
-}
-
-func (r *registry) giveMetric(m *dto.Metric) {
-	m.Reset()
-	select {
-	case r.metricPool <- m:
-	default:
-	}
-}
-
-func newRegistry() *registry {
-	return &registry{
-		collectorsByID:   map[uint64]Collector{},
-		descIDs:          map[uint64]struct{}{},
-		dimHashesByName:  map[string]uint64{},
-		bufPool:          make(chan *bytes.Buffer, numBufs),
-		metricFamilyPool: make(chan *dto.MetricFamily, numMetricFamilies),
-		metricPool:       make(chan *dto.Metric, numMetrics),
-	}
-}
-
-func newDefaultRegistry() *registry {
-	r := newRegistry()
-	r.Register(NewProcessCollector(os.Getpid(), ""))
-	r.Register(NewGoCollector())
-	return r
-}
-
-// decorateWriter wraps a writer to handle gzip compression if requested.  It
-// returns the decorated writer and the appropriate "Content-Encoding" header
-// (which is empty if no compression is enabled).
-func decorateWriter(request *http.Request, writer io.Writer) (io.Writer, string) {
-	header := request.Header.Get(acceptEncodingHeader)
-	parts := strings.Split(header, ",")
-	for _, part := range parts {
-		part := strings.TrimSpace(part)
-		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
-			return gzip.NewWriter(writer), "gzip"
-		}
-	}
-	return writer, ""
-}
-
+// metricSorter is a sortable slice of *dto.Metric.
 type metricSorter []*dto.Metric
 
 func (s metricSorter) Len() int {

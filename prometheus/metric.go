@@ -42,15 +42,15 @@ type Metric interface {
 	// registered metrics. Ideally Metric implementations should support
 	// concurrent readers.
 	//
-	// The Prometheus client library attempts to minimize memory allocations
-	// and will provide a pre-existing reset dto.Metric pointer. Prometheus
-	// may recycle the dto.Metric proto message, so Metric implementations
-	// should just populate the provided dto.Metric and then should not keep
-	// any reference to it.
-	//
-	// While populating dto.Metric, labels must be sorted lexicographically.
-	// (Implementers may find LabelPairSorter useful for that.)
+	// While populating dto.Metric, it is recommended to sort labels
+	// lexicographically. (Implementers may find LabelPairSorter useful for
+	// that.) Callers of Write should still make sure of sorting if they
+	// depend on it.
 	Write(*dto.Metric) error
+	// TODO(beorn7): The original rationale of passing in a pre-allocated
+	// dto.Metric protobuf to save allocations has disappeared. The
+	// signature of this method should be changed to "Write() (*dto.Metric,
+	// error)".
 }
 
 // Opts bundles the options for creating most Metric types. Each metric

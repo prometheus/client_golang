@@ -15,13 +15,181 @@ package prometheus
 
 import (
 	"bufio"
+	"compress/gzip"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/prometheus/common/expfmt"
 )
+
+const (
+	contentTypeHeader     = "Content-Type"
+	contentLengthHeader   = "Content-Length"
+	contentEncodingHeader = "Content-Encoding"
+	acceptEncodingHeader  = "Accept-Encoding"
+)
+
+// Handler returns an HTTP handler for the DefaultRegistry. It is
+// already instrumented with InstrumentHandler (using "prometheus" as handler
+// name).
+//
+// Please note the issues described in the doc comment of InstrumentHandler. You
+// might want to consider using UninstrumentedHandler instead. In fact, the
+// instrumentation of the handler is DEPRECATED. In future versions of this
+// package, the Handler function will return an uninstrumented handler, and the
+// UninstrumentedHandler function will be removed.
+//
+// The returned Handler is using the same HandlerOpts as the Handler returned by
+// UninstrumentedHandler. See there for details.
+func Handler() http.Handler {
+	return InstrumentHandler("prometheus", UninstrumentedHandler())
+}
+
+// UninstrumentedHandler returns an HTTP handler for the DefaultRegistry. The
+// Handler uses the default HandlerOpts, i.e. report the first error as an HTTP
+// error, no error logging, and compression if requested by the client.
+//
+// If you want to create a Handler for the DefaultRegistry with different
+// HandlerOpts, create it with HandlerFor with the DefaultRegistry and your
+// desired HandlerOpts.
+//
+// Note that in future versions of this package, UninstrumentedHandler will be
+// replaced by Handler (which will then return an uninstrumented handler, see
+// there for details).
+func UninstrumentedHandler() http.Handler {
+	return HandlerFor(DefaultRegistry, HandlerOpts{})
+}
+
+// HandlerFor returns an http.Handler for the provided registry. The behavior ef
+// the Handler is defined by the provided HandlerOpts. The Handler is NOT
+// instrumented with InstrumentHandler.
+func HandlerFor(r Registry, opts HandlerOpts) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		mfs, err := r.Collect()
+		if err != nil {
+			if opts.ErrorLog != nil {
+				opts.ErrorLog.Println("error collecting metrics:", err)
+			}
+			switch opts.ErrorHandling {
+			case PanicOnError:
+				panic(err)
+			case ContinueOnError:
+				if len(mfs) == 0 {
+					http.Error(w, "No metrics collected, last error:\n\n"+err.Error(), http.StatusInternalServerError)
+					return
+				}
+			case HTTPErrorOnError:
+				http.Error(w, "An error has occurred during metrics collection:\n\n"+err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+
+		contentType := expfmt.Negotiate(req.Header)
+		buf := getBuf()
+		defer giveBuf(buf)
+		writer, encoding := decorateWriter(req, buf, opts.DisableCompression)
+		enc := expfmt.NewEncoder(writer, contentType)
+		var lastErr error
+		for _, mf := range mfs {
+			if err := enc.Encode(mf); err != nil {
+				lastErr = err
+				if opts.ErrorLog != nil {
+					opts.ErrorLog.Println("error encoding metric family:", err)
+				}
+				switch opts.ErrorHandling {
+				case PanicOnError:
+					panic(err)
+				case ContinueOnError:
+					// Handled later.
+				case HTTPErrorOnError:
+					http.Error(w, "An error has occurred during metrics encoding:\n\n"+err.Error(), http.StatusInternalServerError)
+					return
+				}
+			}
+		}
+		if closer, ok := writer.(io.Closer); ok {
+			closer.Close()
+		}
+		if lastErr != nil && buf.Len() == 0 {
+			http.Error(w, "No metrics encoded, last error:\n\n"+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		header := w.Header()
+		header.Set(contentTypeHeader, string(contentType))
+		header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
+		if encoding != "" {
+			header.Set(contentEncodingHeader, encoding)
+		}
+		w.Write(buf.Bytes())
+		// TODO(beorn7): Consider streaming serving of metrics.
+	})
+}
+
+// HandlerErrorHandling defines how a Handler serving metrics will handle
+// errors.
+type HandlerErrorHandling int
+
+// These constants cause handlers serving metrics to behave as described if
+// errors are encountered.
+const (
+	// Serve an HTTP status code 500 upon the first error
+	// encountered. Report the error message in the body.
+	HTTPErrorOnError HandlerErrorHandling = iota
+	// Ignore errors and try to serve as many metrics as possible.  However,
+	// if no metrics can be served, serve an HTTP status code 500 and the
+	// last error message in the body. Only use this in deliberate "best
+	// effort" metrics collection scenarios. It is recommended to at least
+	// log errors (by providing an ErrorLog in HandlerOpts) to not mask
+	// errors completely.
+	ContinueOnError
+	// Panic upon the first error encountered (useful for "crash only" apps).
+	PanicOnError
+)
+
+// Logger is the minimal interface HandlerOpts needs for logging. Note that
+// log.Logger from the standard library implements this interface, and it is
+// easy to implement by custom loggers, if they don't do so already anyway.
+type Logger interface {
+	Println(v ...interface{})
+}
+
+// HandlerOpts specifies options how to serve metrics via an http.Handler. The
+// zero value of HandlerOpts is a reasonable default.
+type HandlerOpts struct {
+	// ErrorLog specifies an optional logger for errors collecting and
+	// serving metrics. If nil, errors are not logged at all.
+	ErrorLog Logger
+	// ErrorHandling defines how errors are handled. Note that errors are
+	// logged regardless of the configured ErrorHandling provided ErrorLog
+	// is not nil.
+	ErrorHandling HandlerErrorHandling
+	// If DisableCompression is true, the handler will never compress the
+	// response, even if requested by the client.
+	DisableCompression bool
+}
+
+// decorateWriter wraps a writer to handle gzip compression if requested.  It
+// returns the decorated writer and the appropriate "Content-Encoding" header
+// (which is empty if no compression is enabled).
+func decorateWriter(request *http.Request, writer io.Writer, compressionDisabled bool) (io.Writer, string) {
+	if compressionDisabled {
+		return writer, ""
+	}
+	header := request.Header.Get(acceptEncodingHeader)
+	parts := strings.Split(header, ",")
+	for _, part := range parts {
+		part := strings.TrimSpace(part)
+		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
+			return gzip.NewWriter(writer), "gzip"
+		}
+	}
+	return writer, ""
+}
 
 var instLabels = []string{"method", "code"}
 

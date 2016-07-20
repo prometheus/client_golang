@@ -21,29 +21,14 @@ package prometheus
 
 import (
 	"bytes"
-	"encoding/binary"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 )
-
-type fakeResponseWriter struct {
-	header http.Header
-	body   bytes.Buffer
-}
-
-func (r *fakeResponseWriter) Header() http.Header {
-	return r.header
-}
-
-func (r *fakeResponseWriter) Write(d []byte) (l int, err error) {
-	return r.body.Write(d)
-}
-
-func (r *fakeResponseWriter) WriteHeader(c int) {
-}
 
 func testHandler(t testing.TB) {
 
@@ -58,8 +43,6 @@ func testHandler(t testing.TB) {
 
 	metricVec.WithLabelValues("val1").Inc()
 	metricVec.WithLabelValues("val2").Inc()
-
-	varintBuf := make([]byte, binary.MaxVarintLen32)
 
 	externalMetricFamily := &dto.MetricFamily{
 		Name: proto.String("externalname"),
@@ -83,18 +66,9 @@ func testHandler(t testing.TB) {
 			},
 		},
 	}
-	marshaledExternalMetricFamily, err := proto.Marshal(externalMetricFamily)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var externalBuf bytes.Buffer
-	l := binary.PutUvarint(varintBuf, uint64(len(marshaledExternalMetricFamily)))
-	_, err = externalBuf.Write(varintBuf[:l])
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = externalBuf.Write(marshaledExternalMetricFamily)
-	if err != nil {
+	externalBuf := &bytes.Buffer{}
+	enc := expfmt.NewEncoder(externalBuf, expfmt.FmtProtoDelim)
+	if err := enc.Encode(externalMetricFamily); err != nil {
 		t.Fatal(err)
 	}
 	externalMetricFamilyAsBytes := externalBuf.Bytes()
@@ -160,18 +134,9 @@ metric: <
 			},
 		},
 	}
-	marshaledExpectedMetricFamily, err := proto.Marshal(expectedMetricFamily)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var buf bytes.Buffer
-	l = binary.PutUvarint(varintBuf, uint64(len(marshaledExpectedMetricFamily)))
-	_, err = buf.Write(varintBuf[:l])
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = buf.Write(marshaledExpectedMetricFamily)
-	if err != nil {
+	buf := &bytes.Buffer{}
+	enc = expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	if err := enc.Encode(expectedMetricFamily); err != nil {
 		t.Fatal(err)
 	}
 	expectedMetricFamilyAsBytes := buf.Bytes()
@@ -485,21 +450,18 @@ metric: <
 		},
 	}
 	for i, scenario := range scenarios {
-		registry := newRegistry()
-		registry.collectChecksEnabled = true
+		registry := NewPedanticRegistry()
+		if scenario.externalMF != nil {
+			registry.SetInjectionHook(func() []*dto.MetricFamily {
+				return scenario.externalMF
+			})
+		}
 
 		if scenario.collector != nil {
 			registry.Register(scenario.collector)
 		}
-		if scenario.externalMF != nil {
-			registry.metricFamilyInjectionHook = func() []*dto.MetricFamily {
-				return scenario.externalMF
-			}
-		}
-		writer := &fakeResponseWriter{
-			header: http.Header{},
-		}
-		handler := InstrumentHandler("prometheus", registry)
+		writer := httptest.NewRecorder()
+		handler := InstrumentHandler("prometheus", HandlerFor(registry, HandlerOpts{}))
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
@@ -507,7 +469,7 @@ metric: <
 		handler(writer, request)
 
 		for key, value := range scenario.out.headers {
-			if writer.Header().Get(key) != value {
+			if writer.HeaderMap.Get(key) != value {
 				t.Errorf(
 					"%d. expected %q for header %q, got %q",
 					i, value, key, writer.Header().Get(key),
@@ -515,10 +477,10 @@ metric: <
 			}
 		}
 
-		if !bytes.Equal(scenario.out.body, writer.body.Bytes()) {
+		if !bytes.Equal(scenario.out.body, writer.Body.Bytes()) {
 			t.Errorf(
 				"%d. expected %q for body, got %q",
-				i, scenario.out.body, writer.body.Bytes(),
+				i, scenario.out.body, writer.Body.Bytes(),
 			)
 		}
 	}
@@ -531,5 +493,41 @@ func TestHandler(t *testing.T) {
 func BenchmarkHandler(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testHandler(b)
+	}
+}
+
+func TestRegisterWithOrGet(t *testing.T) {
+	// Clean the default registry just to be sure. This is bad, but this
+	// whole test will go away once RegisterOrGet is removed.
+	DefaultRegistry = NewRegistry()
+	original := NewCounterVec(
+		CounterOpts{
+			Name: "test",
+			Help: "help",
+		},
+		[]string{"foo", "bar"},
+	)
+	equalButNotSame := NewCounterVec(
+		CounterOpts{
+			Name: "test",
+			Help: "help",
+		},
+		[]string{"foo", "bar"},
+	)
+	if err := Register(original); err != nil {
+		t.Fatal(err)
+	}
+	if err := Register(equalButNotSame); err == nil {
+		t.Fatal("expected error when registringe equal collector")
+	}
+	existing, err := RegisterOrGet(equalButNotSame)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if existing != original {
+		t.Error("expected original collector but got something else")
+	}
+	if existing == equalButNotSame {
+		t.Error("expected original callector but got new one")
 	}
 }

@@ -35,6 +35,9 @@ type Counter interface {
 	// Prometheus metric. Do not use it for regular handling of a
 	// Prometheus counter (as it can be used to break the contract of
 	// monotonically increasing values).
+	// This method is DEPRECATED. Use NewConstMetric to create a counter for
+	// an external value.
+	// TODO(beorn7): Remove.
 	Set(float64)
 	// Inc increments the counter by 1.
 	Inc()
