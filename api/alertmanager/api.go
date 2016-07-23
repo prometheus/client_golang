@@ -35,9 +35,10 @@ const (
 	statusAPIError = 422
 	apiPrefix      = "/api/v1"
 
-	epSilence  = "/silence/:id"
-	epSilences = "/silences"
-	epAlerts   = "/alerts"
+	epSilence     = "/silence/:id"
+	epSilences    = "/silences"
+	epAlerts      = "/alerts"
+	epAlertGroups = "/alerts/groups"
 )
 
 type ErrorType string
@@ -220,6 +221,8 @@ func (c apiClient) do(ctx context.Context, req *http.Request) (*http.Response, [
 }
 
 type AlertAPI interface {
+	// List all the active alerts.
+	List(ctx context.Context) ([]*model.Alert, error)
 	// Push a list of alerts into the Alertmanager.
 	Push(ctx context.Context, alerts ...*model.Alert) error
 }
@@ -231,6 +234,22 @@ func NewAlertAPI(c Client) AlertAPI {
 
 type httpAlertAPI struct {
 	client Client
+}
+
+func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
+	u := h.client.url(epAlerts, nil)
+
+	req, _ := http.NewRequest("GET", u.String(), nil)
+
+	_, body, err := h.client.do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var alts []*model.Alert
+	err = json.Unmarshal(body, &alts)
+
+	return alts, err
 }
 
 func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
