@@ -102,6 +102,8 @@ type Client interface {
 }
 
 // New returns a new Client.
+//
+// It is safe to use the returned Client from multiple goroutines.
 func New(cfg Config) (Client, error) {
 	u, err := url.Parse(cfg.Address)
 	if err != nil {
@@ -280,6 +282,8 @@ type QueryAPI interface {
 }
 
 // NewQueryAPI returns a new QueryAPI for the client.
+//
+// It is safe to use the returned QueryAPI from multiple goroutines.
 func NewQueryAPI(c Client) QueryAPI {
 	return &httpQueryAPI{client: apiClient{c}}
 }
