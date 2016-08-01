@@ -138,8 +138,8 @@ func RegisterOrGet(m Collector) (Collector, error) {
 	return defRegistry.RegisterOrGet(m)
 }
 
-// MustRegisterOrGet works like Register but panics where RegisterOrGet would
-// have returned an error.
+// MustRegisterOrGet works like RegisterOrGet but panics where RegisterOrGet
+// would have returned an error.
 func MustRegisterOrGet(m Collector) Collector {
 	existing, err := RegisterOrGet(m)
 	if err != nil {
