@@ -227,12 +227,12 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	}
 	sort.Float64s(s.sortedObjectives)
 
-	s.Init(s) // Init self-collection.
+	s.init(s) // Init self-collection.
 	return s
 }
 
 type summary struct {
-	SelfCollector
+	selfCollector
 
 	bufMtx sync.Mutex // Protects hotBuf and hotBufExpTime.
 	mtx    sync.Mutex // Protects every other moving part.

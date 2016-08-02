@@ -210,7 +210,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	// Finally we know the final length of h.upperBounds and can make counts.
 	h.counts = make([]uint64, len(h.upperBounds))
 
-	h.Init(h) // Init self-collection.
+	h.init(h) // Init self-collection.
 	return h
 }
 
@@ -222,7 +222,7 @@ type histogram struct {
 	sumBits uint64
 	count   uint64
 
-	SelfCollector
+	selfCollector
 	// Note that there is no mutex required.
 
 	desc *Desc
