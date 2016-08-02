@@ -146,7 +146,7 @@ func TestHandlerErrorHandling(t *testing.T) {
 		Name: "the_count",
 		Help: "Ah-ah-ah! Thunder and lightning!",
 	})
-	MustRegisterWith(reg, cnt)
+	reg.MustRegister(cnt)
 
 	cntVec := NewCounterVec(
 		CounterOpts{
@@ -158,9 +158,9 @@ func TestHandlerErrorHandling(t *testing.T) {
 	)
 	cntVec.WithLabelValues("val1").Inc()
 	cntVec.WithLabelValues("val2").Inc()
-	MustRegisterWith(reg, cntVec)
+	reg.MustRegister(cntVec)
 
-	MustRegisterWith(reg, errorCollector{})
+	reg.MustRegister(errorCollector{})
 
 	logBuf := &bytes.Buffer{}
 	logger := log.New(logBuf, "", 0)

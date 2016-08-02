@@ -15,15 +15,15 @@ package prometheus
 
 // Collector is the interface implemented by anything that can be used by
 // Prometheus to collect metrics. A Collector has to be registered for
-// collection. See Register, MustRegister, RegisterOrGet, and MustRegisterOrGet.
+// collection. See Registerer.Register.
 //
-// The stock metrics provided by this package (like Gauge, Counter, Summary) are
-// also Collectors (which only ever collect one metric, namely itself). An
-// implementer of Collector may, however, collect multiple metrics in a
-// coordinated fashion and/or create metrics on the fly. Examples for collectors
-// already implemented in this library are the metric vectors (i.e. collection
-// of multiple instances of the same Metric but with different label values)
-// like GaugeVec or SummaryVec, and the ExpvarCollector.
+// The stock metrics provided by this package (Gauge, Counter, Summary,
+// Histogram, Untyped) are also Collectors (which only ever collect one metric,
+// namely itself). An implementer of Collector may, however, collect multiple
+// metrics in a coordinated fashion and/or create metrics on the fly. Examples
+// for collectors already implemented in this library are the metric vectors
+// (i.e. collection of multiple instances of the same Metric but with different
+// label values) like GaugeVec or SummaryVec, and the ExpvarCollector.
 type Collector interface {
 	// Describe sends the super-set of all possible descriptors of metrics
 	// collected by this Collector to the provided channel and returns once

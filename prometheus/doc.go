@@ -141,10 +141,10 @@
 //
 // So far, everything we did operated on the so-called default registry, as it
 // can be found in the global DefaultRegistry variable. With NewRegistry, you
-// can create a custom registry, or you can even implement the Registry
-// interface yourself. The methods Register and Unregister work in the same way
-// on a custom registry as the global functions Register and Unregister on the
-// default registry.
+// can create a custom registry, or you can even implement the Registerer or
+// Deliverer interfaces yourself. The methods Register and Unregister work in
+// the same way on a custom registry as the global functions Register and
+// Unregister on the default registry.
 //
 // There are a number of uses for custom registries: You can use registries
 // with special properties, see NewPedanticRegistry. You can avoid global state,
@@ -160,15 +160,15 @@
 // HTTP Exposition
 //
 // The Handler function used so far to get an http.Handler for serving the
-// metrics is also acting on the DefaultRegistry. With HondlerFor, you can
-// create a handler for a custom registry. It also allows to create handler that
-// act differently on errors or allow to log errors. Also note that the handler
-// returned by the Handler function is already instrumented with some HTTP
-// metrics. You can call UninstrumentedHandler to get a handler for the
-// DefaultRegistry that is not instrumented, or you can use InstrumentHandler to
-// instrument any http.Handlers of your choice. (But note that the way the
-// instrumentation happens is partially obsolete. Better ways are being worked
-// on.)
+// metrics is also acting on the DefaultRegistry. With HandlerFor, you can
+// create a handler for a custom registry or anything the implements the
+// Deliverer interface. It also allows to create handler that act differently on
+// errors or allow to log errors. Also note that the handler returned by the
+// Handler function is already instrumented with some HTTP metrics. You can call
+// UninstrumentedHandler to get a handler for the DefaultRegistry that is not
+// instrumented, or you can use InstrumentHandler to instrument any
+// http.Handlers of your choice. (But note that the way the instrumentation
+// happens is partially obsolete. Better ways are being worked on.)
 //
 // Pushing to the Pushgateway
 //

@@ -80,10 +80,10 @@ func TestPush(t *testing.T) {
 	})
 
 	reg := prometheus.NewRegistry()
-	prometheus.MustRegisterWith(reg, metric1)
-	prometheus.MustRegisterWith(reg, metric2)
+	reg.MustRegister(metric1)
+	reg.MustRegister(metric2)
 
-	mfs, err := reg.Collect()
+	mfs, err := reg.Deliver()
 	if err != nil {
 		t.Fatal(err)
 	}

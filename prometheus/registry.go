@@ -44,8 +44,8 @@ func init() {
 
 // NewRegistry creates a new vanilla Registry without any Collectors
 // pre-registered.
-func NewRegistry() Registry {
-	return &registry{
+func NewRegistry() *Registry {
+	return &Registry{
 		collectorsByID:  map[uint64]Collector{},
 		descIDs:         map[uint64]struct{}{},
 		dimHashesByName: map[string]uint64{},
@@ -62,14 +62,18 @@ func NewRegistry() Registry {
 // Collector. Well-behaved Collectors and Metrics will only provide consistent
 // Descs. This Registry is useful to test the implementation of Collectors and
 // Metrics.
-func NewPedanticRegistry() Registry {
-	r := NewRegistry().(*registry)
+func NewPedanticRegistry() *Registry {
+	r := NewRegistry()
 	r.pedanticChecksEnabled = true
 	return r
 }
 
-// Registry is the interface for the metrics registry.
-type Registry interface {
+// Registerer is the interface for the part of a registry in charge of
+// registering and unregistering. Users of custom registries should use
+// Registerer as type for registration purposes (rather then Registry). In that
+// way, they are free to exchange the Registerer implementation (e.g. for
+// testing purposes).
+type Registerer interface {
 	// Register registers a new Collector to be included in metrics
 	// collection. It returns an error if the descriptors provided by the
 	// Collector are invalid or if they - in combination with descriptors of
@@ -84,6 +88,10 @@ type Registry interface {
 	// It is in general not safe to register the same Collector multiple
 	// times concurrently.
 	Register(Collector) error
+	// MustRegister works like Register but registers any number of
+	// Collectors and panics upon the first registration that causes an
+	// error.
+	MustRegister(...Collector)
 	// Unregister unregisters the Collector that equals the Collector passed
 	// in as an argument.  (Two Collectors are considered equal if their
 	// Describe method yields the same set of descriptors.) The function
@@ -96,24 +104,14 @@ type Registry interface {
 	// instance must only collect consistent metrics throughout its
 	// lifetime.
 	Unregister(Collector) bool
-	// SetInjectionHook sets the provided hook to inject MetricFamilies. The
-	// hook is a function that is called whenever metrics are collected. The
-	// MetricFamily protobufs returned by the hook function are merged with
-	// the metrics collected in the usual way.
-	//
-	// This is a way to directly inject MetricFamily protobufs managed and
-	// owned by the caller. The caller has full responsibility. As no
-	// registration of the injected metrics has happened, there was no check
-	// at registration time. If the injection results in inconsistent
-	// metrics, the Collect call will return an error. Some problems may
-	// even go undetected, like invalid label names in the injected
-	// protobufs.
-	//
-	// The hook function must be callable at any time and concurrently.
-	SetInjectionHook(hook func() []*dto.MetricFamily)
-	// Collect collects metrics from registered Collectors and returns them
+}
+
+// Deliverer is the interface for the part of a registry in charge of delivering
+// the collected metrics.
+type Deliverer interface {
+	// Deliver collects metrics from registered Collectors and returns them
 	// as lexicographically sorted MetricFamily protobufs. Even if an error
-	// occurs, Collect attempts to collect as many metrics as
+	// occurs, Deliver attempts to collect as many metrics as
 	// possible. Hence, if a non-nil error is returned, the returned
 	// MetricFamily slice could be nil (in case of a fatal error that
 	// prevented any meaningful metric collection) or contain a number of
@@ -124,19 +122,7 @@ type Registry interface {
 	// duplicate metrics, no invalid identifiers). In scenarios where
 	// complete collection is critical, the returned MetricFamily protobufs
 	// should be disregarded if the returned error is non-nil.
-	Collect() ([]*dto.MetricFamily, error)
-}
-
-// MustRegisterWith registers the provided Collectors with the provided Registry
-// and panics upon the first registration that causes an error.
-//
-// See Registry.Register for more details of Collector registration.
-func MustRegisterWith(r Registry, cs ...Collector) {
-	for _, c := range cs {
-		if err := r.Register(c); err != nil {
-			panic(err)
-		}
-	}
+	Deliver() ([]*dto.MetricFamily, error)
 }
 
 // Register registers the provided Collector with the DefaultRegistry.
@@ -153,7 +139,7 @@ func Register(c Collector) error {
 // MustRegister is a shortcut for MustRegisterWith(DefaultRegistry, cs...). See
 // there for more details.
 func MustRegister(cs ...Collector) {
-	MustRegisterWith(DefaultRegistry, cs...)
+	DefaultRegistry.MustRegister(cs...)
 }
 
 // RegisterOrGet registers the provided Collector with the DefaultRegistry and
@@ -208,13 +194,13 @@ func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
 	DefaultRegistry.SetInjectionHook(hook)
 }
 
-// AlreadyRegisteredError is returned by the Registry.Register if the Collector
-// to be registered has already been registered before, or a different Collector
-// that collects the same metrics has been registered before. Registration fails
-// in that case, but you can detect from the kind of error what has
-// happened. The error contains fields for the existing Collector and the
-// (rejected) new Collector that equals the existing one. This can be used in
-// the following way:
+// AlreadyRegisteredError is returned by the Registerer.Register if the
+// Collector to be registered has already been registered before, or a different
+// Collector that collects the same metrics has been registered
+// before. Registration fails in that case, but you can detect from the kind of
+// error what has happened. The error contains fields for the existing Collector
+// and the (rejected) new Collector that equals the existing one. This can be
+// used in the following way:
 //
 //	reqCounter := prometheus.NewCounter( /* ... */ )
 //	if err := registry.Register(reqCounter); err != nil {
@@ -235,7 +221,11 @@ func (err AlreadyRegisteredError) Error() string {
 	return "duplicate metrics collector registration attempted"
 }
 
-type registry struct {
+// Registry registers Prometheus collectors, collects their metrics, and
+// delivers them for exposition. It implements Registerer and Deliverer. The
+// zero value is not usable. Use NewRegistry or NewPedanticRegistry to create
+// instances.
+type Registry struct {
 	mtx                       sync.RWMutex
 	collectorsByID            map[uint64]Collector // ID is a hash of the descIDs.
 	descIDs                   map[uint64]struct{}
@@ -244,7 +234,8 @@ type registry struct {
 	pedanticChecksEnabled     bool
 }
 
-func (r *registry) Register(c Collector) error {
+// Register implements Registerer.
+func (r *Registry) Register(c Collector) error {
 	var (
 		descChan           = make(chan *Desc, capDescChan)
 		newDescIDs         = map[uint64]struct{}{}
@@ -324,7 +315,8 @@ func (r *registry) Register(c Collector) error {
 	return nil
 }
 
-func (r *registry) Unregister(c Collector) bool {
+// Unregister implements Registerer.
+func (r *Registry) Unregister(c Collector) bool {
 	var (
 		descChan    = make(chan *Desc, capDescChan)
 		descIDs     = map[uint64]struct{}{}
@@ -360,7 +352,17 @@ func (r *registry) Unregister(c Collector) bool {
 	return true
 }
 
-func (r *registry) Collect() ([]*dto.MetricFamily, error) {
+// MustRegister implements Registerer.
+func (r *Registry) MustRegister(cs ...Collector) {
+	for _, c := range cs {
+		if err := r.Register(c); err != nil {
+			panic(err)
+		}
+	}
+}
+
+// Deliver implements Deliverer.
+func (r *Registry) Deliver() ([]*dto.MetricFamily, error) {
 	var (
 		metricChan        = make(chan Metric, capMetricChan)
 		metricHashes      = map[uint64]struct{}{}
@@ -495,7 +497,7 @@ func (r *registry) Collect() ([]*dto.MetricFamily, error) {
 	return result, errs
 }
 
-func (r *registry) checkConsistency(
+func (r *Registry) checkConsistency(
 	metricFamily *dto.MetricFamily,
 	dtoMetric *dto.Metric,
 	desc *Desc,
@@ -583,7 +585,20 @@ func (r *registry) checkConsistency(
 	return nil
 }
 
-func (r *registry) SetInjectionHook(hook func() []*dto.MetricFamily) {
+// SetInjectionHook sets the provided hook to inject MetricFamilies. The hook is
+// a function that is called whenever metrics are collected. The MetricFamily
+// protobufs returned by the hook function are merged with the metrics collected
+// in the usual way.
+//
+// This is a way to directly inject MetricFamily protobufs managed and owned by
+// the caller. The caller has full responsibility. As no registration of the
+// injected metrics has happened, there was no check at registration time. If
+// the injection results in inconsistent metrics, the Collect call will return
+// an error. Some problems may even go undetected, like invalid label names in
+// the injected protobufs.
+//
+// The hook function must be callable at any time and concurrently.
+func (r *Registry) SetInjectionHook(hook func() []*dto.MetricFamily) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
 	r.metricFamilyInjectionHook = hook

@@ -113,6 +113,6 @@ func ExampleCollector_clustermanager() {
 	// Since we are dealing with custom Collector implementations, it might
 	// be a good idea to try it out with a pedantic registry.
 	reg := prometheus.NewPedanticRegistry()
-	prometheus.MustRegisterWith(reg, workerDB)
-	prometheus.MustRegisterWith(reg, workerCA)
+	reg.MustRegister(workerDB)
+	reg.MustRegister(workerCA)
 }

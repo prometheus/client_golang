@@ -65,12 +65,12 @@ func UninstrumentedHandler() http.Handler {
 	return HandlerFor(DefaultRegistry, HandlerOpts{})
 }
 
-// HandlerFor returns an http.Handler for the provided registry. The behavior ef
+// HandlerFor returns an http.Handler for the provided Deliverer. The behavior ef
 // the Handler is defined by the provided HandlerOpts. The Handler is NOT
 // instrumented with InstrumentHandler.
-func HandlerFor(r Registry, opts HandlerOpts) http.Handler {
+func HandlerFor(reg Deliverer, opts HandlerOpts) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		mfs, err := r.Collect()
+		mfs, err := reg.Deliver()
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error collecting metrics:", err)

@@ -388,9 +388,9 @@ func ExampleSummaryVec() {
 	// by registering it with a custom registry and then let it collect the
 	// metrics.
 	reg := prometheus.NewRegistry()
-	prometheus.MustRegisterWith(reg, temps)
+	reg.MustRegister(temps)
 
-	metricFamilies, err := reg.Collect()
+	metricFamilies, err := reg.Deliver()
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
