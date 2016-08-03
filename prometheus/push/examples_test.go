@@ -35,3 +35,22 @@ func ExampleCollectors() {
 		fmt.Println("Could not push completion time to Pushgateway:", err)
 	}
 }
+
+func ExampleRegistry() {
+	registry := prometheus.NewRegistry()
+
+	completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "db_backup_last_completion_time",
+		Help: "The timestamp of the last succesful completion of a DB backup.",
+	})
+	registry.MustRegister(completionTime)
+
+	completionTime.Set(float64(time.Now().Unix()))
+	if err := push.Registry(
+		"db_backup", push.HostnameGroupingKey(),
+		"http://pushgateway:9091",
+		registry,
+	); err != nil {
+		fmt.Println("Could not push completion time to Pushgateway:", err)
+	}
+}

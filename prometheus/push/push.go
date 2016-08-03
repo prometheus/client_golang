@@ -44,13 +44,14 @@ import (
 
 const contentTypeHeader = "Content-Type"
 
-// Registry triggers a metric collection by the provided Deliverer and pushes all
-// delivered metrics to the Pushgateway specified by url, using the provided job
-// name and the (optional) further grouping labels (the grouping map may be
-// nil). See the Pushgateway documentation for detailed implications of the job
-// and other grouping labels. Neither the job name nor any grouping label value
-// may contain a "/". The metrics pushed must not contain a job label of their
-// own nor any of the grouping labels.
+// Registry triggers a metric collection by the provided Deliverer (which is
+// usually implemented by a prometheus.Registry, thus the name of the function)
+// and pushes all delivered metrics to the Pushgateway specified by url, using
+// the provided job name and the (optional) further grouping labels (the
+// grouping map may be nil). See the Pushgateway documentation for detailed
+// implications of the job and other grouping labels. Neither the job name nor
+// any grouping label value may contain a "/". The metrics pushed must not
+// contain a job label of their own nor any of the grouping labels.
 //
 // You can use just host:port or ip:port as url, in which case 'http://' is
 // added automatically. You can also include the schema in the URL. However, do
@@ -59,18 +60,18 @@ const contentTypeHeader = "Content-Type"
 // Note that all previously pushed metrics with the same job and other grouping
 // labels will be replaced with the metrics pushed by this call. (It uses HTTP
 // method 'PUT' to push to the Pushgateway.)
-func Registry(reg prometheus.Deliverer, job string, grouping map[string]string, url string) error {
-	return push(reg, job, grouping, url, "PUT")
+func Registry(job string, grouping map[string]string, url string, reg prometheus.Deliverer) error {
+	return push(job, grouping, url, reg, "PUT")
 }
 
 // RegistryAdd works like Registry, but only previously pushed metrics with the
 // same name (and the same job and other grouping labels) will be replaced. (It
 // uses HTTP method 'POST' to push to the Pushgateway.)
-func RegistryAdd(reg prometheus.Deliverer, job string, grouping map[string]string, url string) error {
-	return push(reg, job, grouping, url, "POST")
+func RegistryAdd(job string, grouping map[string]string, url string, reg prometheus.Deliverer) error {
+	return push(job, grouping, url, reg, "POST")
 }
 
-func push(reg prometheus.Deliverer, job string, grouping map[string]string, pushURL, method string) error {
+func push(job string, grouping map[string]string, pushURL string, reg prometheus.Deliverer, method string) error {
 	if !strings.Contains(pushURL, "://") {
 		pushURL = "http://" + pushURL
 	}
@@ -154,7 +155,7 @@ func pushCollectors(job string, grouping map[string]string, url, method string, 
 			return err
 		}
 	}
-	return push(r, job, grouping, url, method)
+	return push(job, grouping, url, r, method)
 }
 
 // HostnameGroupingKey returns a label map with the only entry
