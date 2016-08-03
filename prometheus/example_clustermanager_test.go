@@ -87,12 +87,12 @@ func (c *ClusterManager) Collect(ch chan<- prometheus.Metric) {
 // a variable label "host", since we want to partition the collected metrics by
 // host. Since all Descs created in this way are consistent across instances,
 // with a guaranteed distinction by the "zone" label, we can register different
-// ClusterManager with the same registry.
+// ClusterManager instances with the same registry.
 func NewClusterManager(zone string) *ClusterManager {
 	return &ClusterManager{
 		Zone: zone,
 		OOMCountDesc: prometheus.NewDesc(
-			"clustermanager_oom_count",
+			"clustermanager_oom_crashes_total",
 			"Number of OOM crashes.",
 			[]string{"host"},
 			prometheus.Labels{"zone": zone},
@@ -106,7 +106,7 @@ func NewClusterManager(zone string) *ClusterManager {
 	}
 }
 
-func ExampleCollector_clustermanager() {
+func ExampleCollector() {
 	workerDB := NewClusterManager("db")
 	workerCA := NewClusterManager("ca")
 

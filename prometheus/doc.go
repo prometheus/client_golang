@@ -71,7 +71,7 @@
 //
 // Above, you have already touched the Counter and the Gauge. There are two more
 // advanced metric types: the Summary and Histogram. A more thorough description
-// of those four metric types can be found in the prometheus docs:
+// of those four metric types can be found in the Prometheus docs:
 // https://prometheus.io/docs/concepts/metric_types/
 //
 // A fifth "type" of metric is Untyped. It behaves like a Gauge, but signals the
@@ -83,7 +83,7 @@
 // metric vectors. The fundamental types are GaugeVec, CounterVec, SummaryVec,
 // HistogramVec, and UntypedVec.
 //
-// While only the fudamental metric types implement the Metric interface, both
+// While only the fundamental metric types implement the Metric interface, both
 // the metrics and their vector versions implement the Collector interface. A
 // Collector manages the collection of a number of Metrics, but for convenience,
 // a Metric can also “collect itself”. Note that Gauge, Counter, Summary,
@@ -102,7 +102,7 @@
 // registration (with the prime example of the different metric vectors above,
 // which bundle all the metrics of the same name but with different labels).
 //
-// There is a more involved use-case, too: If you already have metrics
+// There is a more involved use case, too: If you already have metrics
 // available, created outside of the Prometheus context, you don't need the
 // interface of the various Metric types. You essentially want to mirror the
 // existing numbers into Prometheus Metrics during collection. An own
@@ -113,9 +113,9 @@
 // instances, representative of the “throw-away” metrics to be created
 // later. NewDesc comes in handy to create those Desc instances.
 //
-// The Collector example illustrates the use-case. You can also look at the
+// The Collector example illustrates the use case. You can also look at the
 // source code of the processCollector (mirroring process metrics), the
-// goCollector (mirroring Go metrics), or the exvarCollector (mirroring expvar
+// goCollector (mirroring Go metrics), or the expvarCollector (mirroring expvar
 // metrics) as examples that are used in this package itself.
 //
 // If you just need to call a function to get a single float value to collect as
@@ -161,9 +161,9 @@
 //
 // The Handler function used so far to get an http.Handler for serving the
 // metrics is also acting on the DefaultRegistry. With HandlerFor, you can
-// create a handler for a custom registry or anything the implements the
-// Deliverer interface. It also allows to create handler that act differently on
-// errors or allow to log errors. Also note that the handler returned by the
+// create a handler for a custom registry or anything that implements the
+// Deliverer interface. It also allows to create handlers that act differently
+// on errors or allow to log errors. Also note that the handler returned by the
 // Handler function is already instrumented with some HTTP metrics. You can call
 // UninstrumentedHandler to get a handler for the DefaultRegistry that is not
 // instrumented, or you can use InstrumentHandler to instrument any

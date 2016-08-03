@@ -50,9 +50,9 @@ type Collector interface {
 	Collect(chan<- Metric)
 }
 
-// selfCollector implements Collector for a single Metric so that that the
-// Metric collects itself. Add it as an anonymous field to a struct that
-// implements Metric, and call Init with the Metric itself as an argument.
+// selfCollector implements Collector for a single Metric so that the Metric
+// collects itself. Add it as an anonymous field to a struct that implements
+// Metric, and call init with the Metric itself as an argument.
 type selfCollector struct {
 	self Metric
 }

@@ -146,10 +146,11 @@ func MustRegister(cs ...Collector) {
 // returns the Collector, unless an equal Collector was registered before, in
 // which case that Collector is returned.
 //
-// RegisterOrGet is merely a convenience function for the implementation as
-// described in the documentation for AlreadyRegisteredError. As the use case is
-// relatively rare, this function is DEPRECATED and will be removed in a future
-// version of this package to clean up the namespace.
+// Deprecated: RegisterOrGet is merely a convenience function for the
+// implementation as described in the documentation for
+// AlreadyRegisteredError. As the use case is relatively rare, this function
+// will be removed in a future version of this package to clean up the
+// namespace.
 func RegisterOrGet(c Collector) (Collector, error) {
 	if err := Register(c); err != nil {
 		if are, ok := err.(AlreadyRegisteredError); ok {
@@ -163,7 +164,8 @@ func RegisterOrGet(c Collector) (Collector, error) {
 // MustRegisterOrGet behaves like RegisterOrGet but panics instead of returning
 // an error.
 //
-// It is DEPRECATED for the same reason RegisterOrGet is. See there for details.
+// Deprecated: This is deprecated for the same reason RegisterOrGet is. See
+// there for details.
 func MustRegisterOrGet(c Collector) Collector {
 	c, err := RegisterOrGet(c)
 	if err != nil {
@@ -187,8 +189,7 @@ func Unregister(c Collector) bool {
 // It's a shortcut for DefaultRegistry.SetInjectionHook(hook). See there for
 // more details.
 //
-// This function is DEPRECATED and will be removed in a future version of this
-// package. In the rare cases this call is needed, users should simply call
+// Deprecated: In the rare cases this call is needed, users should simply call
 // DefaultRegistry.SetInjectionHook directly.
 func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
 	DefaultRegistry.SetInjectionHook(hook)
