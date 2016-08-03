@@ -53,8 +53,8 @@ type Summary interface {
 	Observe(float64)
 }
 
+// DefObjectives are the default Summary quantile values.
 var (
-	// DefObjectives are the default Summary quantile values.
 	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	errQuantileLabelNotAllowed = fmt.Errorf(

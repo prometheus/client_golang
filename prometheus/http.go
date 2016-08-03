@@ -50,19 +50,19 @@ func Handler() http.Handler {
 	return InstrumentHandler("prometheus", UninstrumentedHandler())
 }
 
-// UninstrumentedHandler returns an HTTP handler for the DefaultRegistry. The
+// UninstrumentedHandler returns an HTTP handler for the DefaultDeliverer. The
 // Handler uses the default HandlerOpts, i.e. report the first error as an HTTP
 // error, no error logging, and compression if requested by the client.
 //
-// If you want to create a Handler for the DefaultRegistry with different
-// HandlerOpts, create it with HandlerFor with the DefaultRegistry and your
+// If you want to create a Handler for the DefaultDeliverer with different
+// HandlerOpts, create it with HandlerFor with the DefaultDeliverer and your
 // desired HandlerOpts.
 //
 // Note that in future versions of this package, UninstrumentedHandler will be
 // replaced by Handler (which will then return an uninstrumented handler, see
 // there for details).
 func UninstrumentedHandler() http.Handler {
-	return HandlerFor(DefaultRegistry, HandlerOpts{})
+	return HandlerFor(DefaultDeliverer, HandlerOpts{})
 }
 
 // HandlerFor returns an http.Handler for the provided Deliverer. The behavior ef

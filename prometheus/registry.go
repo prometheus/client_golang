@@ -32,10 +32,19 @@ const (
 	capDescChan   = 10
 )
 
-// DefaultRegistry is the default registry implicitly used by a number of
-// convenience functions. It has a ProcessCollector and a GoCollector
-// pre-registered.
-var DefaultRegistry = NewRegistry()
+// DefaultRegistry is a Registry instance that has a ProcessCollector and a
+// GoCollector pre-registered. DefaultRegisterer and DefaultDeliverer are both
+// pointing to it. A number of convenience functions in this package act on
+// them. This approach to keep a default instance as global state mirrors the
+// approach of other packages in the Go standard library. Note that there are
+// caveats. Change the variables with caution and only if you understand the
+// consequences. Users who want to avoid global state altogether should not
+// use the convenience function and act on custom instances instead.
+var (
+	DefaultRegistry              = NewRegistry()
+	DefaultRegisterer Registerer = DefaultRegistry
+	DefaultDeliverer  Deliverer  = DefaultRegistry
+)
 
 func init() {
 	MustRegister(NewProcessCollector(os.Getpid(), ""))
@@ -70,9 +79,9 @@ func NewPedanticRegistry() *Registry {
 
 // Registerer is the interface for the part of a registry in charge of
 // registering and unregistering. Users of custom registries should use
-// Registerer as type for registration purposes (rather then Registry). In that
-// way, they are free to exchange the Registerer implementation (e.g. for
-// testing purposes).
+// Registerer as type for registration purposes (rather then the Registry type
+// directly). In that way, they are free to exchange the Registerer
+// implementation (e.g. for testing purposes).
 type Registerer interface {
 	// Register registers a new Collector to be included in metrics
 	// collection. It returns an error if the descriptors provided by the
@@ -107,7 +116,8 @@ type Registerer interface {
 }
 
 // Deliverer is the interface for the part of a registry in charge of delivering
-// the collected metrics.
+// the collected metrics, wich the same general implication as described for the
+// Registerer interface.
 type Deliverer interface {
 	// Deliver collects metrics from registered Collectors and returns them
 	// as lexicographically sorted MetricFamily protobufs. Even if an error
@@ -125,24 +135,24 @@ type Deliverer interface {
 	Deliver() ([]*dto.MetricFamily, error)
 }
 
-// Register registers the provided Collector with the DefaultRegistry.
+// Register registers the provided Collector with the DefaultRegisterer.
 //
-// Register is a shortcut for DefaultRegistry.Register(c). See there for more
+// Register is a shortcut for DefaultRegisterer.Register(c). See there for more
 // details.
 func Register(c Collector) error {
-	return DefaultRegistry.Register(c)
+	return DefaultRegisterer.Register(c)
 }
 
-// MustRegister registers the provided Collectors with the DefaultRegistry and
+// MustRegister registers the provided Collectors with the DefaultRegisterer and
 // panics if any error occurs.
 //
-// MustRegister is a shortcut for MustRegisterWith(DefaultRegistry, cs...). See
+// MustRegister is a shortcut for DefaultRegisterer.MustRegister(cs...). See
 // there for more details.
 func MustRegister(cs ...Collector) {
-	DefaultRegistry.MustRegister(cs...)
+	DefaultRegisterer.MustRegister(cs...)
 }
 
-// RegisterOrGet registers the provided Collector with the DefaultRegistry and
+// RegisterOrGet registers the provided Collector with the DefaultRegisterer and
 // returns the Collector, unless an equal Collector was registered before, in
 // which case that Collector is returned.
 //
@@ -175,12 +185,12 @@ func MustRegisterOrGet(c Collector) Collector {
 }
 
 // Unregister removes the registration of the provided Collector from the
-// DefaultRegistry.
+// DefaultRegisterer.
 //
-// Unregister is a shortcut for DefaultRegistry.Unregister(c). See there for
+// Unregister is a shortcut for DefaultRegisterer.Unregister(c). See there for
 // more details.
 func Unregister(c Collector) bool {
-	return DefaultRegistry.Unregister(c)
+	return DefaultRegisterer.Unregister(c)
 }
 
 // SetMetricFamilyInjectionHook sets a MetricFamily injection hook on the

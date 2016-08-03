@@ -51,11 +51,11 @@ type Histogram interface {
 // bucket of a histogram ("le" -> "less or equal").
 const bucketLabel = "le"
 
+// DefBuckets are the default Histogram buckets. The default buckets are
+// tailored to broadly measure the response time (in seconds) of a network
+// service. Most likely, however, you will be required to define buckets
+// customized to your use case.
 var (
-	// DefBuckets are the default Histogram buckets. The default buckets are
-	// tailored to broadly measure the response time (in seconds) of a
-	// network service. Most likely, however, you will be required to define
-	// buckets customized to your use case.
 	DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 
 	errBucketLabelNotAllowed = fmt.Errorf(
