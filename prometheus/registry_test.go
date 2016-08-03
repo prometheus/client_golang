@@ -17,7 +17,7 @@
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 
-package prometheus
+package prometheus_test
 
 import (
 	"bytes"
@@ -25,18 +25,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func testHandler(t testing.TB) {
 
-	metricVec := NewCounterVec(
-		CounterOpts{
+	metricVec := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Name:        "name",
 			Help:        "docstring",
-			ConstLabels: Labels{"constname": "constvalue"},
+			ConstLabels: prometheus.Labels{"constname": "constvalue"},
 		},
 		[]string{"labelname"},
 	)
@@ -213,7 +217,7 @@ metric: <
 	var scenarios = []struct {
 		headers    map[string]string
 		out        output
-		collector  Collector
+		collector  prometheus.Collector
 		externalMF []*dto.MetricFamily
 	}{
 		{ // 0
@@ -450,7 +454,7 @@ metric: <
 		},
 	}
 	for i, scenario := range scenarios {
-		registry := NewPedanticRegistry()
+		registry := prometheus.NewPedanticRegistry()
 		if scenario.externalMF != nil {
 			registry.SetInjectionHook(func() []*dto.MetricFamily {
 				return scenario.externalMF
@@ -461,7 +465,7 @@ metric: <
 			registry.Register(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
-		handler := InstrumentHandler("prometheus", HandlerFor(registry, HandlerOpts{}))
+		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
@@ -497,30 +501,34 @@ func BenchmarkHandler(b *testing.B) {
 }
 
 func TestRegisterWithOrGet(t *testing.T) {
-	// Clean the default registry just to be sure. This is bad, but this
+	// Replace the default registerer just to be sure. This is bad, but this
 	// whole test will go away once RegisterOrGet is removed.
-	DefaultRegistry = NewRegistry()
-	original := NewCounterVec(
-		CounterOpts{
+	oldRegisterer := prometheus.DefaultRegisterer
+	defer func() {
+		prometheus.DefaultRegisterer = oldRegisterer
+	}()
+	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+	original := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Name: "test",
 			Help: "help",
 		},
 		[]string{"foo", "bar"},
 	)
-	equalButNotSame := NewCounterVec(
-		CounterOpts{
+	equalButNotSame := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Name: "test",
 			Help: "help",
 		},
 		[]string{"foo", "bar"},
 	)
-	if err := Register(original); err != nil {
+	if err := prometheus.Register(original); err != nil {
 		t.Fatal(err)
 	}
-	if err := Register(equalButNotSame); err == nil {
+	if err := prometheus.Register(equalButNotSame); err == nil {
 		t.Fatal("expected error when registringe equal collector")
 	}
-	existing, err := RegisterOrGet(equalButNotSame)
+	existing, err := prometheus.RegisterOrGet(equalButNotSame)
 	if err != nil {
 		t.Fatal(err)
 	}

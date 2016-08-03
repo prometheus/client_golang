@@ -12,11 +12,12 @@
 // limitations under the License.
 
 // Package prometheus provides metrics primitives to instrument code for
-// monitoring. It also offers a registry for metrics and ways to expose
-// registered metrics via an HTTP endpoint or push them to a Pushgateway.
+// monitoring. It also offers a registry for metrics. Sub-packages allow to
+// expose the registered metrics via HTTP (package promhttp) or push them to a
+// Pushgateway (package push).
 //
 // All exported functions and methods are safe to be used concurrently unless
-// specified otherwise.
+//specified otherwise.
 //
 // A Basic Example
 //
@@ -28,6 +29,7 @@
 //    	"net/http"
 //
 //    	"github.com/prometheus/client_golang/prometheus"
+//    	"github.com/prometheus/client_golang/prometheus/promhttp"
 //    )
 //
 //    var (
@@ -35,10 +37,13 @@
 //    		Name: "cpu_temperature_celsius",
 //    		Help: "Current temperature of the CPU.",
 //    	})
-//    	hdFailures = prometheus.NewCounter(prometheus.CounterOpts{
-//    		Name: "hd_errors_total",
-//    		Help: "Number of hard-disk errors.",
-//    	})
+//    	hdFailures = prometheus.NewCounterVec(
+//    		prometheus.CounterOpts{
+//    			Name: "hd_errors_total",
+//    			Help: "Number of hard-disk errors.",
+//    		},
+//    		[]string{"device"},
+//    	)
 //    )
 //
 //    func init() {
@@ -49,18 +54,17 @@
 //
 //    func main() {
 //    	cpuTemp.Set(65.3)
-//    	hdFailures.Inc()
+//    	hdFailures.With(prometheus.Labels{"device":"/dev/sda"}).Inc()
 //
 //    	// The Handler function provides a default handler to expose metrics
 //    	// via an HTTP server. "/metrics" is the usual endpoint for that.
-//    	http.Handle("/metrics", prometheus.Handler())
+//    	http.Handle("/metrics", promhttp.Handler())
 //    	http.ListenAndServe(":8080", nil)
 //    }
 //
 //
-// This is a complete program that exports two metrics, a Gauge and a Counter.
-// It also exports some stats about the HTTP usage of the /metrics
-// endpoint. (See the Handler function for more detail.)
+// This is a complete program that exports two metrics, a Gauge and a Counter,
+// the later with a label attached to turn it into a (one-dimensional) vector.
 //
 // Metrics
 //
@@ -159,18 +163,19 @@
 //
 // HTTP Exposition
 //
-// The Handler function used so far to get an http.Handler for serving the
-// metrics is also acting on the DefaultRegistry. With HandlerFor, you can
-// create a handler for a custom registry or anything that implements the
-// Deliverer interface. It also allows to create handlers that act differently
-// on errors or allow to log errors. Also note that the handler returned by the
-// Handler function is already instrumented with some HTTP metrics. You can call
-// UninstrumentedHandler to get a handler for the DefaultRegistry that is not
-// instrumented, or you can use InstrumentHandler to instrument any
-// http.Handlers of your choice. (But note that the way the instrumentation
-// happens is partially obsolete. Better ways are being worked on.)
+// The Registry implements the Deliverer interface. The caller of the Deliver
+// method can then expose the delivered metrics in some way. Usually, the
+// metrics are served via HTTP on the /metrics endpoint. That's happening in the
+// example above. The tools to expose metrics via HTTP are in the promhttp
+// sub-package. (The top-level functions in the prometheus package are
+// deprecated.)
 //
 // Pushing to the Pushgateway
 //
 // Function for pushing to the Pushgateway can be found in the push sub-package.
+//
+// Other Means of Exposition
+//
+// More ways of exposing metrics can easily be added. Sending metrics to
+// Graphite would be an example that will soon be implemented.
 package prometheus
