@@ -390,7 +390,7 @@ func ExampleSummaryVec() {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(temps)
 
-	metricFamilies, err := reg.Deliver()
+	metricFamilies, err := reg.Gather()
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}

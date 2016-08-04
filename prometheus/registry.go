@@ -33,7 +33,7 @@ const (
 )
 
 // DefaultRegistry is a Registry instance that has a ProcessCollector and a
-// GoCollector pre-registered. DefaultRegisterer and DefaultDeliverer are both
+// GoCollector pre-registered. DefaultRegisterer and DefaultGatherer are both
 // pointing to it. A number of convenience functions in this package act on
 // them. This approach to keep a default instance as global state mirrors the
 // approach of other packages in the Go standard library. Note that there are
@@ -43,7 +43,7 @@ const (
 var (
 	DefaultRegistry              = NewRegistry()
 	DefaultRegisterer Registerer = DefaultRegistry
-	DefaultDeliverer  Deliverer  = DefaultRegistry
+	DefaultGatherer   Gatherer   = DefaultRegistry
 )
 
 func init() {
@@ -115,24 +115,23 @@ type Registerer interface {
 	Unregister(Collector) bool
 }
 
-// Deliverer is the interface for the part of a registry in charge of delivering
-// the collected metrics, wich the same general implication as described for the
-// Registerer interface.
-type Deliverer interface {
-	// Deliver collects metrics from registered Collectors and returns them
-	// as lexicographically sorted MetricFamily protobufs. Even if an error
-	// occurs, Deliver attempts to collect as many metrics as
-	// possible. Hence, if a non-nil error is returned, the returned
-	// MetricFamily slice could be nil (in case of a fatal error that
-	// prevented any meaningful metric collection) or contain a number of
-	// MetricFamily protobufs, some of which might be incomplete, and some
-	// might be missing altogether. The returned error (which might be a
-	// multierror.Error) explains the details. In any case, the MetricFamily
-	// protobufs are consistent and valid for Prometheus to ingest (e.g. no
-	// duplicate metrics, no invalid identifiers). In scenarios where
-	// complete collection is critical, the returned MetricFamily protobufs
-	// should be disregarded if the returned error is non-nil.
-	Deliver() ([]*dto.MetricFamily, error)
+// Gatherer is the interface for the part of a registry in charge of gathering
+// the collected metrics into a number of MetricFamilies. The Gatherer interface
+// comes with the same general implication as described for the Registerer
+// interface.
+type Gatherer interface {
+	// Gather calls the Collect method of the registered Collectors and then
+	// gathers the collected metrics into a lexicographically sorted slice
+	// of MetricFamily protobufs. Even if an error occurs, Gather attempts
+	// to gather as many metrics as possible. Hence, if a non-nil error is
+	// returned, the returned MetricFamily slice could be nil (in case of a
+	// fatal error that prevented any meaningful metric collection) or
+	// contain a number of MetricFamily protobufs, some of which might be
+	// incomplete, and some might be missing altogether. The returned error
+	// (which might be a MultiError) explains the details. In scenarios
+	// where complete collection is critical, the returned MetricFamily
+	// protobufs should be disregarded if the returned error is non-nil.
+	Gather() ([]*dto.MetricFamily, error)
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -221,10 +220,10 @@ func (err AlreadyRegisteredError) Error() string {
 	return "duplicate metrics collector registration attempted"
 }
 
-// Registry registers Prometheus collectors, collects their metrics, and
-// delivers them for exposition. It implements Registerer and Deliverer. The
-// zero value is not usable. Use NewRegistry or NewPedanticRegistry to create
-// instances.
+// Registry registers Prometheus collectors, collects their metrics, and gathers
+// them into MetricFamilies for exposition. It implements Registerer and
+// Gatherer. The zero value is not usable. Create instances with NewRegistry or
+// NewPedanticRegistry.
 type Registry struct {
 	mtx                       sync.RWMutex
 	collectorsByID            map[uint64]Collector // ID is a hash of the descIDs.
@@ -361,8 +360,8 @@ func (r *Registry) MustRegister(cs ...Collector) {
 	}
 }
 
-// Deliver implements Deliverer.
-func (r *Registry) Deliver() ([]*dto.MetricFamily, error) {
+// Gather implements Gatherer.
+func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		metricChan        = make(chan Metric, capMetricChan)
 		metricHashes      = map[uint64]struct{}{}

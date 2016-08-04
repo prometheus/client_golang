@@ -44,9 +44,9 @@ import (
 
 const contentTypeHeader = "Content-Type"
 
-// Registry triggers a metric collection by the provided Deliverer (which is
+// Registry triggers a metric collection by the provided Gatherer (which is
 // usually implemented by a prometheus.Registry, thus the name of the function)
-// and pushes all delivered metrics to the Pushgateway specified by url, using
+// and pushes all gathered metrics to the Pushgateway specified by url, using
 // the provided job name and the (optional) further grouping labels (the
 // grouping map may be nil). See the Pushgateway documentation for detailed
 // implications of the job and other grouping labels. Neither the job name nor
@@ -60,18 +60,18 @@ const contentTypeHeader = "Content-Type"
 // Note that all previously pushed metrics with the same job and other grouping
 // labels will be replaced with the metrics pushed by this call. (It uses HTTP
 // method 'PUT' to push to the Pushgateway.)
-func Registry(job string, grouping map[string]string, url string, reg prometheus.Deliverer) error {
+func Registry(job string, grouping map[string]string, url string, reg prometheus.Gatherer) error {
 	return push(job, grouping, url, reg, "PUT")
 }
 
 // RegistryAdd works like Registry, but only previously pushed metrics with the
 // same name (and the same job and other grouping labels) will be replaced. (It
 // uses HTTP method 'POST' to push to the Pushgateway.)
-func RegistryAdd(job string, grouping map[string]string, url string, reg prometheus.Deliverer) error {
+func RegistryAdd(job string, grouping map[string]string, url string, reg prometheus.Gatherer) error {
 	return push(job, grouping, url, reg, "POST")
 }
 
-func push(job string, grouping map[string]string, pushURL string, reg prometheus.Deliverer, method string) error {
+func push(job string, grouping map[string]string, pushURL string, reg prometheus.Gatherer, method string) error {
 	if !strings.Contains(pushURL, "://") {
 		pushURL = "http://" + pushURL
 	}
@@ -94,7 +94,7 @@ func push(job string, grouping map[string]string, pushURL string, reg prometheus
 	}
 	pushURL = fmt.Sprintf("%s/metrics/job/%s", pushURL, strings.Join(urlComponents, "/"))
 
-	mfs, err := reg.Deliver()
+	mfs, err := reg.Gather()
 	if err != nil {
 		return err
 	}
@@ -134,14 +134,14 @@ func push(job string, grouping map[string]string, pushURL string, reg prometheus
 	return nil
 }
 
-// Collectors works like Registry, but it does not use a Deliverer. Instead, it
+// Collectors works like Registry, but it does not use a Gatherer. Instead, it
 // collects from the provided collectors directly. It is a convenient way to
 // push only a few metrics.
 func Collectors(job string, grouping map[string]string, url string, collectors ...prometheus.Collector) error {
 	return pushCollectors(job, grouping, url, "PUT", collectors...)
 }
 
-// AddCollectors works like RegistryAdd, but it does not use a Deliverer.
+// AddCollectors works like RegistryAdd, but it does not use a Gatherer.
 // Instead, it collects from the provided collectors directly. It is a
 // convenient way to push only a few metrics.
 func AddCollectors(job string, grouping map[string]string, url string, collectors ...prometheus.Collector) error {

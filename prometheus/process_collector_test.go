@@ -25,7 +25,7 @@ func TestProcessCollector(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mfs, err := registry.Deliver()
+	mfs, err := registry.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}

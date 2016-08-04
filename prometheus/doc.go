@@ -146,7 +146,7 @@
 // So far, everything we did operated on the so-called default registry, as it
 // can be found in the global DefaultRegistry variable. With NewRegistry, you
 // can create a custom registry, or you can even implement the Registerer or
-// Deliverer interfaces yourself. The methods Register and Unregister work in
+// Gatherer interfaces yourself. The methods Register and Unregister work in
 // the same way on a custom registry as the global functions Register and
 // Unregister on the default registry.
 //
@@ -163,10 +163,10 @@
 //
 // HTTP Exposition
 //
-// The Registry implements the Deliverer interface. The caller of the Deliver
-// method can then expose the delivered metrics in some way. Usually, the
-// metrics are served via HTTP on the /metrics endpoint. That's happening in the
-// example above. The tools to expose metrics via HTTP are in the promhttp
+// The Registry implements the Gatherer interface. The caller of the Gather
+// method can then expose the gathered metrics in some way. Usually, the metrics
+// are served via HTTP on the /metrics endpoint. That's happening in the example
+// above. The tools to expose metrics via HTTP are in the promhttp
 // sub-package. (The top-level functions in the prometheus package are
 // deprecated.)
 //

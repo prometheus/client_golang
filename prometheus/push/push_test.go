@@ -83,7 +83,7 @@ func TestPush(t *testing.T) {
 	reg.MustRegister(metric1)
 	reg.MustRegister(metric2)
 
-	mfs, err := reg.Deliver()
+	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}

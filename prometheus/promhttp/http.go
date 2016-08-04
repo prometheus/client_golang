@@ -22,9 +22,9 @@
 // will also contain tooling to instrument instances of http.Handler and
 // http.RoundTripper.
 //
-// promhttp.Handler acts on the prometheus.DefaultDeliverer. With HandlerFor,
+// promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
 // you can create a handler for a custom registry or anything that implements
-// the Deliverer interface. It also allows to create handlers that act
+// the Gatherer interface. It also allows to create handlers that act
 // differently on errors or allow to log errors.
 package promhttp
 
@@ -64,22 +64,22 @@ func giveBuf(buf *bytes.Buffer) {
 	bufPool.Put(buf)
 }
 
-// Handler returns an HTTP handler for the prometheus.DefaultDeliverer. The
+// Handler returns an HTTP handler for the prometheus.DefaultGatherer. The
 // Handler uses the default HandlerOpts, i.e. report the first error as an HTTP
 // error, no error logging, and compression if requested by the client.
 //
-// If you want to create a Handler for the DefaultDeliverer with different
-// HandlerOpts, create it with HandlerFor with prometheus.DefaultDeliverer and
+// If you want to create a Handler for the DefaultGatherer with different
+// HandlerOpts, create it with HandlerFor with prometheus.DefaultGatherer and
 // your desired HandlerOpts.
 func Handler() http.Handler {
-	return HandlerFor(prometheus.DefaultDeliverer, HandlerOpts{})
+	return HandlerFor(prometheus.DefaultGatherer, HandlerOpts{})
 }
 
-// HandlerFor returns an http.Handler for the provided Deliverer. The behavior
+// HandlerFor returns an http.Handler for the provided Gatherer. The behavior
 // ef the Handler is defined by the provided HandlerOpts.
-func HandlerFor(reg prometheus.Deliverer, opts HandlerOpts) http.Handler {
+func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		mfs, err := reg.Deliver()
+		mfs, err := reg.Gather()
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error collecting metrics:", err)

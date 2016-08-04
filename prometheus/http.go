@@ -56,7 +56,7 @@ func giveBuf(buf *bytes.Buffer) {
 	bufPool.Put(buf)
 }
 
-// Handler returns an HTTP handler for the DefaultDeliverer. It is
+// Handler returns an HTTP handler for the DefaultGatherer. It is
 // already instrumented with InstrumentHandler (using "prometheus" as handler
 // name).
 //
@@ -67,12 +67,12 @@ func Handler() http.Handler {
 	return InstrumentHandler("prometheus", UninstrumentedHandler())
 }
 
-// UninstrumentedHandler returns an HTTP handler for the DefaultDeliverer.
+// UninstrumentedHandler returns an HTTP handler for the DefaultGatherer.
 //
 // Deprecated: Use promhttp.Handler instead. See there for further documentation.
 func UninstrumentedHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		mfs, err := DefaultDeliverer.Deliver()
+		mfs, err := DefaultGatherer.Gather()
 		if err != nil {
 			http.Error(w, "An error has occurred during metrics collection:\n\n"+err.Error(), http.StatusInternalServerError)
 			return
