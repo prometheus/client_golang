@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -21,7 +22,6 @@ import (
 	"sync"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/hashicorp/go-multierror"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -220,6 +220,22 @@ func (err AlreadyRegisteredError) Error() string {
 	return "duplicate metrics collector registration attempted"
 }
 
+// MultiError is a slice of errors implementing the error interface. It is used
+// by a Gatherer to report multiple errors during MetricFamily gathering.
+type MultiError []error
+
+func (errs MultiError) Error() string {
+	if len(errs) == 0 {
+		return ""
+	}
+	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "%d error(s) occurred:", len(errs))
+	for _, err := range errs {
+		fmt.Fprintf(buf, "\n* %s", err)
+	}
+	return buf.String()
+}
+
 // Registry registers Prometheus collectors, collects their metrics, and gathers
 // them into MetricFamilies for exposition. It implements Registerer and
 // Gatherer. The zero value is not usable. Create instances with NewRegistry or
@@ -366,7 +382,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		metricChan        = make(chan Metric, capMetricChan)
 		metricHashes      = map[uint64]struct{}{}
 		wg                sync.WaitGroup
-		errs              error               // The collected errors to return in the end.
+		errs              MultiError          // The collected errors to return in the end.
 		registeredDescIDs map[uint64]struct{} // Only used for pedantic checks
 	)
 
@@ -419,7 +435,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 		dtoMetric := &dto.Metric{}
 		if err := metric.Write(dtoMetric); err != nil {
-			errs = multierror.Append(errs, fmt.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"error collecting metric %v: %s", desc, err,
 			))
 			continue
@@ -438,13 +454,13 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		case dtoMetric.Histogram != nil:
 			metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
 		default:
-			errs = multierror.Append(errs, fmt.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"empty metric collected: %s", dtoMetric,
 			))
 			continue
 		}
 		if err := r.checkConsistency(metricFamily, dtoMetric, desc, metricHashes, registeredDescIDs); err != nil {
-			errs = multierror.Append(errs, err)
+			errs = append(errs, err)
 			continue
 		}
 		metricFamily.Metric = append(metricFamily.Metric, dtoMetric)
@@ -464,7 +480,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			}
 			for _, m := range mf.Metric {
 				if err := r.checkConsistency(existingMF, m, nil, metricHashes, nil); err != nil {
-					errs = multierror.Append(errs, err)
+					errs = append(errs, err)
 					continue
 				}
 				existingMF.Metric = append(existingMF.Metric, m)
@@ -492,6 +508,11 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	result := make([]*dto.MetricFamily, 0, len(names))
 	for _, name := range names {
 		result = append(result, metricFamiliesByName[name])
+	}
+	// We cannot just `return result, errs`. Even if errs == nil, it will
+	// not be seen as nil through the error interface.
+	if len(errs) == 0 {
+		return result, nil
 	}
 	return result, errs
 }

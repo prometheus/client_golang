@@ -88,14 +88,12 @@ func TestHandlerErrorHandling(t *testing.T) {
 		ErrorLog:      logger,
 		ErrorHandling: PanicOnError,
 	})
-	wantMsg := `error collecting metrics: 1 error(s) occurred:
-
+	wantMsg := `error gathering metrics: 1 error(s) occurred:
 * error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
-	wantErrorBody := `An error has occurred during metrics collection:
+	wantErrorBody := `An error has occurred during metrics gathering:
 
 1 error(s) occurred:
-
 * error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
 	wantOKBody := `# HELP name docstring

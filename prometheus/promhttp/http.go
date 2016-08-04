@@ -82,18 +82,18 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 		mfs, err := reg.Gather()
 		if err != nil {
 			if opts.ErrorLog != nil {
-				opts.ErrorLog.Println("error collecting metrics:", err)
+				opts.ErrorLog.Println("error gathering metrics:", err)
 			}
 			switch opts.ErrorHandling {
 			case PanicOnError:
 				panic(err)
 			case ContinueOnError:
 				if len(mfs) == 0 {
-					http.Error(w, "No metrics collected, last error:\n\n"+err.Error(), http.StatusInternalServerError)
+					http.Error(w, "No metrics gathered, last error:\n\n"+err.Error(), http.StatusInternalServerError)
 					return
 				}
 			case HTTPErrorOnError:
-				http.Error(w, "An error has occurred during metrics collection:\n\n"+err.Error(), http.StatusInternalServerError)
+				http.Error(w, "An error has occurred during metrics gathering:\n\n"+err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
