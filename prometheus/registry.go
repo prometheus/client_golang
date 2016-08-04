@@ -211,19 +211,8 @@ func SetMetricFamilyInjectionHook(hook func() []*dto.MetricFamily) {
 // before. Registration fails in that case, but you can detect from the kind of
 // error what has happened. The error contains fields for the existing Collector
 // and the (rejected) new Collector that equals the existing one. This can be
-// used in the following way:
-//
-//	reqCounter := prometheus.NewCounter( /* ... */ )
-//	if err := registry.Register(reqCounter); err != nil {
-//		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-//			// A counter for that metric has been registered before.
-//			// Use the old counter from now on.
-//			reqCounter = are.ExistingCollector.(prometheus.Counter)
-//		} else {
-//			// Something else went wrong!
-//			panic(err)
-//		}
-//	}
+// used to find out if an equal Collector has been registered before and switch
+// over to using the old one, as demonstrated in the example.
 type AlreadyRegisteredError struct {
 	ExistingCollector, NewCollector Collector
 }

@@ -621,3 +621,20 @@ func ExampleNewConstHistogram() {
 	//   >
 	// >
 }
+
+func ExampleAlreadyRegisteredError() {
+	reqCounter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "requests_total",
+		Help: "The total number of requests served.",
+	})
+	if err := prometheus.Register(reqCounter); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			// A counter for that metric has been registered before.
+			// Use the old counter from now on.
+			reqCounter = are.ExistingCollector.(prometheus.Counter)
+		} else {
+			// Something else went wrong!
+			panic(err)
+		}
+	}
+}
