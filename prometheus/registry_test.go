@@ -185,7 +185,7 @@ metric: <
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
 		Name: proto.String("name"),
-		Help: proto.String("inconsistent help string does not matter here"),
+		Help: proto.String("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
@@ -455,17 +455,21 @@ metric: <
 	}
 	for i, scenario := range scenarios {
 		registry := prometheus.NewPedanticRegistry()
+		gatherer := prometheus.Gatherer(registry)
 		if scenario.externalMF != nil {
-			registry.SetInjectionHook(func() []*dto.MetricFamily {
-				return scenario.externalMF
-			})
+			gatherer = prometheus.Gatherers{
+				registry,
+				prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+					return scenario.externalMF, nil
+				}),
+			}
 		}
 
 		if scenario.collector != nil {
 			registry.Register(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
-		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
@@ -483,7 +487,7 @@ metric: <
 
 		if !bytes.Equal(scenario.out.body, writer.Body.Bytes()) {
 			t.Errorf(
-				"%d. expected %q for body, got %q",
+				"%d. expected body:\n%s\ngot body:\n%s\n",
 				i, scenario.out.body, writer.Body.Bytes(),
 			)
 		}

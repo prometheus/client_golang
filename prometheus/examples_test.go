@@ -14,13 +14,16 @@
 package prometheus_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"net/http"
 	"runtime"
 	"sort"
+	"strings"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/golang/protobuf/proto"
 
@@ -637,4 +640,112 @@ func ExampleAlreadyRegisteredError() {
 			panic(err)
 		}
 	}
+}
+
+func ExampleGatherers() {
+	reg := prometheus.NewRegistry()
+	temp := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "temperature_kelvin",
+			Help: "Temperature in Kelvin.",
+		},
+		[]string{"location"},
+	)
+	reg.MustRegister(temp)
+	temp.WithLabelValues("outside").Set(273.14)
+	temp.WithLabelValues("inside").Set(298.44)
+
+	var parser expfmt.TextParser
+
+	text := `
+# TYPE humidity_percent gauge
+# HELP humidity_percent Humidity in %.
+humidity_percent{location="outside"} 45.4
+humidity_percent{location="inside"} 33.2
+# TYPE temperature_kelvin gauge
+# HELP temperature_kelvin Temperature in Kelvin.
+temperature_kelvin{location="somewhere else"} 4.5
+`
+
+	parseText := func() ([]*dto.MetricFamily, error) {
+		parsed, err := parser.TextToMetricFamilies(strings.NewReader(text))
+		if err != nil {
+			return nil, err
+		}
+		var result []*dto.MetricFamily
+		for _, mf := range parsed {
+			result = append(result, mf)
+		}
+		return result, nil
+	}
+
+	gatherers := prometheus.Gatherers{
+		reg,
+		prometheus.GathererFunc(parseText),
+	}
+
+	gathering, err := gatherers.Gather()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	out := &bytes.Buffer{}
+	for _, mf := range gathering {
+		if _, err := expfmt.MetricFamilyToText(out, mf); err != nil {
+			panic(err)
+		}
+	}
+	fmt.Print(out.String())
+	fmt.Println("----------")
+
+	// Note how the temperature_kelvin metric family has been merged from
+	// different sources. Now try
+	text = `
+# TYPE humidity_percent gauge
+# HELP humidity_percent Humidity in %.
+humidity_percent{location="outside"} 45.4
+humidity_percent{location="inside"} 33.2
+# TYPE temperature_kelvin gauge
+# HELP temperature_kelvin Temperature in Kelvin.
+# Duplicate metric:
+temperature_kelvin{location="outside"} 265.3
+ # Wrong labels:
+temperature_kelvin 4.5
+`
+
+	gathering, err = gatherers.Gather()
+	if err != nil {
+		fmt.Println(err)
+	}
+	// Note that still as many metrics as possible are returned:
+	out.Reset()
+	for _, mf := range gathering {
+		if _, err := expfmt.MetricFamilyToText(out, mf); err != nil {
+			panic(err)
+		}
+	}
+	fmt.Print(out.String())
+
+	// Output:
+	// # HELP humidity_percent Humidity in %.
+	// # TYPE humidity_percent gauge
+	// humidity_percent{location="inside"} 33.2
+	// humidity_percent{location="outside"} 45.4
+	// # HELP temperature_kelvin Temperature in Kelvin.
+	// # TYPE temperature_kelvin gauge
+	// temperature_kelvin{location="inside"} 298.44
+	// temperature_kelvin{location="outside"} 273.14
+	// temperature_kelvin{location="somewhere else"} 4.5
+	// ----------
+	// 2 error(s) occurred:
+	// * collected metric temperature_kelvin label:<name:"location" value:"outside" > gauge:<value:265.3 >  was collected before with the same name and label values
+	// * collected metric temperature_kelvin gauge:<value:4.5 >  has label dimensions inconsistent with previously collected metrics in the same metric family
+	// # HELP humidity_percent Humidity in %.
+	// # TYPE humidity_percent gauge
+	// humidity_percent{location="inside"} 33.2
+	// humidity_percent{location="outside"} 45.4
+	// # HELP temperature_kelvin Temperature in Kelvin.
+	// # TYPE temperature_kelvin gauge
+	// temperature_kelvin{location="inside"} 298.44
+	// temperature_kelvin{location="outside"} 273.14
 }
