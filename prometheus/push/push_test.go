@@ -150,7 +150,7 @@ func TestPush(t *testing.T) {
 	}
 
 	// Push registry, all good.
-	if err := Registry("testjob", HostnameGroupingKey(), pgwOK.URL, reg); err != nil {
+	if err := FromGatherer("testjob", HostnameGroupingKey(), pgwOK.URL, reg); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "PUT" {
@@ -161,7 +161,7 @@ func TestPush(t *testing.T) {
 	}
 
 	// PushAdd registry, all good.
-	if err := RegistryAdd("testjob", map[string]string{"a": "x", "b": "y"}, pgwOK.URL, reg); err != nil {
+	if err := AddFromGatherer("testjob", map[string]string{"a": "x", "b": "y"}, pgwOK.URL, reg); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "POST" {

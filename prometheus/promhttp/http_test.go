@@ -88,13 +88,11 @@ func TestHandlerErrorHandling(t *testing.T) {
 		ErrorLog:      logger,
 		ErrorHandling: PanicOnError,
 	})
-	wantMsg := `error gathering metrics: 1 error(s) occurred:
-* error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
+	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
 	wantErrorBody := `An error has occurred during metrics gathering:
 
-1 error(s) occurred:
-* error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
+error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
 	wantOKBody := `# HELP name docstring
 # TYPE name counter
@@ -110,10 +108,10 @@ the_count 0
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
 	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message %q, want %q", got, wantMsg)
+		t.Errorf("got log message:\n%s\nwant log mesage:\n%s\n", got, wantMsg)
 	}
 	if got := writer.Body.String(); got != wantErrorBody {
-		t.Errorf("got body %q, want %q", got, wantErrorBody)
+		t.Errorf("got body:\n%s\nwant body:\n%s\n", got, wantErrorBody)
 	}
 	logBuf.Reset()
 	writer.Body.Reset()

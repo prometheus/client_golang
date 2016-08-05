@@ -46,7 +46,7 @@ func ExampleRegistry() {
 	registry.MustRegister(completionTime)
 
 	completionTime.Set(float64(time.Now().Unix()))
-	if err := push.Registry(
+	if err := push.FromGatherer(
 		"db_backup", push.HostnameGroupingKey(),
 		"http://pushgateway:9091",
 		registry,
