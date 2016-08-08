@@ -19,13 +19,13 @@ import (
 )
 
 var (
-	indexed = prometheus.NewCounter(prometheus.CounterOpts{
+	indexed := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "my_company",
 		Subsystem: "indexer",
 		Name:      "documents_indexed",
 		Help:      "The number of documents indexed.",
 	})
-	size = prometheus.NewGauge(prometheus.GaugeOpts{
+	size := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "my_company",
 		Subsystem: "storage",
 		Name:      "documents_total_size_bytes",
