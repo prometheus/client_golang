@@ -485,7 +485,7 @@ metric: <
 		},
 	}
 	for i, scenario := range scenarios {
-		registry := newRegistry()
+		registry := NewRegistry()
 		registry.collectChecksEnabled = true
 
 		if scenario.collector != nil {

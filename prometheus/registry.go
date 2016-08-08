@@ -204,7 +204,7 @@ func EnableCollectChecks(b bool) {
 // are encoders.
 type encoder func(io.Writer, *dto.MetricFamily) (int, error)
 
-type registry struct {
+type Registry struct {
 	mtx                       sync.RWMutex
 	collectorsByID            map[uint64]Collector // ID is a hash of the descIDs.
 	descIDs                   map[uint64]struct{}
@@ -217,7 +217,7 @@ type registry struct {
 	panicOnCollectError, collectChecksEnabled bool
 }
 
-func (r *registry) Register(c Collector) (Collector, error) {
+func (r *Registry) Register(c Collector) (Collector, error) {
 	descChan := make(chan *Desc, capDescChan)
 	go func() {
 		c.Describe(descChan)
@@ -294,7 +294,7 @@ func (r *registry) Register(c Collector) (Collector, error) {
 	return c, nil
 }
 
-func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
+func (r *Registry) RegisterOrGet(m Collector) (Collector, error) {
 	existing, err := r.Register(m)
 	if err != nil && err != errAlreadyReg {
 		return nil, err
@@ -302,7 +302,7 @@ func (r *registry) RegisterOrGet(m Collector) (Collector, error) {
 	return existing, nil
 }
 
-func (r *registry) Unregister(c Collector) bool {
+func (r *Registry) Unregister(c Collector) bool {
 	descChan := make(chan *Desc, capDescChan)
 	go func() {
 		c.Describe(descChan)
@@ -337,7 +337,7 @@ func (r *registry) Unregister(c Collector) bool {
 	return true
 }
 
-func (r *registry) Push(job, instance, pushURL, method string) error {
+func (r *Registry) Push(job, instance, pushURL, method string) error {
 	if !strings.Contains(pushURL, "://") {
 		pushURL = "http://" + pushURL
 	}
@@ -372,7 +372,7 @@ func (r *registry) Push(job, instance, pushURL, method string) error {
 	return nil
 }
 
-func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (r *Registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	contentType := expfmt.Negotiate(req.Header)
 	buf := r.getBuf()
 	defer r.giveBuf(buf)
@@ -396,7 +396,7 @@ func (r *registry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write(buf.Bytes())
 }
 
-func (r *registry) writePB(encoder expfmt.Encoder) error {
+func (r *Registry) writePB(encoder expfmt.Encoder) error {
 	var metricHashes map[uint64]struct{}
 	if r.collectChecksEnabled {
 		metricHashes = make(map[uint64]struct{})
@@ -520,7 +520,7 @@ func (r *registry) writePB(encoder expfmt.Encoder) error {
 	return nil
 }
 
-func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *dto.Metric, desc *Desc, metricHashes map[uint64]struct{}) error {
+func (r *Registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *dto.Metric, desc *Desc, metricHashes map[uint64]struct{}) error {
 
 	// Type consistency with metric family.
 	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
@@ -613,7 +613,7 @@ func (r *registry) checkConsistency(metricFamily *dto.MetricFamily, dtoMetric *d
 	return nil
 }
 
-func (r *registry) getBuf() *bytes.Buffer {
+func (r *Registry) getBuf() *bytes.Buffer {
 	select {
 	case buf := <-r.bufPool:
 		return buf
@@ -622,7 +622,7 @@ func (r *registry) getBuf() *bytes.Buffer {
 	}
 }
 
-func (r *registry) giveBuf(buf *bytes.Buffer) {
+func (r *Registry) giveBuf(buf *bytes.Buffer) {
 	buf.Reset()
 	select {
 	case r.bufPool <- buf:
@@ -630,7 +630,7 @@ func (r *registry) giveBuf(buf *bytes.Buffer) {
 	}
 }
 
-func (r *registry) getMetricFamily() *dto.MetricFamily {
+func (r *Registry) getMetricFamily() *dto.MetricFamily {
 	select {
 	case mf := <-r.metricFamilyPool:
 		return mf
@@ -639,7 +639,7 @@ func (r *registry) getMetricFamily() *dto.MetricFamily {
 	}
 }
 
-func (r *registry) giveMetricFamily(mf *dto.MetricFamily) {
+func (r *Registry) giveMetricFamily(mf *dto.MetricFamily) {
 	mf.Reset()
 	select {
 	case r.metricFamilyPool <- mf:
@@ -647,7 +647,7 @@ func (r *registry) giveMetricFamily(mf *dto.MetricFamily) {
 	}
 }
 
-func (r *registry) getMetric() *dto.Metric {
+func (r *Registry) getMetric() *dto.Metric {
 	select {
 	case m := <-r.metricPool:
 		return m
@@ -656,7 +656,7 @@ func (r *registry) getMetric() *dto.Metric {
 	}
 }
 
-func (r *registry) giveMetric(m *dto.Metric) {
+func (r *Registry) giveMetric(m *dto.Metric) {
 	m.Reset()
 	select {
 	case r.metricPool <- m:
@@ -664,8 +664,11 @@ func (r *registry) giveMetric(m *dto.Metric) {
 	}
 }
 
-func newRegistry() *registry {
-	return &registry{
+// NewRegistry creates a new seperate registry from the default one 
+// you probably shouldn't use this method but opt to use the default registry instead.
+// This is useful if you need multiple seperate registries in one application.
+func NewRegistry() *Registry {
+	return &Registry{
 		collectorsByID:   map[uint64]Collector{},
 		descIDs:          map[uint64]struct{}{},
 		dimHashesByName:  map[string]uint64{},
@@ -675,8 +678,8 @@ func newRegistry() *registry {
 	}
 }
 
-func newDefaultRegistry() *registry {
-	r := newRegistry()
+func newDefaultRegistry() *Registry {
+	r := NewRegistry()
 	r.Register(NewProcessCollector(os.Getpid(), ""))
 	r.Register(NewGoCollector())
 	return r

@@ -16,7 +16,7 @@ func TestProcessCollector(t *testing.T) {
 		t.Skipf("skipping TestProcessCollector, procfs not available: %s", err)
 	}
 
-	registry := newRegistry()
+	registry := NewRegistry()
 	registry.Register(NewProcessCollector(os.Getpid(), ""))
 	registry.Register(NewProcessCollectorPIDFn(
 		func() (int, error) { return os.Getpid(), nil }, "foobar"))
