@@ -91,6 +91,16 @@ func Handler() http.Handler {
 	return InstrumentHandler("prometheus", defRegistry)
 }
 
+// A Registry holds collected metric data, and knows how to publish that
+// data to a Prometheus server.
+type Registry interface {
+	Register(c Collector) (Collector, error)
+	RegisterOrGet(c Collector) (Collector, error)
+	Unregister(c Collector) bool
+	Push(job, instance, pushURL, method string) error
+	ServeHTTP(w http.ResponseWriter, req *http.Request)
+}
+
 // UninstrumentedHandler works in the same way as Handler, but the returned HTTP
 // handler is not instrumented. This is useful if no instrumentation is desired
 // (for whatever reason) or if the instrumentation has to happen with a
@@ -216,6 +226,8 @@ type registry struct {
 
 	panicOnCollectError, collectChecksEnabled bool
 }
+
+var _ Registry = (*registry)(nil)
 
 func (r *registry) Register(c Collector) (Collector, error) {
 	descChan := make(chan *Desc, capDescChan)
@@ -664,7 +676,8 @@ func (r *registry) giveMetric(m *dto.Metric) {
 	}
 }
 
-func newRegistry() *registry {
+// NewRegistry creates a new blank registry.
+func NewRegistry() *registry {
 	return &registry{
 		collectorsByID:   map[uint64]Collector{},
 		descIDs:          map[uint64]struct{}{},
@@ -676,7 +689,7 @@ func newRegistry() *registry {
 }
 
 func newDefaultRegistry() *registry {
-	r := newRegistry()
+	r := NewRegistry()
 	r.Register(NewProcessCollector(os.Getpid(), ""))
 	r.Register(NewGoCollector())
 	return r
