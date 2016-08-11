@@ -31,6 +31,16 @@ type MetricVec struct {
 	newMetric func(labelValues ...string) Metric
 }
 
+// newMetricVec returns an initialized MetricVec. The concrete value is
+// returned for embedding into another struct.
+func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) MetricVec {
+	return MetricVec{
+		children:  map[uint64]Metric{},
+		desc:      desc,
+		newMetric: newMetric,
+	}
+}
+
 // Describe implements Collector. The length of the returned slice
 // is always one.
 func (m *MetricVec) Describe(ch chan<- *Desc) {

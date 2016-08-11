@@ -72,13 +72,9 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 		opts.ConstLabels,
 	)
 	return &GaugeVec{
-		MetricVec: MetricVec{
-			children: map[uint64]Metric{},
-			desc:     desc,
-			newMetric: func(lvs ...string) Metric {
-				return newValue(desc, GaugeValue, 0, lvs...)
-			},
-		},
+		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
+			return newValue(desc, GaugeValue, 0, lvs...)
+		}),
 	}
 }
 
