@@ -52,7 +52,16 @@ func TestDelete(t *testing.T) {
 
 func TestDeleteLabelValues(t *testing.T) {
 	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	testDeleteLabelValues(t, vec)
+}
 
+func TestDeleteLabelValuesWithCollisions(t *testing.T) {
+	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	testDeleteLabelValues(t, vec)
+}
+
+func testDeleteLabelValues(t *testing.T, vec *MetricVec) {
 	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}

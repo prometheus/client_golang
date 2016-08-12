@@ -25,20 +25,27 @@ import (
 // provided in this package.
 type MetricVec struct {
 	mtx      sync.RWMutex // Protects the children.
-	children map[uint64]Metric
+	children map[uint64][]metricLabelValue
 	desc     *Desc
 
 	newMetric func(labelValues ...string) Metric
+	hashAdd   func(h uint64, s string) uint64 // replace hash function for testing collision handling
 }
 
 // newMetricVec returns an initialized MetricVec. The concrete value is
 // returned for embedding into another struct.
 func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) MetricVec {
 	return MetricVec{
-		children:  map[uint64]Metric{},
+		children:  map[uint64][]metricLabelValue{},
 		desc:      desc,
 		newMetric: newMetric,
+		hashAdd:   hashAdd,
 	}
+}
+
+type metricLabelValue struct {
+	values []string
+	metric Metric
 }
 
 // Describe implements Collector. The length of the returned slice
@@ -52,8 +59,10 @@ func (m *MetricVec) Collect(ch chan<- Metric) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	for _, metric := range m.children {
-		ch <- metric
+	for _, metrics := range m.children {
+		for _, metric := range metrics {
+			ch <- metric.metric
+		}
 	}
 }
 
@@ -88,7 +97,7 @@ func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 	}
 
 	m.mtx.RLock()
-	metric, ok := m.children[h]
+	metric, ok := m.getMetric(h, lvs...)
 	m.mtx.RUnlock()
 	if ok {
 		return metric, nil
@@ -118,11 +127,12 @@ func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
 	}
 
 	m.mtx.RLock()
-	metric, ok := m.children[h]
-	m.mtx.RUnlock()
-	if ok {
-		return metric, nil
+	metrics, ok := m.children[h]
+	if ok && len(metrics) == 1 {
+		m.mtx.RUnlock()
+		return metrics[0].metric, nil
 	}
+	m.mtx.RUnlock()
 
 	lvs := make([]string, len(labels))
 	for i, label := range m.desc.variableLabels {
@@ -178,11 +188,7 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	if err != nil {
 		return false
 	}
-	if _, ok := m.children[h]; !ok {
-		return false
-	}
-	delete(m.children, h)
-	return true
+	return m.deleteByHash(h, lvs...)
 }
 
 // Delete deletes the metric where the variable labels are the same as those
@@ -203,10 +209,38 @@ func (m *MetricVec) Delete(labels Labels) bool {
 	if err != nil {
 		return false
 	}
-	if _, ok := m.children[h]; !ok {
+
+	var lvs []string
+	for _, k := range m.desc.variableLabels {
+		lvs = append(lvs, labels[k])
+	}
+
+	return m.deleteByHash(h, lvs...)
+}
+
+// deleteByHash removes the metric from the hash bucket h. If there are
+// multiple matches in the bucket, use lvs to select a metric and remove only
+// that metric.
+func (m *MetricVec) deleteByHash(h uint64, lvs ...string) bool {
+	metrics, ok := m.children[h]
+	if !ok {
 		return false
 	}
-	delete(m.children, h)
+
+	if len(metrics) < 2 {
+		delete(m.children, h)
+	}
+
+	i := findMetric(lvs, metrics)
+	if i >= len(metrics) {
+		return false
+	}
+
+	if len(metrics) > 1 {
+		m.children[h] = append(metrics[:i], metrics[i+1:]...)
+	} else {
+		delete(m.children, h)
+	}
 	return true
 }
 
@@ -226,7 +260,7 @@ func (m *MetricVec) hashLabelValues(vals []string) (uint64, error) {
 	}
 	h := hashNew()
 	for _, val := range vals {
-		h = hashAdd(h, val)
+		h = m.hashAdd(h, val)
 	}
 	return h, nil
 }
@@ -241,19 +275,70 @@ func (m *MetricVec) hashLabels(labels Labels) (uint64, error) {
 		if !ok {
 			return 0, fmt.Errorf("label name %q missing in label map", label)
 		}
-		h = hashAdd(h, val)
+		h = m.hashAdd(h, val)
 	}
 	return h, nil
 }
 
 func (m *MetricVec) getOrCreateMetric(hash uint64, labelValues ...string) Metric {
-	metric, ok := m.children[hash]
+	metric, ok := m.getMetric(hash, labelValues...)
 	if !ok {
 		// Copy labelValues. Otherwise, they would be allocated even if we don't go
 		// down this code path.
 		copiedLabelValues := append(make([]string, 0, len(labelValues)), labelValues...)
 		metric = m.newMetric(copiedLabelValues...)
-		m.children[hash] = metric
+		m.children[hash] = append(m.children[hash], metricLabelValue{values: copiedLabelValues, metric: metric})
 	}
 	return metric
+}
+
+// getMetric while handling possible collisions in the hash space. Must be
+// called while holding read mutex.
+func (m *MetricVec) getMetric(h uint64, lvs ...string) (Metric, bool) {
+	metrics, ok := m.children[h]
+	if ok {
+		return m.selectMetric(lvs, metrics)
+	}
+
+	return nil, false
+}
+
+func (m *MetricVec) selectMetric(lvs []string, metrics []metricLabelValue) (Metric, bool) {
+	switch len(metrics) {
+	case 0:
+		return nil, false
+	case 1:
+		// collisions are rare, this should be the fast path.
+		return metrics[0].metric, true
+	}
+
+	i := findMetric(lvs, metrics)
+
+	if i < len(metrics) {
+		return metrics[i].metric, true
+	}
+
+	return nil, false
+}
+
+// findMetric returns the index of the matching metric or len(metrics) if not
+// found.
+func findMetric(lvs []string, metrics []metricLabelValue) int {
+next:
+	for i, metric := range metrics {
+		if len(metric.values) != len(lvs) {
+			continue
+		}
+
+		for j, v := range metric.values {
+			if v != lvs[j] {
+				continue next
+			}
+		}
+		// falling out of the loop here means we have a match!
+
+		return i
+	}
+
+	return len(metrics)
 }
