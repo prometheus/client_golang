@@ -16,11 +16,23 @@ package prometheus
 import (
 	"fmt"
 	"testing"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 func TestDelete(t *testing.T) {
 	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	testDelete(t, vec)
+}
 
+func TestDeleteWithCollisions(t *testing.T) {
+	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	testDelete(t, vec)
+}
+
+func testDelete(t *testing.T, vec *MetricVec) {
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -58,6 +70,7 @@ func TestDeleteLabelValues(t *testing.T) {
 func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
 	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testDeleteLabelValues(t, vec)
 }
 
@@ -67,19 +80,92 @@ func testDeleteLabelValues(t *testing.T, vec *MetricVec) {
 	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Untyped).Set(42) // add junk data for collision
 	if got, want := vec.DeleteLabelValues("v1", "v2"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
+	if got, want := vec.DeleteLabelValues("v1", "v3"), true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	// delete out of order
 	if got, want := vec.DeleteLabelValues("v2", "v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 	if got, want := vec.DeleteLabelValues("v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestMetricVec(t *testing.T) {
+	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	testMetricVec(t, vec)
+}
+
+func TestMetricVecWithCollisions(t *testing.T) {
+	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	testMetricVec(t, vec)
+}
+
+func testMetricVec(t *testing.T, vec *MetricVec) {
+	vec.Reset() // actually test Reset now!
+
+	var pair [2]string
+	// keep track of metrics
+	expected := map[[2]string]int{}
+
+	for i := 0; i < 1000; i++ {
+		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // varying combinations multiples
+		expected[pair]++
+		vec.WithLabelValues(pair[0], pair[1]).(Untyped).Inc()
+
+		expected[[2]string{"v1", "v2"}]++
+		vec.WithLabelValues("v1", "v2").(Untyped).Inc()
+	}
+
+	var total int
+	for _, metrics := range vec.children {
+		for _, metric := range metrics {
+			total++
+			copy(pair[:], metric.values)
+
+			// is there a better way to access the value of a metric?
+			var metricOut dto.Metric
+			metric.metric.Write(&metricOut)
+			actual := *metricOut.Untyped.Value
+
+			var actualPair [2]string
+			for i, label := range metricOut.Label {
+				actualPair[i] = *label.Value
+			}
+
+			// test output pair against metric.values to ensure we've selected
+			// the right one. We check this to ensure the below check means
+			// anything at all.
+			if actualPair != pair {
+				t.Fatalf("unexpected pair association in metric map: %v != %v", actualPair, pair)
+			}
+
+			if actual != float64(expected[pair]) {
+				t.Fatalf("incorrect counter value for %v: %v != %v", pair, actual, expected[pair])
+			}
+		}
+	}
+
+	if total != len(expected) {
+		t.Fatalf("unexpected number of metrics: %v != %v", total, len(expected))
+	}
+
+	vec.Reset()
+
+	if len(vec.children) > 0 {
+		t.Fatalf("reset failed")
 	}
 }
 
