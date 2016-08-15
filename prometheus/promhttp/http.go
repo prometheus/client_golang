@@ -76,7 +76,7 @@ func Handler() http.Handler {
 }
 
 // HandlerFor returns an http.Handler for the provided Gatherer. The behavior
-// ef the Handler is defined by the provided HandlerOpts.
+// of the Handler is defined by the provided HandlerOpts.
 func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		mfs, err := reg.Gather()
