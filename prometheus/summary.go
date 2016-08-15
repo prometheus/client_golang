@@ -53,8 +53,8 @@ type Summary interface {
 	Observe(float64)
 }
 
+// DefObjectives are the default Summary quantile values.
 var (
-	// DefObjectives are the default Summary quantile values.
 	DefObjectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	errQuantileLabelNotAllowed = fmt.Errorf(
@@ -139,11 +139,11 @@ type SummaryOpts struct {
 	BufCap uint32
 }
 
-// TODO: Great fuck-up with the sliding-window decay algorithm... The Merge
-// method of perk/quantile is actually not working as advertised - and it might
-// be unfixable, as the underlying algorithm is apparently not capable of
-// merging summaries in the first place. To avoid using Merge, we are currently
-// adding observations to _each_ age bucket, i.e. the effort to add a sample is
+// Great fuck-up with the sliding-window decay algorithm... The Merge method of
+// perk/quantile is actually not working as advertised - and it might be
+// unfixable, as the underlying algorithm is apparently not capable of merging
+// summaries in the first place. To avoid using Merge, we are currently adding
+// observations to _each_ age bucket, i.e. the effort to add a sample is
 // essentially multiplied by the number of age buckets. When rotating age
 // buckets, we empty the previous head stream. On scrape time, we simply take
 // the quantiles from the head stream (no merging required). Result: More effort
@@ -227,12 +227,12 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	}
 	sort.Float64s(s.sortedObjectives)
 
-	s.Init(s) // Init self-collection.
+	s.init(s) // Init self-collection.
 	return s
 }
 
 type summary struct {
-	SelfCollector
+	selfCollector
 
 	bufMtx sync.Mutex // Protects hotBuf and hotBufExpTime.
 	mtx    sync.Mutex // Protects every other moving part.

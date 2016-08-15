@@ -35,6 +35,9 @@ type Counter interface {
 	// Prometheus metric. Do not use it for regular handling of a
 	// Prometheus counter (as it can be used to break the contract of
 	// monotonically increasing values).
+	//
+	// Deprecated: Use NewConstMetric to create a counter for an external
+	// value. A Counter should never be set.
 	Set(float64)
 	// Inc increments the counter by 1.
 	Inc()
@@ -55,7 +58,7 @@ func NewCounter(opts CounterOpts) Counter {
 		opts.ConstLabels,
 	)
 	result := &counter{value: value{desc: desc, valType: CounterValue, labelPairs: desc.constLabelPairs}}
-	result.Init(result) // Init self-collection.
+	result.init(result) // Init self-collection.
 	return result
 }
 
@@ -102,7 +105,7 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 					valType:    CounterValue,
 					labelPairs: makeLabelPairs(desc, lvs),
 				}}
-				result.Init(result) // Init self-collection.
+				result.init(result) // Init self-collection.
 				return result
 			},
 		},
