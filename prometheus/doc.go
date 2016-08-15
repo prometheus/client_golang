@@ -64,7 +64,7 @@
 //
 //
 // This is a complete program that exports two metrics, a Gauge and a Counter,
-// the later with a label attached to turn it into a (one-dimensional) vector.
+// the latter with a label attached to turn it into a (one-dimensional) vector.
 //
 // Metrics
 //
