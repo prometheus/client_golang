@@ -70,13 +70,9 @@ func NewUntypedVec(opts UntypedOpts, labelNames []string) *UntypedVec {
 		opts.ConstLabels,
 	)
 	return &UntypedVec{
-		MetricVec: MetricVec{
-			children: map[uint64]Metric{},
-			desc:     desc,
-			newMetric: func(lvs ...string) Metric {
-				return newValue(desc, UntypedValue, 0, lvs...)
-			},
-		},
+		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
+			return newValue(desc, UntypedValue, 0, lvs...)
+		}),
 	}
 }
 

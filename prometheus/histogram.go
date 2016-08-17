@@ -301,13 +301,9 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 		opts.ConstLabels,
 	)
 	return &HistogramVec{
-		MetricVec: MetricVec{
-			children: map[uint64]Metric{},
-			desc:     desc,
-			newMetric: func(lvs ...string) Metric {
-				return newHistogram(desc, opts, lvs...)
-			},
-		},
+		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
+			return newHistogram(desc, opts, lvs...)
+		}),
 	}
 }
 
