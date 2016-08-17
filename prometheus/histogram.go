@@ -287,7 +287,7 @@ func (h *histogram) Write(out *dto.Metric) error {
 // (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewHistogramVec.
 type HistogramVec struct {
-	MetricVec
+	*MetricVec
 }
 
 // NewHistogramVec creates a new HistogramVec based on the provided HistogramOpts and

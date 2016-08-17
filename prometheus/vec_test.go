@@ -225,7 +225,7 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
 	if got, want := m.GetCounter().GetValue(), 1.; got != want {
-		t.Errorf("got value %d, want %d", got, want)
+		t.Errorf("got value %f, want %f", got, want)
 	}
 	m.Reset()
 	if err := vec.WithLabelValues("!0IC=VloaY").Write(m); err != nil {
@@ -235,7 +235,7 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
 	if got, want := m.GetCounter().GetValue(), 2.; got != want {
-		t.Errorf("got value %d, want %d", got, want)
+		t.Errorf("got value %f, want %f", got, want)
 	}
 }
 

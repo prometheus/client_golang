@@ -82,7 +82,7 @@ func (c *counter) Add(v float64) {
 // CounterVec embeds MetricVec. See there for a full list of methods with
 // detailed documentation.
 type CounterVec struct {
-	MetricVec
+	*MetricVec
 }
 
 // NewCounterVec creates a new CounterVec based on the provided CounterOpts and
