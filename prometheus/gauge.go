@@ -58,7 +58,7 @@ func NewGauge(opts GaugeOpts) Gauge {
 // (e.g. number of operations queued, partitioned by user and operation
 // type). Create instances with NewGaugeVec.
 type GaugeVec struct {
-	MetricVec
+	*MetricVec
 }
 
 // NewGaugeVec creates a new GaugeVec based on the provided GaugeOpts and
