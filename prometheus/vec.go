@@ -201,13 +201,13 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // that metric.
 //
 // lvs MUST be of type Labels or []string or this method will panic.
-func (m *MetricVec) deleteByHash(h uint64, values interface{}) bool {
+func (m *MetricVec) deleteByHash(h uint64, lvs interface{}) bool {
 	metrics, ok := m.children[h]
 	if !ok {
 		return false
 	}
 
-	i := m.findMetric(metrics, values)
+	i := m.findMetric(metrics, lvs)
 	if i >= len(metrics) {
 		return false
 	}
