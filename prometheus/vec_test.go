@@ -21,18 +21,30 @@ import (
 )
 
 func TestDelete(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	testDelete(t, vec)
 }
 
 func TestDeleteWithCollisions(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
 	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testDelete(t, vec)
 }
 
-func testDelete(t *testing.T, vec *MetricVec) {
+func testDelete(t *testing.T, vec *UntypedVec) {
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -63,24 +75,36 @@ func testDelete(t *testing.T, vec *MetricVec) {
 }
 
 func TestDeleteLabelValues(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	testDeleteLabelValues(t, vec)
 }
 
 func TestDeleteLabelValuesWithCollisions(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
 	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testDeleteLabelValues(t, vec)
 }
 
-func testDeleteLabelValues(t *testing.T, vec *MetricVec) {
+func testDeleteLabelValues(t *testing.T, vec *UntypedVec) {
 	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
-	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Untyped).Set(42) // add junk data for collision
+	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Untyped).Set(42) // Add junk data for collision.
 	if got, want := vec.DeleteLabelValues("v1", "v2"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -92,7 +116,7 @@ func testDeleteLabelValues(t *testing.T, vec *MetricVec) {
 	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
-	// delete out of order
+	// Delete out of order.
 	if got, want := vec.DeleteLabelValues("v2", "v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -102,28 +126,40 @@ func testDeleteLabelValues(t *testing.T, vec *MetricVec) {
 }
 
 func TestMetricVec(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	testMetricVec(t, vec)
 }
 
 func TestMetricVecWithCollisions(t *testing.T) {
-	vec := newUntypedMetricVec("test", "helpless", []string{"l1", "l2"})
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
 	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
 	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testMetricVec(t, vec)
 }
 
-func testMetricVec(t *testing.T, vec *MetricVec) {
-	vec.Reset() // actually test Reset now!
+func testMetricVec(t *testing.T, vec *UntypedVec) {
+	vec.Reset() // Actually test Reset now!
 
 	var pair [2]string
-	// keep track of metrics
+	// Keep track of metrics.
 	expected := map[[2]string]int{}
 
 	for i := 0; i < 1000; i++ {
-		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // varying combinations multiples
+		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // Varying combinations multiples.
 		expected[pair]++
-		vec.WithLabelValues(pair[0], pair[1]).(Untyped).Inc()
+		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
 		expected[[2]string{"v1", "v2"}]++
 		vec.WithLabelValues("v1", "v2").(Untyped).Inc()
@@ -135,9 +171,10 @@ func testMetricVec(t *testing.T, vec *MetricVec) {
 			total++
 			copy(pair[:], metric.values)
 
-			// is there a better way to access the value of a metric?
 			var metricOut dto.Metric
-			metric.metric.Write(&metricOut)
+			if err := metric.metric.Write(&metricOut); err != nil {
+				t.Fatal(err)
+			}
 			actual := *metricOut.Untyped.Value
 
 			var actualPair [2]string
@@ -145,7 +182,7 @@ func testMetricVec(t *testing.T, vec *MetricVec) {
 				actualPair[i] = *label.Value
 			}
 
-			// test output pair against metric.values to ensure we've selected
+			// Test output pair against metric.values to ensure we've selected
 			// the right one. We check this to ensure the below check means
 			// anything at all.
 			if actualPair != pair {
@@ -169,42 +206,67 @@ func testMetricVec(t *testing.T, vec *MetricVec) {
 	}
 }
 
-func newUntypedMetricVec(name, help string, labels []string) *MetricVec {
-	desc := NewDesc("test", "helpless", labels, nil)
-	vec := newMetricVec(desc, func(lvs ...string) Metric {
-		return newValue(desc, UntypedValue, 0, lvs...)
-	})
-	return &vec
+func TestCounterVecEndToEndWithCollision(t *testing.T) {
+	vec := NewCounterVec(
+		CounterOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"labelname"},
+	)
+	vec.WithLabelValues("77kepQFQ8Kl").Inc()
+	vec.WithLabelValues("!0IC=VloaY").Add(2)
+
+	m := &dto.Metric{}
+	if err := vec.WithLabelValues("77kepQFQ8Kl").Write(m); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m.GetLabel()[0].GetValue(), "77kepQFQ8Kl"; got != want {
+		t.Errorf("got label value %q, want %q", got, want)
+	}
+	if got, want := m.GetCounter().GetValue(), 1.; got != want {
+		t.Errorf("got value %d, want %d", got, want)
+	}
+	m.Reset()
+	if err := vec.WithLabelValues("!0IC=VloaY").Write(m); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m.GetLabel()[0].GetValue(), "!0IC=VloaY"; got != want {
+		t.Errorf("got label value %q, want %q", got, want)
+	}
+	if got, want := m.GetCounter().GetValue(), 2.; got != want {
+		t.Errorf("got value %d, want %d", got, want)
+	}
 }
 
-func BenchmarkMetricVecWithLabelValuesBasic(B *testing.B) {
-	benchmarkMetricVecWithLabelValues(B, map[string][]string{
+func BenchmarkMetricVecWithLabelValuesBasic(b *testing.B) {
+	benchmarkMetricVecWithLabelValues(b, map[string][]string{
 		"l1": []string{"onevalue"},
 		"l2": []string{"twovalue"},
 	})
 }
 
-func BenchmarkMetricVecWithLabelValues2Keys10ValueCardinality(B *testing.B) {
-	benchmarkMetricVecWithLabelValuesCardinality(B, 2, 10)
+func BenchmarkMetricVecWithLabelValues2Keys10ValueCardinality(b *testing.B) {
+	benchmarkMetricVecWithLabelValuesCardinality(b, 2, 10)
 }
 
-func BenchmarkMetricVecWithLabelValues4Keys10ValueCardinality(B *testing.B) {
-	benchmarkMetricVecWithLabelValuesCardinality(B, 4, 10)
+func BenchmarkMetricVecWithLabelValues4Keys10ValueCardinality(b *testing.B) {
+	benchmarkMetricVecWithLabelValuesCardinality(b, 4, 10)
 }
 
-func BenchmarkMetricVecWithLabelValues2Keys100ValueCardinality(B *testing.B) {
-	benchmarkMetricVecWithLabelValuesCardinality(B, 2, 100)
+func BenchmarkMetricVecWithLabelValues2Keys100ValueCardinality(b *testing.B) {
+	benchmarkMetricVecWithLabelValuesCardinality(b, 2, 100)
 }
 
-func BenchmarkMetricVecWithLabelValues10Keys100ValueCardinality(B *testing.B) {
-	benchmarkMetricVecWithLabelValuesCardinality(B, 10, 100)
+func BenchmarkMetricVecWithLabelValues10Keys100ValueCardinality(b *testing.B) {
+	benchmarkMetricVecWithLabelValuesCardinality(b, 10, 100)
 }
 
-func BenchmarkMetricVecWithLabelValues10Keys1000ValueCardinality(B *testing.B) {
-	benchmarkMetricVecWithLabelValuesCardinality(B, 10, 1000)
+func BenchmarkMetricVecWithLabelValues10Keys1000ValueCardinality(b *testing.B) {
+	benchmarkMetricVecWithLabelValuesCardinality(b, 10, 1000)
 }
 
-func benchmarkMetricVecWithLabelValuesCardinality(B *testing.B, nkeys, nvalues int) {
+func benchmarkMetricVecWithLabelValuesCardinality(b *testing.B, nkeys, nvalues int) {
 	labels := map[string][]string{}
 
 	for i := 0; i < nkeys; i++ {
@@ -218,22 +280,28 @@ func benchmarkMetricVecWithLabelValuesCardinality(B *testing.B, nkeys, nvalues i
 		labels[k] = vs
 	}
 
-	benchmarkMetricVecWithLabelValues(B, labels)
+	benchmarkMetricVecWithLabelValues(b, labels)
 }
 
-func benchmarkMetricVecWithLabelValues(B *testing.B, labels map[string][]string) {
+func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string) {
 	var keys []string
-	for k := range labels { // map order dependent, who cares though
+	for k := range labels { // Map order dependent, who cares though.
 		keys = append(keys, k)
 	}
 
-	values := make([]string, len(labels)) // value cache for permutations
-	vec := newUntypedMetricVec("test", "helpless", keys)
+	values := make([]string, len(labels)) // Value cache for permutations.
+	vec := NewUntypedVec(
+		UntypedOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		keys,
+	)
 
-	B.ReportAllocs()
-	B.ResetTimer()
-	for i := 0; i < B.N; i++ {
-		// varies input across provide map entries based on key size.
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Varies input across provide map entries based on key size.
 		for j, k := range keys {
 			candidates := labels[k]
 			values[j] = candidates[i%len(candidates)]
