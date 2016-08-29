@@ -170,10 +170,10 @@ func TestHistogramConcurrency(t *testing.T) {
 
 		m := &dto.Metric{}
 		sum.Write(m)
-		if got, want := int(*m.Histogram.SampleCount), total; got != want {
+		if got, want := int(m.Histogram.SampleCount), total; got != want {
 			t.Errorf("got sample count %d, want %d", got, want)
 		}
-		if got, want := *m.Histogram.SampleSum, sampleSum; math.Abs((got-want)/want) > 0.001 {
+		if got, want := m.Histogram.SampleSum, sampleSum; math.Abs((got-want)/want) > 0.001 {
 			t.Errorf("got sample sum %f, want %f", got, want)
 		}
 
@@ -186,10 +186,10 @@ func TestHistogramConcurrency(t *testing.T) {
 			if i == len(testBuckets)-1 {
 				break // No +Inf bucket in protobuf.
 			}
-			if gotBound := *m.Histogram.Bucket[i].UpperBound; gotBound != wantBound {
+			if gotBound := m.Histogram.Bucket[i].UpperBound; gotBound != wantBound {
 				t.Errorf("got bound %f, want %f", gotBound, wantBound)
 			}
-			if gotCount, wantCount := *m.Histogram.Bucket[i].CumulativeCount, wantCounts[i]; gotCount != wantCount {
+			if gotCount, wantCount := m.Histogram.Bucket[i].CumulativeCount, wantCounts[i]; gotCount != wantCount {
 				t.Errorf("got count %d, want %d", gotCount, wantCount)
 			}
 		}
@@ -269,10 +269,10 @@ func TestHistogramVecConcurrency(t *testing.T) {
 			if got, want := len(m.Histogram.Bucket), len(testBuckets)-1; got != want {
 				t.Errorf("got %d buckets in protobuf, want %d", got, want)
 			}
-			if got, want := int(*m.Histogram.SampleCount), len(allVars[i]); got != want {
+			if got, want := int(m.Histogram.SampleCount), len(allVars[i]); got != want {
 				t.Errorf("got sample count %d, want %d", got, want)
 			}
-			if got, want := *m.Histogram.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
+			if got, want := m.Histogram.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
 				t.Errorf("got sample sum %f, want %f", got, want)
 			}
 
@@ -282,10 +282,10 @@ func TestHistogramVecConcurrency(t *testing.T) {
 				if j == len(testBuckets)-1 {
 					break // No +Inf bucket in protobuf.
 				}
-				if gotBound := *m.Histogram.Bucket[j].UpperBound; gotBound != wantBound {
+				if gotBound := m.Histogram.Bucket[j].UpperBound; gotBound != wantBound {
 					t.Errorf("got bound %f, want %f", gotBound, wantBound)
 				}
-				if gotCount, wantCount := *m.Histogram.Bucket[j].CumulativeCount, wantCounts[j]; gotCount != wantCount {
+				if gotCount, wantCount := m.Histogram.Bucket[j].CumulativeCount, wantCounts[j]; gotCount != wantCount {
 					t.Errorf("got count %d, want %d", gotCount, wantCount)
 				}
 			}

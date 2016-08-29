@@ -165,10 +165,10 @@ func TestSummaryConcurrency(t *testing.T) {
 
 		m := &dto.Metric{}
 		sum.Write(m)
-		if got, want := int(*m.Summary.SampleCount), total; got != want {
+		if got, want := int(m.Summary.SampleCount), total; got != want {
 			t.Errorf("got sample count %d, want %d", got, want)
 		}
-		if got, want := *m.Summary.SampleSum, sampleSum; math.Abs((got-want)/want) > 0.001 {
+		if got, want := m.Summary.SampleSum, sampleSum; math.Abs((got-want)/want) > 0.001 {
 			t.Errorf("got sample sum %f, want %f", got, want)
 		}
 
@@ -180,8 +180,8 @@ func TestSummaryConcurrency(t *testing.T) {
 
 		for i, wantQ := range objectives {
 			ε := DefObjectives[wantQ]
-			gotQ := *m.Summary.Quantile[i].Quantile
-			gotV := *m.Summary.Quantile[i].Value
+			gotQ := m.Summary.Quantile[i].Quantile
+			gotV := m.Summary.Quantile[i].Value
 			min, max := getBounds(allVars, wantQ, ε)
 			if gotQ != wantQ {
 				t.Errorf("got quantile %f, want %f", gotQ, wantQ)
@@ -261,16 +261,16 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			m := &dto.Metric{}
 			s := sum.WithLabelValues(string('A' + i))
 			s.Write(m)
-			if got, want := int(*m.Summary.SampleCount), len(allVars[i]); got != want {
+			if got, want := int(m.Summary.SampleCount), len(allVars[i]); got != want {
 				t.Errorf("got sample count %d for label %c, want %d", got, 'A'+i, want)
 			}
-			if got, want := *m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
+			if got, want := m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
 				t.Errorf("got sample sum %f for label %c, want %f", got, 'A'+i, want)
 			}
 			for j, wantQ := range objectives {
 				ε := DefObjectives[wantQ]
-				gotQ := *m.Summary.Quantile[j].Quantile
-				gotV := *m.Summary.Quantile[j].Value
+				gotQ := m.Summary.Quantile[j].Quantile
+				gotV := m.Summary.Quantile[j].Value
 				min, max := getBounds(allVars[i], wantQ, ε)
 				if gotQ != wantQ {
 					t.Errorf("got quantile %f for label %c, want %f", gotQ, 'A'+i, wantQ)
@@ -310,7 +310,7 @@ func TestSummaryDecay(t *testing.T) {
 		sum.Observe(float64(i))
 		if i%10 == 0 {
 			sum.Write(m)
-			if got, want := *m.Summary.Quantile[0].Value, math.Max(float64(i)/10, float64(i-90)); math.Abs(got-want) > 20 {
+			if got, want := m.Summary.Quantile[0].Value, math.Max(float64(i)/10, float64(i-90)); math.Abs(got-want) > 20 {
 				t.Errorf("%d. got %f, want %f", i, got, want)
 			}
 			m.Reset()
@@ -323,7 +323,7 @@ func TestSummaryDecay(t *testing.T) {
 	// Wait for MaxAge without observations and make sure quantiles are NaN.
 	time.Sleep(100 * time.Millisecond)
 	sum.Write(m)
-	if got := *m.Summary.Quantile[0].Value; !math.IsNaN(got) {
+	if got := m.Summary.Quantile[0].Value; !math.IsNaN(got) {
 		t.Errorf("got %f, want NaN after expiration", got)
 	}
 }

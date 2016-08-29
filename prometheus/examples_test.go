@@ -169,8 +169,8 @@ func ExampleInstrumentHandler() {
 
 func ExampleLabelPairSorter() {
 	labelPairs := []*dto.LabelPair{
-		&dto.LabelPair{Name: proto.String("status"), Value: proto.String("404")},
-		&dto.LabelPair{Name: proto.String("method"), Value: proto.String("get")},
+		&dto.LabelPair{Name: "status", Value: "404"},
+		&dto.LabelPair{Name: "method", Value: "get"},
 	}
 
 	sort.Sort(prometheus.LabelPairSorter(labelPairs))
@@ -409,8 +409,6 @@ func ExampleSummaryVec() {
 	//     value: "leiopelma-hochstetteri"
 	//   >
 	//   summary: <
-	//     sample_count: 0
-	//     sample_sum: 0
 	//     quantile: <
 	//       quantile: 0.5
 	//       value: nan

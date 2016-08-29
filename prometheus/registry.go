@@ -21,8 +21,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -466,15 +464,15 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 		metricFamily, ok := metricFamiliesByName[desc.fqName]
 		if ok {
-			if metricFamily.GetHelp() != desc.help {
+			if metricFamily.Help != desc.help {
 				errs = append(errs, fmt.Errorf(
 					"collected metric %s %s has help %q but should have %q",
-					desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
+					desc.fqName, dtoMetric, desc.help, metricFamily.Help,
 				))
 				continue
 			}
 			// TODO(beorn7): Simplify switch once Desc has type.
-			switch metricFamily.GetType() {
+			switch metricFamily.Type {
 			case dto.MetricType_COUNTER:
 				if dtoMetric.Counter == nil {
 					errs = append(errs, fmt.Errorf(
@@ -520,20 +518,20 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			}
 		} else {
 			metricFamily = &dto.MetricFamily{}
-			metricFamily.Name = proto.String(desc.fqName)
-			metricFamily.Help = proto.String(desc.help)
+			metricFamily.Name = desc.fqName
+			metricFamily.Help = desc.help
 			// TODO(beorn7): Simplify switch once Desc has type.
 			switch {
 			case dtoMetric.Gauge != nil:
-				metricFamily.Type = dto.MetricType_GAUGE.Enum()
+				metricFamily.Type = dto.MetricType_GAUGE
 			case dtoMetric.Counter != nil:
-				metricFamily.Type = dto.MetricType_COUNTER.Enum()
+				metricFamily.Type = dto.MetricType_COUNTER
 			case dtoMetric.Summary != nil:
-				metricFamily.Type = dto.MetricType_SUMMARY.Enum()
+				metricFamily.Type = dto.MetricType_SUMMARY
 			case dtoMetric.Untyped != nil:
-				metricFamily.Type = dto.MetricType_UNTYPED.Enum()
+				metricFamily.Type = dto.MetricType_UNTYPED
 			case dtoMetric.Histogram != nil:
-				metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
+				metricFamily.Type = dto.MetricType_HISTOGRAM
 			default:
 				errs = append(errs, fmt.Errorf(
 					"empty metric collected: %s", dtoMetric,
@@ -551,7 +549,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			if _, exist := registeredDescIDs[desc.id]; !exist {
 				errs = append(errs, fmt.Errorf(
 					"collected metric %s %s with unregistered descriptor %s",
-					metricFamily.GetName(), dtoMetric, desc,
+					metricFamily.Name, dtoMetric, desc,
 				))
 				continue
 			}
@@ -604,19 +602,19 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 			}
 		}
 		for _, mf := range mfs {
-			existingMF, exists := metricFamiliesByName[mf.GetName()]
+			existingMF, exists := metricFamiliesByName[mf.Name]
 			if exists {
-				if existingMF.GetHelp() != mf.GetHelp() {
+				if existingMF.Help != mf.Help {
 					errs = append(errs, fmt.Errorf(
 						"gathered metric family %s has help %q but should have %q",
-						mf.GetName(), mf.GetHelp(), existingMF.GetHelp(),
+						mf.Name, mf.Help, existingMF.Help,
 					))
 					continue
 				}
-				if existingMF.GetType() != mf.GetType() {
+				if existingMF.Type != mf.Type {
 					errs = append(errs, fmt.Errorf(
 						"gathered metric family %s has type %s but should have %s",
-						mf.GetName(), mf.GetType(), existingMF.GetType(),
+						mf.Name, mf.Type, existingMF.Type,
 					))
 					continue
 				}
@@ -625,7 +623,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				existingMF.Name = mf.Name
 				existingMF.Help = mf.Help
 				existingMF.Type = mf.Type
-				metricFamiliesByName[mf.GetName()] = existingMF
+				metricFamiliesByName[mf.Name] = existingMF
 			}
 			for _, m := range mf.Metric {
 				if err := checkMetricConsistency(existingMF, m, metricHashes, dimHashes); err != nil {
@@ -661,8 +659,8 @@ func (s metricSorter) Less(i, j int) bool {
 		return len(s[i].Label) < len(s[j].Label)
 	}
 	for n, lp := range s[i].Label {
-		vi := lp.GetValue()
-		vj := s[j].Label[n].GetValue()
+		vi := lp.Value
+		vj := s[j].Label[n].Value
 		if vi != vj {
 			return vi < vj
 		}
@@ -674,13 +672,13 @@ func (s metricSorter) Less(i, j int) bool {
 	// here, even for inconsistent metrics. So sort equal metrics
 	// by their timestamp, with missing timestamps (implying "now")
 	// coming last.
-	if s[i].TimestampMs == nil {
+	if s[i].TimestampMs == 0 {
 		return false
 	}
-	if s[j].TimestampMs == nil {
+	if s[j].TimestampMs == 0 {
 		return true
 	}
-	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
+	return s[i].TimestampMs < s[j].TimestampMs
 }
 
 // normalizeMetricFamilies returns a MetricFamily slice whith empty
@@ -719,46 +717,46 @@ func checkMetricConsistency(
 	dimHashes map[string]uint64,
 ) error {
 	// Type consistency with metric family.
-	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
-		metricFamily.GetType() == dto.MetricType_COUNTER && dtoMetric.Counter == nil ||
-		metricFamily.GetType() == dto.MetricType_SUMMARY && dtoMetric.Summary == nil ||
-		metricFamily.GetType() == dto.MetricType_HISTOGRAM && dtoMetric.Histogram == nil ||
-		metricFamily.GetType() == dto.MetricType_UNTYPED && dtoMetric.Untyped == nil {
+	if metricFamily.Type == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
+		metricFamily.Type == dto.MetricType_COUNTER && dtoMetric.Counter == nil ||
+		metricFamily.Type == dto.MetricType_SUMMARY && dtoMetric.Summary == nil ||
+		metricFamily.Type == dto.MetricType_HISTOGRAM && dtoMetric.Histogram == nil ||
+		metricFamily.Type == dto.MetricType_UNTYPED && dtoMetric.Untyped == nil {
 		return fmt.Errorf(
 			"collected metric %s %s is not a %s",
-			metricFamily.GetName(), dtoMetric, metricFamily.GetType(),
+			metricFamily.Name, dtoMetric, metricFamily.Type,
 		)
 	}
 
 	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
 	h := hashNew()
-	h = hashAdd(h, metricFamily.GetName())
+	h = hashAdd(h, metricFamily.Name)
 	h = hashAddByte(h, separatorByte)
 	dh := hashNew()
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
 	sort.Sort(LabelPairSorter(dtoMetric.Label))
 	for _, lp := range dtoMetric.Label {
-		h = hashAdd(h, lp.GetValue())
+		h = hashAdd(h, lp.Value)
 		h = hashAddByte(h, separatorByte)
-		dh = hashAdd(dh, lp.GetName())
+		dh = hashAdd(dh, lp.Name)
 		dh = hashAddByte(dh, separatorByte)
 	}
 	if _, exists := metricHashes[h]; exists {
 		return fmt.Errorf(
 			"collected metric %s %s was collected before with the same name and label values",
-			metricFamily.GetName(), dtoMetric,
+			metricFamily.Name, dtoMetric,
 		)
 	}
-	if dimHash, ok := dimHashes[metricFamily.GetName()]; ok {
+	if dimHash, ok := dimHashes[metricFamily.Name]; ok {
 		if dimHash != dh {
 			return fmt.Errorf(
 				"collected metric %s %s has label dimensions inconsistent with previously collected metrics in the same metric family",
-				metricFamily.GetName(), dtoMetric,
+				metricFamily.Name, dtoMetric,
 			)
 		}
 	} else {
-		dimHashes[metricFamily.GetName()] = dh
+		dimHashes[metricFamily.Name] = dh
 	}
 	metricHashes[h] = struct{}{}
 	return nil
@@ -770,10 +768,10 @@ func checkDescConsistency(
 	desc *Desc,
 ) error {
 	// Desc help consistency with metric family help.
-	if metricFamily.GetHelp() != desc.help {
+	if metricFamily.Help != desc.help {
 		return fmt.Errorf(
 			"collected metric %s %s has help %q but should have %q",
-			metricFamily.GetName(), dtoMetric, metricFamily.GetHelp(), desc.help,
+			metricFamily.Name, dtoMetric, metricFamily.Help, desc.help,
 		)
 	}
 
@@ -782,23 +780,23 @@ func checkDescConsistency(
 	lpsFromDesc = append(lpsFromDesc, desc.constLabelPairs...)
 	for _, l := range desc.variableLabels {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l),
+			Name: l,
 		})
 	}
 	if len(lpsFromDesc) != len(dtoMetric.Label) {
 		return fmt.Errorf(
 			"labels in collected metric %s %s are inconsistent with descriptor %s",
-			metricFamily.GetName(), dtoMetric, desc,
+			metricFamily.Name, dtoMetric, desc,
 		)
 	}
 	sort.Sort(LabelPairSorter(lpsFromDesc))
 	for i, lpFromDesc := range lpsFromDesc {
 		lpFromMetric := dtoMetric.Label[i]
-		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+		if lpFromDesc.Name != lpFromMetric.Name ||
+			lpFromDesc.Value != "" && lpFromDesc.Value != lpFromMetric.Value {
 			return fmt.Errorf(
 				"labels in collected metric %s %s are inconsistent with descriptor %s",
-				metricFamily.GetName(), dtoMetric, desc,
+				metricFamily.Name, dtoMetric, desc,
 			)
 		}
 	}

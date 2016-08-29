@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/beorn7/perks/quantile"
-	"github.com/golang/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -178,7 +177,7 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		}
 	}
 	for _, lp := range desc.constLabelPairs {
-		if lp.GetName() == quantileLabel {
+		if lp.Name == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
@@ -286,8 +285,8 @@ func (s *summary) Write(out *dto.Metric) error {
 	s.bufMtx.Unlock()
 
 	s.flushColdBuf()
-	sum.SampleCount = proto.Uint64(s.cnt)
-	sum.SampleSum = proto.Float64(s.sum)
+	sum.SampleCount = s.cnt
+	sum.SampleSum = s.sum
 
 	for _, rank := range s.sortedObjectives {
 		var q float64
@@ -297,8 +296,8 @@ func (s *summary) Write(out *dto.Metric) error {
 			q = s.headStream.Query(rank)
 		}
 		qs = append(qs, &dto.Quantile{
-			Quantile: proto.Float64(rank),
-			Value:    proto.Float64(q),
+			Quantile: rank,
+			Value:    q,
 		})
 	}
 
@@ -381,7 +380,7 @@ func (s quantSort) Swap(i, j int) {
 }
 
 func (s quantSort) Less(i, j int) bool {
-	return s[i].GetQuantile() < s[j].GetQuantile()
+	return s[i].Quantile < s[j].Quantile
 }
 
 // SummaryVec is a Collector that bundles a set of Summaries that all share the
@@ -463,13 +462,13 @@ func (s *constSummary) Write(out *dto.Metric) error {
 	sum := &dto.Summary{}
 	qs := make([]*dto.Quantile, 0, len(s.quantiles))
 
-	sum.SampleCount = proto.Uint64(s.count)
-	sum.SampleSum = proto.Float64(s.sum)
+	sum.SampleCount = s.count
+	sum.SampleSum = s.sum
 
 	for rank, q := range s.quantiles {
 		qs = append(qs, &dto.Quantile{
-			Quantile: proto.Float64(rank),
-			Value:    proto.Float64(q),
+			Quantile: rank,
+			Value:    q,
 		})
 	}
 

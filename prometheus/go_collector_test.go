@@ -40,12 +40,12 @@ func TestGoCollector(t *testing.T) {
 				}
 
 				if old == -1 {
-					old = int(pb.GetGauge().GetValue())
+					old = int(pb.GetGauge().Value)
 					close(waitc)
 					continue
 				}
 
-				if diff := int(pb.GetGauge().GetValue()) - old; diff != 1 {
+				if diff := int(pb.GetGauge().Value) - old; diff != 1 {
 					// TODO: This is flaky in highly concurrent situations.
 					t.Errorf("want 1 new goroutine, got %d", diff)
 				}
@@ -97,21 +97,21 @@ func TestGCCollector(t *testing.T) {
 					t.Errorf("expected 4 buckets, got %d", len(pb.GetSummary().Quantile))
 				}
 				for idx, want := range []float64{0.0, 0.25, 0.5, 0.75, 1.0} {
-					if *pb.GetSummary().Quantile[idx].Quantile != want {
-						t.Errorf("bucket #%d is off, got %f, want %f", idx, *pb.GetSummary().Quantile[idx].Quantile, want)
+					if pb.GetSummary().Quantile[idx].Quantile != want {
+						t.Errorf("bucket #%d is off, got %f, want %f", idx, pb.GetSummary().Quantile[idx].Quantile, want)
 					}
 				}
 				if first {
 					first = false
-					oldGC = *pb.GetSummary().SampleCount
-					oldPause = *pb.GetSummary().SampleSum
+					oldGC = pb.GetSummary().SampleCount
+					oldPause = pb.GetSummary().SampleSum
 					close(waitc)
 					continue
 				}
-				if diff := *pb.GetSummary().SampleCount - oldGC; diff != 1 {
+				if diff := pb.GetSummary().SampleCount - oldGC; diff != 1 {
 					t.Errorf("want 1 new garbage collection run, got %d", diff)
 				}
-				if diff := *pb.GetSummary().SampleSum - oldPause; diff <= 0 {
+				if diff := pb.GetSummary().SampleSum - oldPause; diff <= 0 {
 					t.Errorf("want moar pause, got %f", diff)
 				}
 				return

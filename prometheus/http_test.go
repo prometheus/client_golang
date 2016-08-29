@@ -87,10 +87,10 @@ func TestInstrumentHandler(t *testing.T) {
 
 	out := &dto.Metric{}
 	reqDur.Write(out)
-	if want, got := "test-handler", out.Label[0].GetValue(); want != got {
+	if want, got := "test-handler", out.Label[0].Value; want != got {
 		t.Errorf("want label value %q in reqDur, got %q", want, got)
 	}
-	if want, got := uint64(1), out.Summary.GetSampleCount(); want != got {
+	if want, got := uint64(1), out.Summary.SampleCount; want != got {
 		t.Errorf("want sample count %d in reqDur, got %d", want, got)
 	}
 
@@ -103,19 +103,19 @@ func TestInstrumentHandler(t *testing.T) {
 		t.Fatal(err)
 	}
 	cnt.Write(out)
-	if want, got := "418", out.Label[0].GetValue(); want != got {
+	if want, got := "418", out.Label[0].Value; want != got {
 		t.Errorf("want label value %q in reqCnt, got %q", want, got)
 	}
-	if want, got := "test-handler", out.Label[1].GetValue(); want != got {
+	if want, got := "test-handler", out.Label[1].Value; want != got {
 		t.Errorf("want label value %q in reqCnt, got %q", want, got)
 	}
-	if want, got := "get", out.Label[2].GetValue(); want != got {
+	if want, got := "get", out.Label[2].Value; want != got {
 		t.Errorf("want label value %q in reqCnt, got %q", want, got)
 	}
 	if out.Counter == nil {
 		t.Fatal("expected non-nil counter in reqCnt")
 	}
-	if want, got := 1., out.Counter.GetValue(); want != got {
+	if want, got := 1., out.Counter.Value; want != got {
 		t.Errorf("want reqCnt of %f, got %f", want, got)
 	}
 }
