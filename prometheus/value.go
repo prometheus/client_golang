@@ -21,8 +21,6 @@ import (
 	"sync/atomic"
 
 	dto "github.com/prometheus/client_model/go"
-
-	"github.com/golang/protobuf/proto"
 )
 
 // ValueType is an enumeration of metric types that represent a simple value.
@@ -198,11 +196,11 @@ func populateMetric(
 	m.Label = labelPairs
 	switch t {
 	case CounterValue:
-		m.Counter = &dto.Counter{Value: proto.Float64(v)}
+		m.Counter = &dto.Counter{Value: v}
 	case GaugeValue:
-		m.Gauge = &dto.Gauge{Value: proto.Float64(v)}
+		m.Gauge = &dto.Gauge{Value: v}
 	case UntypedValue:
-		m.Untyped = &dto.Untyped{Value: proto.Float64(v)}
+		m.Untyped = &dto.Untyped{Value: v}
 	default:
 		return fmt.Errorf("encountered unknown type %v", t)
 	}
@@ -222,8 +220,8 @@ func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 	labelPairs := make([]*dto.LabelPair, 0, totalLen)
 	for i, n := range desc.variableLabels {
 		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(labelValues[i]),
+			Name:  n,
+			Value: labelValues[i],
 		})
 	}
 	for _, lp := range desc.constLabelPairs {

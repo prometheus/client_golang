@@ -27,7 +27,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,23 +48,23 @@ func testHandler(t testing.TB) {
 	metricVec.WithLabelValues("val2").Inc()
 
 	externalMetricFamily := &dto.MetricFamily{
-		Name: proto.String("externalname"),
-		Help: proto.String("externaldocstring"),
-		Type: dto.MetricType_COUNTER.Enum(),
+		Name: "externalname",
+		Help: "externaldocstring",
+		Type: dto.MetricType_COUNTER,
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("externalconstname"),
-						Value: proto.String("externalconstvalue"),
+						Name:  "externalconstname",
+						Value: "externalconstvalue",
 					},
 					{
-						Name:  proto.String("externallabelname"),
-						Value: proto.String("externalval1"),
+						Name:  "externallabelname",
+						Value: "externalval1",
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value: 1,
 				},
 			},
 		},
@@ -82,7 +81,6 @@ externalname{externalconstname="externalconstvalue",externallabelname="externalv
 `)
 	externalMetricFamilyAsProtoText := []byte(`name: "externalname"
 help: "externaldocstring"
-type: COUNTER
 metric: <
   label: <
     name: "externalconstname"
@@ -98,42 +96,42 @@ metric: <
 >
 
 `)
-	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > > 
+	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > > 
 `)
 
 	expectedMetricFamily := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
-		Type: dto.MetricType_COUNTER.Enum(),
+		Name: "name",
+		Help: "docstring",
+		Type: dto.MetricType_COUNTER,
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  "constname",
+						Value: "constvalue",
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val1"),
+						Name:  "labelname",
+						Value: "val1",
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value: 1,
 				},
 			},
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  "constname",
+						Value: "constvalue",
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val2"),
+						Name:  "labelname",
+						Value: "val2",
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value: 1,
 				},
 			},
 		},
@@ -151,7 +149,6 @@ name{constname="constvalue",labelname="val2"} 1
 `)
 	expectedMetricFamilyAsProtoText := []byte(`name: "name"
 help: "docstring"
-type: COUNTER
 metric: <
   label: <
     name: "constname"
@@ -180,33 +177,33 @@ metric: <
 >
 
 `)
-	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
+	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
 `)
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
-		Type: dto.MetricType_COUNTER.Enum(),
+		Name: "name",
+		Help: "docstring",
+		Type: dto.MetricType_COUNTER,
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  "constname",
+						Value: "constvalue",
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("different_val"),
+						Name:  "labelname",
+						Value: "different_val",
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(42),
+					Value: 42,
 				},
 			},
 		},
 	}
 
-	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
+	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
 `)
 
 	type output struct {

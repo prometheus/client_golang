@@ -20,8 +20,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -164,8 +162,8 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
 		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
+			Name:  n,
+			Value: v,
 		})
 	}
 	sort.Sort(LabelPairSorter(d.constLabelPairs))
@@ -187,7 +185,7 @@ func (d *Desc) String() string {
 	for _, lp := range d.constLabelPairs {
 		lpStrings = append(
 			lpStrings,
-			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),
+			fmt.Sprintf("%s=%q", lp.Name, lp.Value),
 		)
 	}
 	return fmt.Sprintf(

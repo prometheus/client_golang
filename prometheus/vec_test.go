@@ -175,11 +175,11 @@ func testMetricVec(t *testing.T, vec *UntypedVec) {
 			if err := metric.metric.Write(&metricOut); err != nil {
 				t.Fatal(err)
 			}
-			actual := *metricOut.Untyped.Value
+			actual := metricOut.Untyped.Value
 
 			var actualPair [2]string
 			for i, label := range metricOut.Label {
-				actualPair[i] = *label.Value
+				actualPair[i] = label.Value
 			}
 
 			// Test output pair against metric.values to ensure we've selected
@@ -221,20 +221,20 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 	if err := vec.WithLabelValues("77kepQFQ8Kl").Write(m); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := m.GetLabel()[0].GetValue(), "77kepQFQ8Kl"; got != want {
+	if got, want := m.GetLabel()[0].Value, "77kepQFQ8Kl"; got != want {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
-	if got, want := m.GetCounter().GetValue(), 1.; got != want {
+	if got, want := m.GetCounter().Value, 1.; got != want {
 		t.Errorf("got value %f, want %f", got, want)
 	}
 	m.Reset()
 	if err := vec.WithLabelValues("!0IC=VloaY").Write(m); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := m.GetLabel()[0].GetValue(), "!0IC=VloaY"; got != want {
+	if got, want := m.GetLabel()[0].Value, "!0IC=VloaY"; got != want {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
-	if got, want := m.GetCounter().GetValue(), 2.; got != want {
+	if got, want := m.GetCounter().Value, 2.; got != want {
 		t.Errorf("got value %f, want %f", got, want)
 	}
 }

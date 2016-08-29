@@ -104,13 +104,13 @@ func push(job string, grouping map[string]string, pushURL string, g prometheus.G
 	for _, mf := range mfs {
 		for _, m := range mf.GetMetric() {
 			for _, l := range m.GetLabel() {
-				if l.GetName() == "job" {
-					return fmt.Errorf("pushed metric %s (%s) already contains a job label", mf.GetName(), m)
+				if l.Name == "job" {
+					return fmt.Errorf("pushed metric %s (%s) already contains a job label", mf.Name, m)
 				}
-				if _, ok := grouping[l.GetName()]; ok {
+				if _, ok := grouping[l.Name]; ok {
 					return fmt.Errorf(
 						"pushed metric %s (%s) already contains grouping label %s",
-						mf.GetName(), m, l.GetName(),
+						mf.Name, m, l.Name,
 					)
 				}
 			}

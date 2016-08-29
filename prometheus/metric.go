@@ -132,7 +132,7 @@ func (s LabelPairSorter) Swap(i, j int) {
 }
 
 func (s LabelPairSorter) Less(i, j int) bool {
-	return s[i].GetName() < s[j].GetName()
+	return s[i].Name < s[j].Name
 }
 
 type hashSorter []uint64
