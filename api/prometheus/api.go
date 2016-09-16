@@ -42,10 +42,11 @@ const (
 	epSeries      = "/series"
 )
 
+// ErrorType models the different API error types.
 type ErrorType string
 
+// Possible values for ErrorType.
 const (
-	// The different API error types.
 	ErrBadData     ErrorType = "bad_data"
 	ErrTimeout               = "timeout"
 	ErrCanceled              = "canceled"
@@ -70,6 +71,7 @@ type CancelableTransport interface {
 	CancelRequest(req *http.Request)
 }
 
+// DefaultTransport is used if no Transport is set in Config.
 var DefaultTransport CancelableTransport = &http.Transport{
 	Proxy: http.ProxyFromEnvironment,
 	Dial: (&net.Dialer{
@@ -96,6 +98,7 @@ func (cfg *Config) transport() CancelableTransport {
 	return cfg.Transport
 }
 
+// Client is the interface for an API client.
 type Client interface {
 	url(ep string, args map[string]string) *url.URL
 	do(context.Context, *http.Request) (*http.Response, []byte, error)

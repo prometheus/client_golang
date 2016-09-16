@@ -305,7 +305,7 @@ func TestSummaryDecay(t *testing.T) {
 	m := &dto.Metric{}
 	i := 0
 	tick := time.NewTicker(time.Millisecond)
-	for _ = range tick.C {
+	for range tick.C {
 		i++
 		sum.Observe(float64(i))
 		if i%10 == 0 {
