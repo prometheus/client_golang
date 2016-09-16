@@ -24,7 +24,7 @@ import (
 func ExampleCollectors() {
 	completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "db_backup_last_completion_timestamp_seconds",
-		Help: "The timestamp of the last succesful completion of a DB backup.",
+		Help: "The timestamp of the last successful completion of a DB backup.",
 	})
 	completionTime.Set(float64(time.Now().Unix()))
 	if err := push.Collectors(
@@ -36,12 +36,12 @@ func ExampleCollectors() {
 	}
 }
 
-func ExampleRegistry() {
+func ExampleFromGatherer() {
 	registry := prometheus.NewRegistry()
 
 	completionTime := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "db_backup_last_completion_timestamp_seconds",
-		Help: "The timestamp of the last succesful completion of a DB backup.",
+		Help: "The timestamp of the last successful completion of a DB backup.",
 	})
 	registry.MustRegister(completionTime)
 
