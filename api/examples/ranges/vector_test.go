@@ -1,3 +1,18 @@
+// Copyright 2015 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// A test case exposing how to send a Range Selector query (with beaer token)
+
 package ranges
 
 import (
@@ -18,7 +33,7 @@ container_cpu_usage_seconds_total
     }[5m]
 )
   `
-	// url is proxied by kubernetes API Server
+	// url is proxied by kubernetes API Server, and verified by API Server
 	addr := "https://192.168.1.24:6443/api/v1/proxy/namespaces/kube-system/services/prometheus-monitor:9090/"
 	token := "z7jCgNcP4oNIqXJhA2IJPRD4DrTJ6jhN" // ignore if addr is http
 	start := time.Now().Add(-time.Hour)

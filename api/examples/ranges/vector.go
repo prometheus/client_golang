@@ -11,9 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A simple example exposing fictional RPC latencies with different types of
-// random distributions (uniform, normal, and exponential) as Prometheus
-// metrics.
+// A simple example exposing the usage of Range Vector Selectors.
 
 package ranges
 
