@@ -28,7 +28,6 @@ func QueryRange(addr, token, queryString string, start, end time.Time) (promethe
 	// create configuration
 	c := prometheus.Config{
 		Address: addr,
-		Token:   token,
 	}
 	pClient, err := prometheus.New(c)
 	if err != nil {

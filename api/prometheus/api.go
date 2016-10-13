@@ -102,8 +102,6 @@ var DefaultHTTPSTransport CancelableTransport = &http.Transport{
 type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
-	// The bearer token of the Prometheus to connect with
-	Token string
 
 	// Transport is used by the Client to drive HTTP requests. If not
 	// provided, DefaultTransport will be used.
