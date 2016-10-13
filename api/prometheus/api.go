@@ -365,8 +365,6 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 		}
 	}
 
-	fmt.Printf("%#v\n", req.Header)
-
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
 		return nil, err
