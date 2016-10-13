@@ -40,7 +40,7 @@ func QueryRange(addr, token, queryString string, start, end time.Time) (promethe
 	// create a query api client
 	queryAPI := prometheus.NewQueryAPI(pClient)
 
-	rawResults, err := queryAPI.QueryRange(context.WithValue(context.Background(), prometheus.BearContextKey, token), queryString, prometheus.Range{
+	rawResults, err := queryAPI.QueryRange(context.WithValue(context.Background(), prometheus.ContextBearerTokenKey, token), queryString, prometheus.Range{
 		Start: start,
 		End:   end,
 		Step:  time.Minute,

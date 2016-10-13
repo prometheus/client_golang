@@ -44,8 +44,8 @@ const (
 )
 
 const (
-	// BearContextKey is used to create a context from Beaer Token
-	BearContextKey = "bearer"
+	// ContextBearerTokenKey is used to create a context from Beaer Token
+	ContextBearerTokenKey = "Bearer"
 )
 
 // ErrorType models the different API error types.
@@ -359,7 +359,7 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
 
-	if beaerToken, ok := ctx.Value(BearContextKey).(string); ok {
+	if beaerToken, ok := ctx.Value(ContextBearerTokenKey).(string); ok {
 		if len(beaerToken) > 0 {
 			req.Header.Set("Authorization", "Bearer "+beaerToken)
 		}
