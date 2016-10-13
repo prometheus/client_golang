@@ -16,6 +16,7 @@
 package prometheus
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -40,6 +41,11 @@ const (
 	epQueryRange  = "/query_range"
 	epLabelValues = "/label/:name/values"
 	epSeries      = "/series"
+)
+
+const (
+	// ContextBearerTokenKey is used to create a context from Beaer Token
+	ContextBearerTokenKey = "Bearer"
 )
 
 // ErrorType models the different API error types.
@@ -71,14 +77,25 @@ type CancelableTransport interface {
 	CancelRequest(req *http.Request)
 }
 
-// DefaultTransport is used if no Transport is set in Config.
-var DefaultTransport CancelableTransport = &http.Transport{
+// DefaultHTTPTransport is used if no Transport is set in Config and server is http.
+var DefaultHTTPTransport CancelableTransport = &http.Transport{
 	Proxy: http.ProxyFromEnvironment,
 	Dial: (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}).Dial,
 	TLSHandshakeTimeout: 10 * time.Second,
+}
+
+// DefaultHTTPSTransport is used if no Transport is set in Config and server is https.
+var DefaultHTTPSTransport CancelableTransport = &http.Transport{
+	Proxy: http.ProxyFromEnvironment,
+	Dial: (&net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}).Dial,
+	TLSHandshakeTimeout: 10 * time.Second,
+	TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 }
 
 // Config defines configuration parameters for a new client.
@@ -93,7 +110,11 @@ type Config struct {
 
 func (cfg *Config) transport() CancelableTransport {
 	if cfg.Transport == nil {
-		return DefaultTransport
+		if strings.HasPrefix(cfg.Address, "https") {
+			return DefaultHTTPSTransport
+		}
+
+		return DefaultHTTPTransport
 	}
 	return cfg.Transport
 }
@@ -335,6 +356,12 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	u.RawQuery = q.Encode()
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
+
+	if beaerToken, ok := ctx.Value(ContextBearerTokenKey).(string); ok {
+		if len(beaerToken) > 0 {
+			req.Header.Set("Authorization", "Bearer "+beaerToken)
+		}
+	}
 
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
