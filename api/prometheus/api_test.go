@@ -28,7 +28,7 @@ import (
 
 func TestConfig(t *testing.T) {
 	c := Config{}
-	if c.transport() != DefaultTransport {
+	if c.transport() != DefaultHTTPTransport {
 		t.Fatalf("expected default transport for nil Transport field")
 	}
 }
@@ -108,7 +108,7 @@ func TestClientURL(t *testing.T) {
 
 		hclient := &httpClient{
 			endpoint:  ep,
-			transport: DefaultTransport,
+			transport: DefaultHTTPTransport,
 		}
 
 		u := hclient.url(test.endpoint, test.args)

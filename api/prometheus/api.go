@@ -161,6 +161,11 @@ func (c *httpClient) url(ep string, args map[string]string) *url.URL {
 }
 
 func (c *httpClient) do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	if beaerToken, ok := ctx.Value(ContextBearerTokenKey).(string); ok {
+		if len(beaerToken) > 0 {
+			req.Header.Set("Authorization", "Bearer "+beaerToken)
+		}
+	}
 	resp, err := ctxhttp.Do(ctx, &http.Client{Transport: c.transport}, req)
 
 	defer func() {
@@ -356,12 +361,6 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	u.RawQuery = q.Encode()
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
-
-	if beaerToken, ok := ctx.Value(ContextBearerTokenKey).(string); ok {
-		if len(beaerToken) > 0 {
-			req.Header.Set("Authorization", "Bearer "+beaerToken)
-		}
-	}
 
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
