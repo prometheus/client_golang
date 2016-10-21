@@ -81,8 +81,6 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.interval = c.Interval
 	}
 
-	go b.loop()
-
 	return b, nil
 }
 
@@ -90,7 +88,8 @@ func (b *Bridge) Stop() {
 	b.stopc <- struct{}{}
 }
 
-func (b *Bridge) loop() {
+// Loop starts the event loop that pushes metrics at the configured interval.
+func (b *Bridge) Loop() {
 	ticker := time.NewTicker(b.interval)
 	for {
 		select {

@@ -184,7 +184,6 @@ func TestPush(t *testing.T) {
 	if err != nil {
 		t.Errorf("error creating bridge: %v", err)
 	}
-	defer b.Stop()
 
 	nmg, err := newMockGraphite(port)
 	if err != nil {
