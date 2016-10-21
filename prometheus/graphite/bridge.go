@@ -54,6 +54,7 @@ type Bridge struct {
 	g prometheus.Gatherer
 }
 
+// NewBridge returns a pointer to a new Bridge struct.
 func NewBridge(c *Config) (*Bridge, error) {
 	b := &Bridge{}
 
