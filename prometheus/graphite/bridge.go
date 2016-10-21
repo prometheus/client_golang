@@ -166,6 +166,24 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, 
 					}
 				}
 			case dto.MetricType_HISTOGRAM:
+				if histogram := m.GetHistogram(); histogram != nil {
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "count"), "."), float64(histogram.GetSampleCount()), now))
+					if err != nil {
+						return buf, err
+					}
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "sum"), "."), histogram.GetSampleSum(), now))
+					if err != nil {
+						return buf, err
+					}
+
+					for _, b := range histogram.GetBucket() {
+						bucket := fmt.Sprintf("bucket.%g", b.GetUpperBound())
+						_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, bucket), "."), float64(b.GetCumulativeCount()), now))
+						if err != nil {
+							return buf, err
+						}
+					}
+				}
 			default:
 				// TODO: Do we want to allow partial writes? i.e., do
 				// we want to attempt to parse later metrics if an

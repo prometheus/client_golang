@@ -75,6 +75,57 @@ prefix.name.constname.constvalue.labelname.val2.quantile.99 40 1477043083
 	}
 }
 
+func TestWriteHistogram(t *testing.T) {
+	histVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:        "name",
+			Help:        "docstring",
+			ConstLabels: prometheus.Labels{"constname": "constvalue"},
+			Buckets:     []float64{0.01, 0.02, 0.05, 0.1},
+		},
+		[]string{"labelname"},
+	)
+
+	histVec.WithLabelValues("val1").Observe(float64(10))
+	histVec.WithLabelValues("val1").Observe(float64(20))
+	histVec.WithLabelValues("val1").Observe(float64(30))
+	histVec.WithLabelValues("val2").Observe(float64(20))
+	histVec.WithLabelValues("val2").Observe(float64(30))
+	histVec.WithLabelValues("val2").Observe(float64(40))
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(histVec)
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
+
+	now := int64(1477043083)
+	buf, err := toReader(mfs, "prefix", now)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
+
+	// TODO: Why do none of the buckets have values?
+	want := `prefix.name.constname.constvalue.labelname.val1.count 3 1477043083
+prefix.name.constname.constvalue.labelname.val1.sum 60 1477043083
+prefix.name.constname.constvalue.labelname.val1.bucket.0.01 0 1477043083
+prefix.name.constname.constvalue.labelname.val1.bucket.0.02 0 1477043083
+prefix.name.constname.constvalue.labelname.val1.bucket.0.05 0 1477043083
+prefix.name.constname.constvalue.labelname.val1.bucket.0.1 0 1477043083
+prefix.name.constname.constvalue.labelname.val2.count 3 1477043083
+prefix.name.constname.constvalue.labelname.val2.sum 90 1477043083
+prefix.name.constname.constvalue.labelname.val2.bucket.0.01 0 1477043083
+prefix.name.constname.constvalue.labelname.val2.bucket.0.02 0 1477043083
+prefix.name.constname.constvalue.labelname.val2.bucket.0.05 0 1477043083
+prefix.name.constname.constvalue.labelname.val2.bucket.0.1 0 1477043083
+`
+	if got := buf.String(); want != got {
+		t.Errorf("wanted \n%s\n, got \n%s\n", want, got)
+	}
+}
+
 func TestToReader(t *testing.T) {
 	cntVec := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
