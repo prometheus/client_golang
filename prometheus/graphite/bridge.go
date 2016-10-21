@@ -148,18 +148,18 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, 
 			switch *mf.Type {
 			case dto.MetricType_SUMMARY:
 				if summary := m.GetSummary(); summary != nil {
-					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "count"), "."), float64(*summary.SampleCount), now))
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "count"), "."), float64(summary.GetSampleCount()), now))
 					if err != nil {
 						return buf, err
 					}
-					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "sum"), "."), *summary.SampleSum, now))
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "sum"), "."), summary.GetSampleSum(), now))
 					if err != nil {
 						return buf, err
 					}
 
 					for _, q := range summary.GetQuantile() {
 						quantile := fmt.Sprintf("quantile.%g", *q.Quantile*100)
-						_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, quantile), "."), *q.Value, now))
+						_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, quantile), "."), q.GetValue(), now))
 						if err != nil {
 							return buf, err
 						}
