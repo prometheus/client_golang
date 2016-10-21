@@ -14,6 +14,7 @@ package graphite
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -49,15 +50,12 @@ type Bridge struct {
 	url      string
 	interval time.Duration
 	prefix   string
-	stopc    chan struct{}
 
 	g prometheus.Gatherer
 }
 
 func NewBridge(c *Config) (*Bridge, error) {
-	b := &Bridge{
-		stopc: make(chan struct{}),
-	}
+	b := &Bridge{}
 
 	if c.URL == "" {
 		return nil, errors.New("graphite bridge: no url given")
@@ -84,13 +82,8 @@ func NewBridge(c *Config) (*Bridge, error) {
 	return b, nil
 }
 
-// Stop stops the event loop.
-func (b *Bridge) Stop() {
-	b.stopc <- struct{}{}
-}
-
-// Loop starts the event loop that pushes metrics at the configured interval.
-func (b *Bridge) Loop() {
+// Run starts the event loop that pushes metrics at the configured interval.
+func (b *Bridge) Run(ctx context.Context) {
 	ticker := time.NewTicker(b.interval)
 	defer ticker.Stop()
 	for {
@@ -100,7 +93,7 @@ func (b *Bridge) Loop() {
 				// TODO: Use the right logger.
 				log.Printf("%v", err)
 			}
-		case <-b.stopc:
+		case <-ctx.Done():
 			return
 		}
 	}
