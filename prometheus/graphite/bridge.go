@@ -84,6 +84,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 	return b, nil
 }
 
+// Stop stops the event loop.
 func (b *Bridge) Stop() {
 	b.stopc <- struct{}{}
 }
