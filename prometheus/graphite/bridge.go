@@ -123,13 +123,13 @@ func (b *Bridge) Push() error {
 	}
 	defer conn.Close()
 
-	_, err = io.Copy(conn, &buf)
+	_, err = io.Copy(conn, buf)
 	return err
 }
 
 // TODO: Do we want to allow partial writes? i.e., Skip a failed metric, but
 // try to write all metrics?
-func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, error) {
+func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (*bytes.Buffer, error) {
 	// TODO: Snag the buffer pool from promhttp/http.go
 	var (
 		buf bytes.Buffer
@@ -150,18 +150,18 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, 
 				if summary := m.GetSummary(); summary != nil {
 					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "count"), "."), float64(summary.GetSampleCount()), now))
 					if err != nil {
-						return buf, err
+						return nil, err
 					}
 					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "sum"), "."), summary.GetSampleSum(), now))
 					if err != nil {
-						return buf, err
+						return nil, err
 					}
 
 					for _, q := range summary.GetQuantile() {
 						quantile := fmt.Sprintf("quantile.%g", *q.Quantile*100)
 						_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, quantile), "."), q.GetValue(), now))
 						if err != nil {
-							return buf, err
+							return nil, err
 						}
 					}
 				}
@@ -169,18 +169,18 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, 
 				if histogram := m.GetHistogram(); histogram != nil {
 					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "count"), "."), float64(histogram.GetSampleCount()), now))
 					if err != nil {
-						return buf, err
+						return nil, err
 					}
 					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "sum"), "."), histogram.GetSampleSum(), now))
 					if err != nil {
-						return buf, err
+						return nil, err
 					}
 
 					for _, b := range histogram.GetBucket() {
 						bucket := fmt.Sprintf("bucket.%g", b.GetUpperBound())
 						_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, bucket), "."), float64(b.GetCumulativeCount()), now))
 						if err != nil {
-							return buf, err
+							return nil, err
 						}
 					}
 				}
@@ -190,13 +190,13 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, 
 				// earlier one fails?
 				_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(parts, "."), getValue(m), now))
 				if err != nil {
-					return buf, err
+					return nil, err
 				}
 			}
 		}
 	}
 
-	return buf, nil
+	return &buf, nil
 }
 
 var re = regexp.MustCompile("[^a-zA-Z0-9_-]")
