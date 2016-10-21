@@ -145,7 +145,7 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (*bytes.Buffer,
 				parts = append(parts, sanitize(lp.GetName())+"."+sanitize(lp.GetValue()))
 			}
 
-			switch *mf.Type {
+			switch mf.GetType() {
 			case dto.MetricType_SUMMARY:
 				if summary := m.GetSummary(); summary != nil {
 					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "count"), "."), float64(summary.GetSampleCount()), now))
