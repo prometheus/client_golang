@@ -92,14 +92,16 @@ func (b *Bridge) Stop() {
 
 func (b *Bridge) loop() {
 	ticker := time.NewTicker(b.interval)
-	select {
-	case <-ticker.C:
-		if err := b.Push(); err != nil {
-			// TODO: Use the right logger.
-			log.Printf("%v", err)
+	for {
+		select {
+		case <-ticker.C:
+			if err := b.Push(); err != nil {
+				// TODO: Use the right logger.
+				log.Printf("%v", err)
+			}
+		case <-b.stopc:
+			return
 		}
-	case <-b.stopc:
-		return
 	}
 }
 
