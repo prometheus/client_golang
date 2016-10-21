@@ -2,11 +2,11 @@ package graphite
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -28,8 +28,54 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
-func TestToReader(t *testing.T) {
+func TestWriteSummary(t *testing.T) {
+	sumVec := prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:        "name",
+			Help:        "docstring",
+			ConstLabels: prometheus.Labels{"constname": "constvalue"},
+		},
+		[]string{"labelname"},
+	)
+
+	sumVec.WithLabelValues("val1").Observe(float64(10))
+	sumVec.WithLabelValues("val1").Observe(float64(20))
+	sumVec.WithLabelValues("val1").Observe(float64(30))
+	sumVec.WithLabelValues("val2").Observe(float64(20))
+	sumVec.WithLabelValues("val2").Observe(float64(30))
+	sumVec.WithLabelValues("val2").Observe(float64(40))
+
 	reg := prometheus.NewRegistry()
+	reg.MustRegister(sumVec)
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
+
+	now := int64(1477043083)
+	buf, err := toReader(mfs, "prefix", now)
+	if err != nil {
+		t.Errorf("error: %v", err)
+	}
+
+	want := `prefix.name.constname.constvalue.labelname.val1.count 3 1477043083
+prefix.name.constname.constvalue.labelname.val1.sum 60 1477043083
+prefix.name.constname.constvalue.labelname.val1.quantile.50 20 1477043083
+prefix.name.constname.constvalue.labelname.val1.quantile.90 30 1477043083
+prefix.name.constname.constvalue.labelname.val1.quantile.99 30 1477043083
+prefix.name.constname.constvalue.labelname.val2.count 3 1477043083
+prefix.name.constname.constvalue.labelname.val2.sum 90 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.50 30 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.90 40 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.99 40 1477043083
+`
+	if got := buf.String(); want != got {
+		t.Errorf("wanted \n%s\n, got \n%s\n", want, got)
+	}
+}
+
+func TestToReader(t *testing.T) {
 	cntVec := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:        "name",
@@ -40,10 +86,12 @@ func TestToReader(t *testing.T) {
 	)
 	cntVec.WithLabelValues("val1").Inc()
 	cntVec.WithLabelValues("val2").Inc()
+
+	reg := prometheus.NewRegistry()
 	reg.MustRegister(cntVec)
 
-	want := `prefix.nameconstname.constvalue.labelname.val1 1 1477043083
-prefix.nameconstname.constvalue.labelname.val2 1 1477043083
+	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043083
+prefix.name.constname.constvalue.labelname.val2 1 1477043083
 `
 	mfs, err := reg.Gather()
 	if err != nil {
@@ -51,7 +99,7 @@ prefix.nameconstname.constvalue.labelname.val2 1 1477043083
 	}
 
 	now := int64(1477043083)
-	buf, err := toReader(mfs, "prefix.", now)
+	buf, err := toReader(mfs, "prefix", now)
 	if err != nil {
 		t.Errorf("error: %v", err)
 	}
@@ -99,8 +147,8 @@ func TestPush(t *testing.T) {
 	}
 
 	wants := []string{
-		"prefix.nameconstname.constvalue.labelname.val1 1",
-		"prefix.nameconstname.constvalue.labelname.val2 1",
+		"prefix.name.constname.constvalue.labelname.val1 1",
+		"prefix.name.constname.constvalue.labelname.val2 1",
 	}
 
 	select {
@@ -114,13 +162,12 @@ func TestPush(t *testing.T) {
 				t.Errorf("missing metric:\nno match for %s received by server:\n%s", want, got)
 			}
 		}
-		fmt.Println(b)
 		return
 	case err := <-nmg.errc:
 		t.Errorf("error reading push: %v", err)
+	case <-time.After(50 * time.Millisecond):
+		t.Errorf("no result from graphite server")
 	}
-
-	t.Fatal()
 }
 
 func newMockGraphite(port string) (*mockGraphite, error) {

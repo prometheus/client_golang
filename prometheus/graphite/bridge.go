@@ -71,7 +71,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 	}
 
 	if c.Prefix != "" {
-		b.prefix = c.Prefix + "."
+		b.prefix = c.Prefix
 	}
 
 	var z time.Duration
@@ -131,28 +131,49 @@ func (b *Bridge) Push() error {
 // try to write all metrics?
 func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (bytes.Buffer, error) {
 	// TODO: Snag the buffer pool from promhttp/http.go
-	var buf bytes.Buffer
+	var (
+		buf bytes.Buffer
+		err error
+	)
 
 	for _, mf := range mfs {
 		for _, m := range mf.GetMetric() {
 			sort.Sort(prometheus.LabelPairSorter(m.GetLabel()))
-			_, err := buf.WriteString(prefix + mf.GetName())
-			if err != nil {
-				return buf, err
-			}
 
-			labels := []string{}
+			parts := []string{prefix, mf.GetName()}
 			for _, lp := range m.GetLabel() {
-				labels = append(labels, sanitize(lp.GetName())+"."+sanitize(lp.GetValue()))
+				parts = append(parts, sanitize(lp.GetName())+"."+sanitize(lp.GetValue()))
 			}
 
-			value := getValue(m)
-			// TODO: Do we want to allow partial writes? i.e., do
-			// we want to attempt to parse later metrics if an
-			// earlier one fails?
-			_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(labels, "."), value, now))
-			if err != nil {
-				return buf, err
+			switch *mf.Type {
+			case dto.MetricType_SUMMARY:
+				if summary := m.GetSummary(); summary != nil {
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "count"), "."), float64(*summary.SampleCount), now))
+					if err != nil {
+						return buf, err
+					}
+					_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, "sum"), "."), *summary.SampleSum, now))
+					if err != nil {
+						return buf, err
+					}
+
+					for _, q := range summary.GetQuantile() {
+						quantile := fmt.Sprintf("quantile.%g", *q.Quantile*100)
+						_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(append(parts, quantile), "."), *q.Value, now))
+						if err != nil {
+							return buf, err
+						}
+					}
+				}
+			case dto.MetricType_HISTOGRAM:
+			default:
+				// TODO: Do we want to allow partial writes? i.e., do
+				// we want to attempt to parse later metrics if an
+				// earlier one fails?
+				_, err = buf.WriteString(fmt.Sprintf("%s %g %d\n", strings.Join(parts, "."), getValue(m), now))
+				if err != nil {
+					return buf, err
+				}
 			}
 		}
 	}
@@ -173,17 +194,9 @@ func getValue(m *dto.Metric) float64 {
 	if m.GetCounter() != nil {
 		return m.GetCounter().GetValue()
 	}
-	// How do we deal with the sum and the count and quantile?
-	// if m.GetSummary() != nil {
-	// 	return *m.GetSummary().GetValue()
-	// }
 	if m.GetUntyped() != nil {
 		return m.GetUntyped().GetValue()
 	}
-	// How do we deal with the sum and the count and quantile?
-	// if m.GetHistogram() != nil {
-	// 	return *m.GetHistogram().GetValue()
-	// }
 
 	return 0
 }
