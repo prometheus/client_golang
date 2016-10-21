@@ -92,6 +92,7 @@ func (b *Bridge) Stop() {
 // Loop starts the event loop that pushes metrics at the configured interval.
 func (b *Bridge) Loop() {
 	ticker := time.NewTicker(b.interval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
