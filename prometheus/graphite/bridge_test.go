@@ -23,7 +23,7 @@ func TestSanitize(t *testing.T) {
 
 	for i, tc := range testCases {
 		if want, got := tc.out, sanitize(tc.in); want != got {
-			t.Errorf("test case index %d: got sanitized string %s, want %s", i, got, want)
+			t.Fatalf("test case index %d: got sanitized string %s, want %s", i, got, want)
 		}
 	}
 }
@@ -50,13 +50,13 @@ func TestWriteSummary(t *testing.T) {
 
 	mfs, err := reg.Gather()
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	now := int64(1477043083)
 	buf, err := toReader(mfs, "prefix", now)
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	want := `prefix.name.constname.constvalue.labelname.val1.count 3 1477043083
@@ -71,7 +71,7 @@ prefix.name.constname.constvalue.labelname.val2.quantile.90 40 1477043083
 prefix.name.constname.constvalue.labelname.val2.quantile.99 40 1477043083
 `
 	if got := buf.String(); want != got {
-		t.Errorf("wanted \n%s\n, got \n%s\n", want, got)
+		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
 }
 
@@ -98,13 +98,13 @@ func TestWriteHistogram(t *testing.T) {
 
 	mfs, err := reg.Gather()
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	now := int64(1477043083)
 	buf, err := toReader(mfs, "prefix", now)
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	// TODO: Why do none of the buckets have values?
@@ -122,7 +122,7 @@ prefix.name.constname.constvalue.labelname.val2.bucket.0.05 0 1477043083
 prefix.name.constname.constvalue.labelname.val2.bucket.0.1 0 1477043083
 `
 	if got := buf.String(); want != got {
-		t.Errorf("wanted \n%s\n, got \n%s\n", want, got)
+		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
 }
 
@@ -146,17 +146,17 @@ prefix.name.constname.constvalue.labelname.val2 1 1477043083
 `
 	mfs, err := reg.Gather()
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	now := int64(1477043083)
 	buf, err := toReader(mfs, "prefix", now)
 	if err != nil {
-		t.Errorf("error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 
 	if got := buf.String(); want != got {
-		t.Errorf("wanted \n%s\n, got \n%s\n", want, got)
+		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
 }
 
@@ -182,18 +182,18 @@ func TestPush(t *testing.T) {
 		Prefix:   "prefix",
 	})
 	if err != nil {
-		t.Errorf("error creating bridge: %v", err)
+		t.Fatalf("error creating bridge: %v", err)
 	}
 
 	nmg, err := newMockGraphite(port)
 	if err != nil {
-		t.Errorf("error creating mock graphite: %v", err)
+		t.Fatalf("error creating mock graphite: %v", err)
 	}
 	defer nmg.Close()
 
 	err = b.Push()
 	if err != nil {
-		t.Errorf("error pushing: %v", err)
+		t.Fatalf("error pushing: %v", err)
 	}
 
 	wants := []string{
@@ -206,17 +206,17 @@ func TestPush(t *testing.T) {
 		for _, want := range wants {
 			matched, err := regexp.MatchString(want, got)
 			if err != nil {
-				t.Errorf("error pushing: %v", err)
+				t.Fatalf("error pushing: %v", err)
 			}
 			if !matched {
-				t.Errorf("missing metric:\nno match for %s received by server:\n%s", want, got)
+				t.Fatalf("missing metric:\nno match for %s received by server:\n%s", want, got)
 			}
 		}
 		return
 	case err := <-nmg.errc:
-		t.Errorf("error reading push: %v", err)
+		t.Fatalf("error reading push: %v", err)
 	case <-time.After(50 * time.Millisecond):
-		t.Errorf("no result from graphite server")
+		t.Fatalf("no result from graphite server")
 	}
 }
 
