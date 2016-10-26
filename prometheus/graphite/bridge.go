@@ -10,11 +10,13 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+// Package graphite provides a bridge to push Prometheus metrics to a Graphite
+// server.
 package graphite
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -25,9 +27,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Config defines the graphite bridge config.
@@ -83,7 +87,8 @@ func NewBridge(c *Config) (*Bridge, error) {
 	return b, nil
 }
 
-// Run starts the event loop that pushes metrics at the configured interval.
+// Run starts the event loop that pushes Prometheus metrics to Graphite at the
+// configured interval.
 func (b *Bridge) Run(ctx context.Context) {
 	ticker := time.NewTicker(b.interval)
 	defer ticker.Stop()
@@ -100,6 +105,7 @@ func (b *Bridge) Run(ctx context.Context) {
 	}
 }
 
+// Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
 	if err != nil {
