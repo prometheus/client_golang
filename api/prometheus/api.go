@@ -282,6 +282,8 @@ type QueryAPI interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
 	// Query performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
+	// Delete deletes matched series.
+	Delete(ctx context.Context, matches []string) (uint, error)
 }
 
 // NewQueryAPI returns a new QueryAPI for the client.
@@ -345,4 +347,26 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	err = json.Unmarshal(body, &qres)
 
 	return model.Value(qres.v), err
+}
+
+func (h *httpQueryAPI) Delete(ctx context.Context, matches []string) (uint, error) {
+	u := h.client.url(epSeries, nil)
+	q := u.Query()
+
+	for _, m := range matches {
+		q.Add("match[]", m)
+	}
+	u.RawQuery = q.Encode()
+
+	req, _ := http.NewRequest("DELETE", u.String(), nil)
+
+	_, body, err := h.client.do(ctx, req)
+	if err != nil {
+		return 0, err
+	}
+
+	var res map[string]uint
+	err = json.Unmarshal(body, &res)
+
+	return res["numDeleted"], err
 }

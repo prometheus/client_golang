@@ -368,6 +368,12 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doDelete := func(m []string) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return queryAPI.Delete(context.Background(), m)
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime),
@@ -418,6 +424,18 @@ func TestAPIs(t *testing.T) {
 				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
 				"end":   []string{testTime.Format(time.RFC3339Nano)},
 				"step":  []string{time.Minute.String()},
+			},
+			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:    doDelete([]string{"metric"}),
+			inErr: fmt.Errorf("some error"),
+
+			reqMethod: "DELETE",
+			reqPath:   "/api/v1/series",
+			reqParam: url.Values{
+				"match[]": []string{"metric"},
 			},
 			err: fmt.Errorf("some error"),
 		},
