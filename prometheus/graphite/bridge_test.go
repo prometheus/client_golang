@@ -16,9 +16,9 @@ func TestSanitize(t *testing.T) {
 		in, out string
 	}{
 		{in: "hello", out: "hello"},
-		{in: "hE/l1o", out: "hE_l1o"},
-		{in: "he,*ll(.o", out: "he__ll__o"},
-		{in: "hello_there%^&", out: "hello_there___"},
+		{in: "hE/l1o", out: "he_l1o"},
+		{in: "he,*ll(.o", out: "he_ll_o"},
+		{in: "hello_there%^&", out: "hello_there"},
 	}
 
 	for i, tc := range testCases {
@@ -59,17 +59,16 @@ func TestWriteSummary(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	want := `prefix.name.constname.constvalue.labelname.val1.count 3 1477043083
-prefix.name.constname.constvalue.labelname.val1.sum 60 1477043083
-prefix.name.constname.constvalue.labelname.val1.quantile.50 20 1477043083
-prefix.name.constname.constvalue.labelname.val1.quantile.90 30 1477043083
-prefix.name.constname.constvalue.labelname.val1.quantile.99 30 1477043083
-prefix.name.constname.constvalue.labelname.val2.count 3 1477043083
-prefix.name.constname.constvalue.labelname.val2.sum 90 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.50 30 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.90 40 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.99 40 1477043083
-`
+	want := `prefix.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043083
+prefix.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043083
+prefix.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043083
+prefix.name_sum.constname.constvalue.labelname.val1 60 1477043083
+prefix.name_count.constname.constvalue.labelname.val1 3 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043083
+prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
+prefix.name_count.constname.constvalue.labelname.val2 3 1477043083`
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
@@ -107,20 +106,20 @@ func TestWriteHistogram(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	// TODO: Why do none of the buckets have values?
-	want := `prefix.name.constname.constvalue.labelname.val1.count 3 1477043083
-prefix.name.constname.constvalue.labelname.val1.sum 60 1477043083
-prefix.name.constname.constvalue.labelname.val1.bucket.0.01 0 1477043083
-prefix.name.constname.constvalue.labelname.val1.bucket.0.02 0 1477043083
-prefix.name.constname.constvalue.labelname.val1.bucket.0.05 0 1477043083
-prefix.name.constname.constvalue.labelname.val1.bucket.0.1 0 1477043083
-prefix.name.constname.constvalue.labelname.val2.count 3 1477043083
-prefix.name.constname.constvalue.labelname.val2.sum 90 1477043083
-prefix.name.constname.constvalue.labelname.val2.bucket.0.01 0 1477043083
-prefix.name.constname.constvalue.labelname.val2.bucket.0.02 0 1477043083
-prefix.name.constname.constvalue.labelname.val2.bucket.0.05 0 1477043083
-prefix.name.constname.constvalue.labelname.val2.bucket.0.1 0 1477043083
-`
+	want := `prefix.name_bucket.constname.constvalue.labelname.val1.le.0_01 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_02 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_05 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_1 0 1477043083
+prefix.name_sum.constname.constvalue.labelname.val1 60 1477043083
+prefix.name_count.constname.constvalue.labelname.val1 3 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.inf 3 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_01 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_02 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_05 0 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_1 0 1477043083
+prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
+prefix.name_count.constname.constvalue.labelname.val2 3 1477043083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043083`
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
@@ -142,8 +141,7 @@ func TestToReader(t *testing.T) {
 	reg.MustRegister(cntVec)
 
 	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043083
-prefix.name.constname.constvalue.labelname.val2 1 1477043083
-`
+prefix.name.constname.constvalue.labelname.val2 1 1477043083`
 	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("error: %v", err)

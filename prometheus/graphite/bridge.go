@@ -30,6 +30,8 @@ import (
 	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -133,93 +135,78 @@ func (b *Bridge) Push() error {
 // TODO: Do we want to allow partial writes? i.e., Skip a failed metric, but
 // try to write all metrics?
 func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (*bytes.Buffer, error) {
-	// TODO: Snag the buffer pool from promhttp/http.go
-	var (
-		buf bytes.Buffer
-		err error
+	vec := Vector{
+		Vector: expfmt.ExtractSamples(&expfmt.DecodeOptions{
+			Timestamp: model.Time(now),
+		}, mfs...),
+		prefix: prefix,
+	}
+
+	return bytes.NewBufferString(vec.String()), nil
+}
+
+type Vector struct {
+	prefix string
+
+	model.Vector
+}
+
+func (vec Vector) String() string {
+	entries := make([]string, len(vec.Vector))
+	for i, s := range vec.Vector {
+		// TODO: Should be a better way to add the prefix
+		entries[i] = strings.Join([]string{vec.prefix, Sample(*s).String()}, ".")
+	}
+	return strings.Join(entries, "\n")
+}
+
+type Sample model.Sample
+
+func (s Sample) String() string {
+	return fmt.Sprintf("%s %g %d",
+		Metric(s.Metric),
+		s.Value,
+		int64(s.Timestamp),
 	)
+}
 
-	for _, mf := range mfs {
-		for _, m := range mf.GetMetric() {
-			sort.Sort(prometheus.LabelPairSorter(m.GetLabel()))
+type Metric model.Metric
 
-			parts := []string{prefix, mf.GetName()}
-			for _, lp := range m.GetLabel() {
-				parts = append(parts, sanitize(lp.GetName())+"."+sanitize(lp.GetValue()))
-			}
+func (m Metric) String() string {
+	metricName, hasName := m[model.MetricNameLabel]
+	numLabels := len(m) - 1
+	if !hasName {
+		numLabels = len(m)
+	}
 
-			switch mf.GetType() {
-			case dto.MetricType_SUMMARY:
-				if summary := m.GetSummary(); summary != nil {
-					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "count"), "."), float64(summary.GetSampleCount()), now))
-					if err != nil {
-						return nil, err
-					}
-					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "sum"), "."), summary.GetSampleSum(), now))
-					if err != nil {
-						return nil, err
-					}
-
-					for _, q := range summary.GetQuantile() {
-						quantile := fmt.Sprintf("quantile.%g", *q.Quantile*100)
-						_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, quantile), "."), q.GetValue(), now))
-						if err != nil {
-							return nil, err
-						}
-					}
-				}
-			case dto.MetricType_HISTOGRAM:
-				if histogram := m.GetHistogram(); histogram != nil {
-					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "count"), "."), float64(histogram.GetSampleCount()), now))
-					if err != nil {
-						return nil, err
-					}
-					_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, "sum"), "."), histogram.GetSampleSum(), now))
-					if err != nil {
-						return nil, err
-					}
-
-					for _, b := range histogram.GetBucket() {
-						bucket := fmt.Sprintf("bucket.%g", b.GetUpperBound())
-						_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(append(parts, bucket), "."), float64(b.GetCumulativeCount()), now))
-						if err != nil {
-							return nil, err
-						}
-					}
-				}
-			default:
-				// TODO: Do we want to allow partial writes? i.e., do
-				// we want to attempt to parse later metrics if an
-				// earlier one fails?
-				_, err = buf.WriteString(fmt.Sprintf(graphiteFormatString, strings.Join(parts, "."), getValue(m), now))
-				if err != nil {
-					return nil, err
-				}
-			}
+	labelStrings := make([]string, 0, numLabels)
+	for label, value := range m {
+		if label != model.MetricNameLabel {
+			labelStrings = append(labelStrings, fmt.Sprintf("%s.%s", sanitize(string(label)), sanitize(string(value))))
 		}
 	}
 
-	return &buf, nil
+	switch numLabels {
+	case 0:
+		if hasName {
+			return sanitize(string(metricName))
+		}
+		return ""
+	default:
+		sort.Strings(labelStrings)
+		return fmt.Sprintf("%s.%s", sanitize(string(metricName)), strings.Join(labelStrings, "."))
+	}
 }
 
-var re = regexp.MustCompile("[^a-zA-Z0-9_-]")
-
-const graphiteFormatString = "%s %g %d\n"
+var (
+	reInvalidChars       = regexp.MustCompile("[^a-zA-Z0-9_-]")
+	reRepeatedUnderscore = regexp.MustCompile("_{2,}")
+)
 
 func sanitize(s string) string {
-	return re.ReplaceAllString(s, "_")
-}
-
-func getValue(m *dto.Metric) float64 {
-	if m.GetGauge() != nil {
-		return m.GetGauge().GetValue()
-	}
-	if m.GetCounter() != nil {
-		return m.GetCounter().GetValue()
-	}
-	if m.GetUntyped() != nil {
-		return m.GetUntyped().GetValue()
-	}
-
-	return 0
+	return strings.Trim(
+		strings.ToLower(
+			reRepeatedUnderscore.ReplaceAllString(
+				reInvalidChars.ReplaceAllString(s, "_"), "_"),
+		), "_")
 }
