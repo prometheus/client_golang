@@ -16,7 +16,6 @@
 package graphite
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -26,42 +25,54 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/log"
-	"github.com/prometheus/common/model"
 )
 
-// Config defines the graphite bridge config.
+const defaultInterval = 15 * time.Second
+
+// Config defines the Graphite bridge config.
 type Config struct {
 	// The url to push data to. Required.
 	URL string
 
+	// The prefix for the pushed Graphite metrics. Defaults to empty string.
+	Prefix string
+
 	// The interval to use for pushing data to Graphite. Defaults to 15 seconds.
 	Interval time.Duration
+
+	// The timeout for pushing metrics to Graphite. Defaults to 15 seconds.
+	Timeout time.Duration
 
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
 	Gatherer prometheus.Gatherer
 
 	// The logger that messages are written to. Defaults to log.Base().
-	Logger log.Logger
-
-	// The prefix for your graphite metric. Defaults to empty string.
-	Prefix string
+	Logger Logger
 }
 
-// Bridge pushes metrics to the configured graphite server.
+// Bridge pushes metrics to the configured Graphite server.
 type Bridge struct {
 	url      string
-	interval time.Duration
 	prefix   string
+	interval time.Duration
+	timeout  time.Duration
 
 	g      prometheus.Gatherer
-	logger log.Logger
+	logger Logger
+}
+
+// Logger is the minimal interface Bridge needs for logging. Note that
+// log.Logger from the standard library implements this interface, and it is
+// easy to implement by custom loggers, if they don't do so already anyway.
+type Logger interface {
+	Printf(v ...interface{})
 }
 
 // NewBridge returns a pointer to a new Bridge struct.
@@ -69,7 +80,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 	b := &Bridge{}
 
 	if c.URL == "" {
-		return nil, errors.New("graphite bridge: no url given")
+		return nil, errors.New("missing URL")
 	}
 	b.url = c.URL
 
@@ -79,9 +90,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.g = c.Gatherer
 	}
 
-	if c.Logger == nil {
-		b.logger = log.Base()
-	} else {
+	if c.Logger != nil {
 		b.logger = c.Logger
 	}
 
@@ -91,9 +100,15 @@ func NewBridge(c *Config) (*Bridge, error) {
 
 	var z time.Duration
 	if c.Interval == z {
-		b.interval = 15 * time.Second
+		b.interval = defaultInterval
 	} else {
 		b.interval = c.Interval
+	}
+
+	if c.Timeout == z {
+		b.timeout = defaultInterval
+	} else {
+		b.timeout = c.Timeout
 	}
 
 	return b, nil
@@ -108,7 +123,9 @@ func (b *Bridge) Run(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if err := b.Push(); err != nil {
-				b.logger.Errorf("%v", err)
+				if b.logger != nil {
+					b.logger.Printf("%v", err)
+				}
 			}
 		case <-ctx.Done():
 			return
@@ -119,78 +136,45 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
+	// Add PushPartial if there's an error but potentially still valid
+	// metrics. See link in beorn's comment.
 	if err != nil {
 		return err
 	}
 
-	now := time.Now().Unix()
-	// TODO: Write directly to conn?
-	buf, err := toReader(mfs, b.prefix, now)
-	if err != nil {
-		return err
-	}
-
-	// TODO: Should we expose a deadline to the user?
-	conn, err := net.Dial("tcp", b.url)
+	conn, err := net.DialTimeout("tcp", b.url, b.timeout)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	_, err = io.Copy(conn, buf)
+	_, err = writeMetrics(conn, mfs, b.prefix, model.Now())
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
-// TODO: Do we want to allow partial writes? i.e., Skip a failed metric, but
-// try to write all metrics?
-func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (*bytes.Buffer, error) {
-	vec := Vector{
-		Vector: expfmt.ExtractSamples(&expfmt.DecodeOptions{
-			Timestamp: model.Time(now),
-		}, mfs...),
-		prefix: prefix,
+func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model.Time) (int, error) {
+	vec := expfmt.ExtractSamples(&expfmt.DecodeOptions{
+		Timestamp: now,
+	}, mfs...)
+
+	var total int
+	for _, s := range vec {
+		// TODO: Check if Graphite expects milliseconds or seconds.
+		n, err := fmt.Fprintf(w, "%s %g %d\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, int64(s.Timestamp))
+		if err != nil {
+			return 0, err
+		}
+		total += n
 	}
 
-	return bytes.NewBufferString(vec.String()), nil
+	return total, nil
 }
 
-// Vector wraps the type model.Vector to implement the String() method for
-// Graphite formatting.
-type Vector struct {
-	prefix string
-
-	model.Vector
-}
-
-// String implements the Stringer interface.
-func (vec Vector) String() string {
-	entries := make([]string, len(vec.Vector))
-	for i, s := range vec.Vector {
-		// TODO: Should be a better way to add the prefix
-		entries[i] = strings.Join([]string{vec.prefix, Sample(*s).String()}, ".")
-	}
-	return strings.Join(entries, "\n")
-}
-
-// Sample is a type alias for model.Sample to implement the String() method for
-// Graphite formatting.
-type Sample model.Sample
-
-// String implements the Stringer interface.
-func (s Sample) String() string {
-	return fmt.Sprintf("%s %g %d",
-		Metric(s.Metric),
-		s.Value,
-		int64(s.Timestamp),
-	)
-}
-
-// Metric is a type alias for model.Metric to implement the String() method for
-// Graphite formatting.
-type Metric model.Metric
-
-// String implements the Stringer interface.
-func (m Metric) String() string {
+func toMetric(m model.Metric) string {
 	metricName, hasName := m[model.MetricNameLabel]
 	numLabels := len(m) - 1
 	if !hasName {

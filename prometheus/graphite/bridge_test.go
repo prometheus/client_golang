@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,8 +55,9 @@ func TestWriteSummary(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	now := int64(1477043083)
-	buf, err := toReader(mfs, "prefix", now)
+	now := model.Time(1477043083)
+	var buf bytes.Buffer
+	_, err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -68,7 +71,9 @@ prefix.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043083
 prefix.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043083
 prefix.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043083
 prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
-prefix.name_count.constname.constvalue.labelname.val2 3 1477043083`
+prefix.name_count.constname.constvalue.labelname.val2 3 1477043083
+`
+
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
@@ -100,8 +105,9 @@ func TestWriteHistogram(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	now := int64(1477043083)
-	buf, err := toReader(mfs, "prefix", now)
+	now := model.Time(1477043083)
+	var buf bytes.Buffer
+	_, err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -119,7 +125,8 @@ prefix.name_bucket.constname.constvalue.labelname.val2.le.0_05 0 1477043083
 prefix.name_bucket.constname.constvalue.labelname.val2.le.0_1 0 1477043083
 prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
 prefix.name_count.constname.constvalue.labelname.val2 3 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043083`
+prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043083
+`
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
 	}
@@ -141,14 +148,16 @@ func TestToReader(t *testing.T) {
 	reg.MustRegister(cntVec)
 
 	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043083
-prefix.name.constname.constvalue.labelname.val2 1 1477043083`
+prefix.name.constname.constvalue.labelname.val2 1 1477043083
+`
 	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
 
-	now := int64(1477043083)
-	buf, err := toReader(mfs, "prefix", now)
+	now := model.Time(1477043083)
+	var buf bytes.Buffer
+	_, err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
