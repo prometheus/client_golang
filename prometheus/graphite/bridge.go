@@ -36,6 +36,20 @@ import (
 
 const defaultInterval = 15 * time.Second
 
+// HandlerErrorHandling defines how a Handler serving metrics will handle
+// errors.
+type HandlerErrorHandling int
+
+// These constants cause handlers serving metrics to behave as described if
+// errors are encountered.
+const (
+	// Abort the push to Graphite upon the first error encountered.
+	AbortOnError HandlerErrorHandling = iota
+
+	// Ignore errors and try to push as many metrics to Graphite as possible.
+	ContinueOnError
+)
+
 // Config defines the Graphite bridge config.
 type Config struct {
 	// The url to push data to. Required.
@@ -55,6 +69,11 @@ type Config struct {
 
 	// The logger that messages are written to. Defaults to log.Base().
 	Logger Logger
+
+	// ErrorHandling defines how errors are handled. Note that errors are
+	// logged regardless of the configured ErrorHandling provided Logger
+	// is not nil.
+	ErrorHandling HandlerErrorHandling
 }
 
 // Bridge pushes metrics to the configured Graphite server.
@@ -64,8 +83,10 @@ type Bridge struct {
 	interval time.Duration
 	timeout  time.Duration
 
-	g      prometheus.Gatherer
-	logger Logger
+	errorHandling HandlerErrorHandling
+	logger        Logger
+
+	g prometheus.Gatherer
 }
 
 // Logger is the minimal interface Bridge needs for logging. Note that
@@ -111,6 +132,8 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.timeout = c.Timeout
 	}
 
+	b.errorHandling = c.ErrorHandling
+
 	return b, nil
 }
 
@@ -136,10 +159,15 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
-	// Add PushPartial if there's an error but potentially still valid
-	// metrics. See link in beorn's comment.
 	if err != nil {
-		return err
+		switch b.errorHandling {
+		case AbortOnError:
+			return err
+		case ContinueOnError:
+			if b.logger != nil {
+				b.logger.Printf("continue on error: %v", err)
+			}
+		}
 	}
 
 	conn, err := net.DialTimeout("tcp", b.url, b.timeout)
