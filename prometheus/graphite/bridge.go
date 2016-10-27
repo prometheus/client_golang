@@ -154,12 +154,15 @@ func toReader(mfs []*dto.MetricFamily, prefix string, now int64) (*bytes.Buffer,
 	return bytes.NewBufferString(vec.String()), nil
 }
 
+// Vector wraps the type model.Vector to implement the String() method for
+// Graphite formatting.
 type Vector struct {
 	prefix string
 
 	model.Vector
 }
 
+// String implements the Stringer interface.
 func (vec Vector) String() string {
 	entries := make([]string, len(vec.Vector))
 	for i, s := range vec.Vector {
@@ -169,8 +172,11 @@ func (vec Vector) String() string {
 	return strings.Join(entries, "\n")
 }
 
+// Sample is a type alias for model.Sample to implement the String() method for
+// Graphite formatting.
 type Sample model.Sample
 
+// String implements the Stringer interface.
 func (s Sample) String() string {
 	return fmt.Sprintf("%s %g %d",
 		Metric(s.Metric),
@@ -179,8 +185,11 @@ func (s Sample) String() string {
 	)
 }
 
+// Metric is a type alias for model.Metric to implement the String() method for
+// Graphite formatting.
 type Metric model.Metric
 
+// String implements the Stringer interface.
 func (m Metric) String() string {
 	metricName, hasName := m[model.MetricNameLabel]
 	numLabels := len(m) - 1
