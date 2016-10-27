@@ -34,7 +34,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-const defaultInterval = 15 * time.Second
+const (
+	defaultInterval               = 15 * time.Second
+	millisecondsPerSecond float64 = 1000
+)
 
 // HandlerErrorHandling defines how a Handler serving metrics will handle
 // errors.
@@ -191,8 +194,7 @@ func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model
 
 	var total int
 	for _, s := range vec {
-		// TODO: Check if Graphite expects milliseconds or seconds.
-		n, err := fmt.Fprintf(w, "%s %g %d\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, int64(s.Timestamp))
+		n, err := fmt.Fprintf(w, "%s %g %.3f\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, float64(s.Timestamp)/millisecondsPerSecond)
 		if err != nil {
 			return 0, err
 		}

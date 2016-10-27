@@ -62,16 +62,16 @@ func TestWriteSummary(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	want := `prefix.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043083
-prefix.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043083
-prefix.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043083
-prefix.name_sum.constname.constvalue.labelname.val1 60 1477043083
-prefix.name_count.constname.constvalue.labelname.val1 3 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043083
-prefix.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043083
-prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
-prefix.name_count.constname.constvalue.labelname.val2 3 1477043083
+	want := `prefix.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043.083
+prefix.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043.083
+prefix.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043.083
+prefix.name_sum.constname.constvalue.labelname.val1 60 1477043.083
+prefix.name_count.constname.constvalue.labelname.val1 3 1477043.083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_5 30 1477043.083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043.083
+prefix.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043.083
+prefix.name_sum.constname.constvalue.labelname.val2 90 1477043.083
+prefix.name_count.constname.constvalue.labelname.val2 3 1477043.083
 `
 
 	if got := buf.String(); want != got {
@@ -112,20 +112,20 @@ func TestWriteHistogram(t *testing.T) {
 		t.Fatalf("error: %v", err)
 	}
 
-	want := `prefix.name_bucket.constname.constvalue.labelname.val1.le.0_01 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val1.le.0_02 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val1.le.0_05 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val1.le.0_1 0 1477043083
-prefix.name_sum.constname.constvalue.labelname.val1 60 1477043083
-prefix.name_count.constname.constvalue.labelname.val1 3 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val1.le.inf 3 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.0_01 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.0_02 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.0_05 0 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.0_1 0 1477043083
-prefix.name_sum.constname.constvalue.labelname.val2 90 1477043083
-prefix.name_count.constname.constvalue.labelname.val2 3 1477043083
-prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043083
+	want := `prefix.name_bucket.constname.constvalue.labelname.val1.le.0_01 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_02 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_05 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.0_1 0 1477043.083
+prefix.name_sum.constname.constvalue.labelname.val1 60 1477043.083
+prefix.name_count.constname.constvalue.labelname.val1 3 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val1.le.inf 3 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_01 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_02 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_05 0 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.0_1 0 1477043.083
+prefix.name_sum.constname.constvalue.labelname.val2 90 1477043.083
+prefix.name_count.constname.constvalue.labelname.val2 3 1477043.083
+prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043.083
 `
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
@@ -147,8 +147,8 @@ func TestToReader(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(cntVec)
 
-	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043083
-prefix.name.constname.constvalue.labelname.val2 1 1477043083
+	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043.083
+prefix.name.constname.constvalue.labelname.val2 1 1477043.083
 `
 	mfs, err := reg.Gather()
 	if err != nil {
