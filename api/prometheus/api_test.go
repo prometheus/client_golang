@@ -356,6 +356,10 @@ func TestAPIs(t *testing.T) {
 		client: client,
 	}
 
+	seriesAPI := &httpSeriesAPI{
+		client: client,
+	}
+
 	doQuery := func(q string, ts time.Time) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return queryAPI.Query(context.Background(), q, ts)
@@ -368,9 +372,15 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doLabelValues := func(n string) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return seriesAPI.LabelValues(context.Background(), n)
+		}
+	}
+
 	doDelete := func(m []string) func() (interface{}, error) {
 		return func() (interface{}, error) {
-			return queryAPI.Delete(context.Background(), m)
+			return seriesAPI.Delete(context.Background(), m)
 		}
 	}
 
@@ -429,15 +439,24 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
+			do:    doLabelValues("instance"),
+			inRes: model.LabelValues{"host1", "host2"},
+
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/:name/values",
+			res:       model.LabelValues{"host1", "host2"},
+		},
+
+		{
 			do:    doDelete([]string{"metric"}),
-			inErr: fmt.Errorf("some error"),
+			inRes: map[string]uint{"numDeleted": 7},
 
 			reqMethod: "DELETE",
 			reqPath:   "/api/v1/series",
 			reqParam: url.Values{
 				"match[]": []string{"metric"},
 			},
-			err: fmt.Errorf("some error"),
+			res: uint(7),
 		},
 	}
 

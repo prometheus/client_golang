@@ -282,6 +282,12 @@ type QueryAPI interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
 	// Query performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
+}
+
+// SeriesAPI provides methods to query Prometheus' series API.
+type SeriesAPI interface {
+	// List returns the values for the given label.
+	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
 	// Delete deletes matched series.
 	Delete(ctx context.Context, matches []string) (uint, error)
 }
@@ -293,7 +299,15 @@ func NewQueryAPI(c Client) QueryAPI {
 	return &httpQueryAPI{client: apiClient{c}}
 }
 
+func NewSeriesAPI(c Client) SeriesAPI {
+	return &httpSeriesAPI{client: apiClient{c}}
+}
+
 type httpQueryAPI struct {
+	client Client
+}
+
+type httpSeriesAPI struct {
 	client Client
 }
 
@@ -349,7 +363,23 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	return model.Value(qres.v), err
 }
 
-func (h *httpQueryAPI) Delete(ctx context.Context, matches []string) (uint, error) {
+func (h *httpSeriesAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, error) {
+	u := h.client.url(epLabelValues, map[string]string{"name": label})
+
+	req, _ := http.NewRequest("GET", u.String(), nil)
+
+	_, body, err := h.client.do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var res model.LabelValues
+	err = json.Unmarshal(body, &res)
+
+	return res, err
+}
+
+func (h *httpSeriesAPI) Delete(ctx context.Context, matches []string) (uint, error) {
 	u := h.client.url(epSeries, nil)
 	q := u.Query()
 
