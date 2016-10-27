@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"regexp"
 	"sort"
@@ -30,10 +29,11 @@ import (
 	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/model"
 )
 
 // Config defines the graphite bridge config.
@@ -47,6 +47,9 @@ type Config struct {
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
 	Gatherer prometheus.Gatherer
 
+	// The logger that messages are written to. Defaults to log.Base().
+	Logger log.Logger
+
 	// The prefix for your graphite metric. Defaults to empty string.
 	Prefix string
 }
@@ -57,7 +60,8 @@ type Bridge struct {
 	interval time.Duration
 	prefix   string
 
-	g prometheus.Gatherer
+	g      prometheus.Gatherer
+	logger log.Logger
 }
 
 // NewBridge returns a pointer to a new Bridge struct.
@@ -73,6 +77,12 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.g = prometheus.DefaultGatherer
 	} else {
 		b.g = c.Gatherer
+	}
+
+	if c.Logger == nil {
+		b.logger = log.Base()
+	} else {
+		b.logger = c.Logger
 	}
 
 	if c.Prefix != "" {
@@ -98,8 +108,7 @@ func (b *Bridge) Run(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if err := b.Push(); err != nil {
-				// TODO: Use the right logger.
-				log.Printf("%v", err)
+				b.logger.Errorf("%v", err)
 			}
 		case <-ctx.Done():
 			return
