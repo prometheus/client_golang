@@ -35,8 +35,8 @@ import (
 )
 
 const (
-	defaultInterval               = 15 * time.Second
-	millisecondsPerSecond float64 = 1000
+	defaultInterval             = 15 * time.Second
+	millisecondsPerSecond int64 = 1000
 )
 
 // HandlerErrorHandling defines how a Handler serving metrics will handle
@@ -194,7 +194,7 @@ func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model
 
 	var total int
 	for _, s := range vec {
-		n, err := fmt.Fprintf(w, "%s %g %.3f\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, float64(s.Timestamp)/millisecondsPerSecond)
+		n, err := fmt.Fprintf(w, "%s %g %d\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, int64(s.Timestamp)/millisecondsPerSecond)
 		if err != nil {
 			return 0, err
 		}
