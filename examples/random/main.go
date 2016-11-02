@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"log"
 	"math"
 	"math/rand"
 	"net/http"
@@ -99,5 +100,5 @@ func main() {
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", prometheus.Handler())
-	http.ListenAndServe(*addr, nil)
+	log.Fatal(http.ListenAndServe(*addr, nil))
 }
