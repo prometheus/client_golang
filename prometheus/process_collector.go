@@ -44,37 +44,42 @@ func NewProcessCollectorPIDFn(
 	pidFn func() (int, error),
 	namespace string,
 ) Collector {
+	ns := ""
+	if len(namespace) > 0 {
+		ns = namespace + "_"
+	}
+
 	c := processCollector{
 		pidFn:     pidFn,
 		collectFn: func(chan<- Metric) {},
 
 		cpuTotal: NewDesc(
-			namespace+"_process_cpu_seconds_total",
+			ns+"process_cpu_seconds_total",
 			"Total user and system CPU time spent in seconds.",
 			nil, nil,
 		),
 		openFDs: NewDesc(
-			namespace+"_process_open_fds",
+			ns+"process_open_fds",
 			"Number of open file descriptors.",
 			nil, nil,
 		),
 		maxFDs: NewDesc(
-			namespace+"_process_max_fds",
+			ns+"process_max_fds",
 			"Maximum number of open file descriptors.",
 			nil, nil,
 		),
 		vsize: NewDesc(
-			namespace+"_process_virtual_memory_bytes",
+			ns+"process_virtual_memory_bytes",
 			"Virtual memory size in bytes.",
 			nil, nil,
 		),
 		rss: NewDesc(
-			namespace+"_process_resident_memory_bytes",
+			ns+"process_resident_memory_bytes",
 			"Resident memory size in bytes.",
 			nil, nil,
 		),
 		startTime: NewDesc(
-			namespace+"_process_start_time_seconds",
+			ns+"process_start_time_seconds",
 			"Start time of the process since unix epoch in seconds.",
 			nil, nil,
 		),
