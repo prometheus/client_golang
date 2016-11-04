@@ -41,7 +41,7 @@ var (
 	// differentiated via a "service" label.
 	rpcDurations = prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "rpc_durations_microseconds",
+			Name: "rpc_durations_seconds",
 			Help: "RPC latency distributions.",
 		},
 		[]string{"service"},
@@ -51,7 +51,7 @@ var (
 	// normal distribution, with 20 buckets centered on the mean, each
 	// half-sigma wide.
 	rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "rpc_durations_histogram_microseconds",
+		Name:    "rpc_durations_histogram_seconds",
 		Help:    "RPC latency distributions.",
 		Buckets: prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
 	})
