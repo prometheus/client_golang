@@ -16,13 +16,12 @@
 package graphite
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"net"
-	"regexp"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/prometheus/common/expfmt"
@@ -70,7 +69,7 @@ type Config struct {
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
 	Gatherer prometheus.Gatherer
 
-	// The logger that messages are written to. Defaults to log.Base().
+	// The logger that messages are written to. Defaults to no logging.
 	Logger Logger
 
 	// ErrorHandling defines how errors are handled. Note that errors are
@@ -96,7 +95,7 @@ type Bridge struct {
 // log.Logger from the standard library implements this interface, and it is
 // easy to implement by custom loggers, if they don't do so already anyway.
 type Logger interface {
-	Printf(v ...interface{})
+	Println(v ...interface{})
 }
 
 // NewBridge returns a pointer to a new Bridge struct.
@@ -148,10 +147,8 @@ func (b *Bridge) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := b.Push(); err != nil {
-				if b.logger != nil {
-					b.logger.Printf("%v", err)
-				}
+			if err := b.Push(); err != nil && b.logger != nil {
+				b.logger.Println("error pushing to Graphite:", err)
 			}
 		case <-ctx.Done():
 			return
@@ -162,14 +159,16 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
-	if err != nil {
+	if err != nil || len(mfs) == 0 {
 		switch b.errorHandling {
 		case AbortOnError:
 			return err
 		case ContinueOnError:
 			if b.logger != nil {
-				b.logger.Printf("continue on error: %v", err)
+				b.logger.Println("continue on error:", err)
 			}
+		default:
+			panic("unrecognized error handling value")
 		}
 	}
 
@@ -179,32 +178,37 @@ func (b *Bridge) Push() error {
 	}
 	defer conn.Close()
 
-	_, err = writeMetrics(conn, mfs, b.prefix, model.Now())
-	if err != nil {
-		return err
-	}
-
-	return err
+	return writeMetrics(conn, mfs, b.prefix, model.Now())
 }
 
-func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model.Time) (int, error) {
+func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model.Time) error {
 	vec := expfmt.ExtractSamples(&expfmt.DecodeOptions{
 		Timestamp: now,
 	}, mfs...)
 
-	var total int
+	buf := bufio.NewWriter(w)
 	for _, s := range vec {
-		n, err := fmt.Fprintf(w, "%s %g %d\n", strings.Join([]string{sanitize(prefix), toMetric(s.Metric)}, "."), s.Value, int64(s.Timestamp)/millisecondsPerSecond)
-		if err != nil {
-			return 0, err
+		if err := writeSanitized(buf, prefix); err != nil {
+			return err
 		}
-		total += n
+		if err := buf.WriteByte('.'); err != nil {
+			return err
+		}
+		if err := writeMetric(buf, s.Metric); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(buf, " %g %d\n", s.Value, int64(s.Timestamp)/millisecondsPerSecond); err != nil {
+			return err
+		}
+		if err := buf.Flush(); err != nil {
+			return err
+		}
 	}
 
-	return total, nil
+	return nil
 }
 
-func toMetric(m model.Metric) string {
+func writeMetric(buf *bufio.Writer, m model.Metric) error {
 	metricName, hasName := m[model.MetricNameLabel]
 	numLabels := len(m) - 1
 	if !hasName {
@@ -214,31 +218,60 @@ func toMetric(m model.Metric) string {
 	labelStrings := make([]string, 0, numLabels)
 	for label, value := range m {
 		if label != model.MetricNameLabel {
-			labelStrings = append(labelStrings, fmt.Sprintf("%s.%s", sanitize(string(label)), sanitize(string(value))))
+			labelStrings = append(labelStrings, fmt.Sprintf("%s %s", string(label), string(value)))
 		}
 	}
 
+	var err error
 	switch numLabels {
 	case 0:
 		if hasName {
-			return sanitize(string(metricName))
+			return writeSanitized(buf, string(metricName))
 		}
-		return ""
 	default:
 		sort.Strings(labelStrings)
-		return fmt.Sprintf("%s.%s", sanitize(string(metricName)), strings.Join(labelStrings, "."))
+		if err = writeSanitized(buf, string(metricName)); err != nil {
+			return err
+		}
+		for _, s := range labelStrings {
+			if err = buf.WriteByte('.'); err != nil {
+				return err
+			}
+			if err = writeSanitized(buf, s); err != nil {
+				return err
+			}
+		}
 	}
+	return nil
 }
 
-var (
-	reInvalidChars       = regexp.MustCompile("[^a-zA-Z0-9_-]")
-	reRepeatedUnderscore = regexp.MustCompile("_{2,}")
-)
+func writeSanitized(buf *bufio.Writer, s string) error {
+	prevUnderscore := false
 
-func sanitize(s string) string {
-	return strings.Trim(
-		strings.ToLower(
-			reRepeatedUnderscore.ReplaceAllString(
-				reInvalidChars.ReplaceAllString(s, "_"), "_"),
-		), "_")
+	for _, c := range s {
+		c = replaceInvalidRune(c)
+		if c == '_' {
+			if prevUnderscore {
+				continue
+			}
+			prevUnderscore = true
+		} else {
+			prevUnderscore = false
+		}
+		if _, err := buf.WriteRune(c); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func replaceInvalidRune(c rune) rune {
+	if c == ' ' {
+		return '.'
+	}
+	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || (c >= '0' && c <= '9')) {
+		return '_'
+	}
+	return c
 }

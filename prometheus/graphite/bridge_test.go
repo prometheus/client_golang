@@ -1,6 +1,7 @@
 package graphite
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net"
@@ -18,15 +19,27 @@ func TestSanitize(t *testing.T) {
 		in, out string
 	}{
 		{in: "hello", out: "hello"},
-		{in: "hE/l1o", out: "he_l1o"},
+		{in: "hE/l1o", out: "hE_l1o"},
 		{in: "he,*ll(.o", out: "he_ll_o"},
-		{in: "hello_there%^&", out: "hello_there"},
+		{in: "hello_there%^&", out: "hello_there_"},
 	}
 
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+
 	for i, tc := range testCases {
-		if want, got := tc.out, sanitize(tc.in); want != got {
+		if err := writeSanitized(w, tc.in); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+		if err := w.Flush(); err != nil {
+			t.Fatalf("flush failed: %v", err)
+		}
+
+		if want, got := tc.out, buf.String(); want != got {
 			t.Fatalf("test case index %d: got sanitized string %s, want %s", i, got, want)
 		}
+
+		buf.Reset()
 	}
 }
 
@@ -57,7 +70,7 @@ func TestWriteSummary(t *testing.T) {
 
 	now := model.Time(1477043083)
 	var buf bytes.Buffer
-	_, err = writeMetrics(&buf, mfs, "prefix", now)
+	err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -107,7 +120,7 @@ func TestWriteHistogram(t *testing.T) {
 
 	now := model.Time(1477043083)
 	var buf bytes.Buffer
-	_, err = writeMetrics(&buf, mfs, "prefix", now)
+	err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -118,14 +131,14 @@ prefix.name_bucket.constname.constvalue.labelname.val1.le.0_05 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val1.le.0_1 0 1477043
 prefix.name_sum.constname.constvalue.labelname.val1 60 1477043
 prefix.name_count.constname.constvalue.labelname.val1 3 1477043
-prefix.name_bucket.constname.constvalue.labelname.val1.le.inf 3 1477043
+prefix.name_bucket.constname.constvalue.labelname.val1.le._Inf 3 1477043
 prefix.name_bucket.constname.constvalue.labelname.val2.le.0_01 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val2.le.0_02 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val2.le.0_05 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val2.le.0_1 0 1477043
 prefix.name_sum.constname.constvalue.labelname.val2 90 1477043
 prefix.name_count.constname.constvalue.labelname.val2 3 1477043
-prefix.name_bucket.constname.constvalue.labelname.val2.le.inf 3 1477043
+prefix.name_bucket.constname.constvalue.labelname.val2.le._Inf 3 1477043
 `
 	if got := buf.String(); want != got {
 		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
@@ -157,7 +170,7 @@ prefix.name.constname.constvalue.labelname.val2 1 1477043
 
 	now := model.Time(1477043083)
 	var buf bytes.Buffer
-	_, err = writeMetrics(&buf, mfs, "prefix", now)
+	err = writeMetrics(&buf, mfs, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
