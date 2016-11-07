@@ -3,7 +3,6 @@ package graphite
 import (
 	"bufio"
 	"bytes"
-	"context"
 	"io"
 	"log"
 	"net"
