@@ -45,11 +45,11 @@ type HandlerErrorHandling int
 // These constants cause handlers serving metrics to behave as described if
 // errors are encountered.
 const (
-	// Abort the push to Graphite upon the first error encountered.
-	AbortOnError HandlerErrorHandling = iota
-
 	// Ignore errors and try to push as many metrics to Graphite as possible.
-	ContinueOnError
+	ContinueOnError HandlerErrorHandling = iota
+
+	// Abort the push to Graphite upon the first error encountered.
+	AbortOnError
 )
 
 // Config defines the Graphite bridge config.
