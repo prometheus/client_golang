@@ -3,13 +3,18 @@ package graphite
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
+	"log"
 	"net"
+	"net/http"
+	"os"
 	"regexp"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
+	"golang.org/x/net/context"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -270,4 +275,39 @@ type mockGraphite struct {
 	errc  chan error
 
 	net.Listener
+}
+
+func ExampleBridge() {
+	b, err := NewBridge(&Config{
+		URL:           "graphite.biz:3099",
+		Gatherer:      prometheus.DefaultGatherer,
+		Prefix:        "prefix",
+		Interval:      15 * time.Second,
+		Timeout:       10 * time.Second,
+		ErrorHandling: AbortOnError,
+		Logger:        log.New(os.Stdout, "graphite bridge: ", log.Lshortfile),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	go func() {
+		// Start the service.
+		if err := http.ListenAndServe(":8080", nil); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// Push initial metrics to Graphite. Fail fast if the push fails.
+	if err := b.Push(); err != nil {
+		panic(err)
+	}
+
+	// Create a Context to control stopping the Run() loop that pushes
+	// metrics to Graphite.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start pushing metrics to Graphite in the Run() loop.
+	b.Run(ctx)
 }
