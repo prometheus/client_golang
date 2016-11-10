@@ -15,15 +15,37 @@ package prometheus
 
 import "time"
 
-type Observable interface {
+// Observer is the interface that wraps the Observe method, used by Histogram
+// and Summary to add observations.
+type Observer interface {
 	Observe(float64)
 }
 
-type TimerFunc func(Observable)
+type Timer struct {
+	begin    time.Time
+	observer Observer
+	gauge    Gauge
+}
 
-func NewTimer() TimerFunc {
-	begin := time.Now()
-	return func(obs Observable) {
-		obs.Observe(time.Since(begin).Seconds())
+func StartTimer() *Timer {
+	return &Timer{begin: time.Now()}
+}
+
+func (t *Timer) With(o Observer) *Timer {
+	t.observer = o
+	return t
+}
+
+func (t *Timer) WithGauge(g Gauge) *Timer {
+	t.gauge = g
+	return t
+}
+
+func (t *Timer) Stop() {
+	if t.observer != nil {
+		t.observer.Observe(time.Since(t.begin).Seconds())
+	}
+	if t.gauge != nil {
+		t.gauge.Set(time.Since(t.begin).Seconds())
 	}
 }
