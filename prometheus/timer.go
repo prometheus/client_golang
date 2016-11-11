@@ -21,10 +21,15 @@ type Observer interface {
 	Observe(float64)
 }
 
+type observerFunc func(float64)
+
+func (o observerFunc) Observe(value float64) {
+	o(value)
+}
+
 type Timer struct {
 	begin    time.Time
 	observer Observer
-	gauge    Gauge
 }
 
 func StartTimer() *Timer {
@@ -37,15 +42,12 @@ func (t *Timer) With(o Observer) *Timer {
 }
 
 func (t *Timer) WithGauge(g Gauge) *Timer {
-	t.gauge = g
+	t.observer = observerFunc(g.Set)
 	return t
 }
 
 func (t *Timer) Stop() {
 	if t.observer != nil {
 		t.observer.Observe(time.Since(t.begin).Seconds())
-	}
-	if t.gauge != nil {
-		t.gauge.Set(time.Since(t.begin).Seconds())
 	}
 }
