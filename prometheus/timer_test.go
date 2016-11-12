@@ -26,8 +26,8 @@ func TestTimerObserve(t *testing.T) {
 		},
 	)
 
-	timer := StartTimer().With(his)
-	timer.Stop()
+	timer := NewTimer().With(his)
+	timer.ObserveDuration()
 	m := &dto.Metric{}
 	his.Write(m)
 

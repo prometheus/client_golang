@@ -32,7 +32,7 @@ type Timer struct {
 	observer Observer
 }
 
-func StartTimer() *Timer {
+func NewTimer() *Timer {
 	return &Timer{begin: time.Now()}
 }
 
@@ -46,7 +46,7 @@ func (t *Timer) WithGauge(g Gauge) *Timer {
 	return t
 }
 
-func (t *Timer) Stop() {
+func (t *Timer) ObserveDuration() {
 	if t.observer != nil {
 		t.observer.Observe(time.Since(t.begin).Seconds())
 	}
