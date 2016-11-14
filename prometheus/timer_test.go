@@ -20,22 +20,88 @@ import (
 )
 
 func TestTimerObserve(t *testing.T) {
-	his := NewHistogram(
-		HistogramOpts{
-			Name: "test_histogram",
-		},
-	)
+	his := NewHistogram(HistogramOpts{
+		Name: "test_histogram",
+	})
+	sum := NewSummary(SummaryOpts{
+		Name: "test_summary",
+	})
+	gauge := NewGauge(GaugeOpts{
+		Name: "test_gauge",
+	})
 
-	timer := NewTimer().With(his)
-	timer.ObserveDuration()
+	func() {
+		hisTimer := NewTimer().With(his)
+		sumTimer := NewTimer().With(sum)
+		gaugeTimer := NewTimer().WithGauge(gauge)
+		defer hisTimer.ObserveDuration()
+		defer sumTimer.ObserveDuration()
+		defer gaugeTimer.ObserveDuration()
+	}()
+
 	m := &dto.Metric{}
 	his.Write(m)
-
-	for _, b := range m.Histogram.Bucket {
-		if int(b.GetCumulativeCount()) > 0 {
-			return
-		}
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for histogram, got %d", want, got)
 	}
+	m.Reset()
+	sum.Write(m)
+	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for summary, got %d", want, got)
+	}
+	m.Reset()
+	gauge.Write(m)
+	if got := m.GetGauge().GetValue(); got <= 0 {
+		t.Errorf("want value > 0 for gauge, got %f", got)
+	}
+}
 
-	t.Fatalf("no counts recorded")
+func TestTimerEmpty(t *testing.T) {
+	emptyTimer := NewTimer()
+	emptyTimer.ObserveDuration()
+	// Do nothing, just demonstrate it works without panic.
+}
+
+func TestTimerUnset(t *testing.T) {
+	his := NewHistogram(HistogramOpts{
+		Name: "test_histogram",
+	})
+
+	func() {
+		timer := NewTimer().With(his)
+		defer timer.ObserveDuration()
+		timer.With(nil)
+	}()
+
+	m := &dto.Metric{}
+	his.Write(m)
+	if want, got := uint64(0), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for histogram, got %d", want, got)
+	}
+}
+
+func TestTimerChange(t *testing.T) {
+	his := NewHistogram(HistogramOpts{
+		Name: "test_histogram",
+	})
+	sum := NewSummary(SummaryOpts{
+		Name: "test_summary",
+	})
+
+	func() {
+		timer := NewTimer().With(his)
+		defer timer.ObserveDuration()
+		timer.With(sum)
+	}()
+
+	m := &dto.Metric{}
+	his.Write(m)
+	if want, got := uint64(0), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for histogram, got %d", want, got)
+	}
+	m.Reset()
+	sum.Write(m)
+	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for summary, got %d", want, got)
+	}
 }
