@@ -278,7 +278,7 @@ type mockGraphite struct {
 
 func ExampleBridge() {
 	b, err := NewBridge(&Config{
-		URL:           "graphite.biz:3099",
+		URL:           "graphite.example.org:3099",
 		Gatherer:      prometheus.DefaultGatherer,
 		Prefix:        "prefix",
 		Interval:      15 * time.Second,
@@ -291,7 +291,7 @@ func ExampleBridge() {
 	}
 
 	go func() {
-		// Start the service.
+		// Start something in a goroutine that uses metrics.
 		if err := http.ListenAndServe(":8080", nil); err != nil {
 			log.Fatal(err)
 		}

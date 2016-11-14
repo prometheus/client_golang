@@ -34,8 +34,8 @@ import (
 )
 
 const (
-	defaultInterval             = 15 * time.Second
-	millisecondsPerSecond int64 = 1000
+	defaultInterval       = 15 * time.Second
+	millisecondsPerSecond = 1000
 )
 
 // HandlerErrorHandling defines how a Handler serving metrics will handle
