@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"regexp"
 	"testing"
@@ -292,9 +291,6 @@ func ExampleBridge() {
 
 	go func() {
 		// Start something in a goroutine that uses metrics.
-		if err := http.ListenAndServe(":8080", nil); err != nil {
-			log.Fatal(err)
-		}
 	}()
 
 	// Push initial metrics to Graphite. Fail fast if the push fails.
