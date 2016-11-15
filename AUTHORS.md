@@ -5,14 +5,7 @@ Maintainers of this repository:
 
 * Björn Rabenstein <beorn@soundcloud.com>
 
-The following individuals have contributed code to this repository
-(listed in alphabetical order):
+More than [30 individuals][1] have contributed to this repository. Please refer
+to the Git commit log for a complete list.
 
-* Bernerd Schaefer <bj.schaefer@gmail.com>
-* Björn Rabenstein <beorn@soundcloud.com>
-* Daniel Bornkessel <daniel@soundcloud.com>
-* Jeff Younker <jeff@drinktomi.com>
-* Julius Volz <julius.volz@gmail.com>
-* Matt T. Proud <matt.proud@gmail.com>
-* Tobias Schmidt <ts@soundcloud.com>
-
+[1]: https://github.com/prometheus/client_golang/graphs/contributors
