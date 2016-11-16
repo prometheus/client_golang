@@ -20,20 +20,16 @@ import (
 )
 
 func TestTimerObserve(t *testing.T) {
-	his := NewHistogram(HistogramOpts{
-		Name: "test_histogram",
-	})
-	sum := NewSummary(SummaryOpts{
-		Name: "test_summary",
-	})
-	gauge := NewGauge(GaugeOpts{
-		Name: "test_gauge",
-	})
+	var (
+		his   = NewHistogram(HistogramOpts{Name: "test_histogram"})
+		sum   = NewSummary(SummaryOpts{Name: "test_summary"})
+		gauge = NewGauge(GaugeOpts{Name: "test_gauge"})
+	)
 
 	func() {
-		hisTimer := NewTimer().With(his)
-		sumTimer := NewTimer().With(sum)
-		gaugeTimer := NewTimer().WithGauge(gauge)
+		hisTimer := NewTimer(his)
+		sumTimer := NewTimer(sum)
+		gaugeTimer := NewTimer(ObserverFunc(gauge.Set))
 		defer hisTimer.ObserveDuration()
 		defer sumTimer.ObserveDuration()
 		defer gaugeTimer.ObserveDuration()
@@ -57,51 +53,100 @@ func TestTimerObserve(t *testing.T) {
 }
 
 func TestTimerEmpty(t *testing.T) {
-	emptyTimer := NewTimer()
+	emptyTimer := NewTimer(nil)
 	emptyTimer.ObserveDuration()
 	// Do nothing, just demonstrate it works without panic.
 }
 
-func TestTimerUnset(t *testing.T) {
-	his := NewHistogram(HistogramOpts{
-		Name: "test_histogram",
-	})
+func TestTimerConditionalTiming(t *testing.T) {
+	var (
+		his = NewHistogram(HistogramOpts{
+			Name: "test_histogram",
+		})
+		timeMe = true
+		m      = &dto.Metric{}
+	)
 
-	func() {
-		timer := NewTimer().With(his)
+	timedFunc := func() {
+		timer := NewTimer(ObserverFunc(func(v float64) {
+			if timeMe {
+				his.Observe(v)
+			}
+		}))
 		defer timer.ObserveDuration()
-		timer.With(nil)
-	}()
+	}
 
-	m := &dto.Metric{}
+	timedFunc() // This will time.
 	his.Write(m)
-	if want, got := uint64(0), m.GetHistogram().GetSampleCount(); want != got {
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for histogram, got %d", want, got)
+	}
+
+	timeMe = false
+	timedFunc() // This will not time again.
+	m.Reset()
+	his.Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for histogram, got %d", want, got)
 	}
 }
 
-func TestTimerChange(t *testing.T) {
-	his := NewHistogram(HistogramOpts{
-		Name: "test_histogram",
-	})
-	sum := NewSummary(SummaryOpts{
-		Name: "test_summary",
-	})
+func TestTimerByOutcome(t *testing.T) {
+	var (
+		his = NewHistogramVec(
+			HistogramOpts{Name: "test_histogram"},
+			[]string{"outcome"},
+		)
+		outcome = "foo"
+		m       = &dto.Metric{}
+	)
 
-	func() {
-		timer := NewTimer().With(his)
+	timedFunc := func() {
+		timer := NewTimer(ObserverFunc(func(v float64) {
+			his.WithLabelValues(outcome).Observe(v)
+		}))
 		defer timer.ObserveDuration()
-		timer.With(sum)
-	}()
 
-	m := &dto.Metric{}
-	his.Write(m)
+		if outcome == "foo" {
+			outcome = "bar"
+			return
+		}
+		outcome = "foo"
+	}
+
+	timedFunc()
+	his.WithLabelValues("foo").Write(m)
 	if want, got := uint64(0), m.GetHistogram().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for histogram, got %d", want, got)
+		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
 	}
 	m.Reset()
-	sum.Write(m)
-	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for summary, got %d", want, got)
+	his.WithLabelValues("bar").Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
 	}
+
+	timedFunc()
+	m.Reset()
+	his.WithLabelValues("foo").Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
+	}
+	m.Reset()
+	his.WithLabelValues("bar").Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
+	}
+
+	timedFunc()
+	m.Reset()
+	his.WithLabelValues("foo").Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
+	}
+	m.Reset()
+	his.WithLabelValues("bar").Write(m)
+	if want, got := uint64(2), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
+	}
+
 }
