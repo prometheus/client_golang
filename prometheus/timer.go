@@ -29,7 +29,7 @@ type Observer interface {
 // two general use cases:
 //
 // The most common one is to use a Gauge as the Observer for a Timer.
-// See the "Batch" Timer example.
+// See the "Gauge" Timer example.
 //
 // The more advanced use case is to create a function that dynamically decides
 // which Observer to use for observing the duration. See the "Complex" Timer

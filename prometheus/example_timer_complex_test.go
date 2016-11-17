@@ -29,7 +29,9 @@ var (
 	// even larger amount of time series. Request counters partitioned by
 	// status code are usually OK as each counter only creates one time
 	// series. Histograms are way more expensive, so partition with care and
-	// only where you really need separate latency tracking.
+	// only where you really need separate latency tracking. Partitioning by
+	// status class is only an example. In concrete cases, other partitions
+	// might make more sense.
 	apiRequestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "api_request_duration_seconds",
@@ -46,15 +48,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	// decides wich Histogram's Observe method is called.
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(func(v float64) {
 		switch {
-		case status >= http.StatusInternalServerError:
+		case status >= 500: // Server error.
 			apiRequestDuration.WithLabelValues("5xx").Observe(v)
-		case status >= http.StatusBadRequest:
+		case status >= 400: // Client error.
 			apiRequestDuration.WithLabelValues("4xx").Observe(v)
-		case status >= http.StatusMultipleChoices:
+		case status >= 300: // Redirection.
 			apiRequestDuration.WithLabelValues("3xx").Observe(v)
-		case status >= http.StatusOK:
+		case status >= 200: // Success.
 			apiRequestDuration.WithLabelValues("2xx").Observe(v)
-		default:
+		default: // Informational.
 			apiRequestDuration.WithLabelValues("1xx").Observe(v)
 		}
 	}))
