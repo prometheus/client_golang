@@ -334,8 +334,9 @@ func ExampleRegister() {
 
 func ExampleSummary() {
 	temps := prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "pond_temperature_celsius",
-		Help: "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
+		Name:       "pond_temperature_celsius",
+		Help:       "The temperature of the frog pond.",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
 
 	// Simulate some observations.
@@ -372,8 +373,9 @@ func ExampleSummary() {
 func ExampleSummaryVec() {
 	temps := prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
-			Name: "pond_temperature_celsius",
-			Help: "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
+			Name:       "pond_temperature_celsius",
+			Help:       "The temperature of the frog pond.",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		},
 		[]string{"species"},
 	)
