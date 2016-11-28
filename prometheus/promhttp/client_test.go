@@ -28,6 +28,46 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+func TestMiddlewareWrapsFirstToLast(t *testing.T) {
+	order := []int{}
+	first := func(r *http.Request, next Middleware) (*http.Response, error) {
+		order = append(order, 0)
+
+		resp, err := next(r)
+
+		order = append(order, 3)
+		return resp, err
+	}
+
+	second := func(req *http.Request, next Middleware) (*http.Response, error) {
+		order = append(order, 1)
+
+		return next(req)
+	}
+
+	third := func(req *http.Request, next Middleware) (*http.Response, error) {
+		order = append(order, 2)
+		return next(req)
+	}
+
+	promclient, err := NewClient(SetMiddleware(first, second, third))
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	resp, err := promclient.Get("http://google.com")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	defer resp.Body.Close()
+
+	for want, got := range order {
+		if want != got {
+			t.Fatalf("wanted %d, got %d", want, got)
+		}
+	}
+}
+
 func TestMiddlewareAPI(t *testing.T) {
 	var (
 		his   = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "test_histogram"})
