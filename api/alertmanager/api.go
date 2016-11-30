@@ -223,6 +223,8 @@ func (c apiClient) do(ctx context.Context, req *http.Request) (*http.Response, [
 type AlertAPI interface {
 	// List all the active alerts.
 	List(ctx context.Context) ([]*model.Alert, error)
+	// List all grouped active alerts.
+	ListGroups(ctx context.Context) ([]AlertGroup, error)
 	// Push a list of alerts into the Alertmanager.
 	Push(ctx context.Context, alerts ...*model.Alert) error
 }
@@ -250,6 +252,35 @@ func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
 	err = json.Unmarshal(body, &alts)
 
 	return alts, err
+}
+
+// AlertGroup represents a set of alerts that have been grouped by Alert Manager
+type AlertGroup struct {
+	Labels model.LabelSet
+	Blocks []struct {
+		Receiver       string
+		GroupBy        []model.LabelName
+		GroupWait      int
+		GroupInterval  int
+		RepeatInterval int
+		Alerts         []*model.Alert
+	}
+}
+
+func (h *httpAlertAPI) ListGroups(ctx context.Context) ([]AlertGroup, error) {
+	u := h.client.url(epAlertGroups, nil)
+
+	req, _ := http.NewRequest("GET", u.String(), nil)
+
+	_, body, err := h.client.do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	altgs := []AlertGroup{}
+	err = json.Unmarshal(body, &altgs)
+
+	return altgs, err
 }
 
 func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
