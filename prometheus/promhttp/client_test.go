@@ -69,49 +69,33 @@ func TestMiddlewareWrapsFirstToLast(t *testing.T) {
 }
 
 func TestMiddlewareAPI(t *testing.T) {
-	var (
-		his   = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "test_histogram"})
-		sum   = prometheus.NewSummary(prometheus.SummaryOpts{Name: "test_summary"})
-		gauge = prometheus.NewGauge(prometheus.GaugeOpts{Name: "test_gauge"})
-	)
-
-	obs := []prometheus.Observer{
-		his,
-		sum,
-		prometheus.ObserverFunc(gauge.Set),
-	}
-
 	client := *http.DefaultClient
 	client.Timeout = 300 * time.Millisecond
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "inFlight"})
 	inFlight := func(r *http.Request, next Middleware) (*http.Response, error) {
-		log.Println("1st")
 		inFlightGauge.Inc()
 
 		resp, err := next(r)
 
 		inFlightGauge.Dec()
 
-		log.Println("last")
 		return resp, err
 	}
 
 	counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_counter"})
-	bytesSent := func(req *http.Request, next Middleware) (*http.Response, error) {
+	addFortyTwo := func(req *http.Request, next Middleware) (*http.Response, error) {
 		counter.Add(42)
-		log.Println("2nd")
-		// counter.Add(float64(req.ContentLength))
 
 		return next(req)
 	}
 
 	logging := func(req *http.Request, next Middleware) (*http.Response, error) {
-		log.Println("3rd")
+		log.Println("log something interesting")
 		return next(req)
 	}
 
-	promclient, err := NewClient(SetClient(client), SetObservers(obs), SetMiddleware(inFlight, bytesSent, logging))
+	promclient, err := NewClient(SetClient(client), SetMiddleware(inFlight, addFortyTwo, logging))
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

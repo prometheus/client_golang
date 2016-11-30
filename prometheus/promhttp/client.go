@@ -19,19 +19,13 @@
 
 package promhttp
 
-import (
-	"net/http"
-
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "net/http"
 
 type Client struct {
 	// Do we want to allow users to modify the underlying client after creating the wrapping client?
 	// c defaults to the http DefaultClient. We use a pointer to support
 	// the user relying on modifying this behavior globally.
 	c *http.Client
-
-	observers []prometheus.Observer
 
 	middleware Middleware
 }
@@ -60,15 +54,6 @@ func (c *Client) Get(url string) (resp *http.Response, err error) {
 
 func (c *Client) do(r *http.Request, _ middlewareFunc) (*http.Response, error) {
 	return c.c.Do(r)
-}
-
-// SetObservers sets the observers on Client. Each Observer has Observe called
-// at the conclusion of an HTTP roundtrip.
-func SetObservers(obs []prometheus.Observer) ConfigFunc {
-	return func(c *Client) error {
-		c.observers = obs
-		return nil
-	}
 }
 
 func SetMiddleware(middlewares ...middlewareFunc) ConfigFunc {
