@@ -182,9 +182,12 @@ func (b *Bridge) Push() error {
 }
 
 func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model.Time) error {
-	vec := expfmt.ExtractSamples(&expfmt.DecodeOptions{
+	vec, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{
 		Timestamp: now,
 	}, mfs...)
+	if err != nil {
+		return err
+	}
 
 	buf := bufio.NewWriter(w)
 	for _, s := range vec {
