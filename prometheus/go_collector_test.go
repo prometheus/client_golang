@@ -33,6 +33,9 @@ func TestGoCollector(t *testing.T) {
 			switch m := metric.(type) {
 			// Attention, this also catches Counter...
 			case Gauge:
+				if m.Desc().fqName != "go_goroutines" {
+					continue
+				}
 				pb := &dto.Metric{}
 				m.Write(pb)
 				if pb.GetGauge() == nil {
@@ -50,9 +53,10 @@ func TestGoCollector(t *testing.T) {
 					t.Errorf("want 1 new goroutine, got %d", diff)
 				}
 
-				// GoCollector performs two sends per call.
+				// GoCollector performs three sends per call.
 				// On line 27 we need to receive the second send
 				// to shut down cleanly.
+				<-ch
 				<-ch
 				return
 			}

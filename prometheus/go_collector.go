@@ -9,6 +9,7 @@ import (
 
 type goCollector struct {
 	goroutines Gauge
+	threads    Gauge
 	gcDesc     *Desc
 
 	// metrics to describe and collect
@@ -23,6 +24,11 @@ func NewGoCollector() Collector {
 			Namespace: "go",
 			Name:      "goroutines",
 			Help:      "Number of goroutines that currently exist.",
+		}),
+		threads: NewGauge(GaugeOpts{
+			Namespace: "go",
+			Name:      "threads",
+			Help:      "Number of threads created.",
 		}),
 		gcDesc: NewDesc(
 			"go_gc_duration_seconds",
@@ -225,8 +231,8 @@ func memstatNamespace(s string) string {
 // Describe returns all descriptions of the collector.
 func (c *goCollector) Describe(ch chan<- *Desc) {
 	ch <- c.goroutines.Desc()
+	ch <- c.threads.Desc()
 	ch <- c.gcDesc
-
 	for _, i := range c.metrics {
 		ch <- i.desc
 	}
@@ -236,6 +242,9 @@ func (c *goCollector) Describe(ch chan<- *Desc) {
 func (c *goCollector) Collect(ch chan<- Metric) {
 	c.goroutines.Set(float64(runtime.NumGoroutine()))
 	ch <- c.goroutines
+	n, _ := runtime.ThreadCreateProfile(nil)
+	c.threads.Set(float64(n))
+	ch <- c.threads
 
 	var stats debug.GCStats
 	stats.PauseQuantiles = make([]time.Duration, 5)
