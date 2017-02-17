@@ -30,7 +30,8 @@ The
 [`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/master/api/prometheus)
 contains the client for the
 [Prometheus HTTP API](http://prometheus.io/docs/querying/api/). It allows you
-to write Go applications that query time series data from a Prometheus server.
+to write Go applications that query time series data from a Prometheus
+server. It is still in alpha stage.
 
 ## Where is `model`, `extraction`, and `text`?
 
