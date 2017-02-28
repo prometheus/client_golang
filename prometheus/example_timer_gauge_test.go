@@ -13,7 +13,11 @@
 
 package prometheus_test
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"os"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	// If a function is called rarely (i.e. not more often than scrapes
@@ -27,7 +31,7 @@ var (
 	})
 )
 
-func ExampleTimer_gauge() error {
+func run() error {
 	// The Set method of the Gauge is used to observe the duration.
 	timer := prometheus.NewTimer(prometheus.ObserverFunc(funcDuration.Set))
 	defer timer.ObserveDuration()
@@ -35,4 +39,10 @@ func ExampleTimer_gauge() error {
 	// Do something. Return errors as encountered. The use of 'defer' above
 	// makes sure the function is still timed properly.
 	return nil
+}
+
+func ExampleTimer_gauge() {
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
 }
