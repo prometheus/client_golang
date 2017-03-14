@@ -28,58 +28,7 @@
 // differently on errors or allow to log errors.
 package promhttp
 
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
+import "testing"
 
 func TestMiddlewareWrapsFirstToLast(t *testing.T) {
-	order := []int{}
-	first := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			order = append(order, 0)
-
-			next.ServeHTTP(w, r)
-
-			order = append(order, 6)
-		})
-	}
-
-	second := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			order = append(order, 1)
-
-			next.ServeHTTP(w, r)
-
-			order = append(order, 5)
-		})
-	}
-
-	third := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			order = append(order, 2)
-
-			next.ServeHTTP(w, r)
-
-			order = append(order, 4)
-		})
-	}
-
-	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		order = append(order, 3)
-	})
-
-	handler := NewServer("testHandler", wrapped, SetMiddleware(first, second, third))
-
-	rec := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	handler.ServeHTTP(rec, req)
-
-	for want, got := range order {
-		if want != got {
-			t.Fatalf("wanted %d, got %d", want, got)
-		}
-	}
 }

@@ -40,163 +40,99 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type Server struct {
-	mw  http.Handler
-	end http.Handler
+func InFlight(g *prometheus.Gauge, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.Inc()
+		next.ServeHTTP(w, r)
+		g.Dec()
+	})
 }
 
-type Middleware func(http.Handler) http.Handler
-
-type ConfigFunc func(*Server) error
-
-func InFlight(opts prometheus.GaugeOpts) Middleware {
-	ifg := prometheus.NewGauge(opts)
-	prometheus.MustRegister(ifg)
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ifg.Inc()
-
-			next.ServeHTTP(w, r)
-
-			ifg.Dec()
-		})
+func Latency(obs prometheus.Observer, next http.Handler) http.Handler {
+	// Include code
+	// Maybe include path? Tell people to use a const label for now.
+	labels := prometheus.Labels{}
+	if _, err := counter.GetMetricWith(prometheus.Labels{"code": "200"}); err == nil {
+		labels = prometheus.Labels{"code": ""}
 	}
-}
-
-var (
-	instLabels = []string{"method", "code"}
-
-	defaultGaugeOpts = prometheus.GaugeOpts{Name: "requests_in_flight", Help: "The number of requests currently in flight."}
-
-	defaultMiddleware = []Middleware{InFlight(defaultGaugeOpts)}
-)
-
-func NewDefaultServer(handlerName string, handler http.Handler) http.HandlerFunc {
-	return NewServer(handlerName, handler, SetMiddleware(defaultMiddleware...))
-}
-
-func NewServer(handlerName string, handler http.Handler, configFuncs ...ConfigFunc) http.HandlerFunc {
-	s := &Server{
-		end: handler,
-	}
-
-	for _, fn := range configFuncs {
-		fn(s)
-	}
-
-	return instrumentHandlerFunc(handlerName, s.mw.ServeHTTP)
-}
-
-func SetMiddleware(middleware ...Middleware) ConfigFunc {
-	return func(s *Server) error {
-		s.mw = s.chain(middleware...)
-		return nil
-	}
-}
-
-func (s *Server) chain(middlewares ...Middleware) http.Handler {
-	if len(middlewares) == 0 {
-		return s.end
-	}
-
-	next := s.chain(middlewares[1:]...)
-
-	return middlewares[0](next)
-}
-
-func instrumentHandlerFunc(handlerName string, handlerFunc http.HandlerFunc) http.HandlerFunc {
-	return instrumentHandlerFuncWithOpts(
-		prometheus.HistogramOpts{
-			Subsystem:   "http",
-			ConstLabels: prometheus.Labels{"handler": handlerName},
-			Buckets:     prometheus.DefBuckets,
-		},
-		handlerFunc,
-	)
-}
-
-func instrumentHandlerFuncWithOpts(opts prometheus.HistogramOpts, handlerFunc http.HandlerFunc) http.HandlerFunc {
-	reqCnt := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace:   opts.Namespace,
-			Subsystem:   opts.Subsystem,
-			Name:        "requests_total",
-			Help:        "Total number of HTTP requests made.",
-			ConstLabels: opts.ConstLabels,
-		},
-		instLabels,
-	)
-	if err := prometheus.Register(reqCnt); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			reqCnt = are.ExistingCollector.(*prometheus.CounterVec)
-		} else {
-			panic(err)
-		}
-	}
-
-	opts.Name = "request_duration_seconds"
-	opts.Help = "The HTTP request latencies in seconds."
-	reqDur := prometheus.NewHistogram(opts)
-	if err := prometheus.Register(reqDur); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			reqDur = are.ExistingCollector.(prometheus.Histogram)
-		} else {
-			panic(err)
-		}
-	}
-
-	opts.Name = "request_size_bytes"
-	opts.Help = "The HTTP request sizes in bytes."
-	reqSz := prometheus.NewHistogram(opts)
-	if err := prometheus.Register(reqSz); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			reqSz = are.ExistingCollector.(prometheus.Histogram)
-		} else {
-			panic(err)
-		}
-	}
-
-	opts.Name = "response_size_bytes"
-	opts.Help = "The HTTP response sizes in bytes."
-	resSz := prometheus.NewHistogram(opts)
-	if err := prometheus.Register(resSz); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			resSz = are.ExistingCollector.(prometheus.Histogram)
-		} else {
-			panic(err)
-		}
-	}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
+		delegate := &responseWriterDelegator{ResponseWriter: w}
 
+		next.ServeHTTP(w, r)
+
+		if _, prs := labels["code"]; prs {
+			// TODO: How do we attach this to a metric? We need to
+			// create an interface for things that respond to
+			// GetMetricWith(prometheus.Labels)
+			labels["code"] = sanitizeCode(delegate.status)
+		}
+		obs.Observe(time.Since(now).Seconds())
+	})
+}
+
+func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
+	var (
+		labels = prometheus.Labels{}
+		c      *Counter
+		err    error
+	)
+
+	// TODO(beorn7): Remove this hacky way to check for instance labels
+	// once Descriptors can have their dimensionality queried.
+	if c, err = counter.GetMetricWith(prometheus.Labels{"code": "", "method": ""}); err == nil {
+		labels["code"] = ""
+		labels["method"] = ""
+	} else if c, err = counter.GetMetricWith(prometheus.Labels{"method": ""}); err == nil {
+		labels["method"] = ""
+	} else if c, err = counter.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
+		labels["code"] = ""
+	} else if c, err = counter.GetMetricWith(labels); err != nil {
+		panic(`counter middleware requires "code", "method", or both.`)
+	}
+	c.Delete(labels)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		delegate := &responseWriterDelegator{ResponseWriter: w}
+
+		next.ServeHTTP(w, r)
+
+		if _, prs := labels["code"]; prs {
+			labels["code"] = sanitizeCode(delegate.status)
+		}
+		if _, prs := labels["method"]; prs {
+			labels["method"] = sanitizeMethod(r.Method)
+		}
+		counter.With(labels).Inc()
+	})
+}
+
+func RequestSize(obs prometheus.Observer, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		size := computeApproximateRequestSize(r)
+		obs.Observe(float64(size))
+	})
+}
+
+func ResponseSize(obs prometheus.Observer, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 
 		_, cn := w.(http.CloseNotifier)
 		_, fl := w.(http.Flusher)
 		_, hj := w.(http.Hijacker)
+		_, ps := w.(http.Pusher)
 		_, rf := w.(io.ReaderFrom)
 		var rw http.ResponseWriter
-		if cn && fl && hj && rf {
+		if cn && fl && hj && rf && ps {
 			rw = &fancyResponseWriterDelegator{delegate}
 		} else {
 			rw = delegate
 		}
-		handlerFunc(rw, r)
 
-		// TODO: Do we want to calculate this at the end in case the
-		// user modifies the request? Or do we want to ignore this?
-		size := computeApproximateRequestSize(r)
-
-		elapsed := time.Since(now).Seconds()
-
-		method := sanitizeMethod(r.Method)
-		code := sanitizeCode(delegate.status)
-		reqCnt.WithLabelValues(method, code).Inc()
-		reqDur.Observe(elapsed)
-		resSz.Observe(float64(delegate.written))
-		reqSz.Observe(float64(size))
+		next.ServeHTTP(w, r)
+		obs.Observe(float64(delegate.written))
 	})
 }
 
@@ -388,6 +324,10 @@ func (f *fancyResponseWriterDelegator) Flush() {
 
 func (f *fancyResponseWriterDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return f.ResponseWriter.(http.Hijacker).Hijack()
+}
+
+func (f *fancyResponseWriterDelegator) Push(target string, opts *http.PushOptions) error {
+	return f.ResponseWriter.(http.Pusher).Push(target, opts)
 }
 
 func (f *fancyResponseWriterDelegator) ReadFrom(r io.Reader) (int64, error) {
