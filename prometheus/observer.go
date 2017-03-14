@@ -28,44 +28,9 @@ func (f ObserverFunc) Observe(value float64) {
 
 // ObserverVec implements MetricVec for the purpose of using instance labels
 // for an Observer.
-type ObserverVec struct {
-	*MetricVec
-	Observer
-}
-
-// GetMetricWithLabelValues replaces the method of the same name in
-// MetricVec. The difference is that this method returns a Summary and not a
-// Metric so that no type conversion is required.
-func (m *ObserverVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
-	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
-	if metric != nil {
-		return metric.(Observer), err
-	}
-	return nil, err
-}
-
-// GetMetricWith replaces the method of the same name in MetricVec. The
-// difference is that this method returns a Observer and not a Metric so that no
-// type conversion is required.
-func (m *ObserverVec) GetMetricWith(labels Labels) (Observer, error) {
-	metric, err := m.MetricVec.GetMetricWith(labels)
-	if metric != nil {
-		return metric.(Observer), err
-	}
-	return nil, err
-}
-
-// WithLabelValues works as GetMetricWithLabelValues, but panics where
-// GetMetricWithLabelValues would have returned an error. By not returning an
-// error, WithLabelValues allows shortcuts like
-//     myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (m *ObserverVec) WithLabelValues(lvs ...string) Observer {
-	return m.MetricVec.WithLabelValues(lvs...).(Observer)
-}
-
-// With works as GetMetricWith, but panics where GetMetricWithLabels would have
-// returned an error. By not returning an error, With allows shortcuts like
-//     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (m *ObserverVec) With(labels Labels) Observer {
-	return m.MetricVec.With(labels).(Observer)
+type ObserverVec interface {
+	GetMetricWith(Labels) (Observer, error)
+	GetMetricWithLabelValues(lvs ...string) (Observer, error)
+	With(Labels) Observer
+	WithLabelValues(...string) Observer
 }

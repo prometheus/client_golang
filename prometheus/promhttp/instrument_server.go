@@ -40,7 +40,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func InFlight(g *prometheus.Gauge, next http.Handler) http.Handler {
+func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.Inc()
 		next.ServeHTTP(w, r)
@@ -48,13 +48,15 @@ func InFlight(g *prometheus.Gauge, next http.Handler) http.Handler {
 	})
 }
 
-func Latency(obs prometheus.Observer, next http.Handler) http.Handler {
+func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	// Include code
 	// Maybe include path? Tell people to use a const label for now.
 	labels := prometheus.Labels{}
-	if _, err := counter.GetMetricWith(prometheus.Labels{"code": "200"}); err == nil {
+	if _, err := obs.GetMetricWith(prometheus.Labels{"code": "200"}); err == nil {
 		labels = prometheus.Labels{"code": ""}
 	}
+	// TODO: How to delete these labels?
+	// c.Delete(labels)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		delegate := &responseWriterDelegator{ResponseWriter: w}
@@ -62,35 +64,32 @@ func Latency(obs prometheus.Observer, next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 
 		if _, prs := labels["code"]; prs {
-			// TODO: How do we attach this to a metric? We need to
-			// create an interface for things that respond to
-			// GetMetricWith(prometheus.Labels)
 			labels["code"] = sanitizeCode(delegate.status)
 		}
-		obs.Observe(time.Since(now).Seconds())
+		obs.With(labels).Observe(time.Since(now).Seconds())
 	})
 }
 
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	var (
 		labels = prometheus.Labels{}
-		c      *Counter
 		err    error
 	)
 
 	// TODO(beorn7): Remove this hacky way to check for instance labels
 	// once Descriptors can have their dimensionality queried.
-	if c, err = counter.GetMetricWith(prometheus.Labels{"code": "", "method": ""}); err == nil {
+	if _, err = counter.GetMetricWith(prometheus.Labels{"code": "", "method": ""}); err == nil {
 		labels["code"] = ""
 		labels["method"] = ""
-	} else if c, err = counter.GetMetricWith(prometheus.Labels{"method": ""}); err == nil {
+	} else if _, err = counter.GetMetricWith(prometheus.Labels{"method": ""}); err == nil {
 		labels["method"] = ""
-	} else if c, err = counter.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
+	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
 		labels["code"] = ""
-	} else if c, err = counter.GetMetricWith(labels); err != nil {
+	} else if _, err = counter.GetMetricWith(labels); err != nil {
 		panic(`counter middleware requires "code", "method", or both.`)
 	}
-	c.Delete(labels)
+	// TODO: There is no delete exposed on interface Counter.
+	// c.Delete(labels)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
@@ -131,7 +130,7 @@ func ResponseSize(obs prometheus.Observer, next http.Handler) http.Handler {
 			rw = delegate
 		}
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(rw, r)
 		obs.Observe(float64(delegate.written))
 	})
 }

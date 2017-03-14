@@ -420,9 +420,9 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 }
 
 // GetMetricWithLabelValues replaces the method of the same name in
-// MetricVec. The difference is that this method returns a Summary and not a
+// MetricVec. The difference is that this method returns a Observer and not a
 // Metric so that no type conversion is required.
-func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Summary, error) {
+func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Summary), err
@@ -431,9 +431,9 @@ func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Summary, error) {
 }
 
 // GetMetricWith replaces the method of the same name in MetricVec. The
-// difference is that this method returns a Summary and not a Metric so that no
+// difference is that this method returns a Observer and not a Metric so that no
 // type conversion is required.
-func (m *SummaryVec) GetMetricWith(labels Labels) (Summary, error) {
+func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWith(labels)
 	if metric != nil {
 		return metric.(Summary), err
@@ -445,14 +445,14 @@ func (m *SummaryVec) GetMetricWith(labels Labels) (Summary, error) {
 // GetMetricWithLabelValues would have returned an error. By not returning an
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (m *SummaryVec) WithLabelValues(lvs ...string) Summary {
+func (m *SummaryVec) WithLabelValues(lvs ...string) Observer {
 	return m.MetricVec.WithLabelValues(lvs...).(Summary)
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (m *SummaryVec) With(labels Labels) Summary {
+func (m *SummaryVec) With(labels Labels) Observer {
 	return m.MetricVec.With(labels).(Summary)
 }
 

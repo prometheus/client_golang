@@ -28,7 +28,41 @@
 // differently on errors or allow to log errors.
 package promhttp
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
-func TestMiddlewareWrapsFirstToLast(t *testing.T) {
+	"github.com/prometheus/client_golang/prometheus"
+)
+
+func TestMiddlewareAPI(t *testing.T) {
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "inFlight"})
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "test_counter"},
+		[]string{"code", "method"},
+	)
+
+	histVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "latency",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code"},
+	)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	chain := InFlight(inFlightGauge,
+		Counter(counter,
+			Latency(histVec, handler),
+		),
+	)
+
+	r, _ := http.NewRequest("GET", "www.example.com", nil)
+	w := httptest.NewRecorder()
+	chain.ServeHTTP(w, r)
 }
