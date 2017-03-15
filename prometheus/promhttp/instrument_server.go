@@ -49,10 +49,9 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 }
 
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
-	// Include code
 	// Maybe include path? Tell people to use a const label for now.
 	labels := prometheus.Labels{}
-	if _, err := obs.GetMetricWith(prometheus.Labels{"code": "200"}); err == nil {
+	if _, err := obs.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
 		labels = prometheus.Labels{"code": ""}
 	}
 	// TODO: How to delete these labels?
