@@ -85,7 +85,7 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
 		labels["code"] = ""
 	} else if _, err = counter.GetMetricWith(labels); err != nil {
-		panic(`counter middleware requires "code", "method", or both.`)
+		panic(`counter middleware requires instance labels "code", "method", or both "code" and "label".`)
 	}
 	// TODO: There is no delete exposed on interface Counter.
 	// c.Delete(labels)
