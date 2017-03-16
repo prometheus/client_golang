@@ -89,6 +89,9 @@ type Config struct {
 	// Transport is used by the Client to drive HTTP requests. If not
 	// provided, DefaultTransport will be used.
 	Transport CancelableTransport
+
+	// Middleware allows you to inject custom auth, monitoring etc.
+	Middleware func(*http.Request)
 }
 
 func (cfg *Config) transport() CancelableTransport {
@@ -115,14 +118,16 @@ func New(cfg Config) (Client, error) {
 	u.Path = strings.TrimRight(u.Path, "/") + apiPrefix
 
 	return &httpClient{
-		endpoint:  u,
-		transport: cfg.transport(),
+		endpoint:   u,
+		transport:  cfg.transport(),
+		middleware: cfg.Middleware,
 	}, nil
 }
 
 type httpClient struct {
-	endpoint  *url.URL
-	transport CancelableTransport
+	endpoint   *url.URL
+	transport  CancelableTransport
+	middleware func(*http.Request)
 }
 
 func (c *httpClient) url(ep string, args map[string]string) *url.URL {
@@ -140,6 +145,10 @@ func (c *httpClient) url(ep string, args map[string]string) *url.URL {
 }
 
 func (c *httpClient) do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	if c.middleware != nil {
+		c.middleware(req)
+	}
+
 	resp, err := ctxhttp.Do(ctx, &http.Client{Transport: c.transport}, req)
 
 	defer func() {
