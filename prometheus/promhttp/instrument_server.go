@@ -60,7 +60,7 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 		now := time.Now()
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(delegate, r)
 
 		if _, prs := labels["code"]; prs {
 			labels["code"] = sanitizeCode(delegate.status)
@@ -93,7 +93,7 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(delegate, r)
 
 		if _, prs := labels["code"]; prs {
 			labels["code"] = sanitizeCode(delegate.status)
