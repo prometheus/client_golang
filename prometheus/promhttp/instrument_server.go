@@ -51,7 +51,7 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	// Maybe include path? Tell people to use a const label for now.
 	labels := prometheus.Labels{}
-	if _, err := obs.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
+	if _, err := obs.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
 		labels = prometheus.Labels{"code": ""}
 	}
 	// TODO: How to delete these labels?
@@ -77,12 +77,12 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 
 	// TODO(beorn7): Remove this hacky way to check for instance labels
 	// once Descriptors can have their dimensionality queried.
-	if _, err = counter.GetMetricWith(prometheus.Labels{"code": "", "method": ""}); err == nil {
+	if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0", "method": "get"}); err == nil {
 		labels["code"] = ""
 		labels["method"] = ""
-	} else if _, err = counter.GetMetricWith(prometheus.Labels{"method": ""}); err == nil {
+	} else if _, err = counter.GetMetricWith(prometheus.Labels{"method": "get"}); err == nil {
 		labels["method"] = ""
-	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": ""}); err == nil {
+	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
 		labels["code"] = ""
 	} else if _, err = counter.GetMetricWith(labels); err != nil {
 		panic(`counter middleware requires instance labels "code", "method", or both "code" and "label".`)
