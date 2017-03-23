@@ -50,41 +50,43 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	// Maybe include path? Tell people to use a const label for now.
-	labels := prometheus.Labels{}
+	var code bool
 	if _, err := obs.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
-		labels = prometheus.Labels{"code": ""}
+		code = true
 	}
 	// TODO: How to delete these labels?
 	// c.Delete(labels)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		delegate := &responseWriterDelegator{ResponseWriter: w}
+		var label string
 
 		next.ServeHTTP(delegate, r)
 
-		if _, prs := labels["code"]; prs {
-			labels["code"] = sanitizeCode(delegate.status)
+		if code {
+			label = sanitizeCode(delegate.status)
 		}
-		obs.With(labels).Observe(time.Since(now).Seconds())
+		obs.WithLabelValues(label).Observe(time.Since(now).Seconds())
 	})
 }
 
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	var (
-		labels = prometheus.Labels{}
+		code   bool
+		method bool
 		err    error
 	)
 
 	// TODO(beorn7): Remove this hacky way to check for instance labels
 	// once Descriptors can have their dimensionality queried.
 	if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0", "method": "get"}); err == nil {
-		labels["code"] = ""
-		labels["method"] = ""
+		code = true
+		method = true
 	} else if _, err = counter.GetMetricWith(prometheus.Labels{"method": "get"}); err == nil {
-		labels["method"] = ""
+		method = true
 	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
-		labels["code"] = ""
-	} else if _, err = counter.GetMetricWith(labels); err != nil {
+		code = true
+	} else if _, err = counter.GetMetricWith(prometheus.Labels{}); err != nil {
 		panic(`counter middleware requires instance labels "code", "method", or both "code" and "label".`)
 	}
 	// TODO: There is no delete exposed on interface Counter.
@@ -92,13 +94,14 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
+		labels := prometheus.Labels{}
 
 		next.ServeHTTP(delegate, r)
 
-		if _, prs := labels["code"]; prs {
+		if code {
 			labels["code"] = sanitizeCode(delegate.status)
 		}
-		if _, prs := labels["method"]; prs {
+		if method {
 			labels["method"] = sanitizeMethod(r.Method)
 		}
 		counter.With(labels).Inc()
