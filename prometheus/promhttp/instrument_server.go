@@ -48,6 +48,8 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	})
 }
 
+// If the wrapped http.Handler has not set a status code, i.e. the value is
+// currently 0, it will report a 200.
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	// Maybe include path? Tell people to use a const label for now.
 	var code bool
@@ -70,6 +72,8 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	})
 }
 
+// If the wrapped http.Handler has not set a status code, i.e. the value is
+// currently 0, it will report a 200.
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	var (
 		code   bool
@@ -186,6 +190,9 @@ func sanitizeMethod(m string) string {
 	}
 }
 
+// If the wrapped http.Handler has not set a status code, i.e. the value is
+// currently 0, santizeCode will return 200, for consistency with behavior in
+// the stdlib.
 func sanitizeCode(s int) string {
 	switch s {
 	case 100:
@@ -193,7 +200,7 @@ func sanitizeCode(s int) string {
 	case 101:
 		return "101"
 
-	case 200:
+	case 200, 0:
 		return "200"
 	case 201:
 		return "201"
