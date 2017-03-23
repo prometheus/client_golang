@@ -48,8 +48,12 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	})
 }
 
+// Latency accepts an ObserverVec interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided
+// ObserverVec must be registered in a registry in order to be used.
 // If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, it will report a 200.
+// currently 0, the supplied ObserverVec will report a 200.
+// The instance labels "code" and are supported on the provided ObserverVec.
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	// Maybe include path? Tell people to use a const label for now.
 	var code bool
@@ -72,8 +76,13 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	})
 }
 
+// Latency accepts an ObserverVec interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided
+// CounterVec must be registered in a registry in order to be used.
 // If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, it will report a 200.
+// currently 0, the supplied counter will report a 200.
+// The instance labels "code" and "method" are supported on the provided
+// CounterVec.
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	var (
 		code   bool
@@ -112,6 +121,9 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	})
 }
 
+// RequestSize accepts an Observer interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided Observer
+// must be registered in a registry in order to be used.
 func RequestSize(obs prometheus.Observer, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
@@ -120,6 +132,9 @@ func RequestSize(obs prometheus.Observer, next http.Handler) http.Handler {
 	})
 }
 
+// ResponseSize accepts an Observer interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided Observer
+// must be registered in a registry in order to be used.
 func ResponseSize(obs prometheus.Observer, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
