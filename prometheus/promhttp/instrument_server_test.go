@@ -17,15 +17,6 @@
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 
-// Package promhttp contains functions to create http.Handler instances to
-// expose Prometheus metrics via HTTP. In later versions of this package, it
-// will also contain tooling to instrument instances of http.Handler and
-// http.RoundTripper.
-//
-// promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
-// you can create a handler for a custom registry or anything that implements
-// the Gatherer interface. It also allows to create handlers that act
-// differently on errors or allow to log errors.
 package promhttp
 
 import (

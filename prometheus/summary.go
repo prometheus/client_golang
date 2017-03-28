@@ -425,7 +425,7 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
-		return metric.(Summary), err
+		return metric.(Observer), err
 	}
 	return nil, err
 }
@@ -436,7 +436,7 @@ func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWith(labels)
 	if metric != nil {
-		return metric.(Summary), err
+		return metric.(Observer), err
 	}
 	return nil, err
 }
@@ -446,14 +446,14 @@ func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Observe(42.21)
 func (m *SummaryVec) WithLabelValues(lvs ...string) Observer {
-	return m.MetricVec.WithLabelValues(lvs...).(Summary)
+	return m.MetricVec.WithLabelValues(lvs...).(Observer)
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
 func (m *SummaryVec) With(labels Labels) Observer {
-	return m.MetricVec.With(labels).(Summary)
+	return m.MetricVec.With(labels).(Observer)
 }
 
 type constSummary struct {

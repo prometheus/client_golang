@@ -17,15 +17,6 @@
 // Use of this source code is governed by a BSD-style license that can be found
 // in the LICENSE file.
 
-// Package promhttp contains functions to create http.Handler instances to
-// expose Prometheus metrics via HTTP. In later versions of this package, it
-// will also contain tooling to instrument instances of http.Handler and
-// http.RoundTripper.
-//
-// promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
-// you can create a handler for a custom registry or anything that implements
-// the Gatherer interface. It also allows to create handlers that act
-// differently on errors or allow to log errors.
 package promhttp
 
 import (
@@ -38,8 +29,12 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
+// InFlight accepts a Gauge and an http.Handler, returning a new http.Handler
+// that wraps the supplied http.Handler. The provided Gauge must be registered
+// in a registry in order to be used.
 func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.Inc()
@@ -52,90 +47,82 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 // new http.Handler that wraps the supplied http.Handler. The provided
 // ObserverVec must be registered in a registry in order to be used.
 // If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, the supplied ObserverVec will report a 200.
-// The instance labels "code" and are supported on the provided ObserverVec.
+// currently 0, the supplied ObserverVec will report a 200.  The instance
+// labels "code" and "method" are supported on the provided ObserverVec.
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
-	// Maybe include path? Tell people to use a const label for now.
-	var code bool
-	if _, err := obs.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
-		code = true
-	}
-	// TODO: How to delete these labels?
-	// c.Delete(labels)
+	code, method := checkLabels(obs)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		now := time.Now()
-		delegate := &responseWriterDelegator{ResponseWriter: w}
-		var label string
-
-		next.ServeHTTP(delegate, r)
-
+		var (
+			status int
+			now    = time.Now()
+		)
 		if code {
-			label = sanitizeCode(delegate.status)
+			d := &responseWriterDelegator{ResponseWriter: w}
+			next.ServeHTTP(d, r)
+			status = d.status
+		} else {
+			next.ServeHTTP(w, r)
 		}
-		obs.WithLabelValues(label).Observe(time.Since(now).Seconds())
+
+		obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
 	})
 }
 
-// Latency accepts an ObserverVec interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided
-// CounterVec must be registered in a registry in order to be used.
-// If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, the supplied counter will report a 200.
-// The instance labels "code" and "method" are supported on the provided
-// CounterVec.
+// Counter accepts an CounterVec interface and an http.Handler, returning a new
+// http.Handler that wraps the supplied http.Handler. The provided CounterVec
+// must be registered in a registry in order to be used.  If the wrapped
+// http.Handler has not set a status code, i.e. the value is currently 0, the
+// supplied counter will report a 200. The instance labels "code" and "method"
+// are supported on the provided CounterVec.
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
-	var (
-		code   bool
-		method bool
-		err    error
-	)
-
-	// TODO(beorn7): Remove this hacky way to check for instance labels
-	// once Descriptors can have their dimensionality queried.
-	if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0", "method": "get"}); err == nil {
-		code = true
-		method = true
-	} else if _, err = counter.GetMetricWith(prometheus.Labels{"method": "get"}); err == nil {
-		method = true
-	} else if _, err = counter.GetMetricWith(prometheus.Labels{"code": "0"}); err == nil {
-		code = true
-	} else if _, err = counter.GetMetricWith(prometheus.Labels{}); err != nil {
-		panic(`counter middleware requires instance labels "code", "method", or both "code" and "label".`)
-	}
-	// TODO: There is no delete exposed on interface Counter.
-	// c.Delete(labels)
+	code, method := checkLabels(counter)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		delegate := &responseWriterDelegator{ResponseWriter: w}
-		labels := prometheus.Labels{}
-
-		next.ServeHTTP(delegate, r)
-
+		var status int
 		if code {
-			labels["code"] = sanitizeCode(delegate.status)
+			d := &responseWriterDelegator{ResponseWriter: w}
+			next.ServeHTTP(d, r)
+			status = d.status
+		} else {
+			next.ServeHTTP(w, r)
 		}
-		if method {
-			labels["method"] = sanitizeMethod(r.Method)
-		}
-		counter.With(labels).Inc()
+
+		counter.With(labels(code, method, r.Method, status)).Inc()
 	})
 }
 
-// RequestSize accepts an Observer interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided Observer
-// must be registered in a registry in order to be used.
-func RequestSize(obs prometheus.Observer, next http.Handler) http.Handler {
+// RequestSize accepts an ObserverVec interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided
+// ObserverVec must be registered in a registry in order to be used.
+// If the wrapped http.Handler has not set a status code, i.e. the value is
+// currently 0, the supplied ObserverVec will report a 200.  The instance
+// labels "code" and "method" are supported on the provided ObserverVec.
+func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
+	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
+		var status int
+		if code {
+			d := &responseWriterDelegator{ResponseWriter: w}
+			next.ServeHTTP(d, r)
+			status = d.status
+		} else {
+			next.ServeHTTP(w, r)
+		}
+
 		size := computeApproximateRequestSize(r)
-		obs.Observe(float64(size))
+		obs.With(labels(code, method, r.Method, status)).Observe(float64(size))
 	})
 }
 
-// ResponseSize accepts an Observer interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided Observer
-// must be registered in a registry in order to be used.
-func ResponseSize(obs prometheus.Observer, next http.Handler) http.Handler {
+// ResponseSize accepts an ObserverVec interface and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided
+// ObserverVec must be registered in a registry in order to be used.
+// If the wrapped http.Handler has not set a status code, i.e. the value is
+// currently 0, the supplied ObserverVec will report a 200.  The instance
+// labels "code" and "method" are supported on the provided ObserverVec.
+func ResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
+	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		delegate := &responseWriterDelegator{ResponseWriter: w}
 
@@ -152,13 +139,77 @@ func ResponseSize(obs prometheus.Observer, next http.Handler) http.Handler {
 		}
 
 		next.ServeHTTP(rw, r)
-		obs.Observe(float64(delegate.written))
+		obs.With(labels(code, method, r.Method, delegate.status)).Observe(float64(delegate.written))
 	})
 }
 
+func checkLabels(c prometheus.Collector) (code bool, method bool) {
+	var (
+		desc *prometheus.Desc
+		pm   dto.Metric
+	)
+
+	descc := make(chan *prometheus.Desc, 1)
+	c.Describe(descc)
+
+	select {
+	case desc = <-descc:
+	default:
+		panic("no description provided by collector")
+	}
+
+	// TODO(beorn7): Remove this hacky way to check for instance labels
+	// once Descriptors can have their dimensionality queried.
+	if _, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0); err == nil {
+		return
+	} else if m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, ""); err == nil {
+		if err := m.Write(&pm); err != nil {
+			panic("error checking metric for labels")
+		}
+
+		name := *pm.Label[0].Name
+		if name == "code" {
+			code = true
+		} else if name == "method" {
+			method = true
+		} else {
+			panic("metric partitioned with non-supported labels")
+		}
+		return
+	} else if m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, "", ""); err == nil {
+		if err := m.Write(&pm); err != nil {
+			panic("error checking metric for labels")
+		}
+
+		for _, label := range pm.Label {
+			if *label.Name == "code" || *label.Name == "method" {
+				continue
+			}
+			panic("metric partitioned with non-supported labels")
+		}
+
+		code = true
+		method = true
+		return
+	} else {
+		panic("metric partitioned with non-supported labels")
+	}
+}
+
+func labels(code, method bool, reqMethod string, status int) prometheus.Labels {
+	labels := prometheus.Labels{}
+
+	if code {
+		labels["code"] = sanitizeCode(status)
+	}
+	if method {
+		labels["method"] = sanitizeMethod(reqMethod)
+	}
+
+	return labels
+}
+
 func computeApproximateRequestSize(r *http.Request) int {
-	// Get URL length in current go routine for avoiding a race condition.
-	// HandlerFunc that runs in parallel may modify the URL.
 	s := 0
 	if r.URL != nil {
 		s += len(r.URL.String())

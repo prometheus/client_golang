@@ -26,11 +26,12 @@ func (f ObserverFunc) Observe(value float64) {
 	f(value)
 }
 
-// ObserverVec implements MetricVec for the purpose of using instance labels
-// for an Observer.
+// ObserverVec is an interface implemented by `HistogramVec` and `SummaryVec`.
 type ObserverVec interface {
 	GetMetricWith(Labels) (Observer, error)
 	GetMetricWithLabelValues(lvs ...string) (Observer, error)
 	With(Labels) Observer
 	WithLabelValues(...string) Observer
+
+	Collector
 }
