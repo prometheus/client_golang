@@ -420,7 +420,7 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 }
 
 // GetMetricWithLabelValues replaces the method of the same name in
-// MetricVec. The difference is that this method returns a Observer and not a
+// MetricVec. The difference is that this method returns an Observer and not a
 // Metric so that no type conversion is required.
 func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
@@ -431,7 +431,7 @@ func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 }
 
 // GetMetricWith replaces the method of the same name in MetricVec. The
-// difference is that this method returns a Observer and not a Metric so that no
+// difference is that this method returns an Observer and not a Metric so that no
 // type conversion is required.
 func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWith(labels)
