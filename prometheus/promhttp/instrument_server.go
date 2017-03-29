@@ -49,6 +49,7 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 // If the wrapped http.Handler has not set a status code, i.e. the value is
 // currently 0, the supplied ObserverVec will report a 200.  The instance
 // labels "code" and "method" are supported on the provided ObserverVec.
+// Note: Partitioning histograms is expensive.
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 
@@ -98,6 +99,7 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 // If the wrapped http.Handler has not set a status code, i.e. the value is
 // currently 0, the supplied ObserverVec will report a 200.  The instance
 // labels "code" and "method" are supported on the provided ObserverVec.
+// Note: Partitioning histograms is expensive.
 func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +123,7 @@ func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 // If the wrapped http.Handler has not set a status code, i.e. the value is
 // currently 0, the supplied ObserverVec will report a 200.  The instance
 // labels "code" and "method" are supported on the provided ObserverVec.
+// Note: Partitioning histograms is expensive.
 func ResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -18,9 +18,17 @@
 // in the LICENSE file.
 
 // Package promhttp contains functions to create http.Handler instances to
-// expose Prometheus metrics via HTTP. In later versions of this package, it
-// will also contain tooling to instrument instances of http.Handler and
-// http.RoundTripper.
+// expose Prometheus metrics via HTTP. It contains tooling to instrument
+// instances of http.Handler via Middleware. Currently available middleware
+// wrappers support:
+// - Instrumenting latency
+// - Instrumenting handler requests
+// - Instrumenting in flight requests
+// - Instrumenting incoming request size
+// - Instrumenting outgoing response size
+//
+//Note that instrumenting latency with a histogram is rather expensive, and
+//cardinality on the supplied histogram should be kept to a minimum.
 //
 // promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
 // you can create a handler for a custom registry or anything that implements
