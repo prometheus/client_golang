@@ -59,15 +59,30 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 			now    = time.Now()
 		)
 		if code {
-			d := &responseWriterDelegator{ResponseWriter: w}
+			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.status
+			status = d.Status()
 		} else {
 			next.ServeHTTP(w, r)
 		}
 
 		obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
 	})
+}
+
+func newDelegator(w http.ResponseWriter) delegator {
+	d := &responseWriterDelegator{ResponseWriter: w}
+
+	_, cn := w.(http.CloseNotifier)
+	_, fl := w.(http.Flusher)
+	_, hj := w.(http.Hijacker)
+	_, ps := w.(http.Pusher)
+	_, rf := w.(io.ReaderFrom)
+	if cn && fl && hj && rf && ps {
+		return &fancyResponseWriterDelegator{d}
+	}
+
+	return d
 }
 
 // Counter accepts an CounterVec interface and an http.Handler, returning a new
@@ -82,9 +97,9 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var status int
 		if code {
-			d := &responseWriterDelegator{ResponseWriter: w}
+			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.status
+			status = d.Status()
 		} else {
 			next.ServeHTTP(w, r)
 		}
@@ -105,9 +120,9 @@ func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var status int
 		if code {
-			d := &responseWriterDelegator{ResponseWriter: w}
+			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.status
+			status = d.Status()
 		} else {
 			next.ServeHTTP(w, r)
 		}
@@ -127,22 +142,9 @@ func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 func ResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		delegate := &responseWriterDelegator{ResponseWriter: w}
-
-		_, cn := w.(http.CloseNotifier)
-		_, fl := w.(http.Flusher)
-		_, hj := w.(http.Hijacker)
-		_, ps := w.(http.Pusher)
-		_, rf := w.(io.ReaderFrom)
-		var rw http.ResponseWriter
-		if cn && fl && hj && rf && ps {
-			rw = &fancyResponseWriterDelegator{delegate}
-		} else {
-			rw = delegate
-		}
-
-		next.ServeHTTP(rw, r)
-		obs.With(labels(code, method, r.Method, delegate.status)).Observe(float64(delegate.written))
+		d := newDelegator(w)
+		next.ServeHTTP(d, r)
+		obs.With(labels(code, method, r.Method, d.Status())).Observe(float64(d.Written()))
 	})
 }
 
@@ -363,6 +365,13 @@ func sanitizeCode(s int) string {
 	}
 }
 
+type delegator interface {
+	Status() int
+	Written() int64
+
+	http.ResponseWriter
+}
+
 type responseWriterDelegator struct {
 	http.ResponseWriter
 
@@ -370,6 +379,14 @@ type responseWriterDelegator struct {
 	status          int
 	written         int64
 	wroteHeader     bool
+}
+
+func (r *responseWriterDelegator) Status() int {
+	return r.status
+}
+
+func (r *responseWriterDelegator) Written() int64 {
+	return r.written
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
@@ -389,6 +406,14 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 
 type fancyResponseWriterDelegator struct {
 	*responseWriterDelegator
+}
+
+func (r *fancyResponseWriterDelegator) Status() int {
+	return r.status
+}
+
+func (r *fancyResponseWriterDelegator) Written() int64 {
+	return r.written
 }
 
 func (f *fancyResponseWriterDelegator) CloseNotify() <-chan bool {
