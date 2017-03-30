@@ -70,21 +70,6 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	})
 }
 
-func newDelegator(w http.ResponseWriter) delegator {
-	d := &responseWriterDelegator{ResponseWriter: w}
-
-	_, cn := w.(http.CloseNotifier)
-	_, fl := w.(http.Flusher)
-	_, hj := w.(http.Hijacker)
-	_, ps := w.(http.Pusher)
-	_, rf := w.(io.ReaderFrom)
-	if cn && fl && hj && rf && ps {
-		return &fancyResponseWriterDelegator{d}
-	}
-
-	return d
-}
-
 // Counter accepts an CounterVec interface and an http.Handler, returning a new
 // http.Handler that wraps the supplied http.Handler. The provided CounterVec
 // must be registered in a registry in order to be used.  If the wrapped
@@ -372,6 +357,21 @@ type delegator interface {
 	Written() int64
 
 	http.ResponseWriter
+}
+
+func newDelegator(w http.ResponseWriter) delegator {
+	d := &responseWriterDelegator{ResponseWriter: w}
+
+	_, cn := w.(http.CloseNotifier)
+	_, fl := w.(http.Flusher)
+	_, hj := w.(http.Hijacker)
+	_, ps := w.(http.Pusher)
+	_, rf := w.(io.ReaderFrom)
+	if cn && fl && hj && rf && ps {
+		return &fancyResponseWriterDelegator{d}
+	}
+
+	return d
 }
 
 type responseWriterDelegator struct {
