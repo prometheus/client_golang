@@ -53,20 +53,20 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var (
-			status int
-			now    = time.Now()
-		)
-		if code {
+	if code {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			now := time.Now()
 			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.Status()
-		} else {
-			next.ServeHTTP(w, r)
-		}
 
-		obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
+			obs.With(labels(code, method, r.Method, d.Status())).Observe(time.Since(now).Seconds())
+		})
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		next.ServeHTTP(w, r)
+		obs.With(labels(code, method, r.Method, 0)).Observe(time.Since(now).Seconds())
 	})
 }
 
@@ -94,17 +94,17 @@ func newDelegator(w http.ResponseWriter) delegator {
 func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	code, method := checkLabels(counter)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var status int
-		if code {
+	if code {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.Status()
-		} else {
-			next.ServeHTTP(w, r)
-		}
+			counter.With(labels(code, method, r.Method, d.Status())).Inc()
+		})
+	}
 
-		counter.With(labels(code, method, r.Method, status)).Inc()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		counter.With(labels(code, method, r.Method, 0)).Inc()
 	})
 }
 
@@ -117,18 +117,20 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 // Note: Partitioning histograms is expensive.
 func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var status int
-		if code {
+
+	if code {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w)
 			next.ServeHTTP(d, r)
-			status = d.Status()
-		} else {
-			next.ServeHTTP(w, r)
-		}
+			size := computeApproximateRequestSize(r)
+			obs.With(labels(code, method, r.Method, d.Status())).Observe(float64(size))
+		})
+	}
 
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
 		size := computeApproximateRequestSize(r)
-		obs.With(labels(code, method, r.Method, status)).Observe(float64(size))
+		obs.With(labels(code, method, r.Method, 0)).Observe(float64(size))
 	})
 }
 
