@@ -30,10 +30,12 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// ClientTrace adds middleware providing a histogram of outgoing request
-// latencies, partitioned by http client, request host and httptrace event.
+// ClientTrace accepts an ObserverVec interface and an httpClient, returning a
+// new httpClient that wraps the supplied httpClient. The provided ObserverVec
+// must be registered in a registry in order to be used.  Note: Partitioning
+// histograms is expensive.
 func ClientTrace(obs prometheus.ObserverVec, next httpClient) httpClient {
-	// The supplied histogram NEEDS a label for the httptrace event.
+	// The supplied ObserverVec NEEDS a label for the httptrace events.
 	// TODO: Using `event` for now, but any other name is acceptable.
 
 	checkEventLabel(obs)
@@ -83,8 +85,9 @@ func ClientTrace(obs prometheus.ObserverVec, next httpClient) httpClient {
 	})
 }
 
-// InFlight is middleware that instruments number of open requests partitioned
-// by http client and request host.
+// InFlightC accepts a Gauge and an httpClient, returning a new httpClient that
+// wraps the supplied httpClient. The provided Gauge must be registered in a
+// registry in order to be used.
 func InFlightC(gauge prometheus.Gauge, next httpClient) httpClient {
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
@@ -97,6 +100,9 @@ func InFlightC(gauge prometheus.Gauge, next httpClient) httpClient {
 	})
 }
 
+// Counter accepts an CounterVec interface and an httpClient, returning a new
+// httpClient that wraps the supplied httpClient. The provided CounterVec
+// must be registered in a registry in order to be used.
 func CounterC(counter *prometheus.CounterVec, next httpClient) httpClient {
 	code, method := checkLabels(counter)
 
