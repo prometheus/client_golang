@@ -34,12 +34,17 @@ type httpClient interface {
 	PostForm(string, url.Values) (*http.Response, error)
 }
 
+// ClientMiddleware is an adapter to allow wrapping an http.Client or other
+// Middleware funcs, allowing the user to construct layers of middleware around
+// an http client request.
 type ClientMiddleware func(req *http.Request) (*http.Response, error)
 
+// Do implements the httpClient interface.
 func (c ClientMiddleware) Do(r *http.Request) (*http.Response, error) {
 	return c(r)
 }
 
+// Get implements the httpClient interface.
 func (c ClientMiddleware) Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -48,6 +53,7 @@ func (c ClientMiddleware) Get(url string) (resp *http.Response, err error) {
 	return c.Do(req)
 }
 
+// Head implements the httpClient interface.
 func (c ClientMiddleware) Head(url string) (*http.Response, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
@@ -56,6 +62,7 @@ func (c ClientMiddleware) Head(url string) (*http.Response, error) {
 	return c.Do(req)
 }
 
+// Post implements the httpClient interface.
 func (c ClientMiddleware) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
@@ -65,6 +72,7 @@ func (c ClientMiddleware) Post(url string, contentType string, body io.Reader) (
 	return c.Do(req)
 }
 
+// PostForm implements the httpClient interface.
 func (c ClientMiddleware) PostForm(url string, data url.Values) (*http.Response, error) {
 	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
 }
