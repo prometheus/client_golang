@@ -30,11 +30,11 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// ClientTrace accepts an ObserverVec interface and an httpClient, returning a
-// new httpClient that wraps the supplied httpClient. The provided ObserverVec
-// must be registered in a registry in order to be used.  Note: Partitioning
-// histograms is expensive.
-func ClientTrace(obs prometheus.ObserverVec, next httpClient) httpClient {
+// ClientTrace accepts an ObserverVec interface and a doer, returning a
+// ClientMiddleware that wraps the supplied httpClient. The provided
+// ObserverVec must be registered in a registry in order to be used.  Note:
+// Partitioning histograms is expensive.
+func ClientTrace(obs prometheus.ObserverVec, next doer) ClientMiddleware {
 	// The supplied ObserverVec NEEDS a label for the httptrace events.
 	// TODO: Using `event` for now, but any other name is acceptable.
 
@@ -85,10 +85,10 @@ func ClientTrace(obs prometheus.ObserverVec, next httpClient) httpClient {
 	})
 }
 
-// InFlightC accepts a Gauge and an httpClient, returning a new httpClient that
-// wraps the supplied httpClient. The provided Gauge must be registered in a
-// registry in order to be used.
-func InFlightC(gauge prometheus.Gauge, next httpClient) httpClient {
+// InFlightC accepts a Gauge and an doer, returning a new ClientMiddleware that
+// wraps the supplied doer. The provided Gauge must be registered in a registry
+// in order to be used.
+func InFlightC(gauge prometheus.Gauge, next doer) ClientMiddleware {
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
 		resp, err := next.Do(r)
@@ -100,10 +100,10 @@ func InFlightC(gauge prometheus.Gauge, next httpClient) httpClient {
 	})
 }
 
-// Counter accepts an CounterVec interface and an httpClient, returning a new
-// httpClient that wraps the supplied httpClient. The provided CounterVec
-// must be registered in a registry in order to be used.
-func CounterC(counter *prometheus.CounterVec, next httpClient) httpClient {
+// Counter accepts an CounterVec interface and an doer, returning a new
+// ClientMiddleware that wraps the supplied doer. The provided CounterVec must
+// be registered in a registry in order to be used.
+func CounterC(counter *prometheus.CounterVec, next doer) ClientMiddleware {
 	code, method := checkLabels(counter)
 
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
