@@ -21,6 +21,7 @@ package promhttp
 
 import (
 	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptrace"
 	"time"
@@ -63,6 +64,18 @@ func ClientTrace(obs prometheus.ObserverVec, c httpClient) httpClient {
 			GotFirstResponseByte: func() {
 				obs.WithLabelValues("GotFirstResponseByte").Observe(time.Since(start).Seconds())
 			},
+			TLSHandshakeStart: func() {
+				obs.WithLabelValues("TLSHandshakeStart").Observe(time.Since(start).Seconds())
+			},
+			TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
+				if err != nil {
+					return
+				}
+				obs.WithLabelValues("TLSHandshakeDone").Observe(time.Since(start).Seconds())
+			},
+			WroteRequest: func(_ httptrace.WroteRequestInfo) {
+				obs.WithLabelValues("WroteRequest").Observe(time.Since(start).Seconds())
+			},
 		}
 		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
 
@@ -76,6 +89,9 @@ func InFlightC(gauge prometheus.Gauge, c httpClient) httpClient {
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
 		resp, err := c.Do(r)
+		if err != nil {
+			return nil, err
+		}
 		gauge.Dec()
 		return resp, err
 	})
@@ -86,6 +102,9 @@ func CounterC(counter *prometheus.CounterVec, c httpClient) httpClient {
 
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		resp, err := c.Do(r)
+		if err != nil {
+			return nil, err
+		}
 		counter.With(labels(code, method, r.Method, resp.StatusCode)).Inc()
 		return resp, err
 	})
