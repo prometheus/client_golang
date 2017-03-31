@@ -19,22 +19,39 @@
 
 package promhttp
 
-import "net/http"
+import (
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+)
 
-type Client struct {
-	// Do we want to allow users to modify the underlying client after creating the wrapping client?
-	// c defaults to the http DefaultClient. We use a pointer to support
-	// the user relying on modifying this behavior globally.
-	c *http.Client
-
-	middleware Middleware
+type httpClient interface {
+	Do(*http.Request) (*http.Response, error)
+	Get(string) (*http.Response, error)
+	Head(string) (*http.Response, error)
+	Post(string, string, io.Reader) (*http.Response, error)
+	PostForm(string, url.Values) (*http.Response, error)
 }
-
-type ConfigFunc func(*Client) error
 
 type Middleware func(req *http.Request) (*http.Response, error)
 
-type middlewareFunc func(req *http.Request, next Middleware) (*http.Response, error)
+type Client struct {
+	c          httpClient
+	middleware Middleware
+}
+
+func (c *Client) Do(r *http.Request) (*http.Response, error) {
+	return c.middleware(r)
+}
+
+func (c *Client) Get(url string) (resp *http.Response, err error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.Do(req)
+}
 
 func (c *Client) Head(url string) (*http.Response, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
@@ -44,68 +61,15 @@ func (c *Client) Head(url string) (*http.Response, error) {
 	return c.middleware(req)
 }
 
-func (c *Client) Get(url string) (resp *http.Response, err error) {
-	req, err := http.NewRequest("GET", url, nil)
+func (c *Client) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
 	}
-	return c.middleware(req)
+	req.Header.Set("Content-Type", contentType)
+	return c.Do(req)
 }
 
-func (c *Client) do(r *http.Request, _ middlewareFunc) (*http.Response, error) {
-	return c.c.Do(r)
-}
-
-func SetMiddleware(middlewares ...middlewareFunc) ConfigFunc {
-	return func(c *Client) error {
-		c.middleware = build(c, middlewares...)
-		return nil
-	}
-}
-
-func build(c *Client, middlewares ...middlewareFunc) Middleware {
-	if len(middlewares) == 0 {
-		return endMiddleware(c)
-	}
-
-	next := build(c, middlewares[1:]...)
-
-	return wrap(middlewares[0], next)
-}
-
-func wrap(fn middlewareFunc, next Middleware) Middleware {
-	return Middleware(func(r *http.Request) (*http.Response, error) {
-		return fn(r, next)
-	})
-}
-
-func endMiddleware(c *Client) Middleware {
-	return Middleware(func(r *http.Request) (*http.Response, error) {
-		return c.do(r, nil)
-	})
-}
-
-// SetClient sets the http client on Client. It accepts a value as opposed to a
-// pointer to discourage untraced modification of a custom http client after it
-// has been set.
-func SetClient(client http.Client) ConfigFunc {
-	return func(c *Client) error {
-		c.c = &client
-		return nil
-	}
-}
-
-func NewClient(fns ...ConfigFunc) (*Client, error) {
-	c := &Client{
-		c: http.DefaultClient,
-	}
-	c.middleware = build(c)
-
-	for _, fn := range fns {
-		if err := fn(c); err != nil {
-			return nil, err
-		}
-	}
-
-	return c, nil
+func (c *Client) PostForm(url string, data url.Values) (*http.Response, error) {
+	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
 }

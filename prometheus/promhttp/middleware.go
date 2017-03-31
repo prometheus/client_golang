@@ -30,88 +30,63 @@ import (
 
 // ClientTrace adds middleware providing a histogram of outgoing request
 // latencies, partitioned by http client, request host and httptrace event.
-func ClientTrace(httpClientName string) middlewareFunc {
-	hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Namespace:   "outgoing_httptrace",
-		Name:        "duration_seconds",
-		ConstLabels: prometheus.Labels{"client": httpClientName},
-		Help:        "Histogram of outgoing request latencies.",
-		Buckets:     []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-	},
-		[]string{"host", "event"},
-	)
-
-	if err := prometheus.Register(hist); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			hist = are.ExistingCollector.(*prometheus.HistogramVec)
-		} else {
-			panic(err)
-		}
+func ClientTrace(obs prometheus.ObserverVec, c httpClient) httpClient {
+	// The supplied histogram NEEDS a label for the httptrace event.
+	// TODO: Using `event` for now, but any other name is acceptable.
+	wc := &Client{
+		c: c,
 	}
 
-	return func(req *http.Request, next Middleware) (*http.Response, error) {
+	// TODO: Check for `event` label on histogram.
+
+	wc.middleware = func(r *http.Request) (*http.Response, error) {
 		var (
-			host  = req.URL.Host
+			host  = r.URL.Host
 			start = time.Now()
 		)
 
 		trace := &httptrace.ClientTrace{
 			DNSStart: func(_ httptrace.DNSStartInfo) {
-				hist.WithLabelValues(host, "DNSStart").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "DNSStart").Observe(time.Since(start).Seconds())
 			},
 			DNSDone: func(_ httptrace.DNSDoneInfo) {
-				hist.WithLabelValues(host, "DNSDone").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "DNSDone").Observe(time.Since(start).Seconds())
 			},
 			ConnectStart: func(_, _ string) {
-				hist.WithLabelValues(host, "ConnectStart").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "ConnectStart").Observe(time.Since(start).Seconds())
 			},
 			ConnectDone: func(net, addr string, err error) {
 				if err != nil {
 					return
 				}
-				hist.WithLabelValues(host, "ConnectDone").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "ConnectDone").Observe(time.Since(start).Seconds())
 			},
 			GotConn: func(_ httptrace.GotConnInfo) {
-				hist.WithLabelValues(host, "GotConn").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "GotConn").Observe(time.Since(start).Seconds())
 			},
 			GotFirstResponseByte: func() {
-				hist.WithLabelValues(host, "GotFirstResponseByte").Observe(time.Since(start).Seconds())
+				obs.WithLabelValues(host, "GotFirstResponseByte").Observe(time.Since(start).Seconds())
 			},
 		}
-		req = req.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
 
-		return next(req)
+		return wc.Do(r)
 	}
+
+	return wc
 }
 
 // InFlight is middleware that instruments number of open requests partitioned
 // by http client and request host.
-var InFlight = func(httpClientName string) middlewareFunc {
-	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace:   "outgoing",
-		Name:        "open_requests",
-		ConstLabels: prometheus.Labels{"client": httpClientName},
-		Help:        "Gauge of open outgoing requests.",
-	},
-		[]string{"host"},
-	)
-
-	if err := prometheus.Register(gauge); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			gauge = are.ExistingCollector.(*prometheus.GaugeVec)
-		} else {
-			panic(err)
-		}
+var InFlight = func(gauge prometheus.Gauge, c httpClient) httpClient {
+	wc := &Client{
+		c: c,
 	}
-
-	return func(req *http.Request, next Middleware) (*http.Response, error) {
-		host := req.URL.Host
-		gauge.WithLabelValues(host).Inc()
-
-		resp, err := next(req)
-
-		gauge.WithLabelValues(host).Dec()
-
+	wc.middleware = func(r *http.Request) (*http.Response, error) {
+		gauge.Inc()
+		resp, err := wc.Do(r)
+		gauge.Dec()
 		return resp, err
 	}
+	return wc
 }
