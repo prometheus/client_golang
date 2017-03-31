@@ -34,18 +34,13 @@ type httpClient interface {
 	PostForm(string, url.Values) (*http.Response, error)
 }
 
-type Middleware func(req *http.Request) (*http.Response, error)
+type ClientMiddleware func(req *http.Request) (*http.Response, error)
 
-type Client struct {
-	c          httpClient
-	middleware Middleware
+func (c ClientMiddleware) Do(r *http.Request) (*http.Response, error) {
+	return c(r)
 }
 
-func (c *Client) Do(r *http.Request) (*http.Response, error) {
-	return c.middleware(r)
-}
-
-func (c *Client) Get(url string) (resp *http.Response, err error) {
+func (c ClientMiddleware) Get(url string) (resp *http.Response, err error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -53,15 +48,15 @@ func (c *Client) Get(url string) (resp *http.Response, err error) {
 	return c.Do(req)
 }
 
-func (c *Client) Head(url string) (*http.Response, error) {
+func (c ClientMiddleware) Head(url string) (*http.Response, error) {
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return c.middleware(req)
+	return c.Do(req)
 }
 
-func (c *Client) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
+func (c ClientMiddleware) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, err
@@ -70,6 +65,6 @@ func (c *Client) Post(url string, contentType string, body io.Reader) (*http.Res
 	return c.Do(req)
 }
 
-func (c *Client) PostForm(url string, data url.Values) (*http.Response, error) {
+func (c ClientMiddleware) PostForm(url string, data url.Values) (*http.Response, error) {
 	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
 }

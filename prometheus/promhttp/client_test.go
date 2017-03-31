@@ -20,89 +20,47 @@
 package promhttp
 
 import (
-	"log"
 	"net/http"
+	"net/http/httputil"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestMiddlewareWrapsFirstToLast(t *testing.T) {
-	order := []int{}
-	first := func(r *http.Request, next Middleware) (*http.Response, error) {
-		order = append(order, 0)
-
-		resp, err := next(r)
-
-		order = append(order, 3)
-		return resp, err
-	}
-
-	second := func(req *http.Request, next Middleware) (*http.Response, error) {
-		order = append(order, 1)
-
-		return next(req)
-	}
-
-	third := func(req *http.Request, next Middleware) (*http.Response, error) {
-		order = append(order, 2)
-		return next(req)
-	}
-
-	promclient, err := NewClient(SetMiddleware(first, second, third))
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-
-	resp, err := promclient.Get("http://google.com")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	defer resp.Body.Close()
-
-	for want, got := range order {
-		if want != got {
-			t.Fatalf("wanted %d, got %d", want, got)
-		}
-	}
-}
-
-func TestMiddlewareAPI(t *testing.T) {
+func TestClientMiddlewareAPI(t *testing.T) {
 	client := *http.DefaultClient
 	client.Timeout = 300 * time.Millisecond
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "inFlight"})
-	inFlight := func(r *http.Request, next Middleware) (*http.Response, error) {
-		inFlightGauge.Inc()
 
-		resp, err := next(r)
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "test_counter"},
+		[]string{"code", "method"},
+	)
 
-		inFlightGauge.Dec()
+	histVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "latency",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"event"},
+	)
 
-		return resp, err
-	}
-
-	counter := prometheus.NewCounter(prometheus.CounterOpts{Name: "test_counter"})
-	addFortyTwo := func(req *http.Request, next Middleware) (*http.Response, error) {
-		counter.Add(42)
-
-		return next(req)
-	}
-
-	logging := func(req *http.Request, next Middleware) (*http.Response, error) {
-		log.Println("log something interesting")
-		return next(req)
-	}
-
-	promclient, err := NewClient(SetClient(client), SetMiddleware(inFlight, addFortyTwo, logging))
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	promclient := InFlightC(inFlightGauge,
+		CounterC(counter,
+			ClientTrace(histVec, &client),
+		),
+	)
 
 	resp, err := promclient.Get("http://google.com")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	defer resp.Body.Close()
+
+	out, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
 }
