@@ -20,6 +20,7 @@
 package promhttp
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"testing"
@@ -63,4 +64,5 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
+	fmt.Println(string(out))
 }

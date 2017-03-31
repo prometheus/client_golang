@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // ClientTrace adds middleware providing a histogram of outgoing request
@@ -35,8 +36,7 @@ func ClientTrace(obs prometheus.ObserverVec, c httpClient) httpClient {
 	// The supplied histogram NEEDS a label for the httptrace event.
 	// TODO: Using `event` for now, but any other name is acceptable.
 
-	// TODO: Check for `event` label on histogram.
-
+	checkEventLabel(obs)
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		var (
 			start = time.Now()
@@ -108,4 +108,34 @@ func CounterC(counter *prometheus.CounterVec, c httpClient) httpClient {
 		counter.With(labels(code, method, r.Method, resp.StatusCode)).Inc()
 		return resp, err
 	})
+}
+
+func checkEventLabel(c prometheus.Collector) {
+	var (
+		desc *prometheus.Desc
+		pm   dto.Metric
+	)
+
+	descc := make(chan *prometheus.Desc, 1)
+	c.Describe(descc)
+
+	select {
+	case desc = <-descc:
+	default:
+		panic("no description provided by collector")
+	}
+
+	m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, "")
+	if err != nil {
+		panic("error checking metric for labels")
+	}
+
+	if err := m.Write(&pm); err != nil {
+		panic("error checking metric for labels")
+	}
+
+	name := *pm.Label[0].Name
+	if name != "event" {
+		panic("metric partitioned with non-supported label")
+	}
 }
