@@ -32,7 +32,7 @@ import (
 
 // ClientTrace adds middleware providing a histogram of outgoing request
 // latencies, partitioned by http client, request host and httptrace event.
-func ClientTrace(obs prometheus.ObserverVec, c httpClient) httpClient {
+func ClientTrace(obs prometheus.ObserverVec, next httpClient) httpClient {
 	// The supplied histogram NEEDS a label for the httptrace event.
 	// TODO: Using `event` for now, but any other name is acceptable.
 
@@ -79,16 +79,16 @@ func ClientTrace(obs prometheus.ObserverVec, c httpClient) httpClient {
 		}
 		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
 
-		return c.Do(r)
+		return next.Do(r)
 	})
 }
 
 // InFlight is middleware that instruments number of open requests partitioned
 // by http client and request host.
-func InFlightC(gauge prometheus.Gauge, c httpClient) httpClient {
+func InFlightC(gauge prometheus.Gauge, next httpClient) httpClient {
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
-		resp, err := c.Do(r)
+		resp, err := next.Do(r)
 		if err != nil {
 			return nil, err
 		}
@@ -97,11 +97,11 @@ func InFlightC(gauge prometheus.Gauge, c httpClient) httpClient {
 	})
 }
 
-func CounterC(counter *prometheus.CounterVec, c httpClient) httpClient {
+func CounterC(counter *prometheus.CounterVec, next httpClient) httpClient {
 	code, method := checkLabels(counter)
 
 	return ClientMiddleware(func(r *http.Request) (*http.Response, error) {
-		resp, err := c.Do(r)
+		resp, err := next.Do(r)
 		if err != nil {
 			return nil, err
 		}
