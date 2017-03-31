@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -313,9 +314,13 @@ type apiTest struct {
 }
 
 func (c *apiTestClient) url(ep string, args map[string]string) *url.URL {
+	path := apiPrefix + ep
+	for k, v := range args {
+		path = strings.Replace(path, ":"+k, v, -1)
+	}
 	u := &url.URL{
 		Host: "test:9090",
-		Path: apiPrefix + ep,
+		Path: path,
 	}
 	return u
 }
@@ -365,6 +370,12 @@ func TestAPIs(t *testing.T) {
 	doQueryRange := func(q string, rng Range) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return queryAPI.QueryRange(context.Background(), q, rng)
+		}
+	}
+
+	doQueryLabelValues := func(label string) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return queryAPI.QueryLabelValues(context.Background(), label)
 		}
 	}
 
@@ -420,6 +431,22 @@ func TestAPIs(t *testing.T) {
 				"step":  []string{time.Minute.String()},
 			},
 			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doQueryLabelValues("mylabel"),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/mylabel/values",
+			res:       []string{"val1", "val2"},
+		},
+
+		{
+			do:        doQueryLabelValues("mylabel"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/mylabel/values",
+			err:       fmt.Errorf("some error"),
 		},
 	}
 

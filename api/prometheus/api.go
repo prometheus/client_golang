@@ -280,8 +280,10 @@ func (qr *queryResult) UnmarshalJSON(b []byte) error {
 type QueryAPI interface {
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
-	// Query performs a query for the given range.
+	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
+	// QueryLabelValues performs a query for the values of the given label.
+	QueryLabelValues(ctx context.Context, label string) ([]string, error)
 }
 
 // NewQueryAPI returns a new QueryAPI for the client.
@@ -345,4 +347,16 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	err = json.Unmarshal(body, &qres)
 
 	return model.Value(qres.v), err
+}
+
+func (h *httpQueryAPI) QueryLabelValues(ctx context.Context, label string) ([]string, error) {
+	u := h.client.url(epLabelValues, map[string]string{"name": label})
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	_, body, err := h.client.do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	var values []string
+	err = json.Unmarshal(body, &values)
+	return values, err
 }
