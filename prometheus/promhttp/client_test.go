@@ -33,7 +33,7 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	client := *http.DefaultClient
 	client.Timeout = 300 * time.Millisecond
 
-	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "inFlight"})
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "in_flight"})
 
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "test_counter"},
