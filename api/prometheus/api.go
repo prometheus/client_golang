@@ -282,7 +282,7 @@ type QueryAPI interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
-	// QueryLabelValues performs a query for the values of the given label.
+	// LabelValues performs a query for the values of the given label.
 	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
 }
 
