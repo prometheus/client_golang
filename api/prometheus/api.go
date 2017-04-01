@@ -306,7 +306,10 @@ func (h *httpQueryAPI) Query(ctx context.Context, query string, ts time.Time) (m
 
 	u.RawQuery = q.Encode()
 
-	req, _ := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
@@ -336,7 +339,10 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 
 	u.RawQuery = q.Encode()
 
-	req, _ := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
@@ -351,7 +357,10 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 
 func (h *httpQueryAPI) QueryLabelValues(ctx context.Context, label string) ([]string, error) {
 	u := h.client.url(epLabelValues, map[string]string{"name": label})
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 	_, body, err := h.client.do(ctx, req)
 	if err != nil {
 		return nil, err
