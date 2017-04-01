@@ -438,7 +438,7 @@ func TestAPIs(t *testing.T) {
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
-			res:       []string{"val1", "val2"},
+			res:       model.LabelValues{"val1", "val2"},
 		},
 
 		{

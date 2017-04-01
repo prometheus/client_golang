@@ -283,7 +283,7 @@ type QueryAPI interface {
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
 	// QueryLabelValues performs a query for the values of the given label.
-	LabelValues(ctx context.Context, label string) ([]string, error)
+	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
 }
 
 // NewQueryAPI returns a new QueryAPI for the client.
@@ -355,7 +355,7 @@ func (h *httpQueryAPI) QueryRange(ctx context.Context, query string, r Range) (m
 	return model.Value(qres.v), err
 }
 
-func (h *httpQueryAPI) LabelValues(ctx context.Context, label string) ([]string, error) {
+func (h *httpQueryAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, error) {
 	u := h.client.url(epLabelValues, map[string]string{"name": label})
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -365,7 +365,7 @@ func (h *httpQueryAPI) LabelValues(ctx context.Context, label string) ([]string,
 	if err != nil {
 		return nil, err
 	}
-	var values []string
-	err = json.Unmarshal(body, &values)
-	return values, err
+	var labelValues model.LabelValues
+	err = json.Unmarshal(body, &labelValues)
+	return labelValues, err
 }
