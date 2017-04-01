@@ -373,9 +373,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doQueryLabelValues := func(label string) func() (interface{}, error) {
+	doLabelValues := func(label string) func() (interface{}, error) {
 		return func() (interface{}, error) {
-			return queryAPI.QueryLabelValues(context.Background(), label)
+			return queryAPI.LabelValues(context.Background(), label)
 		}
 	}
 
@@ -434,7 +434,7 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doQueryLabelValues("mylabel"),
+			do:        doLabelValues("mylabel"),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
@@ -442,7 +442,7 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doQueryLabelValues("mylabel"),
+			do:        doLabelValues("mylabel"),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
