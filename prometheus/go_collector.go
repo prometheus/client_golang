@@ -217,6 +217,14 @@ func NewGoCollector() Collector {
 				),
 				eval:    func(ms *runtime.MemStats) float64 { return float64(ms.LastGC) / 1e9 },
 				valType: GaugeValue,
+			}, {
+				desc: NewDesc(
+					memstatNamespace("gc_cpu_fraction"),
+					"The fraction of this program's available CPU time used by the GC since the program started.",
+					nil, nil,
+				),
+				eval:    func(ms *runtime.MemStats) float64 { return ms.GCCPUFraction },
+				valType: GaugeValue,
 			},
 		},
 	}
