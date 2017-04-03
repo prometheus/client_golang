@@ -41,7 +41,7 @@ func (c ClientMiddleware) Do(r *http.Request) (*http.Response, error) {
 }
 
 // Get implements the httpClient interface.
-func (c ClientMiddleware) Get(url string) (resp *http.Response, err error) {
+func (c ClientMiddleware) Get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
