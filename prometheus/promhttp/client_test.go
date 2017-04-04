@@ -30,31 +30,51 @@ import (
 )
 
 func TestClientMiddlewareAPI(t *testing.T) {
-	client := *http.DefaultClient
-	client.Timeout = 300 * time.Millisecond
+	client := http.DefaultClient
+	client.Timeout = 1 * time.Second
 
-	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "in_flight"})
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "in_flight",
+		Help: "In-flight count.",
+	})
 
 	counter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{Name: "test_counter"},
+		prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Counter.",
+		},
 		[]string{"code", "method"},
 	)
 
-	histVec := prometheus.NewHistogramVec(
+	traceVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "latency",
+			Name:    "trace_latency",
+			Help:    "Trace latency histogram.",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"event"},
 	)
 
-	promclient := InFlightC(inFlightGauge,
+	latencyVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "latency",
+			Help:    "Overall latency histogram.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code", "method"},
+	)
+
+	prometheus.MustRegister(counter, traceVec, latencyVec, inFlightGauge)
+
+	client.Transport = InFlightC(inFlightGauge,
 		CounterC(counter,
-			ClientTrace(histVec, &client),
+			ClientTrace(traceVec,
+				LatencyC(latencyVec, http.DefaultTransport),
+			),
 		),
 	)
 
-	resp, err := promclient.Get("http://google.com")
+	resp, err := client.Get("http://google.com")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

@@ -20,55 +20,160 @@
 package promhttp
 
 import (
-	"io"
+	"context"
+	"crypto/tls"
 	"net/http"
-	"net/url"
-	"strings"
+	"net/http/httptrace"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
-type doer interface {
-	Do(*http.Request) (*http.Response, error)
-}
-
-// ClientMiddleware is an adapter to allow wrapping an http.Client or other
+// RoundTripperFunc is an adapter to allow wrapping an http.Client or other
 // Middleware funcs, allowing the user to construct layers of middleware around
 // an http client request.
-type ClientMiddleware func(req *http.Request) (*http.Response, error)
+type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
-// Do implements the httpClient interface.
-func (c ClientMiddleware) Do(r *http.Request) (*http.Response, error) {
-	return c(r)
+// RoundTrip implements the RoundTripper interface.
+func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return rt(r)
 }
 
-// Get implements the httpClient interface.
-func (c ClientMiddleware) Get(url string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
+// ClientTrace accepts an ObserverVec interface and a http.RoundTripper,
+// returning a RoundTripperFunc that wraps the supplied httpClient. The
+// provided ObserverVec must be registered in a registry in order to be used.
+// Note: Partitioning histograms is expensive.
+func ClientTrace(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
+	// The supplied ObserverVec NEEDS a label for the httptrace events.
+	// TODO: Using `event` for now, but any other name is acceptable.
+
+	checkEventLabel(obs)
+	// TODO: Pass in struct of observers that map to the ClientTrace
+	// functions.
+	// Could use a vec if they want, but we only need an Observer (only
+	// call observe, they have to apply their own labels).
+	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		var (
+			start = time.Now()
+		)
+
+		trace := &httptrace.ClientTrace{
+			DNSStart: func(_ httptrace.DNSStartInfo) {
+				obs.WithLabelValues("DNSStart").Observe(time.Since(start).Seconds())
+			},
+			DNSDone: func(_ httptrace.DNSDoneInfo) {
+				obs.WithLabelValues("DNSDone").Observe(time.Since(start).Seconds())
+			},
+			ConnectStart: func(_, _ string) {
+				obs.WithLabelValues("ConnectStart").Observe(time.Since(start).Seconds())
+			},
+			ConnectDone: func(_, _ string, err error) {
+				if err != nil {
+					return
+				}
+				obs.WithLabelValues("ConnectDone").Observe(time.Since(start).Seconds())
+			},
+			GotFirstResponseByte: func() {
+				obs.WithLabelValues("GotFirstResponseByte").Observe(time.Since(start).Seconds())
+			},
+			TLSHandshakeStart: func() {
+				obs.WithLabelValues("TLSHandshakeStart").Observe(time.Since(start).Seconds())
+			},
+			TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
+				if err != nil {
+					return
+				}
+				obs.WithLabelValues("TLSHandshakeDone").Observe(time.Since(start).Seconds())
+			},
+			WroteRequest: func(_ httptrace.WroteRequestInfo) {
+				obs.WithLabelValues("WroteRequest").Observe(time.Since(start).Seconds())
+			},
+		}
+		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+
+		return next.RoundTrip(r)
+	})
+}
+
+// InFlightC accepts a Gauge and an http.RoundTripper, returning a new
+// RoundTripperFunc that wraps the supplied http.RoundTripper. The provided
+// Gauge must be registered in a registry in order to be used.
+func InFlightC(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc {
+	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		gauge.Inc()
+		resp, err := next.RoundTrip(r)
+		if err != nil {
+			return nil, err
+		}
+		gauge.Dec()
+		return resp, err
+	})
+}
+
+// Counter accepts an CounterVec interface and an http.RoundTripper, returning
+// a new RoundTripperFunc that wraps the supplied http.RoundTripper. The
+// provided CounterVec must be registered in a registry in order to be used.
+func CounterC(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
+	code, method := checkLabels(counter)
+
+	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		resp, err := next.RoundTrip(r)
+		if err != nil {
+			return nil, err
+		}
+		counter.With(labels(code, method, r.Method, resp.StatusCode)).Inc()
+		return resp, err
+	})
+}
+
+// LatencyC accepts an ObserverVec interface and an http.RoundTripper,
+// returning a new http.RoundTripper that wraps the supplied http.RoundTripper.
+// The provided ObserverVec must be registered in a registry in order to be
+// used. The instance labels "code" and "method" are supported on the provided
+// ObserverVec. Note: Partitioning histograms is expensive.
+func LatencyC(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
+	code, method := checkLabels(obs)
+
+	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		var (
+			start     = time.Now()
+			resp, err = next.RoundTrip(r)
+		)
+		if err != nil {
+			return nil, err
+		}
+		obs.With(labels(code, method, r.Method, resp.StatusCode)).Observe(time.Since(start).Seconds())
+		return resp, err
+	})
+}
+
+func checkEventLabel(c prometheus.Collector) {
+	var (
+		desc *prometheus.Desc
+		pm   dto.Metric
+	)
+
+	descc := make(chan *prometheus.Desc, 1)
+	c.Describe(descc)
+
+	select {
+	case desc = <-descc:
+	default:
+		panic("no description provided by collector")
 	}
-	return c.Do(req)
-}
 
-// Head implements the httpClient interface.
-func (c ClientMiddleware) Head(url string) (*http.Response, error) {
-	req, err := http.NewRequest("HEAD", url, nil)
+	m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, "")
 	if err != nil {
-		return nil, err
+		panic("error checking metric for labels")
 	}
-	return c.Do(req)
-}
 
-// Post implements the httpClient interface.
-func (c ClientMiddleware) Post(url string, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest("POST", url, body)
-	if err != nil {
-		return nil, err
+	if err := m.Write(&pm); err != nil {
+		panic("error checking metric for labels")
 	}
-	req.Header.Set("Content-Type", contentType)
-	return c.Do(req)
-}
 
-// PostForm implements the httpClient interface.
-func (c ClientMiddleware) PostForm(url string, data url.Values) (*http.Response, error) {
-	return c.Post(url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
+	name := *pm.Label[0].Name
+	if name != "event" {
+		panic("metric partitioned with non-supported label")
+	}
 }
