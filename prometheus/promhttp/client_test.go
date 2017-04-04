@@ -46,11 +46,19 @@ func TestClientMiddlewareAPI(t *testing.T) {
 		[]string{"code", "method"},
 	)
 
-	traceVec := prometheus.NewHistogramVec(
+	dnsLatencyVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "trace_latency",
-			Help:    "Trace latency histogram.",
-			Buckets: prometheus.DefBuckets,
+			Name:    "dns_latency",
+			Help:    "Trace dns latency histogram.",
+			Buckets: []float64{.005, .01, .025, .05},
+		},
+		[]string{"event"},
+	)
+	tlsLatencyVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tls_latency",
+			Help:    "Trace tls latency histogram.",
+			Buckets: []float64{.05, .1, .25, .5},
 		},
 		[]string{"event"},
 	)
@@ -64,11 +72,26 @@ func TestClientMiddlewareAPI(t *testing.T) {
 		[]string{"code", "method"},
 	)
 
-	prometheus.MustRegister(counter, traceVec, latencyVec, inFlightGauge)
+	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, latencyVec, inFlightGauge)
+
+	trace := &InstrumentTrace{
+		DNSStart: func(t float64) {
+			dnsLatencyVec.WithLabelValues("DNSStart")
+		},
+		DNSDone: func(t float64) {
+			dnsLatencyVec.WithLabelValues("DNSDone")
+		},
+		TLSHandshakeStart: func(t float64) {
+			tlsLatencyVec.WithLabelValues("TLSHandshakeStart")
+		},
+		TLSHandshakeDone: func(t float64) {
+			tlsLatencyVec.WithLabelValues("TLSHandshakeDone")
+		},
+	}
 
 	client.Transport = InFlightC(inFlightGauge,
 		CounterC(counter,
-			ClientTrace(traceVec,
+			ClientTrace(trace,
 				LatencyC(latencyVec, http.DefaultTransport),
 			),
 		),

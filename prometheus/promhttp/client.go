@@ -40,54 +40,103 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt(r)
 }
 
-// ClientTrace accepts an ObserverVec interface and a http.RoundTripper,
-// returning a RoundTripperFunc that wraps the supplied httpClient. The
-// provided ObserverVec must be registered in a registry in order to be used.
-// Note: Partitioning histograms is expensive.
-func ClientTrace(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
-	// The supplied ObserverVec NEEDS a label for the httptrace events.
-	// TODO: Using `event` for now, but any other name is acceptable.
+// InstrumentTrace is used to offer flexibility in instrumenting the available
+// httptrace.ClientTrace hooks. Each function is passed a float64 representing
+// the time in seconds since the start of the http request. A user may choose
+// to use separately buckets Histograms, or implement custom instance labels
+// per function.
+type InstrumentTrace struct {
+	GetConn, GotConn, PutIdleConn, GotFirstResponseByte, Got100Continue, DNSStart, DNSDone, ConnectStart, ConnectDone, TLSHandshakeStart, TLSHandshakeDone, WroteHeaders, Wait100Continue, WroteRequest func(float64)
+}
 
-	checkEventLabel(obs)
-	// TODO: Pass in struct of observers that map to the ClientTrace
-	// functions.
-	// Could use a vec if they want, but we only need an Observer (only
-	// call observe, they have to apply their own labels).
+// ClientTrace accepts an InstrumentTrace structand a http.RoundTripper,
+// returning a RoundTripperFunc that wraps the supplied http.RoundTripper.
+// Note: Partitioning histograms is expensive.
+func ClientTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var (
 			start = time.Now()
 		)
 
 		trace := &httptrace.ClientTrace{
+			GetConn: func(_ string) {
+				if it.GetConn != nil {
+					it.GetConn(time.Since(start).Seconds())
+				}
+			},
+			GotConn: func(_ httptrace.GotConnInfo) {
+				if it.GotConn != nil {
+					it.GotConn(time.Since(start).Seconds())
+				}
+			},
+			PutIdleConn: func(err error) {
+				if err != nil {
+					return
+				}
+				if it.PutIdleConn != nil {
+					it.PutIdleConn(time.Since(start).Seconds())
+				}
+			},
 			DNSStart: func(_ httptrace.DNSStartInfo) {
-				obs.WithLabelValues("DNSStart").Observe(time.Since(start).Seconds())
+				if it.DNSStart != nil {
+					it.DNSStart(time.Since(start).Seconds())
+				}
 			},
 			DNSDone: func(_ httptrace.DNSDoneInfo) {
-				obs.WithLabelValues("DNSDone").Observe(time.Since(start).Seconds())
+				if it.DNSStart != nil {
+					it.DNSStart(time.Since(start).Seconds())
+				}
 			},
 			ConnectStart: func(_, _ string) {
-				obs.WithLabelValues("ConnectStart").Observe(time.Since(start).Seconds())
+				if it.ConnectStart != nil {
+					it.ConnectStart(time.Since(start).Seconds())
+				}
 			},
 			ConnectDone: func(_, _ string, err error) {
 				if err != nil {
 					return
 				}
-				obs.WithLabelValues("ConnectDone").Observe(time.Since(start).Seconds())
+				if it.ConnectDone != nil {
+					it.ConnectDone(time.Since(start).Seconds())
+				}
 			},
 			GotFirstResponseByte: func() {
-				obs.WithLabelValues("GotFirstResponseByte").Observe(time.Since(start).Seconds())
+				if it.GotFirstResponseByte != nil {
+					it.GotFirstResponseByte(time.Since(start).Seconds())
+				}
+			},
+			Got100Continue: func() {
+				if it.Got100Continue != nil {
+					it.Got100Continue(time.Since(start).Seconds())
+				}
 			},
 			TLSHandshakeStart: func() {
-				obs.WithLabelValues("TLSHandshakeStart").Observe(time.Since(start).Seconds())
+				if it.TLSHandshakeStart != nil {
+					it.TLSHandshakeStart(time.Since(start).Seconds())
+				}
 			},
 			TLSHandshakeDone: func(_ tls.ConnectionState, err error) {
 				if err != nil {
 					return
 				}
-				obs.WithLabelValues("TLSHandshakeDone").Observe(time.Since(start).Seconds())
+				if it.TLSHandshakeDone != nil {
+					it.TLSHandshakeDone(time.Since(start).Seconds())
+				}
+			},
+			WroteHeaders: func() {
+				if it.WroteHeaders != nil {
+					it.WroteHeaders(time.Since(start).Seconds())
+				}
+			},
+			Wait100Continue: func() {
+				if it.Wait100Continue != nil {
+					it.Wait100Continue(time.Since(start).Seconds())
+				}
 			},
 			WroteRequest: func(_ httptrace.WroteRequestInfo) {
-				obs.WithLabelValues("WroteRequest").Observe(time.Since(start).Seconds())
+				if it.WroteRequest != nil {
+					it.WroteRequest(time.Since(start).Seconds())
+				}
 			},
 		}
 		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
