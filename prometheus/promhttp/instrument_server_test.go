@@ -20,6 +20,7 @@
 package promhttp
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -65,4 +66,110 @@ func TestMiddlewareAPI(t *testing.T) {
 	r, _ := http.NewRequest("GET", "www.example.com", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, r)
+}
+
+func ExampleMiddleware() {
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "inFlight",
+		Help: "Gauge.",
+	})
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Counter.",
+		},
+		[]string{"code", "method"},
+	)
+
+	histVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "latency",
+			Help:    "Histogram.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"code"},
+	)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+
+	prometheus.MustRegister(inFlightGauge, counter, histVec)
+
+	chain := InstrumentHandlerInFlight(inFlightGauge,
+		InstrumentHandlerCounter(counter,
+			InstrumentHandlerDuration(histVec, handler),
+		),
+	)
+
+	http.Handle("/metrics", Handler())
+	http.Handle("/", chain)
+
+	if err := http.ListenAndServe(":3000", nil); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func ExampleHistogramByEndpoint() {
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "inFlight",
+		Help: "Gauge.",
+	})
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Counter.",
+		},
+		[]string{"code", "method"},
+	)
+
+	pushVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:        "latency",
+			Help:        "Histogram.",
+			Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
+			ConstLabels: prometheus.Labels{"handler": "push"},
+		},
+		[]string{"code"},
+	)
+	pullVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:        "latency",
+			Help:        "Histogram.",
+			Buckets:     []float64{.005, .01, .025, .05},
+			ConstLabels: prometheus.Labels{"handler": "pull"},
+		},
+		[]string{"code"},
+	)
+
+	pushHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Push"))
+	})
+	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Pull"))
+	})
+
+	prometheus.MustRegister(inFlightGauge, counter, pullVec, pushVec)
+
+	pushChain := InstrumentHandlerInFlight(inFlightGauge,
+		InstrumentHandlerCounter(counter,
+			InstrumentHandlerDuration(pushVec, pushHandler),
+		),
+	)
+
+	pullChain := InstrumentHandlerInFlight(inFlightGauge,
+		InstrumentHandlerCounter(counter,
+			InstrumentHandlerDuration(pushVec, pullHandler),
+		),
+	)
+
+	http.Handle("/metrics", Handler())
+	http.Handle("/push", pushChain)
+	http.Handle("/pull", pullChain)
+
+	if err := http.ListenAndServe(":3000", nil); err != nil {
+		log.Fatal(err)
+	}
 }
