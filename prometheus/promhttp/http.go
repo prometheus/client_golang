@@ -11,12 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copyright (c) 2013, The Prometheus Authors
-// All rights reserved.
-//
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
 // Package promhttp contains functions to create http.Handler instances to
 // expose Prometheus metrics via HTTP. It contains tooling to instrument
 // instances of http.Handler via Middleware. Currently available middleware
@@ -26,10 +20,10 @@
 // - Instrumenting in flight requests
 // - Instrumenting incoming request size
 // - Instrumenting outgoing response size
-//
-//Note that instrumenting latency with a histogram is rather expensive, and
-//cardinality on the supplied histogram should be kept to a minimum.
-//
+
+// Note that instrumenting latency with a histogram is rather expensive, and
+// cardinality on the supplied histogram should be kept to a minimum.
+
 // promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
 // you can create a handler for a custom registry or anything that implements
 // the Gatherer interface. It also allows to create handlers that act
