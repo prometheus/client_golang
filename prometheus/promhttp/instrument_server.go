@@ -192,9 +192,9 @@ func checkLabels(c prometheus.Collector) (code bool, method bool) {
 		code = true
 		method = true
 		return
-	} else {
-		panic("metric partitioned with non-supported labels")
 	}
+
+	panic("metric partitioned with non-supported labels")
 }
 
 func labels(code, method bool, reqMethod string, status int) prometheus.Labels {
@@ -368,21 +368,6 @@ type delegator interface {
 	http.ResponseWriter
 }
 
-func newDelegator(w http.ResponseWriter) delegator {
-	d := &responseWriterDelegator{ResponseWriter: w}
-
-	_, cn := w.(http.CloseNotifier)
-	_, fl := w.(http.Flusher)
-	_, hj := w.(http.Hijacker)
-	_, ps := w.(http.Pusher)
-	_, rf := w.(io.ReaderFrom)
-	if cn && fl && hj && rf && ps {
-		return &fancyResponseWriterDelegator{d}
-	}
-
-	return d
-}
-
 type responseWriterDelegator struct {
 	http.ResponseWriter
 
@@ -427,27 +412,22 @@ func (r *fancyResponseWriterDelegator) Written() int64 {
 	return r.written
 }
 
-func (f *fancyResponseWriterDelegator) CloseNotify() <-chan bool {
-	return f.ResponseWriter.(http.CloseNotifier).CloseNotify()
+func (r *fancyResponseWriterDelegator) CloseNotify() <-chan bool {
+	return r.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
-func (f *fancyResponseWriterDelegator) Flush() {
-	f.ResponseWriter.(http.Flusher).Flush()
+func (r *fancyResponseWriterDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return r.ResponseWriter.(http.Hijacker).Hijack()
 }
 
-func (f *fancyResponseWriterDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return f.ResponseWriter.(http.Hijacker).Hijack()
+func (r *fancyResponseWriterDelegator) Flush() {
+	r.ResponseWriter.(http.Flusher).Flush()
 }
-
-func (f *fancyResponseWriterDelegator) Push(target string, opts *http.PushOptions) error {
-	return f.ResponseWriter.(http.Pusher).Push(target, opts)
-}
-
-func (f *fancyResponseWriterDelegator) ReadFrom(r io.Reader) (int64, error) {
-	if !f.wroteHeader {
-		f.WriteHeader(http.StatusOK)
+func (r *fancyResponseWriterDelegator) ReadFrom(re io.Reader) (int64, error) {
+	if !r.wroteHeader {
+		r.WriteHeader(http.StatusOK)
 	}
-	n, err := f.ResponseWriter.(io.ReaderFrom).ReadFrom(r)
-	f.written += n
+	n, err := r.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
+	r.written += n
 	return n, err
 }
