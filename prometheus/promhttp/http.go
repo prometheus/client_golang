@@ -15,7 +15,7 @@
 // expose Prometheus metrics via HTTP. It contains tooling to instrument
 // instances of http.Handler via Middleware. Currently available middleware
 // wrappers support:
-// - Instrumenting latency
+// - Instrumenting duration
 // - Instrumenting handler requests
 // - Instrumenting in flight requests
 // - Instrumenting incoming request size
@@ -24,6 +24,7 @@
 // Note that instrumenting latency with a histogram is rather expensive, and
 // cardinality on the supplied histogram should be kept to a minimum.
 
+// Package promhttp provides new functions for instrumenting go code.
 // promhttp.Handler acts on the prometheus.DefaultGatherer. With HandlerFor,
 // you can create a handler for a custom registry or anything that implements
 // the Gatherer interface. It also allows to create handlers that act
