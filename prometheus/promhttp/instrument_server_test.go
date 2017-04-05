@@ -28,16 +28,23 @@ import (
 )
 
 func TestMiddlewareAPI(t *testing.T) {
-	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "inFlight"})
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "inFlight",
+		Help: "Gauge.",
+	})
 
 	counter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{Name: "test_counter"},
+		prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Counter.",
+		},
 		[]string{"code", "method"},
 	)
 
 	histVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "latency",
+			Help:    "Histogram.",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"code"},
@@ -47,9 +54,11 @@ func TestMiddlewareAPI(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	chain := InFlight(inFlightGauge,
-		Counter(counter,
-			Latency(histVec, handler),
+	prometheus.MustRegister(inFlightGauge, counter, histVec)
+
+	chain := InstrumentHandlerInFlight(inFlightGauge,
+		InstrumentHandlerCounter(counter,
+			InstrumentHandlerDuration(histVec, handler),
 		),
 	)
 

@@ -32,10 +32,10 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// InFlight accepts a Gauge and an http.Handler, returning a new http.Handler
-// that wraps the supplied http.Handler. The provided Gauge must be registered
-// in a registry in order to be used.
-func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
+// InstrumentHandlerInFlight accepts a Gauge and an http.Handler, returning a
+// new http.Handler that wraps the supplied http.Handler. The provided Gauge
+// must be registered in a registry in order to be used.
+func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.Inc()
 		next.ServeHTTP(w, r)
@@ -43,14 +43,14 @@ func InFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	})
 }
 
-// Latency accepts an ObserverVec interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided
-// ObserverVec must be registered in a registry in order to be used.
-// If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, the supplied ObserverVec will report a 200.  The instance
-// labels "code" and "method" are supported on the provided ObserverVec.
-// Note: Partitioning histograms is expensive.
-func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
+// InstrumentHandlerDuration accepts an ObserverVec interface and an
+// http.Handler, returning a new http.Handler that wraps the supplied
+// http.Handler. The provided ObserverVec must be registered in a registry in
+// order to be used.  If the wrapped http.Handler has not set a status code,
+// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
+// The instance labels "code" and "method" are supported on the provided
+// ObserverVec.  Note: Partitioning histograms is expensive.
+func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
 	if code {
@@ -70,13 +70,14 @@ func Latency(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	})
 }
 
-// Counter accepts an CounterVec interface and an http.Handler, returning a new
-// http.Handler that wraps the supplied http.Handler. The provided CounterVec
-// must be registered in a registry in order to be used.  If the wrapped
-// http.Handler has not set a status code, i.e. the value is currently 0, the
-// supplied counter will report a 200. The instance labels "code" and "method"
-// are supported on the provided CounterVec.
-func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
+// InstrumentHandlerCounter accepts an CounterVec interface and an
+// http.Handler, returning a new http.Handler that wraps the supplied
+// http.Handler. The provided CounterVec must be registered in a registry in
+// order to be used.  If the wrapped http.Handler has not set a status code,
+// i.e. the value is currently 0, the supplied counter will report a 200. The
+// instance labels "code" and "method" are supported on the provided
+// CounterVec.
+func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(counter)
 
 	if code {
@@ -93,14 +94,14 @@ func Counter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	})
 }
 
-// RequestSize accepts an ObserverVec interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided
-// ObserverVec must be registered in a registry in order to be used.
-// If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, the supplied ObserverVec will report a 200.  The instance
-// labels "code" and "method" are supported on the provided ObserverVec.
-// Note: Partitioning histograms is expensive.
-func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
+// InstrumentHandlerRequestSize accepts an ObserverVec interface and an
+// http.Handler, returning a new http.Handler that wraps the supplied
+// http.Handler. The provided ObserverVec must be registered in a registry in
+// order to be used.  If the wrapped http.Handler has not set a status code,
+// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
+// The instance labels "code" and "method" are supported on the provided
+// ObserverVec.  Note: Partitioning histograms is expensive.
+func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
 	if code {
@@ -119,14 +120,14 @@ func RequestSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	})
 }
 
-// ResponseSize accepts an ObserverVec interface and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided
-// ObserverVec must be registered in a registry in order to be used.
-// If the wrapped http.Handler has not set a status code, i.e. the value is
-// currently 0, the supplied ObserverVec will report a 200.  The instance
-// labels "code" and "method" are supported on the provided ObserverVec.
-// Note: Partitioning histograms is expensive.
-func ResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
+// InstrumentHandlerResponseSize accepts an ObserverVec interface and an
+// http.Handler, returning a new http.Handler that wraps the supplied
+// http.Handler. The provided ObserverVec must be registered in a registry in
+// order to be used.  If the wrapped http.Handler has not set a status code,
+// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
+// The instance labels "code" and "method" are supported on the provided
+// ObserverVec.  Note: Partitioning histograms is expensive.
+func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d := newDelegator(w)
