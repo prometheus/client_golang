@@ -89,10 +89,10 @@ func TestClientMiddlewareAPI(t *testing.T) {
 		},
 	}
 
-	client.Transport = InFlightC(inFlightGauge,
-		CounterC(counter,
-			ClientTrace(trace,
-				LatencyC(latencyVec, http.DefaultTransport),
+	client.Transport = InstrumentRoundTripperInFlight(inFlightGauge,
+		InstrumentRoundTripperCounter(counter,
+			InstrumentRoundTripperTrace(trace,
+				InstrumentRoundTripperDuration(latencyVec, http.DefaultTransport),
 			),
 		),
 	)

@@ -46,24 +46,20 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // to use separately buckets Histograms, or implement custom instance labels
 // per function.
 type InstrumentTrace struct {
-	GetConn, GotConn, PutIdleConn, GotFirstResponseByte, Got100Continue, DNSStart, DNSDone, ConnectStart, ConnectDone, TLSHandshakeStart, TLSHandshakeDone, WroteHeaders, Wait100Continue, WroteRequest func(float64)
+	GotConn, PutIdleConn, GotFirstResponseByte, Got100Continue, DNSStart, DNSDone, ConnectStart, ConnectDone, TLSHandshakeStart, TLSHandshakeDone, WroteHeaders, Wait100Continue, WroteRequest func(float64)
 }
 
-// ClientTrace accepts an InstrumentTrace structand a http.RoundTripper,
-// returning a RoundTripperFunc that wraps the supplied http.RoundTripper.
+// InstrumentRoundTripperTrace accepts an InstrumentTrace structand a
+// http.RoundTripper, returning a RoundTripperFunc that wraps the supplied
+// http.RoundTripper.
 // Note: Partitioning histograms is expensive.
-func ClientTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
+func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var (
 			start = time.Now()
 		)
 
 		trace := &httptrace.ClientTrace{
-			GetConn: func(_ string) {
-				if it.GetConn != nil {
-					it.GetConn(time.Since(start).Seconds())
-				}
-			},
 			GotConn: func(_ httptrace.GotConnInfo) {
 				if it.GotConn != nil {
 					it.GotConn(time.Since(start).Seconds())
@@ -145,10 +141,10 @@ func ClientTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
 	})
 }
 
-// InFlightC accepts a Gauge and an http.RoundTripper, returning a new
-// RoundTripperFunc that wraps the supplied http.RoundTripper. The provided
-// Gauge must be registered in a registry in order to be used.
-func InFlightC(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc {
+// InstrumentRoundTripperInFlight accepts a Gauge and an http.RoundTripper,
+// returning a new RoundTripperFunc that wraps the supplied http.RoundTripper.
+// The provided Gauge must be registered in a registry in order to be used.
+func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
 		resp, err := next.RoundTrip(r)
@@ -160,10 +156,11 @@ func InFlightC(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc 
 	})
 }
 
-// Counter accepts an CounterVec interface and an http.RoundTripper, returning
-// a new RoundTripperFunc that wraps the supplied http.RoundTripper. The
-// provided CounterVec must be registered in a registry in order to be used.
-func CounterC(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
+// InstrumentRoundTripperCounter accepts an CounterVec interface and an
+// http.RoundTripper, returning a new RoundTripperFunc that wraps the supplied
+// http.RoundTripper. The provided CounterVec must be registered in a registry
+// in order to be used.
+func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(counter)
 
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
@@ -176,12 +173,12 @@ func CounterC(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripp
 	})
 }
 
-// LatencyC accepts an ObserverVec interface and an http.RoundTripper,
-// returning a new http.RoundTripper that wraps the supplied http.RoundTripper.
-// The provided ObserverVec must be registered in a registry in order to be
-// used. The instance labels "code" and "method" are supported on the provided
-// ObserverVec. Note: Partitioning histograms is expensive.
-func LatencyC(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
+// InstrumentRoundTripperDuration accepts an ObserverVec interface and an
+// http.RoundTripper, returning a new http.RoundTripper that wraps the supplied
+// http.RoundTripper. The provided ObserverVec must be registered in a registry
+// in order to be used. The instance labels "code" and "method" are supported
+// on the provided ObserverVec. Note: Partitioning histograms is expensive.
+func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(obs)
 
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
