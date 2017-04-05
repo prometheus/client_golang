@@ -286,7 +286,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
 			s := his.WithLabelValues(string('A' + i))
-			s.Write(m)
+			s.(Histogram).Write(m)
 
 			if got, want := len(m.Histogram.Bucket), len(testBuckets)-1; got != want {
 				t.Errorf("got %d buckets in protobuf, want %d", got, want)

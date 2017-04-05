@@ -115,36 +115,36 @@ func TestTimerByOutcome(t *testing.T) {
 	}
 
 	timedFunc()
-	his.WithLabelValues("foo").Write(m)
+	his.WithLabelValues("foo").(Histogram).Write(m)
 	if want, got := uint64(0), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
 	}
 	m.Reset()
-	his.WithLabelValues("bar").Write(m)
+	his.WithLabelValues("bar").(Histogram).Write(m)
 	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
 	}
 
 	timedFunc()
 	m.Reset()
-	his.WithLabelValues("foo").Write(m)
+	his.WithLabelValues("foo").(Histogram).Write(m)
 	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
 	}
 	m.Reset()
-	his.WithLabelValues("bar").Write(m)
+	his.WithLabelValues("bar").(Histogram).Write(m)
 	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
 	}
 
 	timedFunc()
 	m.Reset()
-	his.WithLabelValues("foo").Write(m)
+	his.WithLabelValues("foo").(Histogram).Write(m)
 	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'foo' histogram, got %d", want, got)
 	}
 	m.Reset()
-	his.WithLabelValues("bar").Write(m)
+	his.WithLabelValues("bar").(Histogram).Write(m)
 	if want, got := uint64(2), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
 	}
