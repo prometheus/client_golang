@@ -137,6 +137,8 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 }
 
 func checkLabels(c prometheus.Collector) (code bool, method bool) {
+	// TODO(beorn7): Remove this hacky way to check for instance labels
+	// once Descriptors can have their dimensionality queried.
 	var (
 		desc *prometheus.Desc
 		pm   dto.Metric
@@ -150,9 +152,14 @@ func checkLabels(c prometheus.Collector) (code bool, method bool) {
 	default:
 		panic("no description provided by collector")
 	}
+	select {
+	case <-descc:
+		panic("more than one description provided by collector")
+	default:
+	}
 
-	// TODO(beorn7): Remove this hacky way to check for instance labels
-	// once Descriptors can have their dimensionality queried.
+	close(descc)
+
 	if _, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0); err == nil {
 		return
 	} else if m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, ""); err == nil {
