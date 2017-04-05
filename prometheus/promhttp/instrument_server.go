@@ -46,7 +46,7 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // InstrumentHandlerDuration accepts an ObserverVec interface and an
 // http.Handler, returning a new http.Handler that wraps the supplied
 // http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used.  If the wrapped http.Handler has not set a status code,
+// order to be used. If the wrapped http.Handler has not set a status code,
 // i.e. the value is currently 0, the supplied ObserverVec will report a 200.
 // The instance labels "code" and "method" are supported on the provided
 // ObserverVec.  Note: Partitioning histograms is expensive.
@@ -73,7 +73,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) ht
 // InstrumentHandlerCounter accepts an CounterVec interface and an
 // http.Handler, returning a new http.Handler that wraps the supplied
 // http.Handler. The provided CounterVec must be registered in a registry in
-// order to be used.  If the wrapped http.Handler has not set a status code,
+// order to be used. If the wrapped http.Handler has not set a status code,
 // i.e. the value is currently 0, the supplied counter will report a 200. The
 // instance labels "code" and "method" are supported on the provided
 // CounterVec.
@@ -97,7 +97,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 // InstrumentHandlerRequestSize accepts an ObserverVec interface and an
 // http.Handler, returning a new http.Handler that wraps the supplied
 // http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used.  If the wrapped http.Handler has not set a status code,
+// order to be used. If the wrapped http.Handler has not set a status code,
 // i.e. the value is currently 0, the supplied ObserverVec will report a 200.
 // The instance labels "code" and "method" are supported on the provided
 // ObserverVec.  Note: Partitioning histograms is expensive.
@@ -123,10 +123,11 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler)
 // InstrumentHandlerResponseSize accepts an ObserverVec interface and an
 // http.Handler, returning a new http.Handler that wraps the supplied
 // http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used.  If the wrapped http.Handler has not set a status code,
+// order to be used. If the wrapped http.Handler has not set a status code,
 // i.e. the value is currently 0, the supplied ObserverVec will report a 200.
 // The instance labels "code" and "method" are supported on the provided
-// ObserverVec.  Note: Partitioning histograms is expensive.
+// ObserverVec.
+// Note: Partitioning histograms is expensive.
 func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
