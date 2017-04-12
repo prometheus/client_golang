@@ -32,7 +32,17 @@ func newDelegator(w http.ResponseWriter) delegator {
 	_, hj := w.(http.Hijacker)
 	_, ps := w.(http.Pusher)
 	_, rf := w.(io.ReaderFrom)
+
+	// Check for different possible interfaces that the http.ResponseWriter
+	// could implement.
 	if cn && fl && hj && rf && ps {
+		// All interfaces.
+		return &fancyResponseWriterDelegator{d}
+	} else if cn && fl && hj && rf {
+		// All interfaces, except http.Pusher.
+		return &fancyResponseWriterDelegator{d}
+	} else if ps {
+		// All just http.Pusher.
 		return &fancyResponseWriterDelegator{d}
 	}
 
