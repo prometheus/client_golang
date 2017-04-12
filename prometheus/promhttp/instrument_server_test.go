@@ -13,9 +13,6 @@
 
 // Copyright (c) 2013, The Prometheus Authors
 // All rights reserved.
-//
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
 
 package promhttp
 
@@ -68,82 +65,54 @@ func TestMiddlewareAPI(t *testing.T) {
 	chain.ServeHTTP(w, r)
 }
 
-func ExampleMiddleware() {
+func ExampleInstrumentHandlerDuration() {
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "inFlight",
-		Help: "Gauge.",
+		Name: "in_flight",
+		Help: "A gauge of requests currently being served by the wrapped handler.",
 	})
 
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "test_counter",
-			Help: "Counter.",
+			Name: "api_requests_total",
+			Help: "A counter for requests to the wrapped handler.",
 		},
 		[]string{"code", "method"},
 	)
 
-	histVec := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "latency",
-			Help:    "Histogram.",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"code"},
-	)
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
-
-	prometheus.MustRegister(inFlightGauge, counter, histVec)
-
-	chain := InstrumentHandlerInFlight(inFlightGauge,
-		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(histVec, handler),
-		),
-	)
-
-	http.Handle("/metrics", Handler())
-	http.Handle("/", chain)
-
-	if err := http.ListenAndServe(":3000", nil); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func ExampleHistogramByEndpoint() {
-	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "inFlight",
-		Help: "Gauge.",
-	})
-
-	counter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "test_counter",
-			Help: "Counter.",
-		},
-		[]string{"code", "method"},
-	)
-
+	// pushVec is partitioned with custom buckets based on expected request
+	// duration.
 	pushVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:        "latency",
-			Help:        "Histogram.",
+			Name:        "push_duration_seconds",
+			Help:        "A histogram of latencies for requests to the push handler.",
 			Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
 			ConstLabels: prometheus.Labels{"handler": "push"},
 		},
-		[]string{"code"},
+		[]string{"method"},
 	)
+
+	// pullVec is partitioned with custom buckets based on expected request
+	// duration, which differ from those defined in pushVec.
 	pullVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:        "latency",
-			Help:        "Histogram.",
+			Name:        "pull_duration_seconds",
+			Help:        "A histogram of latencies for requests to the pull handler.",
 			Buckets:     []float64{.005, .01, .025, .05},
 			ConstLabels: prometheus.Labels{"handler": "pull"},
 		},
-		[]string{"code"},
+		[]string{"method"},
 	)
 
+	// responseSize is an ObserverVec partitioned with no instance labels.
+	responseSize := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "push_request_size_bytes",
+			Help:    "A histogram of request sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		},
+	)
+
+	// Create the handlers that will be wrapped by the middleware.
 	pushHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Push"))
 	})
@@ -151,17 +120,26 @@ func ExampleHistogramByEndpoint() {
 		w.Write([]byte("Pull"))
 	})
 
-	prometheus.MustRegister(inFlightGauge, counter, pullVec, pushVec)
+	// Register all of the metrics in the standard registry.
+	prometheus.MustRegister(inFlightGauge, counter, pullVec, pushVec, responseSize)
 
+	// Wrap the pushHandler with our shared middleware, but use the
+	// endpoint-specific pushVec with InstrumentHandlerDuration.
 	pushChain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pushVec, pushHandler),
+			InstrumentHandlerDuration(pushVec,
+				InstrumentHandlerResponseSize(responseSize, pushHandler),
+			),
 		),
 	)
 
+	// Wrap the pushHandler with the shared middleware, but use the
+	// endpoint-specific pullVec with InstrumentHandlerDuration.
 	pullChain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pushVec, pullHandler),
+			InstrumentHandlerDuration(pullVec,
+				InstrumentHandlerResponseSize(responseSize, pushHandler),
+			),
 		),
 	)
 

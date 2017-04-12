@@ -13,9 +13,6 @@
 
 // Copyright (c) 2013, The Prometheus Authors
 // All rights reserved.
-//
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
 
 package promhttp
 
@@ -28,28 +25,38 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// InstrumentHandlerInFlight accepts a Gauge and an http.Handler, returning a
-// new http.Handler that wraps the supplied http.Handler. The provided Gauge
-// must be registered in a registry in order to be used.
+// InstrumentHandlerInFlight is a middleware that wraps the provided
+// http.Handler. It sets the provided prometheus.Gauge to the number of
+// requests currently handled by the wrapped http.Handler.
+//
+// See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.Inc()
+		defer g.Dec()
 		next.ServeHTTP(w, r)
-		g.Dec()
 	})
 }
 
-// InstrumentHandlerDuration accepts an ObserverVec interface and an
-// http.Handler, returning a new http.Handler that wraps the supplied
-// http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used. If the wrapped http.Handler has not set a status code,
-// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
-// The instance labels "code" and "method" are supported on the provided
-// ObserverVec.  Note: Partitioning histograms is expensive.
+// InstrumentHandlerDuration is a middleware that wraps the provided
+// http.Handler to observe the request duration with the provided ObserverVec.
+// The ObserverVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. The Observe method of the Observer in the ObserverVec
+// is called with the request duration in seconds. Partitioning happens by HTTP
+// status code and/or HTTP method if the respective instance label names are
+// present in the ObserverVec. For unpartitioned observations, use an
+// ObserverVec with zero labels. Note that partitioning of Histograms is
+// expensive and should be used judiciously.
+//
+// If the wrapped Handler does not set a status code, a status code of 200 is assumed.
+//
+// If the wrapped Handler panics, no values are reported.
 func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
@@ -70,13 +77,20 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) ht
 	})
 }
 
-// InstrumentHandlerCounter accepts an CounterVec interface and an
-// http.Handler, returning a new http.Handler that wraps the supplied
-// http.Handler. The provided CounterVec must be registered in a registry in
-// order to be used. If the wrapped http.Handler has not set a status code,
-// i.e. the value is currently 0, the supplied counter will report a 200. The
-// instance labels "code" and "method" are supported on the provided
-// CounterVec.
+// InstrumentHandlerCounter is a middleware that wraps the provided
+// http.Handler to observe the request result with the provided CounterVec.
+// The CounterVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. Partitioning of the CounterVec happens by HTTP status
+// code and/or HTTP method if the respective instance label names are present
+// in the CounterVec. For unpartitioned observations, use a CounterVec with
+// zero labels.
+//
+// If the wrapped Handler does not set a status code, a status code of 200 is assumed.
+//
+// If the wrapped Handler panics, the Counter is not incremented.
+//
+// See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(counter)
 
@@ -94,13 +108,22 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 	})
 }
 
-// InstrumentHandlerRequestSize accepts an ObserverVec interface and an
-// http.Handler, returning a new http.Handler that wraps the supplied
-// http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used. If the wrapped http.Handler has not set a status code,
-// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
-// The instance labels "code" and "method" are supported on the provided
-// ObserverVec.  Note: Partitioning histograms is expensive.
+// InstrumentHandlerRequestSize is a middleware that wraps the provided
+// http.Handler to observe the request size with the provided ObserverVec.
+// The ObserverVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. The Observe method of the Observer in the ObserverVec
+// is called with the request size in bytes. Partitioning happens by HTTP
+// status code and/or HTTP method if the respective instance label names are
+// present in the ObserverVec. For unpartitioned observations, use an
+// ObserverVec with zero labels. Note that partitioning of Histograms is
+// expensive and should be used judiciously.
+//
+// If the wrapped Handler does not set a status code, a status code of 200 is assumed.
+//
+// If the wrapped Handler panics, no values are reported.
+//
+// See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
@@ -120,14 +143,22 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler)
 	})
 }
 
-// InstrumentHandlerResponseSize accepts an ObserverVec interface and an
-// http.Handler, returning a new http.Handler that wraps the supplied
-// http.Handler. The provided ObserverVec must be registered in a registry in
-// order to be used. If the wrapped http.Handler has not set a status code,
-// i.e. the value is currently 0, the supplied ObserverVec will report a 200.
-// The instance labels "code" and "method" are supported on the provided
-// ObserverVec.
-// Note: Partitioning histograms is expensive.
+// InstrumentHandlerResponseSize is a middleware that wraps the provided
+// http.Handler to observe the response size with the provided ObserverVec.
+// The ObserverVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. The Observe method of the Observer in the ObserverVec
+// is called with the response size in bytes. Partitioning happens by HTTP
+// status code and/or HTTP method if the respective instance label names are
+// present in the ObserverVec. For unpartitioned observations, use an
+// ObserverVec with zero labels. Note that partitioning of Histograms is
+// expensive and should be used judiciously.
+//
+// If the wrapped Handler does not set a status code, a status code of 200 is assumed.
+//
+// If the wrapped Handler panics, no values are reported.
+//
+// See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +228,14 @@ func checkLabels(c prometheus.Collector) (code bool, method bool) {
 	panic("metric partitioned with non-supported labels")
 }
 
+// emptyLabels is a one-time allocation for non-partitioned metrics to avoid
+// unnecessary allocations on each request.
+var emptyLabels = prometheus.Labels{}
+
 func labels(code, method bool, reqMethod string, status int) prometheus.Labels {
+	if !(code && method) {
+		return emptyLabels
+	}
 	labels := prometheus.Labels{}
 
 	if code {
