@@ -233,7 +233,7 @@ func checkLabels(c prometheus.Collector) (code bool, method bool) {
 var emptyLabels = prometheus.Labels{}
 
 func labels(code, method bool, reqMethod string, status int) prometheus.Labels {
-	if !(code && method) {
+	if !(code || method) {
 		return emptyLabels
 	}
 	labels := prometheus.Labels{}
