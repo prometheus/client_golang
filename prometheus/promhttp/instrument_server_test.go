@@ -110,6 +110,7 @@ func ExampleInstrumentHandlerDuration() {
 			Help:    "A histogram of request sizes for requests.",
 			Buckets: []float64{200, 500, 900, 1500},
 		},
+		[]string{},
 	)
 
 	// Create the handlers that will be wrapped by the middleware.
@@ -138,7 +139,7 @@ func ExampleInstrumentHandlerDuration() {
 	pullChain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
 			InstrumentHandlerDuration(pullVec,
-				InstrumentHandlerResponseSize(responseSize, pushHandler),
+				InstrumentHandlerResponseSize(responseSize, pullHandler),
 			),
 		),
 	)
