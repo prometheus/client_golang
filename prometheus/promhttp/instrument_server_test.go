@@ -27,25 +27,25 @@ import (
 
 func TestMiddlewareAPI(t *testing.T) {
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "inFlight",
-		Help: "Gauge.",
+		Name: "in_flight_requests",
+		Help: "A gauge of requests currently being served by the wrapped handler.",
 	})
 
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "test_counter",
-			Help: "Counter.",
+			Name: "api_requests_total",
+			Help: "A counter for requests to the wrapped handler.",
 		},
 		[]string{"code", "method"},
 	)
 
 	histVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "latency",
-			Help:    "Histogram.",
+			Name:    "response_duration_seconds",
+			Help:    "A histogram of request latencies.",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"code"},
+		[]string{"method"},
 	)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +67,7 @@ func TestMiddlewareAPI(t *testing.T) {
 
 func ExampleInstrumentHandlerDuration() {
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "in_flight",
+		Name: "in_flight_requests",
 		Help: "A gauge of requests currently being served by the wrapped handler.",
 	})
 
