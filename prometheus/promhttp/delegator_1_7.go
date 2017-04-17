@@ -11,9 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Copyright (c) 2013, The Prometheus Authors
-// All rights reserved.
-
 // +build !go1.8
 
 package promhttp
