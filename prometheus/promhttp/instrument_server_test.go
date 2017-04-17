@@ -87,11 +87,12 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"code", "method"},
 	)
 
-	// pushVec is partitioned with custom buckets based on expected request
-	// duration.
+	// pushVec is partitioned by the HTTP method and uses custom buckets based on
+	// the expected request duration. It uses ConstLabels to set a handler label
+	// marking pushVec as tracking the durations for pushes.
 	pushVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:        "push_duration_seconds",
+			Name:        "request_duration_seconds",
 			Help:        "A histogram of latencies for requests to the push handler.",
 			Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
 			ConstLabels: prometheus.Labels{"handler": "push"},
@@ -99,11 +100,12 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"method"},
 	)
 
-	// pullVec is partitioned with custom buckets based on expected request
-	// duration, which differ from those defined in pushVec.
+	// pullVec is also partitioned by the HTTP method but uses custom buckets
+	// different from those for pushVec. It also has a different value for the
+	// constant "handler" label.
 	pullVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:        "pull_duration_seconds",
+			Name:        "request_duration_seconds",
 			Help:        "A histogram of latencies for requests to the pull handler.",
 			Buckets:     []float64{.005, .01, .025, .05},
 			ConstLabels: prometheus.Labels{"handler": "pull"},
@@ -111,11 +113,12 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"method"},
 	)
 
-	// responseSize is an ObserverVec partitioned with no instance labels.
+	// responseSize has no labels, making it a zero-dimensional
+	// ObserverVec.
 	responseSize := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "push_request_size_bytes",
-			Help:    "A histogram of request sizes for requests.",
+			Name:    "response_size_bytes",
+			Help:    "A histogram of response sizes for requests.",
 			Buckets: []float64{200, 500, 900, 1500},
 		},
 		[]string{},
