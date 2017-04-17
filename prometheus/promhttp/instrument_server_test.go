@@ -48,15 +48,26 @@ func TestMiddlewareAPI(t *testing.T) {
 		[]string{"method"},
 	)
 
+	responseSize := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "push_request_size_bytes",
+			Help:    "A histogram of request sizes for requests.",
+			Buckets: []float64{200, 500, 900, 1500},
+		},
+		[]string{},
+	)
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 	})
 
-	prometheus.MustRegister(inFlightGauge, counter, histVec)
+	prometheus.MustRegister(inFlightGauge, counter, histVec, responseSize)
 
 	chain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(histVec, handler),
+			InstrumentHandlerDuration(histVec,
+				InstrumentHandlerResponseSize(responseSize, handler),
+			),
 		),
 	)
 
