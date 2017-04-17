@@ -435,30 +435,30 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 	return n, err
 }
 
-type fancyResponseWriterDelegator struct {
+type classicFancyResponseWriterDelegator struct {
 	*responseWriterDelegator
 }
 
-func (r *fancyResponseWriterDelegator) Status() int {
+func (r *classicFancyResponseWriterDelegator) Status() int {
 	return r.status
 }
 
-func (r *fancyResponseWriterDelegator) Written() int64 {
+func (r *classicFancyResponseWriterDelegator) Written() int64 {
 	return r.written
 }
 
-func (r *fancyResponseWriterDelegator) CloseNotify() <-chan bool {
+func (r *classicFancyResponseWriterDelegator) CloseNotify() <-chan bool {
 	return r.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
-func (r *fancyResponseWriterDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (r *classicFancyResponseWriterDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return r.ResponseWriter.(http.Hijacker).Hijack()
 }
 
-func (r *fancyResponseWriterDelegator) Flush() {
+func (r *classicFancyResponseWriterDelegator) Flush() {
 	r.ResponseWriter.(http.Flusher).Flush()
 }
-func (r *fancyResponseWriterDelegator) ReadFrom(re io.Reader) (int64, error) {
+func (r *classicFancyResponseWriterDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !r.wroteHeader {
 		r.WriteHeader(http.StatusOK)
 	}

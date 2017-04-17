@@ -31,22 +31,40 @@ func newDelegator(w http.ResponseWriter) delegator {
 	_, ps := w.(http.Pusher)
 	_, rf := w.(io.ReaderFrom)
 
-	// Check for different possible interfaces that the http.ResponseWriter
-	// could implement.
-	if cn && fl && hj && rf && ps {
+	// Check for the four most common combination of interfaces a
+	// http.ResponseWriter might implement.
+	switch {
+	case cn && fl && hj && rf && ps:
 		// All interfaces.
-		return &fancyResponseWriterDelegator{d}
-	} else if cn && fl && hj && rf {
+		return &fancyResponseWriterDelegator{
+			classicFancyResponseWriterDelegator: &classicFancyResponseWriterDelegator{d},
+			p: &pushDelegator{d},
+		}
+	case cn && fl && hj && rf:
 		// All interfaces, except http.Pusher.
-		return &fancyResponseWriterDelegator{d}
-	} else if ps {
-		// All just http.Pusher.
-		return &fancyResponseWriterDelegator{d}
+		return &classicFancyResponseWriterDelegator{d}
+	case ps:
+		// Just http.Pusher.
+		return &pushDelegator{d}
 	}
 
 	return d
 }
 
+type fancyResponseWriterDelegator struct {
+	p *pushDelegator
+
+	*classicFancyResponseWriterDelegator
+}
+
 func (f *fancyResponseWriterDelegator) Push(target string, opts *http.PushOptions) error {
+	return f.p.Push(target, opts)
+}
+
+type pushDelegator struct {
+	*responseWriterDelegator
+}
+
+func (f *pushDelegator) Push(target string, opts *http.PushOptions) error {
 	return f.ResponseWriter.(http.Pusher).Push(target, opts)
 }
