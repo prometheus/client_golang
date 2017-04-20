@@ -14,14 +14,15 @@
 package api
 
 import (
+	"net/http"
 	"net/url"
 	"testing"
 )
 
 func TestConfig(t *testing.T) {
 	c := Config{}
-	if c.transport() != DefaultTransport {
-		t.Fatalf("expected default transport for nil Transport field")
+	if c.roundTripper() != DefaultRoundTripper {
+		t.Fatalf("expected default roundtripper for nil RoundTripper field")
 	}
 }
 
@@ -99,8 +100,8 @@ func TestClientURL(t *testing.T) {
 		}
 
 		hclient := &httpClient{
-			endpoint:  ep,
-			transport: DefaultTransport,
+			endpoint: ep,
+			client:   http.Client{Transport: DefaultRoundTripper},
 		}
 
 		u := hclient.URL(test.endpoint, test.args)
