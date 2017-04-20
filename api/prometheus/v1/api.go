@@ -16,13 +16,12 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"

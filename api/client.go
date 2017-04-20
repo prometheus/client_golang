@@ -15,6 +15,7 @@
 package api
 
 import (
+	"context"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -23,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/net/context"
 	"golang.org/x/net/context/ctxhttp"
 )
 
