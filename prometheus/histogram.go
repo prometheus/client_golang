@@ -309,7 +309,7 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 
 // GetMetricWithLabelValues replaces the method of the same name in
 // MetricVec. The difference is that this method returns an Observer and not a
-// Metric so that no type conversion is required.
+// Metric so that no type conversion to an Observer is required.
 func (m *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
@@ -320,7 +320,7 @@ func (m *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error)
 
 // GetMetricWith replaces the method of the same name in MetricVec. The
 // difference is that this method returns an Observer and not a Metric so that no
-// type conversion is required.
+// type conversion to an Observer is required.
 func (m *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 	metric, err := m.MetricVec.GetMetricWith(labels)
 	if metric != nil {
