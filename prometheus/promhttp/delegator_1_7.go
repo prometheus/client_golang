@@ -28,7 +28,7 @@ func newDelegator(w http.ResponseWriter) delegator {
 	_, hj := w.(http.Hijacker)
 	_, rf := w.(io.ReaderFrom)
 	if cn && fl && hj && rf {
-		return &classicFancyResponseWriterDelegator{d}
+		return &fancyDelegator{d}
 	}
 
 	return d

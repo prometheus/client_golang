@@ -36,13 +36,13 @@ func newDelegator(w http.ResponseWriter) delegator {
 	switch {
 	case cn && fl && hj && rf && ps:
 		// All interfaces.
-		return &fancyResponseWriterDelegator{
-			classicFancyResponseWriterDelegator: &classicFancyResponseWriterDelegator{d},
-			p: &pushDelegator{d},
+		return &fancyPushDelegator{
+			fancyDelegator: &fancyDelegator{d},
+			p:              &pushDelegator{d},
 		}
 	case cn && fl && hj && rf:
 		// All interfaces, except http.Pusher.
-		return &classicFancyResponseWriterDelegator{d}
+		return &fancyDelegator{d}
 	case ps:
 		// Just http.Pusher.
 		return &pushDelegator{d}
@@ -51,13 +51,13 @@ func newDelegator(w http.ResponseWriter) delegator {
 	return d
 }
 
-type fancyResponseWriterDelegator struct {
+type fancyPushDelegator struct {
 	p *pushDelegator
 
-	*classicFancyResponseWriterDelegator
+	*fancyDelegator
 }
 
-func (f *fancyResponseWriterDelegator) Push(target string, opts *http.PushOptions) error {
+func (f *fancyPushDelegator) Push(target string, opts *http.PushOptions) error {
 	return f.p.Push(target, opts)
 }
 
