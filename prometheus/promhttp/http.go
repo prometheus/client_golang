@@ -10,15 +10,20 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-// Package promhttp provides functions to create http.Handler instances to
-// expose Prometheus metrics via HTTP. It also provides middleware to
-// instrument HTTP handlers in general.
 //
-// The package also contains tooling to instrument instances of http.Handler
+// Package promhttp provides tooling around HTTP servers and clients.
+//
+// First, the package allows the creation of http.Handler instances to expose
+// Prometheus metrics via HTTP. promhttp.Handler acts on the
+// prometheus.DefaultGatherer. With HandlerFor, you can create a handler for a
+// custom registry or anything that implements the Gatherer interface. It also
+// allows the creation of handlers that act differently on errors or allow to
+// log errors.
+//
+// Second, the package provides tooling to instrument instances of http.Handler
 // via middleware. Middleware wrappers follow the naming scheme
 // InstrumentHandlerX, where X describes the intended use of the middleware.
-// Specific details are listed by their respective functions.
+// See each function's doc comment for specific details.
 package promhttp
 
 import (
