@@ -1,4 +1,4 @@
-// Copyright 2016 The Prometheus Authors
+// Copyright 2017 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -450,6 +450,7 @@ func (r *fancyDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func (r *fancyDelegator) Flush() {
 	r.ResponseWriter.(http.Flusher).Flush()
 }
+
 func (r *fancyDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !r.wroteHeader {
 		r.WriteHeader(http.StatusOK)
