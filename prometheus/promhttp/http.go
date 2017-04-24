@@ -10,7 +10,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
+
 // Package promhttp provides tooling around HTTP servers and clients.
 //
 // First, the package allows the creation of http.Handler instances to expose

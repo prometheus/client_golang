@@ -439,14 +439,6 @@ type fancyDelegator struct {
 	*responseWriterDelegator
 }
 
-func (r *fancyDelegator) Status() int {
-	return r.status
-}
-
-func (r *fancyDelegator) Written() int64 {
-	return r.written
-}
-
 func (r *fancyDelegator) CloseNotify() <-chan bool {
 	return r.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
