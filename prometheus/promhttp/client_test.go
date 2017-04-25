@@ -28,45 +28,46 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	client.Timeout = 1 * time.Second
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "in_flight",
-		Help: "In-flight count.",
+		Name: "client_in_flight_requests",
+		Help: "A gauge of in-flight requests for the wrapped client.",
 	})
 
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "test_counter",
-			Help: "Counter.",
+			Name: "client_api_requests_total",
+			Help: "A counter for requests from the wrapped client.",
 		},
 		[]string{"code", "method"},
 	)
 
 	dnsLatencyVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "dns_latency",
+			Name:    "dns_duration_seconds",
 			Help:    "Trace dns latency histogram.",
 			Buckets: []float64{.005, .01, .025, .05},
 		},
 		[]string{"event"},
 	)
+
 	tlsLatencyVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "tls_latency",
+			Name:    "tls_duration_seconds",
 			Help:    "Trace tls latency histogram.",
 			Buckets: []float64{.05, .1, .25, .5},
 		},
 		[]string{"event"},
 	)
 
-	latencyVec := prometheus.NewHistogramVec(
+	histVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "latency",
-			Help:    "Overall latency histogram.",
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of request latencies.",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"code", "method"},
+		[]string{"method"},
 	)
 
-	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, latencyVec, inFlightGauge)
+	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, histVec, inFlightGauge)
 
 	trace := &InstrumentTrace{
 		DNSStart: func(t float64) {
@@ -86,7 +87,7 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	client.Transport = InstrumentRoundTripperInFlight(inFlightGauge,
 		InstrumentRoundTripperCounter(counter,
 			InstrumentRoundTripperTrace(trace,
-				InstrumentRoundTripperDuration(latencyVec, http.DefaultTransport),
+				InstrumentRoundTripperDuration(histVec, http.DefaultTransport),
 			),
 		),
 	)
