@@ -60,10 +60,10 @@ type Client interface {
 	Do(context.Context, *http.Request) (*http.Response, []byte, error)
 }
 
-// New returns a new Client.
+// NewClient returns a new Client.
 //
 // It is safe to use the returned Client from multiple goroutines.
-func New(cfg Config) (Client, error) {
+func NewClient(cfg Config) (Client, error) {
 	u, err := url.Parse(cfg.Address)
 	if err != nil {
 		return nil, err
