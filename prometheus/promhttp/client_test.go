@@ -14,9 +14,8 @@
 package promhttp
 
 import (
-	"fmt"
+	"log"
 	"net/http"
-	"net/http/httputil"
 	"testing"
 	"time"
 
@@ -97,10 +96,96 @@ func TestClientMiddlewareAPI(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 	defer resp.Body.Close()
+}
 
-	out, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		t.Fatalf("%v", err)
+func ExampleInstrumentRoundTripperDuration() {
+	client := http.DefaultClient
+	client.Timeout = 1 * time.Second
+
+	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "client_in_flight_requests",
+		Help: "A gauge of in-flight requests for the wrapped client.",
+	})
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "client_api_requests_total",
+			Help: "A counter for requests from the wrapped client.",
+		},
+		[]string{"code", "method"},
+	)
+
+	// dnsLatencyVec uses custom buckets based on expected dns durations.
+	// It has an instance label "event", which is set in the
+	// DNSStart and DNSDonehook functions defined in the
+	// InstrumentTrace struct below.
+	dnsLatencyVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dns_duration_seconds",
+			Help:    "Trace dns latency histogram.",
+			Buckets: []float64{.005, .01, .025, .05},
+		},
+		[]string{"event"},
+	)
+
+	// tlsLatencyVec uses custom buckets based on expected tls durations.
+	// It has an instance label "event", which is set in the
+	// TLSHandshakeStart and TLSHandshakeDone hook functions defined in the
+	// InstrumentTrace struct below.
+	tlsLatencyVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "tls_duration_seconds",
+			Help:    "Trace tls latency histogram.",
+			Buckets: []float64{.05, .1, .25, .5},
+		},
+		[]string{"event"},
+	)
+
+	// histVec has no labels, making it a zero-dimensional ObserverVec.
+	histVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of request latencies.",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{},
+	)
+
+	// Register all of the metrics in the standard registry.
+	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, histVec, inFlightGauge)
+
+	// Define functions for the available httptrace.ClientTrace hook
+	// functions that we want to instrument.
+	trace := &InstrumentTrace{
+		DNSStart: func(t float64) {
+			dnsLatencyVec.WithLabelValues("DNSStart")
+		},
+		DNSDone: func(t float64) {
+			dnsLatencyVec.WithLabelValues("DNSDone")
+		},
+		TLSHandshakeStart: func(t float64) {
+			tlsLatencyVec.WithLabelValues("TLSHandshakeStart")
+		},
+		TLSHandshakeDone: func(t float64) {
+			tlsLatencyVec.WithLabelValues("TLSHandshakeDone")
+		},
 	}
-	fmt.Println(string(out))
+
+	// Wrap the default RoundTripper with middleware.
+	roundTripper := InstrumentRoundTripperInFlight(inFlightGauge,
+		InstrumentRoundTripperCounter(counter,
+			InstrumentRoundTripperTrace(trace,
+				InstrumentRoundTripperDuration(histVec, http.DefaultTransport),
+			),
+		),
+	)
+
+	// Set the RoundTripper on our client.
+	client.Transport = roundTripper
+
+	resp, err := client.Get("http://google.com")
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+	defer resp.Body.Close()
 }

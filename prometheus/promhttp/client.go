@@ -24,9 +24,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// RoundTripperFunc is an adapter to allow wrapping an http.Client or other
-// Middleware funcs, allowing the user to construct layers of middleware around
-// an http client request.
+// RoundTripperFunc is an adapter to allow wrapping an interface implementing
+// http.RoundTripper, allowing the user to construct layers of middleware.
 type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
 // RoundTrip implements the RoundTripper interface.
@@ -35,18 +34,22 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 // InstrumentTrace is used to offer flexibility in instrumenting the available
-// httptrace.ClientTrace hooks. Each function is passed a float64 representing
-// the time in seconds since the start of the http request. A user may choose
-// to use separately buckets Histograms, or implement custom instance labels
-// per function.
+// httptrace.ClientTrace hook functions. Each function is passed a float64
+// representing the time in seconds since the start of the http request. A user
+// may choose to use separately buckets Histograms, or implement custom
+// instance labels on a per function basis.
 type InstrumentTrace struct {
 	GotConn, PutIdleConn, GotFirstResponseByte, Got100Continue, DNSStart, DNSDone, ConnectStart, ConnectDone, TLSHandshakeStart, TLSHandshakeDone, WroteHeaders, Wait100Continue, WroteRequest func(float64)
 }
 
-// InstrumentRoundTripperTrace accepts an InstrumentTrace structand a
-// http.RoundTripper, returning a RoundTripperFunc that wraps the supplied
-// http.RoundTripper.
-// Note: Partitioning histograms is expensive.
+// InstrumentRoundTripperTrace is a middleware that wraps the provided
+// RoundTripper and reports times to hook functions provided in the
+// InstrumentTrace struct. Hook functions that are not present in the provided
+// InstrumentTrace struct are ignored. Times reported to the hook functions are
+// time since the start of the request. Note that partitioning of Histograms
+// is expensive and should be used judiciously.
+//
+// See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		var (
@@ -135,9 +138,11 @@ func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) Ro
 	})
 }
 
-// InstrumentRoundTripperInFlight accepts a Gauge and an http.RoundTripper,
-// returning a new RoundTripperFunc that wraps the supplied http.RoundTripper.
-// The provided Gauge must be registered in a registry in order to be used.
+// InstrumentRoundTripperInFlight is a middleware that wraps the provided
+// http.RoundTripper. It sets the provided prometheus.Gauge to the number of
+// requests currently handled by the wrapped http.RoundTripper.
+//
+// See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
@@ -150,10 +155,18 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 	})
 }
 
-// InstrumentRoundTripperCounter accepts an CounterVec interface and an
-// http.RoundTripper, returning a new RoundTripperFunc that wraps the supplied
-// http.RoundTripper. The provided CounterVec must be registered in a registry
-// in order to be used.
+// InstrumentRoundTripperCounter is a middleware that wraps the provided
+// http.RoundTripper to observe the request result with the provided CounterVec.
+// The CounterVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. Partitioning of the CounterVec happens by HTTP status
+// code and/or HTTP method if the respective instance label names are present
+// in the CounterVec. For unpartitioned observations, use a CounterVec with
+// zero labels.
+//
+// If the wrapped RoundTripper panics, the Counter is not incremented.
+//
+// See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(counter)
 
@@ -167,11 +180,18 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 	})
 }
 
-// InstrumentRoundTripperDuration accepts an ObserverVec interface and an
-// http.RoundTripper, returning a new http.RoundTripper that wraps the supplied
-// http.RoundTripper. The provided ObserverVec must be registered in a registry
-// in order to be used. The instance labels "code" and "method" are supported
-// on the provided ObserverVec. Note: Partitioning histograms is expensive.
+// InstrumentRoundTripperDuration is a middleware that wraps the provided
+// http.RoundTripper to observe the request duration with the provided ObserverVec.
+// The ObserverVec must have zero, one, or two labels. The only allowed label
+// names are "code" and "method". The function panics if any other instance
+// labels are provided. The Observe method of the Observer in the ObserverVec
+// is called with the request duration in seconds. Partitioning happens by HTTP
+// status code and/or HTTP method if the respective instance label names are
+// present in the ObserverVec. For unpartitioned observations, use an
+// ObserverVec with zero labels. Note that partitioning of Histograms is
+// expensive and should be used judiciously.
+//
+// If the wrapped RoundTripper panics, no values are reported.
 func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(obs)
 
