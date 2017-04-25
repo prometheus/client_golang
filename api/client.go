@@ -13,7 +13,7 @@
 
 // +build go1.7
 
-// Package api provides clients the HTTP API's.
+// Package api provides clients for the HTTP APIs.
 package api
 
 import (

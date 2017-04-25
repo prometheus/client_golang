@@ -70,7 +70,7 @@ type Range struct {
 	Step time.Duration
 }
 
-// API provides bindings the Prometheus's v1 API.
+// API provides bindings for Prometheus's v1 API.
 type API interface {
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
