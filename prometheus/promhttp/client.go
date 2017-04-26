@@ -39,7 +39,19 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // may choose to use separately buckets Histograms, or implement custom
 // instance labels on a per function basis.
 type InstrumentTrace struct {
-	GotConn, PutIdleConn, GotFirstResponseByte, Got100Continue, DNSStart, DNSDone, ConnectStart, ConnectDone, TLSHandshakeStart, TLSHandshakeDone, WroteHeaders, Wait100Continue, WroteRequest func(float64)
+	GotConn              func(float64)
+	PutIdleConn          func(float64)
+	GotFirstResponseByte func(float64)
+	Got100Continue       func(float64)
+	DNSStart             func(float64)
+	DNSDone              func(float64)
+	ConnectStart         func(float64)
+	ConnectDone          func(float64)
+	TLSHandshakeStart    func(float64)
+	TLSHandshakeDone     func(float64)
+	WroteHeaders         func(float64)
+	Wait100Continue      func(float64)
+	WroteRequest         func(float64)
 }
 
 // InstrumentRoundTripperTrace is a middleware that wraps the provided
