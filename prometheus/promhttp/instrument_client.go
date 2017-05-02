@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 )
 
-// RoundTripperFunc is an adapter to allow wrapping an interface implementing
-// http.RoundTripper, allowing the user to construct layers of middleware.
+// The RoundTripperFunc type is an adapter to allow the use of ordinary
+// functions as RoundTrippers. If f is a function with the appropriate
+// signature, RountTripperFunc(f) is a RoundTripper that calls f.
 type RoundTripperFunc func(req *http.Request) (*http.Response, error)
 
 // RoundTrip implements the RoundTripper interface.
@@ -38,11 +38,11 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		gauge.Inc()
+		defer gauge.Dec()
 		resp, err := next.RoundTrip(r)
 		if err != nil {
 			return nil, err
 		}
-		gauge.Dec()
 		return resp, err
 	})
 }
@@ -53,10 +53,11 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // names are "code" and "method". The function panics if any other instance
 // labels are provided. Partitioning of the CounterVec happens by HTTP status
 // code and/or HTTP method if the respective instance label names are present
-// in the CounterVec. For unpartitioned observations, use a CounterVec with
+// in the CounterVec. For unpartitioned counting, use a CounterVec with
 // zero labels.
 //
-// If the wrapped RoundTripper panics, the Counter is not incremented.
+// If the wrapped RoundTripper panics or returns a non-nil error, the Counter
+// is not incremented.
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
@@ -83,56 +84,18 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // ObserverVec with zero labels. Note that partitioning of Histograms is
 // expensive and should be used judiciously.
 //
-// If the wrapped RoundTripper panics, no values are reported.
+// If the wrapped RoundTripper panics or returns a non-nil error, no values are
+// reported.
 func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(obs)
 
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		var (
-			start     = time.Now()
-			resp, err = next.RoundTrip(r)
-		)
+		start := time.Now()
+		resp, err := next.RoundTrip(r)
 		if err != nil {
 			return nil, err
 		}
 		obs.With(labels(code, method, r.Method, resp.StatusCode)).Observe(time.Since(start).Seconds())
 		return resp, err
 	})
-}
-
-func checkEventLabel(c prometheus.Collector) {
-	var (
-		desc *prometheus.Desc
-		pm   dto.Metric
-	)
-
-	descc := make(chan *prometheus.Desc, 1)
-	c.Describe(descc)
-
-	select {
-	case desc = <-descc:
-	default:
-		panic("no description provided by collector")
-	}
-	select {
-	case <-descc:
-		panic("more than one description provided by collector")
-	default:
-	}
-
-	close(descc)
-
-	m, err := prometheus.NewConstMetric(desc, prometheus.UntypedValue, 0, "")
-	if err != nil {
-		panic("error checking metric for labels")
-	}
-
-	if err := m.Write(&pm); err != nil {
-		panic("error checking metric for labels")
-	}
-
-	name := *pm.Label[0].Name
-	if name != "event" {
-		panic("metric partitioned with non-supported label")
-	}
 }

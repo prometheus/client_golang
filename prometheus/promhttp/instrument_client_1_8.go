@@ -51,12 +51,13 @@ type InstrumentTrace struct {
 // time since the start of the request. Note that partitioning of Histograms
 // is expensive and should be used judiciously.
 //
+// For hook functions that receive an error as an argument, no observations are
+// made in the event of a non-nil error value.
+//
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-		var (
-			start = time.Now()
-		)
+		start := time.Now()
 
 		trace := &httptrace.ClientTrace{
 			GotConn: func(_ httptrace.GotConnInfo) {
