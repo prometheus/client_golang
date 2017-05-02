@@ -24,6 +24,11 @@
 // via middleware. Middleware wrappers follow the naming scheme
 // InstrumentHandlerX, where X describes the intended use of the middleware.
 // See each function's doc comment for specific details.
+//
+// Finally, the package allows for an http.RoundTripper to be instrumented via
+// middleware. Middleware wrappers follow the naming scheme
+// InstrumentRoundTripperX, where X describes the intended use of the
+// middleware. See each function's doc comment for specific details.
 package promhttp
 
 import (
