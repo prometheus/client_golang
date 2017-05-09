@@ -80,7 +80,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) ht
 // names are "code" and "method". The function panics if any other instance
 // labels are provided. Partitioning of the CounterVec happens by HTTP status
 // code and/or HTTP method if the respective instance label names are present
-// in the CounterVec. For unpartitioned observations, use a CounterVec with
+// in the CounterVec. For unpartitioned counting, use a CounterVec with
 // zero labels.
 //
 // If the wrapped Handler does not set a status code, a status code of 200 is assumed.
