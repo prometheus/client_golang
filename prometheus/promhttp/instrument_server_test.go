@@ -23,6 +23,8 @@ import (
 )
 
 func TestMiddlewareAPI(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "in_flight_requests",
 		Help: "A gauge of requests currently being served by the wrapped handler.",
@@ -38,9 +40,10 @@ func TestMiddlewareAPI(t *testing.T) {
 
 	histVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "response_duration_seconds",
-			Help:    "A histogram of request latencies.",
-			Buckets: prometheus.DefBuckets,
+			Name:        "response_duration_seconds",
+			Help:        "A histogram of request latencies.",
+			Buckets:     prometheus.DefBuckets,
+			ConstLabels: prometheus.Labels{"handler": "api"},
 		},
 		[]string{"method"},
 	)
@@ -58,7 +61,7 @@ func TestMiddlewareAPI(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	prometheus.MustRegister(inFlightGauge, counter, histVec, responseSize)
+	reg.MustRegister(inFlightGauge, counter, histVec, responseSize)
 
 	chain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
@@ -87,29 +90,25 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"code", "method"},
 	)
 
-	// pushVec is partitioned by the HTTP method and uses custom buckets based on
-	// the expected request duration. It uses ConstLabels to set a handler label
-	// marking pushVec as tracking the durations for pushes.
+	// pushVec and pullVec are partitioned by the HTTP method and use custom
+	// buckets based on the expected request duration. ConstLabels are used
+	// to set a handler label to mark pushVec as tracking the durations for
+	// pushes and pullVec as tracking the durations for pulls. Note that
+	// Name, Help, and Buckets need to be the same for consistency, so we
+	// use the same HistogramOpts after just modifying the ConstLabels.
+	histogramOpts := prometheus.HistogramOpts{
+		Name:        "request_duration_seconds",
+		Help:        "A histogram of latencies for requests.",
+		Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
+		ConstLabels: prometheus.Labels{"handler": "push"},
+	}
 	pushVec := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:        "request_duration_seconds",
-			Help:        "A histogram of latencies for requests to the push handler.",
-			Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
-			ConstLabels: prometheus.Labels{"handler": "push"},
-		},
+		histogramOpts,
 		[]string{"method"},
 	)
-
-	// pullVec is also partitioned by the HTTP method but uses custom buckets
-	// different from those for pushVec. It also has a different value for the
-	// constant "handler" label.
+	histogramOpts.ConstLabels = prometheus.Labels{"handler": "pull"}
 	pullVec := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:        "request_duration_seconds",
-			Help:        "A histogram of latencies for requests to the pull handler.",
-			Buckets:     []float64{.005, .01, .025, .05},
-			ConstLabels: prometheus.Labels{"handler": "pull"},
-		},
+		histogramOpts,
 		[]string{"method"},
 	)
 

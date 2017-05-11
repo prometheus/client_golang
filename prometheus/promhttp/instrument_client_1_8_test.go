@@ -28,6 +28,8 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	client := http.DefaultClient
 	client.Timeout = 1 * time.Second
 
+	reg := prometheus.NewRegistry()
+
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "client_in_flight_requests",
 		Help: "A gauge of in-flight requests for the wrapped client.",
@@ -68,7 +70,7 @@ func TestClientMiddlewareAPI(t *testing.T) {
 		[]string{"method"},
 	)
 
-	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, histVec, inFlightGauge)
+	reg.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, histVec, inFlightGauge)
 
 	trace := &InstrumentTrace{
 		DNSStart: func(t float64) {
