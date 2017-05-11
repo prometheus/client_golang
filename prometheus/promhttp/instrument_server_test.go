@@ -48,6 +48,16 @@ func TestMiddlewareAPI(t *testing.T) {
 		[]string{"method"},
 	)
 
+	writeHeaderVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:        "write_header_duration_seconds",
+			Help:        "A histogram of time to first write latencies.",
+			Buckets:     prometheus.DefBuckets,
+			ConstLabels: prometheus.Labels{"handler": "api"},
+		},
+		[]string{},
+	)
+
 	responseSize := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "push_request_size_bytes",
@@ -61,12 +71,14 @@ func TestMiddlewareAPI(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	reg.MustRegister(inFlightGauge, counter, histVec, responseSize)
+	reg.MustRegister(inFlightGauge, counter, histVec, responseSize, writeHeaderVec)
 
 	chain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
 			InstrumentHandlerDuration(histVec,
-				InstrumentHandlerResponseSize(responseSize, handler),
+				InstrumentHandlerTimeToWriteHeader(writeHeaderVec,
+					InstrumentHandlerResponseSize(responseSize, handler),
+				),
 			),
 		),
 	)

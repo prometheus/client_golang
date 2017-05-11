@@ -108,6 +108,40 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 	})
 }
 
+// InstrumentHandlerTimeToWriteHeader is a middleware that wraps the provided
+// http.Handler to observe with the provided ObserverVec the request duration
+// until the response headers are written. The ObserverVec must have zero, one,
+// or two labels. The only allowed label names are "code" and "method". The
+// function panics if any other instance labels are provided. The Observe
+// method of the Observer in the ObserverVec is called with the request
+// duration in seconds. Partitioning happens by HTTP status code and/or HTTP
+// method if the respective instance label names are present in the
+// ObserverVec. For unpartitioned observations, use an ObserverVec with zero
+// labels. Note that partitioning of Histograms is expensive and should be used
+// judiciously.
+//
+// If the wrapped Handler does not set a status code via WriteHeader, no value
+// is reported.
+//
+// If the wrapped Handler panics before calling WriteHeader, no value is
+// reported.
+//
+// See the example for InstrumentHandlerDuration for example usage.
+func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
+	code, method := checkLabels(obs)
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		now := time.Now()
+		d := &wroteHeaderDelegator{
+			delegator: newDelegator(w),
+			observeWriteHeader: func(status int) {
+				obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
+			},
+		}
+		next.ServeHTTP(d, r)
+	})
+}
+
 // InstrumentHandlerRequestSize is a middleware that wraps the provided
 // http.Handler to observe the request size with the provided ObserverVec.
 // The ObserverVec must have zero, one, or two labels. The only allowed label
@@ -413,6 +447,19 @@ type delegator interface {
 	Written() int64
 
 	http.ResponseWriter
+}
+
+type wroteHeaderDelegator struct {
+	observeWriteHeader func(int)
+
+	delegator
+}
+
+func (r *wroteHeaderDelegator) WriteHeader(code int) {
+	r.delegator.WriteHeader(code)
+	if r.observeWriteHeader != nil {
+		r.observeWriteHeader(code)
+	}
 }
 
 type responseWriterDelegator struct {
