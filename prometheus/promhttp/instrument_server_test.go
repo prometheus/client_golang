@@ -88,6 +88,23 @@ func TestMiddlewareAPI(t *testing.T) {
 	chain.ServeHTTP(w, r)
 }
 
+func TestInstrumentTimeToFirstWrite(t *testing.T) {
+	var i int
+	dobs := &responseWriterDelegator{
+		ResponseWriter: httptest.NewRecorder(),
+		observeWriteHeader: func(status int) {
+			i = status
+		},
+	}
+	d := newDelegator(dobs)
+
+	d.WriteHeader(http.StatusOK)
+
+	if i != http.StatusOK {
+		t.Fatalf("failed to execute observeWriteHeader")
+	}
+}
+
 func ExampleInstrumentHandlerDuration() {
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "in_flight_requests",

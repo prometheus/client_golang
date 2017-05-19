@@ -129,12 +129,12 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
-		d := &wroteHeaderDelegator{
-			delegator: newDelegator(w),
+		d := newDelegator(&responseWriterDelegator{
+			ResponseWriter: w,
 			observeWriteHeader: func(status int) {
 				obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
 			},
-		}
+		})
 		next.ServeHTTP(d, r)
 	})
 }
@@ -446,26 +446,14 @@ type delegator interface {
 	http.ResponseWriter
 }
 
-type wroteHeaderDelegator struct {
-	observeWriteHeader func(int)
-
-	delegator
-}
-
-func (r *wroteHeaderDelegator) WriteHeader(code int) {
-	r.delegator.WriteHeader(code)
-	if r.observeWriteHeader != nil {
-		r.observeWriteHeader(code)
-	}
-}
-
 type responseWriterDelegator struct {
 	http.ResponseWriter
 
-	handler, method string
-	status          int
-	written         int64
-	wroteHeader     bool
+	handler, method    string
+	status             int
+	written            int64
+	wroteHeader        bool
+	observeWriteHeader func(int)
 }
 
 func (r *responseWriterDelegator) Status() int {
@@ -480,6 +468,9 @@ func (r *responseWriterDelegator) WriteHeader(code int) {
 	r.status = code
 	r.wroteHeader = true
 	r.ResponseWriter.WriteHeader(code)
+	if r.observeWriteHeader != nil {
+		r.observeWriteHeader(code)
+	}
 }
 
 func (r *responseWriterDelegator) Write(b []byte) (int, error) {
