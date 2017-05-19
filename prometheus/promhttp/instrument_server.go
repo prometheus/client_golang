@@ -120,9 +120,6 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 // labels. Note that partitioning of Histograms is expensive and should be used
 // judiciously.
 //
-// If the wrapped Handler does not set a status code via WriteHeader, no value
-// is reported.
-//
 // If the wrapped Handler panics before calling WriteHeader, no value is
 // reported.
 //
