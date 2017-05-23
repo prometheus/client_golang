@@ -96,7 +96,7 @@ func TestInstrumentTimeToFirstWrite(t *testing.T) {
 			i = status
 		},
 	}
-	d := newDelegator(dobs)
+	d := newDelegator(dobs, nil)
 
 	d.WriteHeader(http.StatusOK)
 

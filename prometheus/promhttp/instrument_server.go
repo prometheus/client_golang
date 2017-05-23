@@ -63,7 +63,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) ht
 	if code {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			now := time.Now()
-			d := newDelegator(w)
+			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 
 			obs.With(labels(code, method, r.Method, d.Status())).Observe(time.Since(now).Seconds())
@@ -96,7 +96,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 
 	if code {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			d := newDelegator(w)
+			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			counter.With(labels(code, method, r.Method, d.Status())).Inc()
 		})
@@ -129,11 +129,8 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
-		d := newDelegator(&responseWriterDelegator{
-			ResponseWriter: w,
-			observeWriteHeader: func(status int) {
-				obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
-			},
+		d := newDelegator(w, func(status int) {
+			obs.With(labels(code, method, r.Method, status)).Observe(time.Since(now).Seconds())
 		})
 		next.ServeHTTP(d, r)
 	})
@@ -160,7 +157,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler)
 
 	if code {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			d := newDelegator(w)
+			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			size := computeApproximateRequestSize(r)
 			obs.With(labels(code, method, r.Method, d.Status())).Observe(float64(size))
@@ -193,7 +190,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler)
 func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler) http.Handler {
 	code, method := checkLabels(obs)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		d := newDelegator(w)
+		d := newDelegator(w, nil)
 		next.ServeHTTP(d, r)
 		obs.With(labels(code, method, r.Method, d.Status())).Observe(float64(d.Written()))
 	})
