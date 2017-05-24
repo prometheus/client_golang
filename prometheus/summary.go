@@ -272,7 +272,6 @@ func (s *summary) Desc() *Desc {
 
 func (s *summary) Observe(v float64) {
 	s.bufMtx.Lock()
-	defer s.bufMtx.Unlock()
 
 	now := time.Now()
 	if now.After(s.hotBufExpTime) {
@@ -282,6 +281,8 @@ func (s *summary) Observe(v float64) {
 	if len(s.hotBuf) == cap(s.hotBuf) {
 		s.asyncFlush(now)
 	}
+	s.bufMtx.Unlock()
+
 }
 
 func (s *summary) Write(out *dto.Metric) error {
@@ -370,6 +371,8 @@ func (s *summary) flushColdBuf() {
 // swapBufs needs mtx AND bufMtx locked, coldBuf must be empty.
 func (s *summary) swapBufs(now time.Time) {
 	if len(s.coldBuf) != 0 {
+		s.mtx.Unlock()
+		s.bufMtx.Unlock()
 		panic("coldBuf is not empty")
 	}
 	s.hotBuf, s.coldBuf = s.coldBuf, s.hotBuf
