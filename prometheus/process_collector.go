@@ -16,13 +16,13 @@ package prometheus
 import "github.com/prometheus/procfs"
 
 type processCollector struct {
-	pid             int
-	collectFn       func(chan<- Metric)
-	pidFn           func() (int, error)
-	cpuTotal        *Desc
-	openFDs, maxFDs *Desc
-	vsize, rss      *Desc
-	startTime       *Desc
+	pid                             int
+	collectFn                       func(chan<- Metric)
+	pidFn                           func() (int, error)
+	cpuTotal                        *Desc
+	openFDs, openFDsPercent, maxFDs *Desc
+	vsize, rss                      *Desc
+	startTime                       *Desc
 }
 
 // NewProcessCollector returns a collector which exports the current state of
@@ -63,6 +63,11 @@ func NewProcessCollectorPIDFn(
 			"Number of open file descriptors.",
 			nil, nil,
 		),
+		openFDsPercent: NewDesc(
+			ns+"process_open_fds_percent",
+			"Percent of open file descriptors compared to max file descriptors.",
+			nil, nil,
+		),
 		maxFDs: NewDesc(
 			ns+"process_max_fds",
 			"Maximum number of open file descriptors.",
@@ -97,6 +102,7 @@ func NewProcessCollectorPIDFn(
 func (c *processCollector) Describe(ch chan<- *Desc) {
 	ch <- c.cpuTotal
 	ch <- c.openFDs
+	ch <- c.openFDsPercent
 	ch <- c.maxFDs
 	ch <- c.vsize
 	ch <- c.rss
@@ -111,6 +117,8 @@ func (c *processCollector) Collect(ch chan<- Metric) {
 // TODO(ts): Bring back error reporting by reverting 7faf9e7 as soon as the
 // client allows users to configure the error behavior.
 func (c *processCollector) processCollect(ch chan<- Metric) {
+	var fds int
+	var limits procfs.ProcLimits
 	pid, err := c.pidFn()
 	if err != nil {
 		return
@@ -130,11 +138,14 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		}
 	}
 
-	if fds, err := p.FileDescriptorsLen(); err == nil {
+	if fds, err = p.FileDescriptorsLen(); err == nil {
 		ch <- MustNewConstMetric(c.openFDs, GaugeValue, float64(fds))
 	}
 
-	if limits, err := p.NewLimits(); err == nil {
+	if limits, err = p.NewLimits(); err == nil {
 		ch <- MustNewConstMetric(c.maxFDs, GaugeValue, float64(limits.OpenFiles))
 	}
+
+	fdsPercent := 100 * (fds / limits.OpenFiles)
+	ch <- MustNewConstMetric(c.openFDsPercent, GaugeValue, float64(fdsPercent))
 }
