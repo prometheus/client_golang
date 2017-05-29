@@ -48,6 +48,16 @@ func TestMiddlewareAPI(t *testing.T) {
 		[]string{"method"},
 	)
 
+	writeHeaderVec := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:        "write_header_duration_seconds",
+			Help:        "A histogram of time to first write latencies.",
+			Buckets:     prometheus.DefBuckets,
+			ConstLabels: prometheus.Labels{"handler": "api"},
+		},
+		[]string{},
+	)
+
 	responseSize := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "push_request_size_bytes",
@@ -61,12 +71,14 @@ func TestMiddlewareAPI(t *testing.T) {
 		w.Write([]byte("OK"))
 	})
 
-	reg.MustRegister(inFlightGauge, counter, histVec, responseSize)
+	reg.MustRegister(inFlightGauge, counter, histVec, responseSize, writeHeaderVec)
 
 	chain := InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
 			InstrumentHandlerDuration(histVec,
-				InstrumentHandlerResponseSize(responseSize, handler),
+				InstrumentHandlerTimeToWriteHeader(writeHeaderVec,
+					InstrumentHandlerResponseSize(responseSize, handler),
+				),
 			),
 		),
 	)
@@ -74,6 +86,23 @@ func TestMiddlewareAPI(t *testing.T) {
 	r, _ := http.NewRequest("GET", "www.example.com", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, r)
+}
+
+func TestInstrumentTimeToFirstWrite(t *testing.T) {
+	var i int
+	dobs := &responseWriterDelegator{
+		ResponseWriter: httptest.NewRecorder(),
+		observeWriteHeader: func(status int) {
+			i = status
+		},
+	}
+	d := newDelegator(dobs, nil)
+
+	d.WriteHeader(http.StatusOK)
+
+	if i != http.StatusOK {
+		t.Fatalf("failed to execute observeWriteHeader")
+	}
 }
 
 func ExampleInstrumentHandlerDuration() {
