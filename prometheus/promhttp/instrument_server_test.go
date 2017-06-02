@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -102,6 +103,45 @@ func TestInstrumentTimeToFirstWrite(t *testing.T) {
 
 	if i != http.StatusOK {
 		t.Fatalf("failed to execute observeWriteHeader")
+	}
+}
+
+// testResponseWriter is an http.ResponseWriter that also implements
+// http.CloseNotifier, http.Flusher, and io.ReaderFrom.
+type testResponseWriter struct {
+	closeNotifyCalled, flushCalled, readFromCalled bool
+}
+
+func (t *testResponseWriter) Header() http.Header       { return nil }
+func (t *testResponseWriter) Write([]byte) (int, error) { return 0, nil }
+func (t *testResponseWriter) WriteHeader(int)           {}
+func (t *testResponseWriter) CloseNotify() <-chan bool {
+	t.closeNotifyCalled = true
+	return nil
+}
+func (t *testResponseWriter) Flush() { t.flushCalled = true }
+func (t *testResponseWriter) ReadFrom(io.Reader) (int64, error) {
+	t.readFromCalled = true
+	return 0, nil
+}
+
+func TestInterfaceUpgrade(t *testing.T) {
+	w := &testResponseWriter{}
+	d := newDelegator(w, nil)
+	d.(http.CloseNotifier).CloseNotify()
+	if !w.closeNotifyCalled {
+		t.Error("CloseNotify not called")
+	}
+	d.(http.Flusher).Flush()
+	if !w.flushCalled {
+		t.Error("Flush not called")
+	}
+	d.(io.ReaderFrom).ReadFrom(nil)
+	if !w.readFromCalled {
+		t.Error("ReadFrom not called")
+	}
+	if _, ok := d.(http.Hijacker); ok {
+		t.Error("delegator unexpectedly implements http.Hijacker")
 	}
 }
 
