@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build go1.7
+// +build go1.7 go1.8
 
 // Package v1 provides bindings to the Prometheus HTTP API v1:
 // http://prometheus.io/docs/querying/api/
