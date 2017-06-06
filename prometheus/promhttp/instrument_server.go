@@ -14,9 +14,6 @@
 package promhttp
 
 import (
-	"bufio"
-	"io"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -434,72 +431,4 @@ func sanitizeCode(s int) string {
 	default:
 		return strconv.Itoa(s)
 	}
-}
-
-type delegator interface {
-	Status() int
-	Written() int64
-
-	http.ResponseWriter
-}
-
-type responseWriterDelegator struct {
-	http.ResponseWriter
-
-	handler, method    string
-	status             int
-	written            int64
-	wroteHeader        bool
-	observeWriteHeader func(int)
-}
-
-func (r *responseWriterDelegator) Status() int {
-	return r.status
-}
-
-func (r *responseWriterDelegator) Written() int64 {
-	return r.written
-}
-
-func (r *responseWriterDelegator) WriteHeader(code int) {
-	r.status = code
-	r.wroteHeader = true
-	r.ResponseWriter.WriteHeader(code)
-	if r.observeWriteHeader != nil {
-		r.observeWriteHeader(code)
-	}
-}
-
-func (r *responseWriterDelegator) Write(b []byte) (int, error) {
-	if !r.wroteHeader {
-		r.WriteHeader(http.StatusOK)
-	}
-	n, err := r.ResponseWriter.Write(b)
-	r.written += int64(n)
-	return n, err
-}
-
-type fancyDelegator struct {
-	*responseWriterDelegator
-}
-
-func (r *fancyDelegator) CloseNotify() <-chan bool {
-	return r.ResponseWriter.(http.CloseNotifier).CloseNotify()
-}
-
-func (r *fancyDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return r.ResponseWriter.(http.Hijacker).Hijack()
-}
-
-func (r *fancyDelegator) Flush() {
-	r.ResponseWriter.(http.Flusher).Flush()
-}
-
-func (r *fancyDelegator) ReadFrom(re io.Reader) (int64, error) {
-	if !r.wroteHeader {
-		r.WriteHeader(http.StatusOK)
-	}
-	n, err := r.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
-	r.written += n
-	return n, err
 }
