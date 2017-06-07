@@ -41,6 +41,7 @@ func TestProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nprocess_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nprocess_max_fds [1-9]"),
 		regexp.MustCompile("\nprocess_open_fds [1-9]"),
+		regexp.MustCompile("\nprocess_open_fds_percent [0-9]"),
 		regexp.MustCompile("\nprocess_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_resident_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_start_time_seconds [0-9.]{10,}"),
