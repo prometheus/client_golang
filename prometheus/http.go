@@ -325,17 +325,35 @@ func computeApproximateRequestSize(r *http.Request) <-chan int {
 		s += len(r.URL.String())
 	}
 
+	// Since headers can be modified in http handlers, for instance,
+	// if iterate headers in a separated gorouting, the program might crash
+	// when headers(hashmap) is write/read concurrently.
+	// ```
+	// # src/net/http/httputil/reverseproxy.go@1.7.5
+	// copiedHeaders := false
+	// for _, h := range hopHeaders {
+	// 	if outreq.Header.Get(h) != "" {
+	// 		if !copiedHeaders {
+	// 			outreq.Header = make(http.Header)
+	// 			copyHeader(outreq.Header, req.Header)
+	// 			copiedHeaders = true
+	// 		}
+	// 		outreq.Header.Del(h)
+	// 	}
+	// }
+	// ```
+	for name, values := range r.Header {
+		s += len(name)
+		for _, value := range values {
+			s += len(value)
+		}
+	}
+
 	out := make(chan int, 1)
 
 	go func() {
 		s += len(r.Method)
 		s += len(r.Proto)
-		for name, values := range r.Header {
-			s += len(name)
-			for _, value := range values {
-				s += len(value)
-			}
-		}
 		s += len(r.Host)
 
 		// N.B. r.Form and r.MultipartForm are assumed to be included in r.URL.
