@@ -60,8 +60,10 @@ func NewUntyped(opts UntypedOpts) Untyped {
 // share the same Desc, but have different values for their variable
 // labels. This is used if you want to count the same thing partitioned by
 // various dimensions. Create instances with NewUntypedVec.
+//
+// Deprecated: UntypedVec is deprecated for the same reasons as Untyped.
 type UntypedVec struct {
-	*MetricVec
+	*metricVec
 }
 
 // NewUntypedVec creates a new UntypedVec based on the provided UntypedOpts and
@@ -75,7 +77,7 @@ func NewUntypedVec(opts UntypedOpts, labelNames []string) *UntypedVec {
 		opts.ConstLabels,
 	)
 	return &UntypedVec{
-		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
+		metricVec: newMetricVec(desc, func(lvs ...string) Metric {
 			return newValue(desc, UntypedValue, 0, lvs...)
 		}),
 	}
@@ -85,7 +87,7 @@ func NewUntypedVec(opts UntypedOpts, labelNames []string) *UntypedVec {
 // MetricVec. The difference is that this method returns an Untyped and not a
 // Metric so that no type conversion is required.
 func (m *UntypedVec) GetMetricWithLabelValues(lvs ...string) (Untyped, error) {
-	metric, err := m.MetricVec.GetMetricWithLabelValues(lvs...)
+	metric, err := m.metricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Untyped), err
 	}
@@ -96,7 +98,7 @@ func (m *UntypedVec) GetMetricWithLabelValues(lvs ...string) (Untyped, error) {
 // difference is that this method returns an Untyped and not a Metric so that no
 // type conversion is required.
 func (m *UntypedVec) GetMetricWith(labels Labels) (Untyped, error) {
-	metric, err := m.MetricVec.GetMetricWith(labels)
+	metric, err := m.metricVec.GetMetricWith(labels)
 	if metric != nil {
 		return metric.(Untyped), err
 	}
@@ -108,14 +110,14 @@ func (m *UntypedVec) GetMetricWith(labels Labels) (Untyped, error) {
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
 func (m *UntypedVec) WithLabelValues(lvs ...string) Untyped {
-	return m.MetricVec.WithLabelValues(lvs...).(Untyped)
+	return m.metricVec.WithLabelValues(lvs...).(Untyped)
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
 func (m *UntypedVec) With(labels Labels) Untyped {
-	return m.MetricVec.With(labels).(Untyped)
+	return m.metricVec.With(labels).(Untyped)
 }
 
 // UntypedFunc is an Untyped whose value is determined at collect time by
