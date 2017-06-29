@@ -61,6 +61,7 @@ func ExampleAddFromGatherer() {
 	start := time.Now()
 	n, err := performBackup()
 	records.Set(float64(n))
+	// Note that time.Since only uses a monotonic clock in Go1.9+.
 	duration.Set(time.Since(start).Seconds())
 	completionTime.SetToCurrentTime()
 	if err != nil {

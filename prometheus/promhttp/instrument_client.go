@@ -81,6 +81,9 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 //
 // If the wrapped RoundTripper panics or returns a non-nil error, no values are
 // reported.
+//
+// Note that this method is only guaranteed to never observe negative durations
+// if used with Go1.9+.
 func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper) RoundTripperFunc {
 	code, method := checkLabels(obs)
 

@@ -48,8 +48,10 @@ type InstrumentTrace struct {
 // RoundTripper and reports times to hook functions provided in the
 // InstrumentTrace struct. Hook functions that are not present in the provided
 // InstrumentTrace struct are ignored. Times reported to the hook functions are
-// time since the start of the request. Note that partitioning of Histograms
-// is expensive and should be used judiciously.
+// time since the start of the request. Only with Go1.9+, those times are
+// guaranteed to never be negative. (Earlier Go versions are not using a
+// monotonic clock.) Note that partitioning of Histograms is expensive and
+// should be used judiciously.
 //
 // For hook functions that receive an error as an argument, no observations are
 // made in the event of a non-nil error value.
