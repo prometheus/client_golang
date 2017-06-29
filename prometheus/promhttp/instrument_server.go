@@ -54,6 +54,9 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // If the wrapped Handler does not set a status code, a status code of 200 is assumed.
 //
 // If the wrapped Handler panics, no values are reported.
+//
+// Note that this method is only guaranteed to never observe negative durations
+// if used with Go1.9+.
 func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
 	code, method := checkLabels(obs)
 
@@ -119,6 +122,9 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler)
 //
 // If the wrapped Handler panics before calling WriteHeader, no value is
 // reported.
+//
+// Note that this method is only guaranteed to never observe negative durations
+// if used with Go1.9+.
 //
 // See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler) http.HandlerFunc {
