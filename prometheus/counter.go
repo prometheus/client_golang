@@ -70,9 +70,6 @@ func (c *counter) Add(v float64) {
 // if you want to count the same thing partitioned by various dimensions
 // (e.g. number of HTTP requests, partitioned by response code and
 // method). Create instances with NewCounterVec.
-//
-// CounterVec embeds MetricVec. See there for a full list of methods with
-// detailed documentation.
 type CounterVec struct {
 	*metricVec
 }

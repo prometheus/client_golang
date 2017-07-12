@@ -35,8 +35,7 @@ type metricVec struct {
 	hashAddByte func(h uint64, b byte) uint64
 }
 
-// newMetricVec returns an initialized MetricVec. The concrete value is
-// returned for embedding into another struct.
+// newMetricVec returns an initialized metricVec.
 func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
 	return &metricVec{
 		children:    map[uint64][]metricWithLabelValues{},
