@@ -194,6 +194,13 @@ func (d *Desc) String() string {
 	)
 }
 
+// Expose some number of internal fields through methods. This allows us to 
+// keep these fields as unexported (so others cannot change them) -- but allows
+// others to view them (for creating other registries/collectors/etc.)
+func (d *Desc) FQName() string { return d.fqName }
+func (d *Desc) Help() string   { return d.help }
+func (d *Desc) Err() error     { return d.err }
+
 func checkLabelName(l string) bool {
 	return model.LabelName(l).IsValid() &&
 		!strings.HasPrefix(l, reservedLabelPrefix)
