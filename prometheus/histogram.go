@@ -45,6 +45,8 @@ type Histogram interface {
 
 	// Observe adds a single observation to the histogram.
 	Observe(float64)
+	// ObserveBatch adds multi-observations to the histogram.
+	ObserveBatch(float64, uint64)
 }
 
 // bucketLabel is used for the label that defines the upper bound of a
@@ -252,6 +254,21 @@ func (h *histogram) Observe(v float64) {
 		atomic.AddUint64(&h.counts[i], 1)
 	}
 	atomic.AddUint64(&h.count, 1)
+	for {
+		oldBits := atomic.LoadUint64(&h.sumBits)
+		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
+		if atomic.CompareAndSwapUint64(&h.sumBits, oldBits, newBits) {
+			break
+		}
+	}
+}
+
+func (h *histogram) ObserveBatch(v float64, cnt uint64) {
+	i := sort.SearchFloat64s(h.upperBounds, v)
+	if i < len(h.counts) {
+		atomic.AddUint64(&h.counts[i], cnt)
+	}
+	atomic.AddUint64(&h.count, cnt)
 	for {
 		oldBits := atomic.LoadUint64(&h.sumBits)
 		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
