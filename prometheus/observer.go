@@ -17,6 +17,7 @@ package prometheus
 // Histogram and Summary to add observations.
 type Observer interface {
 	Observe(float64)
+	ObserveBatch(float64, uint64)
 }
 
 // The ObserverFunc type is an adapter to allow the use of ordinary
@@ -33,10 +34,26 @@ type Observer interface {
 // which Observer to use for observing the duration. See the "Complex" Timer
 // example.
 type ObserverFunc func(float64)
+type ObserverBatchFunc func(float64, uint64)
 
 // Observe calls f(value). It implements Observer.
 func (f ObserverFunc) Observe(value float64) {
 	f(value)
+}
+
+func (f ObserverFunc) ObserveBatch(value float64, cnt uint64) {
+	for cnt > 0 {
+		cnt--
+		f(value)
+	}
+}
+
+func (f ObserverBatchFunc) Observe(value float64) {
+	f(value, 1)
+}
+
+func (f ObserverBatchFunc) ObserveBatch(value float64, cnt uint64) {
+	f(value, cnt)
 }
 
 // ObserverVec is an interface implemented by `HistogramVec` and `SummaryVec`.

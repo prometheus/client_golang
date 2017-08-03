@@ -51,6 +51,8 @@ type Summary interface {
 
 	// Observe adds a single observation to the summary.
 	Observe(float64)
+	// ObserveBatch adds multi-observations to the summary.
+	ObserveBatch(float64, uint64)
 }
 
 // DefObjectives are the default Summary quantile values.
@@ -279,6 +281,24 @@ func (s *summary) Observe(v float64) {
 		s.asyncFlush(now)
 	}
 	s.hotBuf = append(s.hotBuf, v)
+	if len(s.hotBuf) == cap(s.hotBuf) {
+		s.asyncFlush(now)
+	}
+}
+
+func (s *summary) ObserveBatch(v float64, cnt uint64) {
+	s.bufMtx.Lock()
+	defer s.bufMtx.Unlock()
+
+	now := time.Now()
+	if now.After(s.hotBufExpTime) {
+		s.asyncFlush(now)
+	}
+	vb := make([]float64, cnt)
+	for i := uint64(0); i < cnt; i++ {
+		vb[i] = v
+	}
+	s.hotBuf = append(s.hotBuf, vb...)
 	if len(s.hotBuf) == cap(s.hotBuf) {
 		s.asyncFlush(now)
 	}
