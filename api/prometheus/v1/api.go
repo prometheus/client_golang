@@ -38,6 +38,8 @@ const (
 	epQueryRange  = apiPrefix + "/query_range"
 	epLabelValues = apiPrefix + "/label/:name/values"
 	epSeries      = apiPrefix + "/series"
+
+	epAlertManagers = apiPrefix + "/alertmanagers"
 )
 
 // ErrorType models the different API error types.
@@ -70,6 +72,11 @@ type Range struct {
 	Step time.Duration
 }
 
+type AlertManager struct {
+	// URL of alert manager's alerts endpoint
+	URL string `json:"url"`
+}
+
 // API provides bindings for Prometheus's v1 API.
 type API interface {
 	// Query performs a query for the given time.
@@ -78,6 +85,9 @@ type API interface {
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
 	// LabelValues performs a query for the values of the given label.
 	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
+
+	// AlertManagers retrieves the list of active alert managers.
+	AlertManagers(ctx context.Context) (AlertManagersResult, error)
 }
 
 // queryResult contains result data for a query.
@@ -87,6 +97,11 @@ type queryResult struct {
 
 	// The decoded value.
 	v model.Value
+}
+
+// AlertManagersResult contains result data for a request to alertmanagers
+type AlertManagersResult struct {
+	ActiveAlertManagers []AlertManager `json:"activeAlertmanagers"`
 }
 
 func (qr *queryResult) UnmarshalJSON(b []byte) error {
@@ -142,7 +157,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +190,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +219,21 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelVal
 	var labelValues model.LabelValues
 	err = json.Unmarshal(body, &labelValues)
 	return labelValues, err
+}
+
+func (h *httpAPI) AlertManagers(ctx context.Context) (AlertManagersResult, error) {
+	var amResult AlertManagersResult
+	u := h.client.URL(epAlertManagers, nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return amResult, err
+	}
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return amResult, err
+	}
+	err = json.Unmarshal(body, &amResult)
+	return amResult, err
 }
 
 // apiClient wraps a regular client and processes successful API responses.
