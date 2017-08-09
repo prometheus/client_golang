@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package alertmanager
+package v1
 
 import (
 	"bytes"
@@ -25,18 +25,26 @@ import (
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/alertmanager/config"
 )
 
 const (
 	statusAPIError = 422
 	apiPrefix      = "/api/v1"
 
-	epSilence     = "/silence/:id"
-	epSilences    = "/silences"
-	epAlerts      = "/alerts"
-	epAlertGroups = "/alerts/groups"
+	epStatus      = apiPrefix + "/status"
+	epSilence     = apiPrefix + "/silence/:id"
+	epSilences    = apiPrefix + "/silences"
+	epAlerts      = apiPrefix + "/alerts"
+	epAlertGroups = apiPrefix + "/alerts/groups"
 )
 
+type ServerStatus struct {
+	ConfigYAML  string            `json:"configYAML"`
+	ConfigJSON  *config.Config    `json:"configJSON"`
+	VersionInfo map[string]string `json:"versionInfo"`
+	Uptime      time.Time         `json:"uptime"`
+	TODO        json.RawMessage   `json:"meshStatus"`
 }
 
 // apiClient wraps a regular client and processes successful API responses.
@@ -93,11 +101,40 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	return resp, []byte(result.Data), err
 }
 
+type StatusAPI interface {
+	// Get the server status, config, uptime, etc.
+	Get(ctx context.Context) (*ServerStatus, error)
+}
+
+func NewStatusAPI(c api.Client) StatusAPI {
+	return &httpStatusAPI{client: apiClient{c}}
+}
+
+type httpStatusAPI struct {
+	client api.Client
+}
+
+func (h *httpStatusAPI) Get(ctx context.Context) (*ServerStatus, error) {
+	u := h.client.URL(epStatus, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var ss *ServerStatus
+	err = json.Unmarshal(body, &ss)
+
+	return ss, err
+}
+
 type AlertAPI interface {
 	// List all the active alerts.
 	List(ctx context.Context) ([]*model.Alert, error)
 	// Push a list of alerts into the Alertmanager.
-	Push(ctx context.Context, alerts ...*model.Alert) error
+	Push(ctx context.Context, alerts ...model.Alert) error
 }
 
 // NewAlertAPI returns a new AlertAPI for the client.
@@ -112,7 +149,7 @@ type httpAlertAPI struct {
 func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
 	u := h.client.URL(epAlerts, nil)
 
-	req, _ := http.NewRequest("GET", u.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 
 	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
@@ -125,15 +162,15 @@ func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
 	return alts, err
 }
 
-func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
+func (h *httpAlertAPI) Push(ctx context.Context, alerts ...model.Alert) error {
 	u := h.client.URL(epAlerts, nil)
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(alerts); err != nil {
+	if err := json.NewEncoder(&buf).Encode(&alerts); err != nil {
 		return err
 	}
 
-	req, _ := http.NewRequest("POST", u.String(), &buf)
+	req, _ := http.NewRequest(http.MethodPost, u.String(), &buf)
 
 	_, _, err := h.client.Do(ctx, req)
 	return err
@@ -144,9 +181,9 @@ type SilenceAPI interface {
 	// Get returns the silence associated with the given ID.
 	Get(ctx context.Context, id uint64) (*model.Silence, error)
 	// Set updates or creates the given silence and returns its ID.
-	Set(ctx context.Context, sil *model.Silence) (uint64, error)
-	// Del deletes the silence with the given ID.
-	Del(ctx context.Context, id uint64) error
+	Set(ctx context.Context, sil model.Silence) (uint64, error)
+	// Delete deletes the silence with the given ID.
+	Delete(ctx context.Context, id uint64) error
 	// List all silences of the server.
 	List(ctx context.Context) ([]*model.Silence, error)
 }
@@ -165,7 +202,7 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id uint64) (*model.Silence, er
 		"id": strconv.FormatUint(id, 10),
 	})
 
-	req, _ := http.NewRequest("GET", u.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 
 	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
@@ -178,25 +215,25 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id uint64) (*model.Silence, er
 	return &sil, err
 }
 
-func (h *httpSilenceAPI) Del(ctx context.Context, id uint64) error {
+func (h *httpSilenceAPI) Delete(ctx context.Context, id uint64) error {
 	u := h.client.URL(epSilence, map[string]string{
 		"id": strconv.FormatUint(id, 10),
 	})
 
-	req, _ := http.NewRequest("DELETE", u.String(), nil)
+	req, _ := http.NewRequest(http.MethodDelete, u.String(), nil)
 
 	_, _, err := h.client.Do(ctx, req)
 	return err
 }
 
-func (h *httpSilenceAPI) Set(ctx context.Context, sil *model.Silence) (uint64, error) {
+func (h *httpSilenceAPI) Set(ctx context.Context, sil model.Silence) (uint64, error) {
 	var (
 		u      *url.URL
 		method string
 	)
 
 	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(sil); err != nil {
+	if err := json.NewEncoder(&buf).Encode(&sil); err != nil {
 		return 0, err
 	}
 
@@ -205,10 +242,10 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil *model.Silence) (uint64, e
 		u = h.client.URL(epSilence, map[string]string{
 			"id": strconv.FormatUint(sil.ID, 10),
 		})
-		method = "PUT"
+		method = http.MethodPut
 	} else {
 		u = h.client.URL(epSilences, nil)
-		method = "POST"
+		method = http.MethodPost
 	}
 
 	req, _ := http.NewRequest(method, u.String(), &buf)
@@ -229,7 +266,7 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil *model.Silence) (uint64, e
 func (h *httpSilenceAPI) List(ctx context.Context) ([]*model.Silence, error) {
 	u := h.client.URL(epSilences, nil)
 
-	req, _ := http.NewRequest("GET", u.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 
 	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
