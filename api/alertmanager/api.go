@@ -15,20 +15,16 @@ package alertmanager
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
-	"golang.org/x/net/context/ctxhttp"
 )
 
 const (
@@ -41,146 +37,23 @@ const (
 	epAlertGroups = "/alerts/groups"
 )
 
-type ErrorType string
-
-const (
-	// The different API error types.
-	ErrBadData     ErrorType = "bad_data"
-	ErrTimeout               = "timeout"
-	ErrCanceled              = "canceled"
-	ErrExec                  = "execution"
-	ErrBadResponse           = "bad_response"
-)
-
-// Error is an error returned by the API.
-type Error struct {
-	Type ErrorType
-	Msg  string
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s: %s", e.Type, e.Msg)
-}
-
-// CancelableTransport is like net.Transport but provides
-// per-request cancelation functionality.
-type CancelableTransport interface {
-	http.RoundTripper
-	CancelRequest(req *http.Request)
-}
-
-var DefaultTransport CancelableTransport = &http.Transport{
-	Proxy: http.ProxyFromEnvironment,
-	Dial: (&net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}).Dial,
-	TLSHandshakeTimeout: 10 * time.Second,
-}
-
-// Config defines configuration parameters for a new client.
-type Config struct {
-	// The address of the Prometheus to connect to.
-	Address string
-
-	// Transport is used by the Client to drive HTTP requests. If not
-	// provided, DefaultTransport will be used.
-	Transport CancelableTransport
-}
-
-func (cfg *Config) transport() CancelableTransport {
-	if cfg.Transport == nil {
-		return DefaultTransport
-	}
-	return cfg.Transport
-}
-
-type Client interface {
-	url(ep string, args map[string]string) *url.URL
-	do(context.Context, *http.Request) (*http.Response, []byte, error)
-}
-
-// New returns a new Client.
-func New(cfg Config) (Client, error) {
-	u, err := url.Parse(cfg.Address)
-	if err != nil {
-		return nil, err
-	}
-	u.Path = apiPrefix
-
-	return &httpClient{
-		endpoint:  u,
-		transport: cfg.transport(),
-	}, nil
-}
-
-type httpClient struct {
-	endpoint  *url.URL
-	transport CancelableTransport
-}
-
-func (c *httpClient) url(ep string, args map[string]string) *url.URL {
-	p := path.Join(c.endpoint.Path, ep)
-
-	for arg, val := range args {
-		arg = ":" + arg
-		p = strings.Replace(p, arg, val, -1)
-	}
-
-	u := *c.endpoint
-	u.Path = p
-
-	return &u
-}
-
-func (c *httpClient) do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
-	resp, err := ctxhttp.Do(ctx, &http.Client{Transport: c.transport}, req)
-
-	defer func() {
-		if resp != nil {
-			resp.Body.Close()
-		}
-	}()
-
-	if err != nil {
-		return resp, nil, err
-	}
-
-	var body []byte
-	done := make(chan struct{})
-	go func() {
-		body, err = ioutil.ReadAll(resp.Body)
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		err = resp.Body.Close()
-		<-done
-		if err == nil {
-			err = ctx.Err()
-		}
-	case <-done:
-	}
-
-	return resp, body, err
 }
 
 // apiClient wraps a regular client and processes successful API responses.
 // Successful also includes responses that errored at the API level.
 type apiClient struct {
-	Client
+	api.Client
 }
 
 type apiResponse struct {
 	Status    string          `json:"status"`
 	Data      json.RawMessage `json:"data"`
-	ErrorType ErrorType       `json:"errorType"`
+	ErrorType api.ErrorType   `json:"errorType"`
 	Error     string          `json:"error"`
 }
 
-func (c apiClient) do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
-	resp, body, err := c.Client.do(ctx, req)
+func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	resp, body, err := c.Client.Do(ctx, req)
 	if err != nil {
 		return resp, body, err
 	}
@@ -188,8 +61,8 @@ func (c apiClient) do(ctx context.Context, req *http.Request) (*http.Response, [
 	code := resp.StatusCode
 
 	if code/100 != 2 && code != statusAPIError {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  fmt.Sprintf("bad response code %d", resp.StatusCode),
 		}
 	}
@@ -197,21 +70,21 @@ func (c apiClient) do(ctx context.Context, req *http.Request) (*http.Response, [
 	var result apiResponse
 
 	if err = json.Unmarshal(body, &result); err != nil {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  err.Error(),
 		}
 	}
 
 	if (code == statusAPIError) != (result.Status == "error") {
-		err = &Error{
-			Type: ErrBadResponse,
+		err = &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  "inconsistent body for response code",
 		}
 	}
 
 	if code == statusAPIError && result.Status == "error" {
-		err = &Error{
+		err = &api.Error{
 			Type: result.ErrorType,
 			Msg:  result.Error,
 		}
@@ -228,20 +101,20 @@ type AlertAPI interface {
 }
 
 // NewAlertAPI returns a new AlertAPI for the client.
-func NewAlertAPI(c Client) AlertAPI {
+func NewAlertAPI(c api.Client) AlertAPI {
 	return &httpAlertAPI{client: apiClient{c}}
 }
 
 type httpAlertAPI struct {
-	client Client
+	client api.Client
 }
 
 func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
-	u := h.client.url(epAlerts, nil)
+	u := h.client.URL(epAlerts, nil)
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
 
-	_, body, err := h.client.do(ctx, req)
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +126,7 @@ func (h *httpAlertAPI) List(ctx context.Context) ([]*model.Alert, error) {
 }
 
 func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
-	u := h.client.url(epAlerts, nil)
+	u := h.client.URL(epAlerts, nil)
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(alerts); err != nil {
@@ -262,7 +135,7 @@ func (h *httpAlertAPI) Push(ctx context.Context, alerts ...*model.Alert) error {
 
 	req, _ := http.NewRequest("POST", u.String(), &buf)
 
-	_, _, err := h.client.do(ctx, req)
+	_, _, err := h.client.Do(ctx, req)
 	return err
 }
 
@@ -279,22 +152,22 @@ type SilenceAPI interface {
 }
 
 // NewSilenceAPI returns a new SilenceAPI for the client.
-func NewSilenceAPI(c Client) SilenceAPI {
+func NewSilenceAPI(c api.Client) SilenceAPI {
 	return &httpSilenceAPI{client: apiClient{c}}
 }
 
 type httpSilenceAPI struct {
-	client Client
+	client api.Client
 }
 
 func (h *httpSilenceAPI) Get(ctx context.Context, id uint64) (*model.Silence, error) {
-	u := h.client.url(epSilence, map[string]string{
+	u := h.client.URL(epSilence, map[string]string{
 		"id": strconv.FormatUint(id, 10),
 	})
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
 
-	_, body, err := h.client.do(ctx, req)
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -306,13 +179,13 @@ func (h *httpSilenceAPI) Get(ctx context.Context, id uint64) (*model.Silence, er
 }
 
 func (h *httpSilenceAPI) Del(ctx context.Context, id uint64) error {
-	u := h.client.url(epSilence, map[string]string{
+	u := h.client.URL(epSilence, map[string]string{
 		"id": strconv.FormatUint(id, 10),
 	})
 
 	req, _ := http.NewRequest("DELETE", u.String(), nil)
 
-	_, _, err := h.client.do(ctx, req)
+	_, _, err := h.client.Do(ctx, req)
 	return err
 }
 
@@ -329,18 +202,18 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil *model.Silence) (uint64, e
 
 	// Talk to different endpoints depending on whether its a new silence or not.
 	if sil.ID != 0 {
-		u = h.client.url(epSilence, map[string]string{
+		u = h.client.URL(epSilence, map[string]string{
 			"id": strconv.FormatUint(sil.ID, 10),
 		})
 		method = "PUT"
 	} else {
-		u = h.client.url(epSilences, nil)
+		u = h.client.URL(epSilences, nil)
 		method = "POST"
 	}
 
 	req, _ := http.NewRequest(method, u.String(), &buf)
 
-	_, body, err := h.client.do(ctx, req)
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return 0, err
 	}
@@ -354,11 +227,11 @@ func (h *httpSilenceAPI) Set(ctx context.Context, sil *model.Silence) (uint64, e
 }
 
 func (h *httpSilenceAPI) List(ctx context.Context) ([]*model.Silence, error) {
-	u := h.client.url(epSilences, nil)
+	u := h.client.URL(epSilences, nil)
 
 	req, _ := http.NewRequest("GET", u.String(), nil)
 
-	_, body, err := h.client.do(ctx, req)
+	_, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}

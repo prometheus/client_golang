@@ -42,28 +42,6 @@ const (
 	epAlertManagers = apiPrefix + "/alertmanagers"
 )
 
-// ErrorType models the different API error types.
-type ErrorType string
-
-// Possible values for ErrorType.
-const (
-	ErrBadData     ErrorType = "bad_data"
-	ErrTimeout               = "timeout"
-	ErrCanceled              = "canceled"
-	ErrExec                  = "execution"
-	ErrBadResponse           = "bad_response"
-)
-
-// Error is an error returned by the API.
-type Error struct {
-	Type ErrorType
-	Msg  string
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s: %s", e.Type, e.Msg)
-}
-
 // Range represents a sliced time range.
 type Range struct {
 	// The boundaries of the time range.
@@ -245,7 +223,7 @@ type apiClient struct {
 type apiResponse struct {
 	Status    string          `json:"status"`
 	Data      json.RawMessage `json:"data"`
-	ErrorType ErrorType       `json:"errorType"`
+	ErrorType api.ErrorType   `json:"errorType"`
 	Error     string          `json:"error"`
 }
 
@@ -258,8 +236,8 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	code := resp.StatusCode
 
 	if code/100 != 2 && code != statusAPIError {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  fmt.Sprintf("bad response code %d", resp.StatusCode),
 		}
 	}
@@ -267,21 +245,21 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	var result apiResponse
 
 	if err = json.Unmarshal(body, &result); err != nil {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  err.Error(),
 		}
 	}
 
 	if (code == statusAPIError) != (result.Status == "error") {
-		err = &Error{
-			Type: ErrBadResponse,
+		err = &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  "inconsistent body for response code",
 		}
 	}
 
 	if code == statusAPIError && result.Status == "error" {
-		err = &Error{
+		err = &api.Error{
 			Type: result.ErrorType,
 			Msg:  result.Error,
 		}
