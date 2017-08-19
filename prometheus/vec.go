@@ -14,10 +14,8 @@
 package prometheus
 
 import (
-	"errors"
 	"fmt"
 	"sync"
-	"unicode/utf8"
 
 	"github.com/prometheus/common/model"
 )
@@ -208,21 +206,8 @@ func (m *metricVec) Reset() {
 	}
 }
 
-func (m *metricVec) validateLabelValues(vals []string) error {
-	if len(vals) != len(m.desc.variableLabels) {
-		return errInconsistentCardinality
-	}
-	for _, val := range vals {
-		if !utf8.ValidString(val) {
-			return errors.New(fmt.Sprintf("label %q is not valid utf8", val))
-		}
-	}
-
-	return nil
-}
-
 func (m *metricVec) hashLabelValues(vals []string) (uint64, error) {
-	if err := m.validateLabelValues(vals); err != nil {
+	if err := validateLabelValues(m.desc, vals); err != nil {
 		return 0, err
 	}
 
@@ -234,22 +219,8 @@ func (m *metricVec) hashLabelValues(vals []string) (uint64, error) {
 	return h, nil
 }
 
-func (m *metricVec) validateLabels(labels Labels) error {
-	if len(labels) != len(m.desc.variableLabels) {
-		return errInconsistentCardinality
-	}
-
-	for name, val := range labels {
-		if !utf8.ValidString(val) {
-			return errors.New(fmt.Sprintf("label %s: %q is not valid utf8", name, val))
-		}
-	}
-
-	return nil
-}
-
 func (m *metricVec) hashLabels(labels Labels) (uint64, error) {
-	if err := m.validateLabels(labels); err != nil {
+	if err := validateLabels(m.desc, labels); err != nil {
 		return 0, err
 	}
 
