@@ -78,33 +78,28 @@ func TestCounterVecGetMetricWithInvalidLabelValues(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
-			t.Parallel()
+		counterVec := NewCounterVec(CounterOpts{
+			Name: "test",
+		}, []string{"a"})
 
-			counterVec := NewCounterVec(CounterOpts{
-				Name: "test",
-			}, []string{"a"})
+		labelValues := make([]string, len(test.labels))
+		for _, val := range test.labels {
+			labelValues = append(labelValues, val)
+		}
 
-			labelValues := make([]string, len(test.labels))
-			for _, val := range test.labels {
-				labelValues = append(labelValues, val)
-			}
+		expectPanic(t, func() {
+			counterVec.WithLabelValues(labelValues...)
+		}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
+		expectPanic(t, func() {
+			counterVec.With(test.labels)
+		}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
 
-			expectPanic(t, func() {
-				counterVec.WithLabelValues(labelValues...)
-			}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
-			expectPanic(t, func() {
-				counterVec.With(test.labels)
-			}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
-
-			if _, err := counterVec.GetMetricWithLabelValues(labelValues...); err == nil {
-				t.Errorf("GetMetricWithLabelValues: expected error because: %s", test.desc)
-			}
-			if _, err := counterVec.GetMetricWith(test.labels); err == nil {
-				t.Errorf("GetMetricWith: expected error because: %s", test.desc)
-			}
-		})
+		if _, err := counterVec.GetMetricWithLabelValues(labelValues...); err == nil {
+			t.Errorf("GetMetricWithLabelValues: expected error because: %s", test.desc)
+		}
+		if _, err := counterVec.GetMetricWith(test.labels); err == nil {
+			t.Errorf("GetMetricWith: expected error because: %s", test.desc)
+		}
 	}
 }
 
