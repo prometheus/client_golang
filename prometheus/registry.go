@@ -23,6 +23,8 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
+	"unicode/utf8"
+
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -677,6 +679,12 @@ func checkMetricConsistency(
 			"collected metric %s %s is not a %s",
 			metricFamily.GetName(), dtoMetric, metricFamily.GetType(),
 		)
+	}
+
+	for _, labelPair := range dtoMetric.GetLabel() {
+		if !utf8.ValidString(*labelPair.Value) {
+			return fmt.Errorf("collected metric's label %s is not utf8: %#v", *labelPair.Name, *labelPair.Value)
+		}
 	}
 
 	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
