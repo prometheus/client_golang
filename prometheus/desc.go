@@ -122,6 +122,12 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	for _, labelName := range labelNames {
 		labelValues = append(labelValues, constLabels[labelName])
 	}
+	// Validate the const label values. They can't have a wrong cardinality, so
+	// use in len(labelValues) as expectedNumberOfValues.
+	if err := validateLabelValues(labelValues, len(labelValues)); err != nil {
+		d.err = err
+		return d
+	}
 	// Now add the variable label names, but prefix them with something that
 	// cannot be in a regular label name. That prevents matching the label
 	// dimension with a different mix between preset and variable labels.
@@ -137,6 +143,7 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 		d.err = errors.New("duplicate label names")
 		return d
 	}
+
 	vh := hashNew()
 	for _, val := range labelValues {
 		vh = hashAdd(vh, val)
