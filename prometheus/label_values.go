@@ -13,7 +13,7 @@ func validateLabelValues(vals []string, expectedNumberOfValues int) error {
 
 	for _, val := range vals {
 		if !utf8.ValidString(val) {
-			return errors.New(fmt.Sprintf("label %q is not valid utf8", val))
+			return errors.New(fmt.Sprintf("label value %#v is not valid utf8", val))
 		}
 	}
 
@@ -27,7 +27,7 @@ func validateLabels(labels Labels, expectedNumberOfValues int) error {
 
 	for name, val := range labels {
 		if !utf8.ValidString(val) {
-			return errors.New(fmt.Sprintf("label %s: %q is not valid utf8", name, val))
+			return errors.New(fmt.Sprintf("label %s: %#v is not valid utf8", name, val))
 		}
 	}
 
