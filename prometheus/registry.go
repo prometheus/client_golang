@@ -20,10 +20,9 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/golang/protobuf/proto"
-
-	"unicode/utf8"
 
 	dto "github.com/prometheus/client_model/go"
 )

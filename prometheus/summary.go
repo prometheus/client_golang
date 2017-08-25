@@ -543,7 +543,7 @@ func NewConstSummary(
 	quantiles map[float64]float64,
 	labelValues ...string,
 ) (Metric, error) {
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
+	if err := validateValuesInLabels(labelValues, len(desc.variableLabels)); err != nil {
 		return nil, err
 	}
 	return &constSummary{
