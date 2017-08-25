@@ -111,7 +111,7 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	}
 	// Validate the const label values. They can't have a wrong cardinality, so
 	// use in len(labelValues) as expectedNumberOfValues.
-	if err := validateValuesInLabels(labelValues, len(labelValues)); err != nil {
+	if err := validateLabelValues(labelValues, len(labelValues)); err != nil {
 		d.err = err
 		return d
 	}

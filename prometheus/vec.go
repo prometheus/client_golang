@@ -207,7 +207,7 @@ func (m *metricVec) Reset() {
 }
 
 func (m *metricVec) hashLabelValues(vals []string) (uint64, error) {
-	if err := validateValuesInLabels(vals, len(m.desc.variableLabels)); err != nil {
+	if err := validateLabelValues(vals, len(m.desc.variableLabels)); err != nil {
 		return 0, err
 	}
 
@@ -220,7 +220,7 @@ func (m *metricVec) hashLabelValues(vals []string) (uint64, error) {
 }
 
 func (m *metricVec) hashLabels(labels Labels) (uint64, error) {
-	if err := validateLabels(labels, len(m.desc.variableLabels)); err != nil {
+	if err := validateValuesInLabels(labels, len(m.desc.variableLabels)); err != nil {
 		return 0, err
 	}
 

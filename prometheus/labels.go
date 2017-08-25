@@ -24,7 +24,7 @@ const reservedLabelPrefix = "__"
 
 var errInconsistentCardinality = errors.New("inconsistent label cardinality")
 
-func validateLabels(labels Labels, expectedNumberOfValues int) error {
+func validateValuesInLabels(labels Labels, expectedNumberOfValues int) error {
 	if len(labels) != expectedNumberOfValues {
 		return errInconsistentCardinality
 	}
@@ -38,7 +38,7 @@ func validateLabels(labels Labels, expectedNumberOfValues int) error {
 	return nil
 }
 
-func validateValuesInLabels(vals []string, expectedNumberOfValues int) error {
+func validateLabelValues(vals []string, expectedNumberOfValues int) error {
 	if len(vals) != expectedNumberOfValues {
 		return errInconsistentCardinality
 	}
