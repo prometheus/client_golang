@@ -21,8 +21,8 @@ import (
 )
 
 func TestDelete(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -32,8 +32,8 @@ func TestDelete(t *testing.T) {
 }
 
 func TestDeleteWithCollisions(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -44,12 +44,12 @@ func TestDeleteWithCollisions(t *testing.T) {
 	testDelete(t, vec)
 }
 
-func testDelete(t *testing.T, vec *UntypedVec) {
+func testDelete(t *testing.T, vec *GaugeVec) {
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -57,7 +57,7 @@ func testDelete(t *testing.T, vec *UntypedVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	if got, want := vec.Delete(Labels{"l2": "v2", "l1": "v1"}), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -65,7 +65,7 @@ func testDelete(t *testing.T, vec *UntypedVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	if got, want := vec.Delete(Labels{"l2": "v1", "l1": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -75,8 +75,8 @@ func testDelete(t *testing.T, vec *UntypedVec) {
 }
 
 func TestDeleteLabelValues(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -86,8 +86,8 @@ func TestDeleteLabelValues(t *testing.T) {
 }
 
 func TestDeleteLabelValuesWithCollisions(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -98,13 +98,13 @@ func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 	testDeleteLabelValues(t, vec)
 }
 
-func testDeleteLabelValues(t *testing.T, vec *UntypedVec) {
+func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
 	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
-	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Untyped).Set(42) // Add junk data for collision.
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Gauge).Set(42) // Add junk data for collision.
 	if got, want := vec.DeleteLabelValues("v1", "v2"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -115,7 +115,7 @@ func testDeleteLabelValues(t *testing.T, vec *UntypedVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Untyped).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	// Delete out of order.
 	if got, want := vec.DeleteLabelValues("v2", "v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
@@ -126,8 +126,8 @@ func testDeleteLabelValues(t *testing.T, vec *UntypedVec) {
 }
 
 func TestMetricVec(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -137,8 +137,8 @@ func TestMetricVec(t *testing.T) {
 }
 
 func TestMetricVecWithCollisions(t *testing.T) {
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
@@ -149,7 +149,7 @@ func TestMetricVecWithCollisions(t *testing.T) {
 	testMetricVec(t, vec)
 }
 
-func testMetricVec(t *testing.T, vec *UntypedVec) {
+func testMetricVec(t *testing.T, vec *GaugeVec) {
 	vec.Reset() // Actually test Reset now!
 
 	var pair [2]string
@@ -162,7 +162,7 @@ func testMetricVec(t *testing.T, vec *UntypedVec) {
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
 		expected[[2]string{"v1", "v2"}]++
-		vec.WithLabelValues("v1", "v2").(Untyped).Inc()
+		vec.WithLabelValues("v1", "v2").(Gauge).Inc()
 	}
 
 	var total int
@@ -175,7 +175,7 @@ func testMetricVec(t *testing.T, vec *UntypedVec) {
 			if err := metric.metric.Write(&metricOut); err != nil {
 				t.Fatal(err)
 			}
-			actual := *metricOut.Untyped.Value
+			actual := *metricOut.Gauge.Value
 
 			var actualPair [2]string
 			for i, label := range metricOut.Label {
@@ -290,8 +290,8 @@ func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string)
 	}
 
 	values := make([]string, len(labels)) // Value cache for permutations.
-	vec := NewUntypedVec(
-		UntypedOpts{
+	vec := NewGaugeVec(
+		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
