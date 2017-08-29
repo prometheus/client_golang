@@ -89,22 +89,6 @@ func (m *metricVec) getMetricWith(labels Labels) (Metric, error) {
 	return m.getOrCreateMetricWithLabels(h, labels), nil
 }
 
-func (m *metricVec) withLabelValues(lvs ...string) Metric {
-	metric, err := m.getMetricWithLabelValues(lvs...)
-	if err != nil {
-		panic(err)
-	}
-	return metric
-}
-
-func (m *metricVec) with(labels Labels) Metric {
-	metric, err := m.getMetricWith(labels)
-	if err != nil {
-		panic(err)
-	}
-	return metric
-}
-
 // DeleteLabelValues removes the metric where the variable labels are the same
 // as those passed in as labels (same order as the VariableLabels in Desc). It
 // returns true if a metric was deleted.

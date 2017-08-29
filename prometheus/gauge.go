@@ -138,14 +138,22 @@ func (m *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
 func (m *GaugeVec) WithLabelValues(lvs ...string) Gauge {
-	return m.metricVec.withLabelValues(lvs...).(Gauge)
+	g, err := m.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		panic(err)
+	}
+	return g
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
 func (m *GaugeVec) With(labels Labels) Gauge {
-	return m.metricVec.with(labels).(Gauge)
+	g, err := m.GetMetricWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return g
 }
 
 // GaugeFunc is a Gauge whose value is determined at collect time by calling a

@@ -152,14 +152,22 @@ func (m *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
 func (m *CounterVec) WithLabelValues(lvs ...string) Counter {
-	return m.metricVec.withLabelValues(lvs...).(Counter)
+	c, err := m.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
 func (m *CounterVec) With(labels Labels) Counter {
-	return m.metricVec.with(labels).(Counter)
+	c, err := m.GetMetricWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return c
 }
 
 // CounterFunc is a Counter whose value is determined at collect time by calling a

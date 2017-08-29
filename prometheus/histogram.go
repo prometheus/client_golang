@@ -363,14 +363,22 @@ func (m *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Observe(42.21)
 func (m *HistogramVec) WithLabelValues(lvs ...string) Observer {
-	return m.metricVec.withLabelValues(lvs...).(Observer)
+	h, err := m.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		panic(err)
+	}
+	return h
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
 func (m *HistogramVec) With(labels Labels) Observer {
-	return m.metricVec.with(labels).(Observer)
+	h, err := m.GetMetricWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return h
 }
 
 type constHistogram struct {
