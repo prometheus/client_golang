@@ -111,7 +111,7 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 // Counter with the same label values is created later.
 //
 // An error is returned if the number of label values is not the same as the
-// number of VariableLabels in Desc.
+// number of VariableLabels in Desc (minus any curried labels).
 //
 // Note that for more than one label value, this method is prone to mistakes
 // caused by an incorrect order of arguments. Consider GetMetricWith(Labels) as
@@ -134,7 +134,7 @@ func (v *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
 // the same as for GetMetricWithLabelValues.
 //
 // An error is returned if the number and names of the Labels are inconsistent
-// with those of the VariableLabels in Desc.
+// with those of the VariableLabels in Desc (minus any curried labels).
 //
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
@@ -148,8 +148,8 @@ func (v *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
 }
 
 // WithLabelValues works as GetMetricWithLabelValues, but panics where
-// GetMetricWithLabelValues would have returned an error. By not returning an
-// error, WithLabelValues allows shortcuts like
+// GetMetricWithLabelValues would have returned an error. Not returning an
+// error allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
 func (v *CounterVec) WithLabelValues(lvs ...string) Counter {
 	c, err := v.GetMetricWithLabelValues(lvs...)
@@ -160,14 +160,45 @@ func (v *CounterVec) WithLabelValues(lvs ...string) Counter {
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
-// returned an error. By not returning an error, With allows shortcuts like
-//     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
+// returned an error. Not returning an error allows shortcuts like
+//     myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Add(42)
 func (v *CounterVec) With(labels Labels) Counter {
 	c, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
 	}
 	return c
+}
+
+// CurryWith returns a vector curried with the provided labels, i.e. the
+// returned vector has those labels pre-set for all labeled operations performed
+// on it. The cardinality of the curried vector is reduced accordingly. The
+// order of the remaining labels stays the same (just with the curried labels
+// taken out of the sequence – which is relevant for the
+// (GetMetric)WithLabelValues methods). It is possible to curry a curried
+// vector, but only with labels not yet used for currying before.
+//
+// The metrics contained in the CounterVec are shared between the curried and
+// uncurried vectors. They are just accessed differently. Curried and uncurried
+// vectors behave identically in terms of collection. Only one must be
+// registered with a given registry (usually the uncurried version). The Reset
+// method deletes all metrics, even if called on a curried vector.
+func (v *CounterVec) CurryWith(labels Labels) (*CounterVec, error) {
+	vec, err := v.curryWith(labels)
+	if vec != nil {
+		return &CounterVec{vec}, err
+	}
+	return nil, err
+}
+
+// MustCurryWith works as CurryWith but panics where CurryWith would have
+// returned an error.
+func (v *CounterVec) MustCurryWith(labels Labels) *CounterVec {
+	vec, err := v.CurryWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return vec
 }
 
 // CounterFunc is a Counter whose value is determined at collect time by calling a

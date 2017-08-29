@@ -159,26 +159,15 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"code", "method"},
 	)
 
-	// pushVec and pullVec are partitioned by the HTTP method and use custom
-	// buckets based on the expected request duration. ConstLabels are used
-	// to set a handler label to mark pushVec as tracking the durations for
-	// pushes and pullVec as tracking the durations for pulls. Note that
-	// Name, Help, and Buckets need to be the same for consistency, so we
-	// use the same HistogramOpts after just modifying the ConstLabels.
-	histogramOpts := prometheus.HistogramOpts{
-		Name:        "request_duration_seconds",
-		Help:        "A histogram of latencies for requests.",
-		Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
-		ConstLabels: prometheus.Labels{"handler": "push"},
-	}
-	pushVec := prometheus.NewHistogramVec(
-		histogramOpts,
-		[]string{"method"},
-	)
-	histogramOpts.ConstLabels = prometheus.Labels{"handler": "pull"}
-	pullVec := prometheus.NewHistogramVec(
-		histogramOpts,
-		[]string{"method"},
+	// duration is partitioned by the HTTP method and handler. It uses custom
+	// buckets based on the expected request duration.
+	duration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{"handler", "method"},
 	)
 
 	// responseSize has no labels, making it a zero-dimensional
@@ -201,23 +190,20 @@ func ExampleInstrumentHandlerDuration() {
 	})
 
 	// Register all of the metrics in the standard registry.
-	prometheus.MustRegister(inFlightGauge, counter, pullVec, pushVec, responseSize)
+	prometheus.MustRegister(inFlightGauge, counter, duration, responseSize)
 
-	// Wrap the pushHandler with our shared middleware, but use the
-	// endpoint-specific pushVec with InstrumentHandlerDuration.
+	// Instrument the handlers with all the metrics, injecting the "handler"
+	// label by currying.
 	pushChain := InstrumentHandlerInFlight(inFlightGauge,
-		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pushVec,
+		InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "push"}),
+			InstrumentHandlerCounter(counter,
 				InstrumentHandlerResponseSize(responseSize, pushHandler),
 			),
 		),
 	)
-
-	// Wrap the pushHandler with the shared middleware, but use the
-	// endpoint-specific pullVec with InstrumentHandlerDuration.
 	pullChain := InstrumentHandlerInFlight(inFlightGauge,
-		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pullVec,
+		InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "pull"}),
+			InstrumentHandlerCounter(counter,
 				InstrumentHandlerResponseSize(responseSize, pullHandler),
 			),
 		),

@@ -128,7 +128,7 @@ func TestInstrumentHandler(t *testing.T) {
 	}
 
 	out.Reset()
-	if want, got := 1, len(reqCnt.children); want != got {
+	if want, got := 1, len(reqCnt.metricMap.metrics); want != got {
 		t.Errorf("want %d children in reqCnt, got %d", want, got)
 	}
 	cnt, err := reqCnt.GetMetricWithLabelValues("get", "418")
