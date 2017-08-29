@@ -105,8 +105,8 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 // an alternative to avoid that type of mistake. For higher label numbers, the
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
-func (m *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
-	metric, err := m.metricVec.getMetricWithLabelValues(lvs...)
+func (v *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
+	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Gauge), err
 	}
@@ -125,8 +125,8 @@ func (m *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (m *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
-	metric, err := m.metricVec.getMetricWith(labels)
+func (v *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
+	metric, err := v.metricVec.getMetricWith(labels)
 	if metric != nil {
 		return metric.(Gauge), err
 	}
@@ -137,8 +137,8 @@ func (m *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
 // GetMetricWithLabelValues would have returned an error. By not returning an
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
-func (m *GaugeVec) WithLabelValues(lvs ...string) Gauge {
-	g, err := m.GetMetricWithLabelValues(lvs...)
+func (v *GaugeVec) WithLabelValues(lvs ...string) Gauge {
+	g, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
 	}
@@ -148,8 +148,8 @@ func (m *GaugeVec) WithLabelValues(lvs ...string) Gauge {
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
-func (m *GaugeVec) With(labels Labels) Gauge {
-	g, err := m.GetMetricWith(labels)
+func (v *GaugeVec) With(labels Labels) Gauge {
+	g, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
 	}

@@ -330,8 +330,8 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (m *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
-	metric, err := m.metricVec.getMetricWithLabelValues(lvs...)
+func (v *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
+	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -350,8 +350,8 @@ func (m *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error)
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (m *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
-	metric, err := m.metricVec.getMetricWith(labels)
+func (v *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
+	metric, err := v.metricVec.getMetricWith(labels)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -362,8 +362,8 @@ func (m *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 // GetMetricWithLabelValues would have returned an error. By not returning an
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (m *HistogramVec) WithLabelValues(lvs ...string) Observer {
-	h, err := m.GetMetricWithLabelValues(lvs...)
+func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
+	h, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
 	}
@@ -373,8 +373,8 @@ func (m *HistogramVec) WithLabelValues(lvs ...string) Observer {
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (m *HistogramVec) With(labels Labels) Observer {
-	h, err := m.GetMetricWith(labels)
+func (v *HistogramVec) With(labels Labels) Observer {
+	h, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
 	}

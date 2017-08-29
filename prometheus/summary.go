@@ -447,8 +447,8 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
-	metric, err := m.metricVec.getMetricWithLabelValues(lvs...)
+func (v *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
+	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -467,8 +467,8 @@ func (m *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
-	metric, err := m.metricVec.getMetricWith(labels)
+func (v *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
+	metric, err := v.metricVec.getMetricWith(labels)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -479,8 +479,8 @@ func (m *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 // GetMetricWithLabelValues would have returned an error. By not returning an
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (m *SummaryVec) WithLabelValues(lvs ...string) Observer {
-	s, err := m.GetMetricWithLabelValues(lvs...)
+func (v *SummaryVec) WithLabelValues(lvs ...string) Observer {
+	s, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
 	}
@@ -490,8 +490,8 @@ func (m *SummaryVec) WithLabelValues(lvs ...string) Observer {
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (m *SummaryVec) With(labels Labels) Observer {
-	s, err := m.GetMetricWith(labels)
+func (v *SummaryVec) With(labels Labels) Observer {
+	s, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
 	}

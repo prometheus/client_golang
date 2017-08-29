@@ -119,8 +119,8 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (m *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
-	metric, err := m.metricVec.getMetricWithLabelValues(lvs...)
+func (v *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
+	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Counter), err
 	}
@@ -139,8 +139,8 @@ func (m *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (m *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
-	metric, err := m.metricVec.getMetricWith(labels)
+func (v *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
+	metric, err := v.metricVec.getMetricWith(labels)
 	if metric != nil {
 		return metric.(Counter), err
 	}
@@ -151,8 +151,8 @@ func (m *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
 // GetMetricWithLabelValues would have returned an error. By not returning an
 // error, WithLabelValues allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
-func (m *CounterVec) WithLabelValues(lvs ...string) Counter {
-	c, err := m.GetMetricWithLabelValues(lvs...)
+func (v *CounterVec) WithLabelValues(lvs ...string) Counter {
+	c, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
 	}
@@ -162,8 +162,8 @@ func (m *CounterVec) WithLabelValues(lvs ...string) Counter {
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
 // returned an error. By not returning an error, With allows shortcuts like
 //     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
-func (m *CounterVec) With(labels Labels) Counter {
-	c, err := m.GetMetricWith(labels)
+func (v *CounterVec) With(labels Labels) Counter {
+	c, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
 	}
