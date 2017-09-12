@@ -36,7 +36,8 @@ const quantileLabel = "quantile"
 //
 // A typical use-case is the observation of request latencies. By default, a
 // Summary provides the median, the 90th and the 99th percentile of the latency
-// as rank estimations.
+// as rank estimations. In v0.10 of this library, default values will not compute
+// any quantiles, so please set them accordingly.
 //
 // Note that the rank estimations cannot be aggregated in a meaningful way with
 // the Prometheus query language (i.e. you cannot average or add them). If you
@@ -78,8 +79,10 @@ const (
 )
 
 // SummaryOpts bundles the options for creating a Summary metric. It is
-// mandatory to set Name and Help to a non-empty string. All other fields are
-// optional and can safely be left at their zero value.
+// mandatory to set Name and Help to a non-empty string. Also, it is advisable
+// to set Objectives field, as the Summary won't compute any quantiles
+// in v0.10 of the library. All other fields are optional and can safely
+// be left at their zero value.
 type SummaryOpts struct {
 	// Namespace, Subsystem, and Name are components of the fully-qualified
 	// name of the Summary (created by joining these components with
