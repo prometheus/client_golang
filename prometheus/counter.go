@@ -36,6 +36,7 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
+	Value() float64
 }
 
 // CounterOpts is an alias for Opts. See there for doc comments.
@@ -56,6 +57,10 @@ func NewCounter(opts CounterOpts) Counter {
 
 type counter struct {
 	value
+}
+
+func (c *counter) Value() float64 {
+	return c.value.Value()
 }
 
 func (c *counter) Add(v float64) {

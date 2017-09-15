@@ -104,6 +104,10 @@ func (v *value) Sub(val float64) {
 	v.Add(val * -1)
 }
 
+func (v *value) Value() float64 {
+	return math.Float64frombits(v.valBits)
+}
+
 func (v *value) Write(out *dto.Metric) error {
 	val := math.Float64frombits(atomic.LoadUint64(&v.valBits))
 	return populateMetric(v.valType, val, v.labelPairs, out)

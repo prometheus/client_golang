@@ -42,6 +42,8 @@ type Gauge interface {
 
 	// SetToCurrentTime sets the Gauge to the current Unix time in seconds.
 	SetToCurrentTime()
+
+	Value() float64
 }
 
 // GaugeOpts is an alias for Opts. See there for doc comments.
