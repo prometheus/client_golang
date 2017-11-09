@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -45,6 +46,7 @@ type value struct {
 	// to go first in the struct to guarantee alignment for atomic
 	// operations.  http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	valBits uint64
+	mutex   sync.Mutex
 
 	selfCollector
 
@@ -91,10 +93,12 @@ func (v *value) Dec() {
 }
 
 func (v *value) Add(val float64) {
+	v.mutex.Lock()
 	for {
 		oldBits := atomic.LoadUint64(&v.valBits)
 		newBits := math.Float64bits(math.Float64frombits(oldBits) + val)
 		if atomic.CompareAndSwapUint64(&v.valBits, oldBits, newBits) {
+			v.mutex.Unlock()
 			return
 		}
 	}
