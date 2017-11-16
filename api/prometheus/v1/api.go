@@ -138,7 +138,9 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 	q := u.Query()
 
 	q.Set("query", query)
-	q.Set("time", ts.Format(time.RFC3339Nano))
+	if !ts.IsZero() {
+		q.Set("time", ts.Format(time.RFC3339Nano))
+	}
 
 	u.RawQuery = q.Encode()
 
