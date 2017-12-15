@@ -126,3 +126,87 @@ func expectPanic(t *testing.T, op func(), errorMsg string) {
 
 	op()
 }
+
+func TestCounterAddInf(t *testing.T) {
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+
+	counter.Inc()
+	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(1), counter.valInt; expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+
+	counter.Add(math.Inf(1))
+	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("valBits expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(1), counter.valInt; expected != got {
+		t.Errorf("valInts expected %d, got %d.", expected, got)
+	}
+
+	counter.Inc()
+	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(2), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	if expected, got := `counter:<value:inf > `, m.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestCounterAddLarge(t *testing.T) {
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+
+	// large overflows the underlying type and should therefore be stored in valBits
+	large := float64(math.MaxInt64 + 1)
+	counter.Add(large)
+	if expected, got := large, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("valBits expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(0), counter.valInt; expected != got {
+		t.Errorf("valInts expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	if expected, got := fmt.Sprintf("counter:<value:%0.15e > ", large), m.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestCounterAddSmall(t *testing.T) {
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+	small := 0.000000000001
+	counter.Add(small)
+	if expected, got := small, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("valBits expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(0), counter.valInt; expected != got {
+		t.Errorf("valInts expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	if expected, got := fmt.Sprintf("counter:<value:%0.0e > ", small), m.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}

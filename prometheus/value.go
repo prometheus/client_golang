@@ -45,7 +45,6 @@ type value struct {
 	// to go first in the struct to guarantee alignment for atomic
 	// operations.  http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	valBits uint64
-
 	// valInt is used to store values that are exact integers
 	valInt int64
 
@@ -99,8 +98,9 @@ func (v *value) Dec() {
 }
 
 func (v *value) Add(val float64) {
-	if math.Trunc(val) == val {
-		atomic.AddInt64(&v.valInt, int64(val))
+	ival := int64(val)
+	if float64(ival) == val {
+		v.add(ival)
 		return
 	}
 
