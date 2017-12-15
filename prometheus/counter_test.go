@@ -28,11 +28,25 @@ func TestCounterAdd(t *testing.T) {
 		ConstLabels: Labels{"a": "1", "b": "2"},
 	}).(*counter)
 	counter.Inc()
-	if expected, got := 1., math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(1), counter.valInt; expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 	counter.Add(42)
-	if expected, got := 43., math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(43), counter.valInt; expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+
+	counter.Add(24.42)
+	if expected, got := 24.42, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := int64(43), counter.valInt; expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 
@@ -43,7 +57,7 @@ func TestCounterAdd(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > counter:<value:43 > `, m.String(); expected != got {
+	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > counter:<value:67.42 > `, m.String(); expected != got {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
