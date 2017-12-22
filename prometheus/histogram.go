@@ -387,7 +387,7 @@ func (v *HistogramVec) With(labels Labels) Observer {
 // vectors behave identically in terms of collection. Only one must be
 // registered with a given registry (usually the uncurried version). The Reset
 // method deletes all metrics, even if called on a curried vector.
-func (v *HistogramVec) CurryWith(labels Labels) (*HistogramVec, error) {
+func (v *HistogramVec) CurryWith(labels Labels) (ObserverVec, error) {
 	vec, err := v.curryWith(labels)
 	if vec != nil {
 		return &HistogramVec{vec}, err
@@ -397,7 +397,7 @@ func (v *HistogramVec) CurryWith(labels Labels) (*HistogramVec, error) {
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have
 // returned an error.
-func (v *HistogramVec) MustCurryWith(labels Labels) *HistogramVec {
+func (v *HistogramVec) MustCurryWith(labels Labels) ObserverVec {
 	vec, err := v.CurryWith(labels)
 	if err != nil {
 		panic(err)

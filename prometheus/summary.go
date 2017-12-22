@@ -504,7 +504,7 @@ func (v *SummaryVec) With(labels Labels) Observer {
 // vectors behave identically in terms of collection. Only one must be
 // registered with a given registry (usually the uncurried version). The Reset
 // method deletes all metrics, even if called on a curried vector.
-func (v *SummaryVec) CurryWith(labels Labels) (*SummaryVec, error) {
+func (v *SummaryVec) CurryWith(labels Labels) (ObserverVec, error) {
 	vec, err := v.curryWith(labels)
 	if vec != nil {
 		return &SummaryVec{vec}, err
@@ -514,7 +514,7 @@ func (v *SummaryVec) CurryWith(labels Labels) (*SummaryVec, error) {
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have
 // returned an error.
-func (v *SummaryVec) MustCurryWith(labels Labels) *SummaryVec {
+func (v *SummaryVec) MustCurryWith(labels Labels) ObserverVec {
 	vec, err := v.CurryWith(labels)
 	if err != nil {
 		panic(err)
