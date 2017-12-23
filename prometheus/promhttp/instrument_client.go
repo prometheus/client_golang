@@ -45,12 +45,11 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 
 // InstrumentRoundTripperCounter is a middleware that wraps the provided
 // http.RoundTripper to observe the request result with the provided CounterVec.
-// The CounterVec must have zero, one, or two labels. The only allowed label
-// names are "code" and "method". The function panics if any other instance
-// labels are provided. Partitioning of the CounterVec happens by HTTP status
-// code and/or HTTP method if the respective instance label names are present
-// in the CounterVec. For unpartitioned counting, use a CounterVec with
-// zero labels.
+// The CounterVec must have zero, one, or two non-const non-curried labels. For
+// those, the only allowed label names are "code" and "method". The function
+// panics otherwise. Partitioning of the CounterVec happens by HTTP status code
+// and/or HTTP method if the respective instance label names are present in the
+// CounterVec. For unpartitioned counting, use a CounterVec with zero labels.
 //
 // If the wrapped RoundTripper panics or returns a non-nil error, the Counter
 // is not incremented.
