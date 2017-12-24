@@ -98,15 +98,15 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 // example.
 //
 // An error is returned if the number of label values is not the same as the
-// number of VariableLabels in Desc.
+// number of VariableLabels in Desc (minus any curried labels).
 //
 // Note that for more than one label value, this method is prone to mistakes
 // caused by an incorrect order of arguments. Consider GetMetricWith(Labels) as
 // an alternative to avoid that type of mistake. For higher label numbers, the
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
-func (m *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
-	metric, err := m.metricVec.getMetricWithLabelValues(lvs...)
+func (v *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
+	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Gauge), err
 	}
@@ -120,13 +120,13 @@ func (m *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
 // the same as for GetMetricWithLabelValues.
 //
 // An error is returned if the number and names of the Labels are inconsistent
-// with those of the VariableLabels in Desc.
+// with those of the VariableLabels in Desc (minus any curried labels).
 //
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (m *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
-	metric, err := m.metricVec.getMetricWith(labels)
+func (v *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
+	metric, err := v.metricVec.getMetricWith(labels)
 	if metric != nil {
 		return metric.(Gauge), err
 	}
@@ -134,18 +134,57 @@ func (m *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
 }
 
 // WithLabelValues works as GetMetricWithLabelValues, but panics where
-// GetMetricWithLabelValues would have returned an error. By not returning an
-// error, WithLabelValues allows shortcuts like
+// GetMetricWithLabelValues would have returned an error. Not returning an
+// error allows shortcuts like
 //     myVec.WithLabelValues("404", "GET").Add(42)
-func (m *GaugeVec) WithLabelValues(lvs ...string) Gauge {
-	return m.metricVec.withLabelValues(lvs...).(Gauge)
+func (v *GaugeVec) WithLabelValues(lvs ...string) Gauge {
+	g, err := v.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		panic(err)
+	}
+	return g
 }
 
 // With works as GetMetricWith, but panics where GetMetricWithLabels would have
-// returned an error. By not returning an error, With allows shortcuts like
-//     myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
-func (m *GaugeVec) With(labels Labels) Gauge {
-	return m.metricVec.with(labels).(Gauge)
+// returned an error. Not returning an error allows shortcuts like
+//     myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Add(42)
+func (v *GaugeVec) With(labels Labels) Gauge {
+	g, err := v.GetMetricWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return g
+}
+
+// CurryWith returns a vector curried with the provided labels, i.e. the
+// returned vector has those labels pre-set for all labeled operations performed
+// on it. The cardinality of the curried vector is reduced accordingly. The
+// order of the remaining labels stays the same (just with the curried labels
+// taken out of the sequence – which is relevant for the
+// (GetMetric)WithLabelValues methods). It is possible to curry a curried
+// vector, but only with labels not yet used for currying before.
+//
+// The metrics contained in the GaugeVec are shared between the curried and
+// uncurried vectors. They are just accessed differently. Curried and uncurried
+// vectors behave identically in terms of collection. Only one must be
+// registered with a given registry (usually the uncurried version). The Reset
+// method deletes all metrics, even if called on a curried vector.
+func (v *GaugeVec) CurryWith(labels Labels) (*GaugeVec, error) {
+	vec, err := v.curryWith(labels)
+	if vec != nil {
+		return &GaugeVec{vec}, err
+	}
+	return nil, err
+}
+
+// MustCurryWith works as CurryWith but panics where CurryWith would have
+// returned an error.
+func (v *GaugeVec) MustCurryWith(labels Labels) *GaugeVec {
+	vec, err := v.CurryWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return vec
 }
 
 // GaugeFunc is a Gauge whose value is determined at collect time by calling a
