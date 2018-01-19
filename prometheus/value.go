@@ -45,6 +45,8 @@ type value struct {
 	// to go first in the struct to guarantee alignment for atomic
 	// operations.  http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	valBits uint64
+	// valInt is used to store values that are exact integers
+	valInt int64
 
 	selfCollector
 
@@ -82,15 +84,26 @@ func (v *value) SetToCurrentTime() {
 	v.Set(float64(time.Now().UnixNano()) / 1e9)
 }
 
+// add adjusts the underlying int64
+func (v *value) add(delta int64) {
+	atomic.AddInt64(&v.valInt, delta)
+}
+
 func (v *value) Inc() {
-	v.Add(1)
+	v.add(1)
 }
 
 func (v *value) Dec() {
-	v.Add(-1)
+	v.add(-1)
 }
 
 func (v *value) Add(val float64) {
+	ival := int64(val)
+	if float64(ival) == val {
+		v.add(ival)
+		return
+	}
+
 	for {
 		oldBits := atomic.LoadUint64(&v.valBits)
 		newBits := math.Float64bits(math.Float64frombits(oldBits) + val)
@@ -105,7 +118,10 @@ func (v *value) Sub(val float64) {
 }
 
 func (v *value) Write(out *dto.Metric) error {
-	val := math.Float64frombits(atomic.LoadUint64(&v.valBits))
+	fval := math.Float64frombits(atomic.LoadUint64(&v.valBits))
+	ival := atomic.LoadInt64(&v.valInt)
+	val := fval + float64(ival)
+
 	return populateMetric(v.valType, val, v.labelPairs, out)
 }
 
