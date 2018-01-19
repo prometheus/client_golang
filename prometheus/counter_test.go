@@ -31,23 +31,23 @@ func TestCounterAdd(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(1), counter.valInt; expected != got {
-		t.Errorf("Expected %f, got %f.", expected, got)
+	if expected, got := uint64(1), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 	counter.Add(42)
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(43), counter.valInt; expected != got {
-		t.Errorf("Expected %f, got %f.", expected, got)
+	if expected, got := uint64(43), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
 	counter.Add(24.42)
 	if expected, got := 24.42, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(43), counter.valInt; expected != got {
-		t.Errorf("Expected %f, got %f.", expected, got)
+	if expected, got := uint64(43), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
 	if expected, got := "counter cannot decrease in value", decreaseCounter(counter).Error(); expected != got {
@@ -137,15 +137,15 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(1), counter.valInt; expected != got {
-		t.Errorf("Expected %f, got %f.", expected, got)
+	if expected, got := uint64(1), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
 	counter.Add(math.Inf(1))
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.valInt; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -153,7 +153,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(2), counter.valInt; expected != got {
+	if expected, got := uint64(2), counter.valInt; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -171,20 +171,20 @@ func TestCounterAddLarge(t *testing.T) {
 		Help: "test help",
 	}).(*counter)
 
-	// large overflows the underlying type and should therefore be stored in valBits
-	large := float64(math.MaxInt64 + 1)
+	// large overflows the underlying type and should therefore be stored in valBits.
+	large := float64(math.MaxUint64 + 1)
 	counter.Add(large)
 	if expected, got := large, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.valInt; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := fmt.Sprintf("counter:<value:%0.15e > ", large), m.String(); expected != got {
+	if expected, got := fmt.Sprintf("counter:<value:%0.16e > ", large), m.String(); expected != got {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
@@ -199,7 +199,7 @@ func TestCounterAddSmall(t *testing.T) {
 	if expected, got := small, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := int64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.valInt; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
