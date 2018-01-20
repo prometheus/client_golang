@@ -18,6 +18,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -26,6 +27,28 @@ import (
 	"strings"
 	"time"
 )
+
+// ErrorType models the different API error types.
+type ErrorType string
+
+// Possible values for ErrorType.
+const (
+	ErrBadData     ErrorType = "bad_data"
+	ErrTimeout     ErrorType = "timeout"
+	ErrCanceled    ErrorType = "canceled"
+	ErrExec        ErrorType = "execution"
+	ErrBadResponse ErrorType = "bad_response"
+)
+
+// Error is an error returned by the API.
+type Error struct {
+	Type ErrorType
+	Msg  string
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("%s: %s", e.Type, e.Msg)
+}
 
 // DefaultRoundTripper is used if no RoundTripper is set in Config.
 var DefaultRoundTripper http.RoundTripper = &http.Transport{

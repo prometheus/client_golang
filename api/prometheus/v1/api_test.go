@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
 )
 
@@ -266,7 +267,7 @@ type apiClientTest struct {
 	code     int
 	response interface{}
 	expected string
-	err      *Error
+	err      *api.Error
 }
 
 func (c *testClient) URL(ep string, args map[string]string) *url.URL {
@@ -309,11 +310,11 @@ func TestAPIClientDo(t *testing.T) {
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`null`),
-				ErrorType: ErrBadData,
+				ErrorType: api.ErrBadData,
 				Error:     "failed",
 			},
-			err: &Error{
-				Type: ErrBadData,
+			err: &api.Error{
+				Type: api.ErrBadData,
 				Msg:  "failed",
 			},
 			code:     statusAPIError,
@@ -323,11 +324,11 @@ func TestAPIClientDo(t *testing.T) {
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`"test"`),
-				ErrorType: ErrTimeout,
+				ErrorType: api.ErrTimeout,
 				Error:     "timed out",
 			},
-			err: &Error{
-				Type: ErrTimeout,
+			err: &api.Error{
+				Type: api.ErrTimeout,
 				Msg:  "timed out",
 			},
 			code:     statusAPIError,
@@ -335,16 +336,16 @@ func TestAPIClientDo(t *testing.T) {
 		},
 		{
 			response: "bad json",
-			err: &Error{
-				Type: ErrBadResponse,
+			err: &api.Error{
+				Type: api.ErrBadResponse,
 				Msg:  "bad response code 400",
 			},
 			code: http.StatusBadRequest,
 		},
 		{
 			response: "bad json",
-			err: &Error{
-				Type: ErrBadResponse,
+			err: &api.Error{
+				Type: api.ErrBadResponse,
 				Msg:  "invalid character 'b' looking for beginning of value",
 			},
 			code: statusAPIError,
@@ -354,8 +355,8 @@ func TestAPIClientDo(t *testing.T) {
 				Status: "success",
 				Data:   json.RawMessage(`"test"`),
 			},
-			err: &Error{
-				Type: ErrBadResponse,
+			err: &api.Error{
+				Type: api.ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			},
 			code: statusAPIError,
@@ -364,11 +365,11 @@ func TestAPIClientDo(t *testing.T) {
 			response: &apiResponse{
 				Status:    "success",
 				Data:      json.RawMessage(`"test"`),
-				ErrorType: ErrTimeout,
+				ErrorType: api.ErrTimeout,
 				Error:     "timed out",
 			},
-			err: &Error{
-				Type: ErrBadResponse,
+			err: &api.Error{
+				Type: api.ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			},
 			code: statusAPIError,
@@ -377,11 +378,11 @@ func TestAPIClientDo(t *testing.T) {
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`"test"`),
-				ErrorType: ErrTimeout,
+				ErrorType: api.ErrTimeout,
 				Error:     "timed out",
 			},
-			err: &Error{
-				Type: ErrBadResponse,
+			err: &api.Error{
+				Type: api.ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			},
 			code: http.StatusOK,

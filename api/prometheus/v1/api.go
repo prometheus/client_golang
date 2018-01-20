@@ -38,29 +38,9 @@ const (
 	epQueryRange  = apiPrefix + "/query_range"
 	epLabelValues = apiPrefix + "/label/:name/values"
 	epSeries      = apiPrefix + "/series"
+
+	epAlertManagers = apiPrefix + "/alertmanagers"
 )
-
-// ErrorType models the different API error types.
-type ErrorType string
-
-// Possible values for ErrorType.
-const (
-	ErrBadData     ErrorType = "bad_data"
-	ErrTimeout               = "timeout"
-	ErrCanceled              = "canceled"
-	ErrExec                  = "execution"
-	ErrBadResponse           = "bad_response"
-)
-
-// Error is an error returned by the API.
-type Error struct {
-	Type ErrorType
-	Msg  string
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s: %s", e.Type, e.Msg)
-}
 
 // Range represents a sliced time range.
 type Range struct {
@@ -68,6 +48,11 @@ type Range struct {
 	Start, End time.Time
 	// The maximum time between two slices within the boundaries.
 	Step time.Duration
+}
+
+type AlertManager struct {
+	// URL of alert manager's alerts endpoint
+	URL string `json:"url"`
 }
 
 // API provides bindings for Prometheus's v1 API.
@@ -78,6 +63,8 @@ type API interface {
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
 	// LabelValues performs a query for the values of the given label.
 	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
+	// AlertManagers retrieves the list of active alert managers.
+	AlertManagers(ctx context.Context) (AlertManagersResult, error)
 	// Series finds series by label matchers.
 	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error)
 }
@@ -89,6 +76,11 @@ type queryResult struct {
 
 	// The decoded value.
 	v model.Value
+}
+
+// AlertManagersResult contains result data for a request to alertmanagers
+type AlertManagersResult struct {
+	ActiveAlertManagers []AlertManager `json:"activeAlertmanagers"`
 }
 
 func (qr *queryResult) UnmarshalJSON(b []byte) error {
@@ -146,7 +138,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +171,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -208,6 +200,21 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelVal
 	var labelValues model.LabelValues
 	err = json.Unmarshal(body, &labelValues)
 	return labelValues, err
+}
+
+func (h *httpAPI) AlertManagers(ctx context.Context) (AlertManagersResult, error) {
+	var amResult AlertManagersResult
+	u := h.client.URL(epAlertManagers, nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return amResult, err
+	}
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return amResult, err
+	}
+	err = json.Unmarshal(body, &amResult)
+	return amResult, err
 }
 
 func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error) {
@@ -247,7 +254,7 @@ type apiClient struct {
 type apiResponse struct {
 	Status    string          `json:"status"`
 	Data      json.RawMessage `json:"data"`
-	ErrorType ErrorType       `json:"errorType"`
+	ErrorType api.ErrorType   `json:"errorType"`
 	Error     string          `json:"error"`
 }
 
@@ -260,8 +267,8 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	code := resp.StatusCode
 
 	if code/100 != 2 && code != statusAPIError {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  fmt.Sprintf("bad response code %d", resp.StatusCode),
 		}
 	}
@@ -269,21 +276,21 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 	var result apiResponse
 
 	if err = json.Unmarshal(body, &result); err != nil {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
+		return resp, body, &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  err.Error(),
 		}
 	}
 
 	if (code == statusAPIError) != (result.Status == "error") {
-		err = &Error{
-			Type: ErrBadResponse,
+		err = &api.Error{
+			Type: api.ErrBadResponse,
 			Msg:  "inconsistent body for response code",
 		}
 	}
 
 	if code == statusAPIError && result.Status == "error" {
-		err = &Error{
+		err = &api.Error{
 			Type: result.ErrorType,
 			Msg:  result.Error,
 		}
