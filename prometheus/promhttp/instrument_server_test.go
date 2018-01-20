@@ -23,6 +23,162 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+func TestLabelCheck(t *testing.T) {
+	scenarios := map[string]struct {
+		varLabels     []string
+		constLabels   []string
+		curriedLabels []string
+		ok            bool
+	}{
+		"empty": {
+			varLabels:     []string{},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            true,
+		},
+		"code as single var label": {
+			varLabels:     []string{"code"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            true,
+		},
+		"method as single var label": {
+			varLabels:     []string{"method"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            true,
+		},
+		"cade and method as var labels": {
+			varLabels:     []string{"method", "code"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            true,
+		},
+		"valid case with all labels used": {
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"foo", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			ok:            true,
+		},
+		"unsupported var label": {
+			varLabels:     []string{"foo"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            false,
+		},
+		"mixed var labels": {
+			varLabels:     []string{"method", "foo", "code"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            false,
+		},
+		"unsupported var label but curried": {
+			varLabels:     []string{},
+			constLabels:   []string{},
+			curriedLabels: []string{"foo"},
+			ok:            true,
+		},
+		"mixed var labels but unsupported curried": {
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{},
+			curriedLabels: []string{"foo"},
+			ok:            true,
+		},
+		"supported label as const and curry": {
+			varLabels:     []string{},
+			constLabels:   []string{"code"},
+			curriedLabels: []string{"method"},
+			ok:            true,
+		},
+		"supported label as const and curry with unsupported as var": {
+			varLabels:     []string{"foo"},
+			constLabels:   []string{"code"},
+			curriedLabels: []string{"method"},
+			ok:            false,
+		},
+	}
+
+	for name, sc := range scenarios {
+		t.Run(name, func(t *testing.T) {
+			constLabels := prometheus.Labels{}
+			for _, l := range sc.constLabels {
+				constLabels[l] = "dummy"
+			}
+			c := prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Name:        "c",
+					Help:        "c help",
+					ConstLabels: constLabels,
+				},
+				append(sc.varLabels, sc.curriedLabels...),
+			)
+			o := prometheus.ObserverVec(prometheus.NewHistogramVec(
+				prometheus.HistogramOpts{
+					Name:        "c",
+					Help:        "c help",
+					ConstLabels: constLabels,
+				},
+				append(sc.varLabels, sc.curriedLabels...),
+			))
+			for _, l := range sc.curriedLabels {
+				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
+				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
+			}
+
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						if sc.ok {
+							t.Error("unexpected panic:", err)
+						}
+					} else if !sc.ok {
+						t.Error("expected panic")
+					}
+				}()
+				InstrumentHandlerCounter(c, nil)
+			}()
+			func() {
+				defer func() {
+					if err := recover(); err != nil {
+						if sc.ok {
+							t.Error("unexpected panic:", err)
+						}
+					} else if !sc.ok {
+						t.Error("expected panic")
+					}
+				}()
+				InstrumentHandlerDuration(o, nil)
+			}()
+			if sc.ok {
+				// Test if wantCode and wantMethod were detected correctly.
+				var wantCode, wantMethod bool
+				for _, l := range sc.varLabels {
+					if l == "code" {
+						wantCode = true
+					}
+					if l == "method" {
+						wantMethod = true
+					}
+				}
+				gotCode, gotMethod := checkLabels(c)
+				if gotCode != wantCode {
+					t.Errorf("wanted code=%t for counter, got code=%t", wantCode, gotCode)
+				}
+				if gotMethod != wantMethod {
+					t.Errorf("wanted method=%t for counter, got method=%t", wantMethod, gotMethod)
+				}
+				gotCode, gotMethod = checkLabels(o)
+				if gotCode != wantCode {
+					t.Errorf("wanted code=%t for observer, got code=%t", wantCode, gotCode)
+				}
+				if gotMethod != wantMethod {
+					t.Errorf("wanted method=%t for observer, got method=%t", wantMethod, gotMethod)
+				}
+			}
+		})
+	}
+}
+
 func TestMiddlewareAPI(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
@@ -159,26 +315,15 @@ func ExampleInstrumentHandlerDuration() {
 		[]string{"code", "method"},
 	)
 
-	// pushVec and pullVec are partitioned by the HTTP method and use custom
-	// buckets based on the expected request duration. ConstLabels are used
-	// to set a handler label to mark pushVec as tracking the durations for
-	// pushes and pullVec as tracking the durations for pulls. Note that
-	// Name, Help, and Buckets need to be the same for consistency, so we
-	// use the same HistogramOpts after just modifying the ConstLabels.
-	histogramOpts := prometheus.HistogramOpts{
-		Name:        "request_duration_seconds",
-		Help:        "A histogram of latencies for requests.",
-		Buckets:     []float64{.25, .5, 1, 2.5, 5, 10},
-		ConstLabels: prometheus.Labels{"handler": "push"},
-	}
-	pushVec := prometheus.NewHistogramVec(
-		histogramOpts,
-		[]string{"method"},
-	)
-	histogramOpts.ConstLabels = prometheus.Labels{"handler": "pull"}
-	pullVec := prometheus.NewHistogramVec(
-		histogramOpts,
-		[]string{"method"},
+	// duration is partitioned by the HTTP method and handler. It uses custom
+	// buckets based on the expected request duration.
+	duration := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "request_duration_seconds",
+			Help:    "A histogram of latencies for requests.",
+			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{"handler", "method"},
 	)
 
 	// responseSize has no labels, making it a zero-dimensional
@@ -201,23 +346,20 @@ func ExampleInstrumentHandlerDuration() {
 	})
 
 	// Register all of the metrics in the standard registry.
-	prometheus.MustRegister(inFlightGauge, counter, pullVec, pushVec, responseSize)
+	prometheus.MustRegister(inFlightGauge, counter, duration, responseSize)
 
-	// Wrap the pushHandler with our shared middleware, but use the
-	// endpoint-specific pushVec with InstrumentHandlerDuration.
+	// Instrument the handlers with all the metrics, injecting the "handler"
+	// label by currying.
 	pushChain := InstrumentHandlerInFlight(inFlightGauge,
-		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pushVec,
+		InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "push"}),
+			InstrumentHandlerCounter(counter,
 				InstrumentHandlerResponseSize(responseSize, pushHandler),
 			),
 		),
 	)
-
-	// Wrap the pushHandler with the shared middleware, but use the
-	// endpoint-specific pullVec with InstrumentHandlerDuration.
 	pullChain := InstrumentHandlerInFlight(inFlightGauge,
-		InstrumentHandlerCounter(counter,
-			InstrumentHandlerDuration(pullVec,
+		InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "pull"}),
+			InstrumentHandlerCounter(counter,
 				InstrumentHandlerResponseSize(responseSize, pullHandler),
 			),
 		),
