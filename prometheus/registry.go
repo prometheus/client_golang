@@ -376,7 +376,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	)
 
 	r.mtx.RLock()
-	wg.Add(len(r.collectorsByID))
+	goroutineBudget := len(r.collectorsByID)
 	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
 	collectors := make(chan Collector, len(r.collectorsByID))
 	for _, collector := range r.collectorsByID {
@@ -392,6 +392,8 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	}
 	r.mtx.RUnlock()
 
+	wg.Add(goroutineBudget)
+
 	collectWorker := func() {
 		for {
 			select {
@@ -404,8 +406,9 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 
-	// Start the first worker now to make sure at least is running.
+	// Start the first worker now to make sure at least one is running.
 	go collectWorker()
+	goroutineBudget--
 
 	// Close the metricChan once all collectors are collected.
 	go func() {
@@ -433,9 +436,11 @@ collectLoop:
 				registeredDescIDs,
 			))
 		default:
-			if len(collectors) == 0 {
-				// All collectors are being worked on. Just
-				// process metrics from now on.
+			if goroutineBudget <= 0 || len(collectors) == 0 {
+				// All collectors are aleady being worked on or
+				// we have already as many goroutines started as
+				// there are collectors. Just process metrics
+				// from now on.
 				for metric := range metricChan {
 					errs.Append(processMetric(
 						metric, metricFamiliesByName,
@@ -447,6 +452,7 @@ collectLoop:
 			}
 			// Start more workers.
 			go collectWorker()
+			goroutineBudget--
 			runtime.Gosched()
 		}
 	}
