@@ -49,9 +49,10 @@ recommended course of action with dependency management tools is the following:
   update to the tip of master (which is essentially the original idea of Go
   dependency management). We recommend to not use features marked as
   _deprecated_ in this case.
-- Once [v0.9.0](https://github.com/prometheus/client_golang/milestone/1), you
-  could lock to v0.9.x to get bugfixes (and perhaps minor new features) while
-  avoiding the “hard” breakage that will come with post-0.9 features.
+- Once [v0.9.0](https://github.com/prometheus/client_golang/milestone/1) is
+  out, you could lock to v0.9.x to get bugfixes (and perhaps minor new
+  features) while avoiding the “hard” breakage that will come with post-0.9
+  features.
 
 ## Instrumenting applications
 
