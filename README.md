@@ -70,7 +70,7 @@ contains simple examples of instrumented code.
 
 ## Client for the Prometheus HTTP API
 
-[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/api/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/api/prometheus)
+[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus/v1) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/api/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/api)
 
 The
 [`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/master/api/prometheus)
