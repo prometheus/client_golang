@@ -98,12 +98,16 @@ func TestPush(t *testing.T) {
 	}
 	wantBody := buf.Bytes()
 
-	// PushCollectors, all good.
-	if err := Collectors("testjob", HostnameGroupingKey(), pgwOK.URL, metric1, metric2); err != nil {
+	// Push some Collectors, all good.
+	if err := New(pgwOK.URL, "testjob").
+		HostnameGrouping().
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "PUT" {
-		t.Error("want method PUT for PushCollectors, got", lastMethod)
+		t.Error("want method PUT for Push, got", lastMethod)
 	}
 	if bytes.Compare(lastBody, wantBody) != 0 {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -112,12 +116,15 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
-	// PushAddCollectors, with nil grouping, all good.
-	if err := AddCollectors("testjob", nil, pgwOK.URL, metric1, metric2); err != nil {
+	// Add some Collectors, with nil grouping, all good.
+	if err := New(pgwOK.URL, "testjob").
+		Collector(metric1).
+		Collector(metric2).
+		Add(); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "POST" {
-		t.Error("want method POST for PushAddCollectors, got", lastMethod)
+		t.Error("want method POST for Add, got", lastMethod)
 	}
 	if bytes.Compare(lastBody, wantBody) != 0 {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -126,8 +133,11 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
-	// PushCollectors with a broken PGW.
-	if err := Collectors("testjob", nil, pgwErr.URL, metric1, metric2); err == nil {
+	// Push some Collectors with a broken PGW.
+	if err := New(pgwErr.URL, "testjob").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
 		t.Error("push to broken Pushgateway succeeded")
 	} else {
 		if got, want := err.Error(), "unexpected status code 500 while pushing to "+pgwErr.URL+"/metrics/job/testjob: fake error\n"; got != want {
@@ -135,22 +145,40 @@ func TestPush(t *testing.T) {
 		}
 	}
 
-	// PushCollectors with invalid grouping or job.
-	if err := Collectors("testjob", map[string]string{"foo": "bums"}, pgwErr.URL, metric1, metric2); err == nil {
+	// Push some Collectors with invalid grouping or job.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("foo", "bums").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
 		t.Error("push with grouping contained in metrics succeeded")
 	}
-	if err := Collectors("test/job", nil, pgwErr.URL, metric1, metric2); err == nil {
+	if err := New(pgwOK.URL, "test/job").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
 		t.Error("push with invalid job value succeeded")
 	}
-	if err := Collectors("testjob", map[string]string{"foo/bar": "bums"}, pgwErr.URL, metric1, metric2); err == nil {
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("foobar", "bu/ms").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
 		t.Error("push with invalid grouping succeeded")
 	}
-	if err := Collectors("testjob", map[string]string{"foo-bar": "bums"}, pgwErr.URL, metric1, metric2); err == nil {
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("foo-bar", "bums").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
 		t.Error("push with invalid grouping succeeded")
 	}
 
 	// Push registry, all good.
-	if err := FromGatherer("testjob", HostnameGroupingKey(), pgwOK.URL, reg); err != nil {
+	if err := New(pgwOK.URL, "testjob").
+		HostnameGrouping().
+		Gatherer(reg).
+		Push(); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "PUT" {
@@ -160,12 +188,16 @@ func TestPush(t *testing.T) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
 
-	// PushAdd registry, all good.
-	if err := AddFromGatherer("testjob", map[string]string{"a": "x", "b": "y"}, pgwOK.URL, reg); err != nil {
+	// Add registry, all good.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("a", "x").
+		Grouping("b", "y").
+		Gatherer(reg).
+		Add(); err != nil {
 		t.Fatal(err)
 	}
 	if lastMethod != "POST" {
-		t.Error("want method POSTT for PushAdd, got", lastMethod)
+		t.Error("want method POST for Add, got", lastMethod)
 	}
 	if bytes.Compare(lastBody, wantBody) != 0 {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
