@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
@@ -39,11 +38,6 @@ func TestPush(t *testing.T) {
 		lastBody   []byte
 		lastPath   string
 	)
-
-	host, err := os.Hostname()
-	if err != nil {
-		t.Error(err)
-	}
 
 	// Fake a Pushgateway that always responds with 202.
 	pgwOK := httptest.NewServer(
@@ -100,7 +94,6 @@ func TestPush(t *testing.T) {
 
 	// Push some Collectors, all good.
 	if err := New(pgwOK.URL, "testjob").
-		HostnameGrouping().
 		Collector(metric1).
 		Collector(metric2).
 		Push(); err != nil {
@@ -112,7 +105,7 @@ func TestPush(t *testing.T) {
 	if bytes.Compare(lastBody, wantBody) != 0 {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
-	if lastPath != "/metrics/job/testjob/instance/"+host {
+	if lastPath != "/metrics/job/testjob" {
 		t.Error("unexpected path:", lastPath)
 	}
 
@@ -176,7 +169,6 @@ func TestPush(t *testing.T) {
 
 	// Push registry, all good.
 	if err := New(pgwOK.URL, "testjob").
-		HostnameGrouping().
 		Gatherer(reg).
 		Push(); err != nil {
 		t.Fatal(err)

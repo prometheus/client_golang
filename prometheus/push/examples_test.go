@@ -28,7 +28,7 @@ func ExamplePusher_Push() {
 	completionTime.SetToCurrentTime()
 	if err := push.New("http://pushgateway:9091", "db_backup").
 		Collector(completionTime).
-		HostnameGrouping().
+		Grouping("db", "customers").
 		Push(); err != nil {
 		fmt.Println("Could not push completion time to Pushgateway:", err)
 	}

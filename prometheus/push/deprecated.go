@@ -164,8 +164,11 @@ func pushCollectors(job string, grouping map[string]string, url, method string, 
 // returned map is created upon each call so that the caller is free to add more
 // labels to the map.
 //
-// Deprecated: It is recommended to use a Pusher created with New, which has a
-// method HostnameGrouping.
+// Deprecated: Usually, metrics pushed to the Pushgateway should not be
+// host-centric. (You would use https://github.com/prometheus/node_exporter in
+// that case.) If you have the need to add the hostname to the grouping key, you
+// are probably doing something wrong. See
+// https://prometheus.io/docs/practices/pushing/ for details.
 func HostnameGroupingKey() map[string]string {
 	hostname, err := os.Hostname()
 	if err != nil {

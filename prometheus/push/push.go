@@ -41,7 +41,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/prometheus/common/expfmt"
@@ -164,21 +163,6 @@ func (p *Pusher) Grouping(name, value string) *Pusher {
 		}
 		p.grouping[name] = value
 	}
-	return p
-}
-
-// HostnameGrouping adds a label pair with “instance” as the name and the
-// current hostname as the value to the grouping key of the Pusher. If the
-// hostname cannot be determined, “unknown” is used as the label value. For
-// further implications of setting a grouping key, see the Grouping method.
-//
-// For convenience, this method returns a pointer to the Pusher itself.
-func (p *Pusher) HostnameGrouping() *Pusher {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-	p.grouping["instance"] = hostname
 	return p
 }
 
