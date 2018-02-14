@@ -280,7 +280,7 @@ type HandlerOpts struct {
 	// Service Unavailable and a suitable message in the body. If
 	// MaxRequestsInFlight is 0 or negative, no limit is applied.
 	MaxRequestsInFlight int
-	// If handling a request takes longer than Timeout, it is repsonded to
+	// If handling a request takes longer than Timeout, it is responded to
 	// with 503 ServiceUnavailable and a suitable Message. No timeout is
 	// applied if Timeout is 0 or negative. Note that with the current
 	// implementation, reaching the timeout simply ends the HTTP requests as
