@@ -22,7 +22,6 @@
 //    push.New("http://example.org/metrics", "my_job").
 //        Collector(myCollector1).
 //        Collector(myCollector2).
-//        HostnameGrouping().
 //        Grouping("zone", "xy").
 //        Client(&myHTTPClient).
 //        BasicAuth("top", "secret").
