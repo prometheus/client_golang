@@ -146,7 +146,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.T
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
