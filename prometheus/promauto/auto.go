@@ -147,6 +147,16 @@ func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus
 	return c
 }
 
+// NewCounterFunc works like the function of the same name in the prometheus
+// package but it automatically registers the CounterFunc with the
+// prometheus.DefaultRegisterer. If the registration fails, NewCounterFunc
+// panics.
+func NewCounterFunc(opts prometheus.CounterOpts, function func() float64) prometheus.CounterFunc {
+	g := prometheus.NewCounterFunc(opts, function)
+	prometheus.MustRegister(g)
+	return g
+}
+
 // NewGauge works like the function of the same name in the prometheus package
 // but it automatically registers the Gauge with the
 // prometheus.DefaultRegisterer. If the registration fails, NewGauge panics.
@@ -161,6 +171,15 @@ func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 // prometheus.DefaultRegisterer. If the registration fails, NewGaugeVec panics.
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
 	g := prometheus.NewGaugeVec(opts, labelNames)
+	prometheus.MustRegister(g)
+	return g
+}
+
+// NewGaugeFunc works like the function of the same name in the prometheus
+// package but it automatically registers the GaugeFunc with the
+// prometheus.DefaultRegisterer. If the registration fails, NewGaugeFunc panics.
+func NewGaugeFunc(opts prometheus.GaugeOpts, function func() float64) prometheus.GaugeFunc {
+	g := prometheus.NewGaugeFunc(opts, function)
 	prometheus.MustRegister(g)
 	return g
 }
