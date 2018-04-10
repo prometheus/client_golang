@@ -18,6 +18,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -27,6 +28,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/prometheus/scrape"
 )
 
 type apiTest struct {
@@ -88,10 +90,51 @@ func TestAPIs(t *testing.T) {
 
 	testTime := time.Now()
 
+	testURL, err := url.Parse("http://127.0.0.1:9090/api/v1/alerts")
+	if err != nil {
+		t.Errorf("Failed to initialize test URL.")
+	}
+
 	client := &apiTestClient{T: t}
 
 	promAPI := &httpAPI{
 		client: client,
+	}
+
+	doAlertManagers := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.AlertManagers(context.Background())
+		}
+	}
+
+	doCleanTombstones := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return nil, promAPI.CleanTombstones(context.Background())
+		}
+	}
+
+	doConfig := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Config(context.Background())
+		}
+	}
+
+	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
+		}
+	}
+
+	doFlags := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Flags(context.Background())
+		}
+	}
+
+	doLabelValues := func(label string) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.LabelValues(context.Background(), label)
+		}
 	}
 
 	doQuery := func(q string, ts time.Time) func() (interface{}, error) {
@@ -103,12 +146,6 @@ func TestAPIs(t *testing.T) {
 	doQueryRange := func(q string, rng Range) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return promAPI.QueryRange(context.Background(), q, rng)
-		}
-	}
-
-	doLabelValues := func(label string) func() (interface{}, error) {
-		return func() (interface{}, error) {
-			return promAPI.LabelValues(context.Background(), label)
 		}
 	}
 
@@ -124,15 +161,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, error) {
+	doTargets := func() func() (interface{}, error) {
 		return func() (interface{}, error) {
-			return nil, promAPI.CleanTombstones(context.Background())
-		}
-	}
-
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
-			return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
+			return promAPI.Targets(context.Background())
 		}
 	}
 
@@ -308,6 +339,168 @@ func TestAPIs(t *testing.T) {
 				"end":   []string{testTime.Format(time.RFC3339Nano)},
 			},
 			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doConfig(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/config",
+			inRes: map[string]string{
+				"yaml": "<content of the loaded config file in YAML>",
+			},
+			res: ConfigResult{
+				YAML: "<content of the loaded config file in YAML>",
+			},
+		},
+
+		{
+			do:        doConfig(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/config",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doFlags(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/flags",
+			inRes: map[string]string{
+				"alertmanager.notification-queue-capacity": "10000",
+				"alertmanager.timeout":                     "10s",
+				"log.level":                                "info",
+				"query.lookback-delta":                     "5m",
+				"query.max-concurrency":                    "20",
+			},
+			res: FlagsResult{
+				Flags{
+					"alertmanager.notification-queue-capacity": "10000",
+					"alertmanager.timeout":                     "10s",
+					"log.level":                                "info",
+					"query.lookback-delta":                     "5m",
+					"query.max-concurrency":                    "20",
+				},
+			},
+		},
+
+		{
+			do:        doFlags(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/flags",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doAlertManagers(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/alertmanagers",
+			inRes: map[string]interface{}{
+				"activeAlertManagers": []map[string]string{
+					{
+						"url": testURL.String(),
+					},
+				},
+				"droppedAlertManagers": []map[string]string{
+					{
+						"url": testURL.String(),
+					},
+				},
+			},
+			res: AlertManagersResult{
+				Active: []AlertManager{
+					{
+						URL: testURL,
+					},
+				},
+				Dropped: []AlertManager{
+					{
+						URL: testURL,
+					},
+				},
+			},
+		},
+
+		{
+			do:        doAlertManagers(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/alertmanagers",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doTargets(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets",
+			inRes: map[string]interface{}{
+				"activeTargets": []map[string]interface{}{
+					{
+						"discoveredLabels": map[string]string{
+							"__address__":      "127.0.0.1:9090",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "prometheus",
+						},
+						"labels": map[string]string{
+							"instance": "127.0.0.1:9090",
+							"job":      "prometheus",
+						},
+						"scrapeUrl":  testURL.String(),
+						"lastError":  "error while scraping target",
+						"lastScrape": testTime.Format(time.RFC3339Nano),
+						"health":     "up",
+					},
+				},
+				"droppedTargets": []map[string]interface{}{
+					{
+						"discoveredLabels": map[string]string{
+							"__address__":      "127.0.0.1:9100",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "node",
+						},
+					},
+				},
+			},
+			res: TargetsResult{
+				Active: []ActiveTarget{
+					{
+						DiscoveredLabels: model.LabelSet{
+							"__address__":      "127.0.0.1:9090",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "prometheus",
+						},
+						Labels: model.LabelSet{
+							"instance": "127.0.0.1:9090",
+							"job":      "prometheus",
+						},
+						ScrapeURL:  testURL,
+						LastError:  errors.New("error while scraping target"),
+						LastScrape: testTime.Round(0),
+						Health:     scrape.HealthGood,
+					},
+				},
+				Dropped: []DroppedTarget{
+					{
+						DiscoveredLabels: model.LabelSet{
+							"__address__":      "127.0.0.1:9100",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "node",
+						},
+					},
+				},
+			},
+		},
+
+		{
+			do:        doTargets(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
 		},
 	}
 
