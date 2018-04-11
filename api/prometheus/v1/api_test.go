@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/scrape"
 )
 
 type apiTest struct {
@@ -88,11 +87,6 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 func TestAPIs(t *testing.T) {
 
 	testTime := time.Now()
-
-	testURL, err := url.Parse("http://127.0.0.1:9090/api/v1/alerts")
-	if err != nil {
-		t.Errorf("Failed to initialize test URL.")
-	}
 
 	client := &apiTestClient{T: t}
 
@@ -372,13 +366,11 @@ func TestAPIs(t *testing.T) {
 				"query.max-concurrency":                    "20",
 			},
 			res: FlagsResult{
-				Flags{
-					"alertmanager.notification-queue-capacity": "10000",
-					"alertmanager.timeout":                     "10s",
-					"log.level":                                "info",
-					"query.lookback-delta":                     "5m",
-					"query.max-concurrency":                    "20",
-				},
+				"alertmanager.notification-queue-capacity": "10000",
+				"alertmanager.timeout":                     "10s",
+				"log.level":                                "info",
+				"query.lookback-delta":                     "5m",
+				"query.max-concurrency":                    "20",
 			},
 		},
 
@@ -397,24 +389,24 @@ func TestAPIs(t *testing.T) {
 			inRes: map[string]interface{}{
 				"activeAlertManagers": []map[string]string{
 					{
-						"url": testURL.String(),
+						"url": "http://127.0.0.1:9091/api/v1/alerts",
 					},
 				},
 				"droppedAlertManagers": []map[string]string{
 					{
-						"url": testURL.String(),
+						"url": "http://127.0.0.1:9092/api/v1/alerts",
 					},
 				},
 			},
 			res: AlertManagersResult{
 				Active: []AlertManager{
 					{
-						URL: testURL,
+						URL: "http://127.0.0.1:9091/api/v1/alerts",
 					},
 				},
 				Dropped: []AlertManager{
 					{
-						URL: testURL,
+						URL: "http://127.0.0.1:9092/api/v1/alerts",
 					},
 				},
 			},
@@ -445,7 +437,7 @@ func TestAPIs(t *testing.T) {
 							"instance": "127.0.0.1:9090",
 							"job":      "prometheus",
 						},
-						"scrapeUrl":  testURL.String(),
+						"scrapeUrl":  "http://127.0.0.1:9090",
 						"lastError":  "error while scraping target",
 						"lastScrape": testTime.UTC().Format(time.RFC3339Nano),
 						"health":     "up",
@@ -475,10 +467,10 @@ func TestAPIs(t *testing.T) {
 							"instance": "127.0.0.1:9090",
 							"job":      "prometheus",
 						},
-						ScrapeURL:  testURL,
+						ScrapeURL:  "http://127.0.0.1:9090",
 						LastError:  "error while scraping target",
 						LastScrape: testTime.UTC(),
-						Health:     scrape.HealthGood,
+						Health:     HealthGood,
 					},
 				},
 				Dropped: []DroppedTarget{

@@ -22,13 +22,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/scrape"
 )
 
 const (
@@ -52,13 +50,21 @@ const (
 // ErrorType models the different API error types.
 type ErrorType string
 
-// Possible values for ErrorType.
+// HealthStatus models the health status of a scrape target.
+type HealthStatus string
+
 const (
+	// Possible values for ErrorType.
 	ErrBadData     ErrorType = "bad_data"
 	ErrTimeout               = "timeout"
 	ErrCanceled              = "canceled"
 	ErrExec                  = "execution"
 	ErrBadResponse           = "bad_response"
+
+	// Possible values for HealthStatus.
+	HealthGood    HealthStatus = "up"
+	HealthUnknown HealthStatus = "unknown"
+	HealthBad     HealthStatus = "down"
 )
 
 // Error is an error returned by the API.
@@ -114,7 +120,7 @@ type AlertManagersResult struct {
 
 // AlertManager models a configured Alert Manager.
 type AlertManager struct {
-	URL *url.URL `json:"url"`
+	URL string `json:"url"`
 }
 
 // ConfigResult contains the result from querying the config endpoint.
@@ -123,9 +129,7 @@ type ConfigResult struct {
 }
 
 // FlagsResult contains the result from querying the flag endpoint.
-type FlagsResult struct {
-	Flags Flags
-}
+type FlagsResult map[string]string
 
 // Flags models a set of flags that Prometheus is configured with.
 type Flags map[string]string
@@ -143,12 +147,12 @@ type TargetsResult struct {
 
 // ActiveTarget models an active Prometheus scrape target.
 type ActiveTarget struct {
-	DiscoveredLabels model.LabelSet      `json:"discoveredLabels"`
-	Labels           model.LabelSet      `json:"labels"`
-	ScrapeURL        *url.URL            `json:"scrapeUrl"`
-	LastError        string              `json:"lastError"`
-	LastScrape       time.Time           `json:"lastScrape"`
-	Health           scrape.TargetHealth `json:"health"`
+	DiscoveredLabels model.LabelSet `json:"discoveredLabels"`
+	Labels           model.LabelSet `json:"labels"`
+	ScrapeURL        string         `json:"scrapeUrl"`
+	LastError        string         `json:"lastError"`
+	LastScrape       time.Time      `json:"lastScrape"`
+	Health           HealthStatus   `json:"health"`
 }
 
 // DroppedTarget models a dropped Prometheus scrape target.
@@ -163,54 +167,6 @@ type queryResult struct {
 
 	// The decoded value.
 	v model.Value
-}
-
-func (a *ActiveTarget) UnmarshalJSON(b []byte) error {
-	v := struct {
-		DiscoveredLabels model.LabelSet      `json:"discoveredLabels"`
-		Labels           model.LabelSet      `json:"labels"`
-		ScrapeURL        string              `json:"scrapeUrl"`
-		LastError        string              `json:"lastError"`
-		LastScrape       time.Time           `json:"lastScrape"`
-		Health           scrape.TargetHealth `json:"health"`
-	}{}
-
-	err := json.Unmarshal(b, &v)
-	if err != nil {
-		return err
-	}
-
-	url, err := url.Parse(v.ScrapeURL)
-
-	a.DiscoveredLabels = v.DiscoveredLabels
-	a.Labels = v.Labels
-	a.ScrapeURL = url
-	a.LastScrape = v.LastScrape
-	a.Health = v.Health
-	a.LastError = v.LastError
-
-	return err
-}
-
-func (a *AlertManager) UnmarshalJSON(b []byte) error {
-	var v map[string]string
-
-	err := json.Unmarshal(b, &v)
-	if err != nil {
-		return err
-	}
-
-	url, err := url.Parse(v["url"])
-	a.URL = url
-	return err
-}
-
-func (f *FlagsResult) UnmarshalJSON(b []byte) error {
-	var v map[string]string
-
-	err := json.Unmarshal(b, &v)
-	f.Flags = v
-	return err
 }
 
 func (qr *queryResult) UnmarshalJSON(b []byte) error {
