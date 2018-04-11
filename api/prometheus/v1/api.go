@@ -20,7 +20,6 @@ package v1
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -147,7 +146,7 @@ type ActiveTarget struct {
 	DiscoveredLabels model.LabelSet      `json:"discoveredLabels"`
 	Labels           model.LabelSet      `json:"labels"`
 	ScrapeURL        *url.URL            `json:"scrapeUrl"`
-	LastError        error               `json:"lastError"`
+	LastError        string              `json:"lastError"`
 	LastScrape       time.Time           `json:"lastScrape"`
 	Health           scrape.TargetHealth `json:"health"`
 }
@@ -188,11 +187,7 @@ func (a *ActiveTarget) UnmarshalJSON(b []byte) error {
 	a.ScrapeURL = url
 	a.LastScrape = v.LastScrape
 	a.Health = v.Health
-	if v.LastError != "" {
-		a.LastError = errors.New(v.LastError)
-	} else {
-		a.LastError = nil
-	}
+	a.LastError = v.LastError
 
 	return err
 }

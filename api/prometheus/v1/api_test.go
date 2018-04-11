@@ -18,7 +18,6 @@ package v1
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -477,7 +476,7 @@ func TestAPIs(t *testing.T) {
 							"job":      "prometheus",
 						},
 						ScrapeURL:  testURL,
-						LastError:  errors.New("error while scraping target"),
+						LastError:  "error while scraping target",
 						LastScrape: testTime.Round(0),
 						Health:     scrape.HealthGood,
 					},
