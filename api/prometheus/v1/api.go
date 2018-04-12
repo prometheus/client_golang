@@ -131,9 +131,6 @@ type ConfigResult struct {
 // FlagsResult contains the result from querying the flag endpoint.
 type FlagsResult map[string]string
 
-// Flags models a set of flags that Prometheus is configured with.
-type Flags map[string]string
-
 // SnapshotResult contains the result from querying the snapshot endpoint.
 type SnapshotResult struct {
 	Name string `json:"name"`
