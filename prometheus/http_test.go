@@ -47,9 +47,9 @@ func TestInstrumentHandler(t *testing.T) {
 	instant := time.Now()
 	end := instant.Add(30 * time.Second)
 	now = nowSeries(instant, end)
-	respBody := respBody("Howdy there!")
+	body := respBody("Howdy there!")
 
-	hndlr := InstrumentHandler("test-handler", respBody)
+	hndlr := InstrumentHandler("test-handler", body)
 
 	opts := SummaryOpts{
 		Subsystem:   "http",

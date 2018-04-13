@@ -115,7 +115,7 @@ func decorateWriter(request *http.Request, writer io.Writer) (io.Writer, string)
 	header := request.Header.Get(acceptEncodingHeader)
 	parts := strings.Split(header, ",")
 	for _, part := range parts {
-		part := strings.TrimSpace(part)
+		part = strings.TrimSpace(part)
 		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
 			return gzip.NewWriter(writer), "gzip"
 		}
