@@ -352,10 +352,9 @@ func computeApproximateRequestSize(r *http.Request) <-chan int {
 type responseWriterDelegator struct {
 	http.ResponseWriter
 
-	handler, method string
-	status          int
-	written         int64
-	wroteHeader     bool
+	status      int
+	written     int64
+	wroteHeader bool
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
