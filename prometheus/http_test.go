@@ -29,6 +29,16 @@ func (b respBody) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(b))
 }
 
+func nowSeries(t ...time.Time) nower {
+	return nowFunc(func() time.Time {
+		defer func() {
+			t = t[1:]
+		}()
+
+		return t[0]
+	})
+}
+
 func TestInstrumentHandler(t *testing.T) {
 	defer func(n nower) {
 		now = n.(nower)

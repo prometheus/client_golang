@@ -139,16 +139,6 @@ var now nower = nowFunc(func() time.Time {
 	return time.Now()
 })
 
-func nowSeries(t ...time.Time) nower {
-	return nowFunc(func() time.Time {
-		defer func() {
-			t = t[1:]
-		}()
-
-		return t[0]
-	})
-}
-
 // InstrumentHandler wraps the given HTTP handler for instrumentation. It
 // registers four metric collectors (if not already done) and reports HTTP
 // metrics to the (newly or already) registered collectors: http_requests_total
