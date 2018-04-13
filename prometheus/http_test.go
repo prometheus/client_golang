@@ -114,8 +114,8 @@ func TestInstrumentHandler(t *testing.T) {
 	if resp.Code != http.StatusTeapot {
 		t.Fatalf("expected status %d, got %d", http.StatusTeapot, resp.Code)
 	}
-	if string(resp.Body.Bytes()) != "Howdy there!" {
-		t.Fatalf("expected body %s, got %s", "Howdy there!", string(resp.Body.Bytes()))
+	if resp.Body.String() != "Howdy there!" {
+		t.Fatalf("expected body %s, got %s", "Howdy there!", resp.Body.String())
 	}
 
 	out := &dto.Metric{}
