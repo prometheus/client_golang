@@ -142,6 +142,18 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doQuit := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return nil, promAPI.Quit(context.Background())
+		}
+	}
+
+	doReload := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return nil, promAPI.Reload(context.Background())
+		}
+	}
+
 	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
@@ -417,6 +429,34 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/alertmanagers",
 			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doQuit(),
+			reqMethod: "POST",
+			reqPath:   "/-/quit",
+		},
+
+		{
+			do:        doQuit(),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "POST",
+			reqPath:   "/-/quit",
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doReload(),
+			reqMethod: "POST",
+			reqPath:   "/-/reload",
+		},
+
+		{
+			do:        doReload(),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "POST",
+			reqPath:   "/-/reload",
 			err:       fmt.Errorf("some error"),
 		},
 

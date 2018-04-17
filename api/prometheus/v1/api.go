@@ -32,19 +32,25 @@ import (
 const (
 	statusAPIError = 422
 
-	apiPrefix = "/api/v1"
+	v1APIPrefix        = "/api/v1"
+	lifecycleAPIPrefix = "/-/"
 
-	epAlertManagers   = apiPrefix + "/alertmanagers"
-	epQuery           = apiPrefix + "/query"
-	epQueryRange      = apiPrefix + "/query_range"
-	epLabelValues     = apiPrefix + "/label/:name/values"
-	epSeries          = apiPrefix + "/series"
-	epTargets         = apiPrefix + "/targets"
-	epSnapshot        = apiPrefix + "/admin/tsdb/snapshot"
-	epDeleteSeries    = apiPrefix + "/admin/tsdb/delete_series"
-	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
-	epConfig          = apiPrefix + "/status/config"
-	epFlags           = apiPrefix + "/status/flags"
+	// V1 API endpoints
+	epAlertManagers   = v1APIPrefix + "/alertmanagers"
+	epQuery           = v1APIPrefix + "/query"
+	epQueryRange      = v1APIPrefix + "/query_range"
+	epLabelValues     = v1APIPrefix + "/label/:name/values"
+	epSeries          = v1APIPrefix + "/series"
+	epTargets         = v1APIPrefix + "/targets"
+	epSnapshot        = v1APIPrefix + "/admin/tsdb/snapshot"
+	epDeleteSeries    = v1APIPrefix + "/admin/tsdb/delete_series"
+	epCleanTombstones = v1APIPrefix + "/admin/tsdb/clean_tombstones"
+	epConfig          = v1APIPrefix + "/status/config"
+	epFlags           = v1APIPrefix + "/status/flags"
+
+	// Lifecycle API endpoints
+	epQuit   = lifecycleAPIPrefix + "quit"
+	epReload = lifecycleAPIPrefix + "reload"
 )
 
 // ErrorType models the different API error types.
@@ -85,7 +91,7 @@ type Range struct {
 	Step time.Duration
 }
 
-// API provides bindings for Prometheus's v1 API.
+// API provides bindings for Prometheus's API.
 type API interface {
 	// AlertManagers returns an overview of the current state of the Prometheus alert manager discovery.
 	AlertManagers(ctx context.Context) (AlertManagersResult, error)
@@ -103,6 +109,10 @@ type API interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, error)
+	// Quit shuts down the Prometheus server if the lifecycle API is enabled.
+	Quit(ctx context.Context) error
+	// Reload reloads the Prometheus server's configuration if the lifecycle API is enabled.
+	Reload(ctx context.Context) error
 	// Series finds series by label matchers.
 	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error)
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
@@ -371,6 +381,30 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	err = json.Unmarshal(body, &qres)
 
 	return model.Value(qres.v), err
+}
+
+func (h *httpAPI) Quit(ctx context.Context) error {
+	u := h.client.URL(epQuit, nil)
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = h.client.Do(ctx, req)
+	return err
+}
+
+func (h *httpAPI) Reload(ctx context.Context) error {
+	u := h.client.URL(epReload, nil)
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = h.client.Do(ctx, req)
+	return err
 }
 
 func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error) {
