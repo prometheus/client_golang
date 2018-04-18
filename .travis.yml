@@ -8,3 +8,5 @@ go:
 
 script:
  - go test -short ./...
+ - go tool vet .
+ - diff -u <(echo -n) <(gofmt -d .)
