@@ -17,8 +17,12 @@ type goCollector struct {
 	metrics memStatsMetrics
 }
 
-// NewGoCollector returns a collector which exports metrics about the current
-// go process.
+// NewGoCollector returns a collector which exports metrics about the current Go
+// process. This includes memory stats. To collect those, runtime.ReadMemStats
+// is called. This causes a stop-the-world, which is very short with Go1.9+
+// (~25µs). However, with older Go versions, the stop-the-world duration depends
+// on the heap size and can be quite significant (~1.7 ms/GiB as per
+// https://go-review.googlesource.com/c/go/+/34937).
 func NewGoCollector() Collector {
 	return &goCollector{
 		goroutinesDesc: NewDesc(
