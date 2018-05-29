@@ -727,8 +727,8 @@ func checkMetricConsistency(
 	}
 
 	for _, labelPair := range dtoMetric.GetLabel() {
-		if !utf8.ValidString(*labelPair.Value) {
-			return fmt.Errorf("collected metric's label %s is not utf8: %#v", *labelPair.Name, *labelPair.Value)
+		if !utf8.ValidString(labelPair.GetValue()) {
+			return fmt.Errorf("collected metric's label %s is not utf8: %#v", labelPair.GetName(), labelPair.GetValue())
 		}
 	}
 
