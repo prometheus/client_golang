@@ -613,6 +613,7 @@ func TestAPIClientDo(t *testing.T) {
 		{
 			response: &apiResponse{
 				Status:    "error",
+				Data:      json.RawMessage(`null`),
 				ErrorType: ErrBadData,
 				Error:     "end timestamp must not be before start time",
 			},
