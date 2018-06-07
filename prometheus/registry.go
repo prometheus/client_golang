@@ -138,9 +138,11 @@ type Gatherer interface {
 	// prevented any meaningful metric collection) or contain a number of
 	// MetricFamily protobufs, some of which might be incomplete, and some
 	// might be missing altogether. The returned error (which might be a
-	// MultiError) explains the details. In scenarios where complete
-	// collection is critical, the returned MetricFamily protobufs should be
-	// disregarded if the returned error is non-nil.
+	// MultiError) explains the details. Note that this is mostly useful for
+	// debugging purposes. If the gathered protobufs are to be used for
+	// exposition in actual monitoring, it is almost always better to not
+	// expose an incomplete result and instead disregard the returned
+	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
 }
 
