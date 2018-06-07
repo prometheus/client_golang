@@ -126,15 +126,23 @@ type Registerer interface {
 type Gatherer interface {
 	// Gather calls the Collect method of the registered Collectors and then
 	// gathers the collected metrics into a lexicographically sorted slice
-	// of MetricFamily protobufs. Even if an error occurs, Gather attempts
-	// to gather as many metrics as possible. Hence, if a non-nil error is
-	// returned, the returned MetricFamily slice could be nil (in case of a
-	// fatal error that prevented any meaningful metric collection) or
-	// contain a number of MetricFamily protobufs, some of which might be
-	// incomplete, and some might be missing altogether. The returned error
-	// (which might be a MultiError) explains the details. In scenarios
-	// where complete collection is critical, the returned MetricFamily
-	// protobufs should be disregarded if the returned error is non-nil.
+	// of uniquely named MetricFamily protobufs. Gather ensures that the
+	// returned slice is valid and self-consistent so that it can be used
+	// for valid exposition. As an exception to the strict consistency
+	// requirements described for metric.Desc, Gather will tolerate
+	// different sets of label names for metrics of the same metric family.
+	//
+	// Even if an error occurs, Gather attempts to gather as many metrics as
+	// possible. Hence, if a non-nil error is returned, the returned
+	// MetricFamily slice could be nil (in case of a fatal error that
+	// prevented any meaningful metric collection) or contain a number of
+	// MetricFamily protobufs, some of which might be incomplete, and some
+	// might be missing altogether. The returned error (which might be a
+	// MultiError) explains the details. Note that this is mostly useful for
+	// debugging purposes. If the gathered protobufs are to be used for
+	// exposition in actual monitoring, it is almost always better to not
+	// expose an incomplete result and instead disregard the returned
+	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
 }
 
@@ -370,7 +378,6 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		metricChan        = make(chan Metric, capMetricChan)
 		metricHashes      = map[uint64]struct{}{}
-		dimHashes         = map[string]uint64{}
 		wg                sync.WaitGroup
 		errs              MultiError          // The collected errors to return in the end.
 		registeredDescIDs map[uint64]struct{} // Only used for pedantic checks
@@ -433,7 +440,7 @@ collectLoop:
 			}
 			errs.Append(processMetric(
 				metric, metricFamiliesByName,
-				metricHashes, dimHashes,
+				metricHashes,
 				registeredDescIDs,
 			))
 		default:
@@ -445,7 +452,7 @@ collectLoop:
 				for metric := range metricChan {
 					errs.Append(processMetric(
 						metric, metricFamiliesByName,
-						metricHashes, dimHashes,
+						metricHashes,
 						registeredDescIDs,
 					))
 				}
@@ -465,7 +472,6 @@ func processMetric(
 	metric Metric,
 	metricFamiliesByName map[string]*dto.MetricFamily,
 	metricHashes map[uint64]struct{},
-	dimHashes map[string]uint64,
 	registeredDescIDs map[uint64]struct{},
 ) error {
 	desc := metric.Desc()
@@ -542,7 +548,7 @@ func processMetric(
 		}
 		metricFamiliesByName[desc.fqName] = metricFamily
 	}
-	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes, dimHashes); err != nil {
+	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes); err != nil {
 		return err
 	}
 	if registeredDescIDs != nil {
@@ -584,7 +590,6 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		metricFamiliesByName = map[string]*dto.MetricFamily{}
 		metricHashes         = map[uint64]struct{}{}
-		dimHashes            = map[string]uint64{}
 		errs                 MultiError // The collected errors to return in the end.
 	)
 
@@ -624,7 +629,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
 			for _, m := range mf.Metric {
-				if err := checkMetricConsistency(existingMF, m, metricHashes, dimHashes); err != nil {
+				if err := checkMetricConsistency(existingMF, m, metricHashes); err != nil {
 					errs = append(errs, err)
 					continue
 				}
@@ -701,18 +706,13 @@ func normalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) 
 }
 
 // checkMetricConsistency checks if the provided Metric is consistent with the
-// provided MetricFamily. It also hashed the Metric labels and the MetricFamily
+// provided MetricFamily. It also hashes the Metric labels and the MetricFamily
 // name. If the resulting hash is already in the provided metricHashes, an error
-// is returned. If not, it is added to metricHashes. The provided dimHashes maps
-// MetricFamily names to their dimHash (hashed sorted label names). If dimHashes
-// doesn't yet contain a hash for the provided MetricFamily, it is
-// added. Otherwise, an error is returned if the existing dimHashes in not equal
-// the calculated dimHash.
+// is returned. If not, it is added to metricHashes.
 func checkMetricConsistency(
 	metricFamily *dto.MetricFamily,
 	dtoMetric *dto.Metric,
 	metricHashes map[uint64]struct{},
-	dimHashes map[string]uint64,
 ) error {
 	// Type consistency with metric family.
 	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
@@ -732,35 +732,24 @@ func checkMetricConsistency(
 		}
 	}
 
-	// Is the metric unique (i.e. no other metric with the same name and the same label values)?
+	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
 	h := hashNew()
 	h = hashAdd(h, metricFamily.GetName())
 	h = hashAddByte(h, separatorByte)
-	dh := hashNew()
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
 	sort.Sort(LabelPairSorter(dtoMetric.Label))
 	for _, lp := range dtoMetric.Label {
+		h = hashAdd(h, lp.GetName())
+		h = hashAddByte(h, separatorByte)
 		h = hashAdd(h, lp.GetValue())
 		h = hashAddByte(h, separatorByte)
-		dh = hashAdd(dh, lp.GetName())
-		dh = hashAddByte(dh, separatorByte)
 	}
 	if _, exists := metricHashes[h]; exists {
 		return fmt.Errorf(
 			"collected metric %s %s was collected before with the same name and label values",
 			metricFamily.GetName(), dtoMetric,
 		)
-	}
-	if dimHash, ok := dimHashes[metricFamily.GetName()]; ok {
-		if dimHash != dh {
-			return fmt.Errorf(
-				"collected metric %s %s has label dimensions inconsistent with previously collected metrics in the same metric family",
-				metricFamily.GetName(), dtoMetric,
-			)
-		}
-	} else {
-		dimHashes[metricFamily.GetName()] = dh
 	}
 	metricHashes[h] = struct{}{}
 	return nil
