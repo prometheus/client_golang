@@ -34,7 +34,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// uncheckedCollector wraps a Collector but its Describe method yields no Desc.
+type uncheckedCollector struct {
+	c prometheus.Collector
+}
+
+func (u uncheckedCollector) Describe(_ chan<- *prometheus.Desc) {}
+func (u uncheckedCollector) Collect(c chan<- prometheus.Metric) {
+	u.c.Collect(c)
+}
+
 func testHandler(t testing.TB) {
+	// TODO(beorn7): This test is a bit too "end-to-end". It tests quite a
+	// few moving parts that are not strongly coupled. They could/should be
+	// tested separately. However, the changes planned for v0.10 will
+	// require a major rework of this test anyway, at which time I will
+	// structure it in a better way.
 
 	metricVec := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -496,6 +511,18 @@ collected metric's label constname is not utf8: "\xff"
 				externalMetricFamilyWithInvalidLabelValue,
 			},
 		},
+		{ // 17
+			headers: map[string]string{
+				"Accept": "application/json",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4; charset=utf-8`,
+				},
+				body: expectedMetricFamilyAsText,
+			},
+			collector: uncheckedCollector{metricVec},
+		},
 	}
 	for i, scenario := range scenarios {
 		registry := prometheus.NewPedanticRegistry()
@@ -510,7 +537,7 @@ collected metric's label constname is not utf8: "\xff"
 		}
 
 		if scenario.collector != nil {
-			registry.Register(scenario.collector)
+			registry.MustRegister(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
 		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
