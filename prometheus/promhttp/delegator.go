@@ -76,16 +76,16 @@ type flusherDelegator struct{ *responseWriterDelegator }
 type hijackerDelegator struct{ *responseWriterDelegator }
 type readerFromDelegator struct{ *responseWriterDelegator }
 
-func (d *closeNotifierDelegator) CloseNotify() <-chan bool {
+func (d closeNotifierDelegator) CloseNotify() <-chan bool {
 	return d.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
-func (d *flusherDelegator) Flush() {
+func (d flusherDelegator) Flush() {
 	d.ResponseWriter.(http.Flusher).Flush()
 }
-func (d *hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
-func (d *readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
+func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !d.wroteHeader {
 		d.WriteHeader(http.StatusOK)
 	}
