@@ -740,7 +740,7 @@ temperature_kelvin 4.5
 	// temperature_kelvin{location="outside"} 273.14
 	// temperature_kelvin{location="somewhere else"} 4.5
 	// ----------
-	// collected metric temperature_kelvin label:<name:"location" value:"outside" > gauge:<value:265.3 >  was collected before with the same name and label values
+	// collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
 	// # HELP humidity_percent Humidity in %.
 	// # TYPE humidity_percent gauge
 	// humidity_percent{location="inside"} 33.2
