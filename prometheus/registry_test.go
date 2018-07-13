@@ -249,7 +249,7 @@ metric: <
 
 	expectedMetricFamilyInvalidLabelValueAsText := []byte(`An error has occurred during metrics gathering:
 
-collected metric's label constname is not utf8: "\xff"
+collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"labelname" value:"different_val" > counter:<value:42 > } has a label named "constname" whose value is not utf8: "\xff"
 `)
 
 	type output struct {

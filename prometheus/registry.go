@@ -783,14 +783,28 @@ func checkMetricConsistency(
 		metricFamily.GetType() == dto.MetricType_HISTOGRAM && dtoMetric.Histogram == nil ||
 		metricFamily.GetType() == dto.MetricType_UNTYPED && dtoMetric.Untyped == nil {
 		return fmt.Errorf(
-			"collected metric %s %s is not a %s",
+			"collected metric %q { %s} is not a %s",
 			metricFamily.GetName(), dtoMetric, metricFamily.GetType(),
 		)
 	}
 
 	for _, labelPair := range dtoMetric.GetLabel() {
+		if !checkLabelName(labelPair.GetName()) {
+			return fmt.Errorf(
+				"collected metric %q { %s} has a label with an invalid name: %s",
+				metricFamily.GetName(), dtoMetric, labelPair.GetName(),
+			)
+		}
+		if dtoMetric.Summary != nil && labelPair.GetName() == quantileLabel {
+			return fmt.Errorf(
+				"collected metric %q { %s} must not have an explicit %q label",
+				metricFamily.GetName(), dtoMetric, quantileLabel,
+			)
+		}
 		if !utf8.ValidString(labelPair.GetValue()) {
-			return fmt.Errorf("collected metric's label %s is not utf8: %#v", labelPair.GetName(), labelPair.GetValue())
+			return fmt.Errorf(
+				"collected metric %q { %s} has a label named %q whose value is not utf8: %#v",
+				metricFamily.GetName(), dtoMetric, labelPair.GetName(), labelPair.GetValue())
 		}
 	}
 
@@ -809,7 +823,7 @@ func checkMetricConsistency(
 	}
 	if _, exists := metricHashes[h]; exists {
 		return fmt.Errorf(
-			"collected metric %s %s was collected before with the same name and label values",
+			"collected metric %q { %s} was collected before with the same name and label values",
 			metricFamily.GetName(), dtoMetric,
 		)
 	}
