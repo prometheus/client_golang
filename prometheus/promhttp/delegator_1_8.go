@@ -57,7 +57,7 @@ func init() {
 			*responseWriterDelegator
 			http.Pusher
 			http.Hijacker
-		}{d, pusherDelegator{d}, &hijackerDelegator{d}}
+		}{d, pusherDelegator{d}, hijackerDelegator{d}}
 	}
 	pickDelegator[pusher+hijacker+closeNotifier] = func(d *responseWriterDelegator) delegator { // 21
 		return struct {
@@ -65,7 +65,7 @@ func init() {
 			http.Pusher
 			http.Hijacker
 			http.CloseNotifier
-		}{d, pusherDelegator{d}, &hijackerDelegator{d}, closeNotifierDelegator{d}}
+		}{d, pusherDelegator{d}, hijackerDelegator{d}, closeNotifierDelegator{d}}
 	}
 	pickDelegator[pusher+hijacker+flusher] = func(d *responseWriterDelegator) delegator { // 22
 		return struct {
@@ -73,7 +73,7 @@ func init() {
 			http.Pusher
 			http.Hijacker
 			http.Flusher
-		}{d, pusherDelegator{d}, &hijackerDelegator{d}, flusherDelegator{d}}
+		}{d, pusherDelegator{d}, hijackerDelegator{d}, flusherDelegator{d}}
 	}
 	pickDelegator[pusher+hijacker+flusher+closeNotifier] = func(d *responseWriterDelegator) delegator { //23
 		return struct {
@@ -82,7 +82,7 @@ func init() {
 			http.Hijacker
 			http.Flusher
 			http.CloseNotifier
-		}{d, pusherDelegator{d}, &hijackerDelegator{d}, flusherDelegator{d}, closeNotifierDelegator{d}}
+		}{d, pusherDelegator{d}, hijackerDelegator{d}, flusherDelegator{d}, closeNotifierDelegator{d}}
 	}
 	pickDelegator[pusher+readerFrom] = func(d *responseWriterDelegator) delegator { // 24
 		return struct {
@@ -122,7 +122,7 @@ func init() {
 			http.Pusher
 			io.ReaderFrom
 			http.Hijacker
-		}{d, pusherDelegator{d}, readerFromDelegator{d}, &hijackerDelegator{d}}
+		}{d, pusherDelegator{d}, readerFromDelegator{d}, hijackerDelegator{d}}
 	}
 	pickDelegator[pusher+readerFrom+hijacker+closeNotifier] = func(d *responseWriterDelegator) delegator { // 29
 		return struct {
@@ -131,7 +131,7 @@ func init() {
 			io.ReaderFrom
 			http.Hijacker
 			http.CloseNotifier
-		}{d, pusherDelegator{d}, readerFromDelegator{d}, &hijackerDelegator{d}, closeNotifierDelegator{d}}
+		}{d, pusherDelegator{d}, readerFromDelegator{d}, hijackerDelegator{d}, closeNotifierDelegator{d}}
 	}
 	pickDelegator[pusher+readerFrom+hijacker+flusher] = func(d *responseWriterDelegator) delegator { // 30
 		return struct {
@@ -140,7 +140,7 @@ func init() {
 			io.ReaderFrom
 			http.Hijacker
 			http.Flusher
-		}{d, pusherDelegator{d}, readerFromDelegator{d}, &hijackerDelegator{d}, flusherDelegator{d}}
+		}{d, pusherDelegator{d}, readerFromDelegator{d}, hijackerDelegator{d}, flusherDelegator{d}}
 	}
 	pickDelegator[pusher+readerFrom+hijacker+flusher+closeNotifier] = func(d *responseWriterDelegator) delegator { // 31
 		return struct {
@@ -150,7 +150,7 @@ func init() {
 			http.Hijacker
 			http.Flusher
 			http.CloseNotifier
-		}{d, pusherDelegator{d}, readerFromDelegator{d}, &hijackerDelegator{d}, flusherDelegator{d}, closeNotifierDelegator{d}}
+		}{d, pusherDelegator{d}, readerFromDelegator{d}, hijackerDelegator{d}, flusherDelegator{d}, closeNotifierDelegator{d}}
 	}
 }
 
