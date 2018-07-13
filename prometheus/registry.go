@@ -19,6 +19,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"unicode/utf8"
 
@@ -542,7 +543,7 @@ func processMetric(
 		return fmt.Errorf("error collecting metric %v: %s", desc, err)
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
-	if ok {
+	if ok { // Existing name.
 		if metricFamily.GetHelp() != desc.help {
 			return fmt.Errorf(
 				"collected metric %s %s has help %q but should have %q",
@@ -589,7 +590,7 @@ func processMetric(
 		default:
 			panic("encountered MetricFamily with invalid type")
 		}
-	} else {
+	} else { // New name.
 		metricFamily = &dto.MetricFamily{}
 		metricFamily.Name = proto.String(desc.fqName)
 		metricFamily.Help = proto.String(desc.help)
@@ -607,6 +608,9 @@ func processMetric(
 			metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
 		default:
 			return fmt.Errorf("empty metric collected: %s", dtoMetric)
+		}
+		if err := checkSuffixCollisions(metricFamily, metricFamiliesByName); err != nil {
+			return err
 		}
 		metricFamiliesByName[desc.fqName] = metricFamily
 	}
@@ -688,6 +692,10 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				existingMF.Name = mf.Name
 				existingMF.Help = mf.Help
 				existingMF.Type = mf.Type
+				if err := checkSuffixCollisions(existingMF, metricFamiliesByName); err != nil {
+					errs = append(errs, err)
+					continue
+				}
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
 			for _, m := range mf.Metric {
@@ -765,6 +773,66 @@ func normalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) 
 		result = append(result, metricFamiliesByName[name])
 	}
 	return result
+}
+
+// checkSuffixCollisions checks for collisions with the “magic” suffixes the
+// Prometheus text format and the internal metric representation of the
+// Prometheus server add while flattening Summaries and Histograms.
+func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamily) error {
+	var (
+		newName              = mf.GetName()
+		newType              = mf.GetType()
+		newNameWithoutSuffix = ""
+	)
+	switch {
+	case strings.HasSuffix(newName, "_count"):
+		newNameWithoutSuffix = newName[:len(newName)-6]
+	case strings.HasSuffix(newName, "_sum"):
+		newNameWithoutSuffix = newName[:len(newName)-4]
+	case strings.HasSuffix(newName, "_bucket"):
+		newNameWithoutSuffix = newName[:len(newName)-7]
+	}
+	if newNameWithoutSuffix != "" {
+		if existingMF, ok := mfs[newNameWithoutSuffix]; ok {
+			switch existingMF.GetType() {
+			case dto.MetricType_SUMMARY:
+				if !strings.HasSuffix(newName, "_bucket") {
+					return fmt.Errorf(
+						"collected metric named %q collides with previously collected summary named %q",
+						newName, newNameWithoutSuffix,
+					)
+				}
+			case dto.MetricType_HISTOGRAM:
+				return fmt.Errorf(
+					"collected metric named %q collides with previously collected histogram named %q",
+					newName, newNameWithoutSuffix,
+				)
+			}
+		}
+	}
+	if newType == dto.MetricType_SUMMARY || newType == dto.MetricType_HISTOGRAM {
+		if _, ok := mfs[newName+"_count"]; ok {
+			return fmt.Errorf(
+				"collected histogram or summary named %q collides with previously collected metric named %q",
+				newName, newName+"_count",
+			)
+		}
+		if _, ok := mfs[newName+"_sum"]; ok {
+			return fmt.Errorf(
+				"collected histogram or summary named %q collides with previously collected metric named %q",
+				newName, newName+"_sum",
+			)
+		}
+	}
+	if newType == dto.MetricType_HISTOGRAM {
+		if _, ok := mfs[newName+"_bucket"]; ok {
+			return fmt.Errorf(
+				"collected histogram named %q collides with previously collected metric named %q",
+				newName, newName+"_bucket",
+			)
+		}
+	}
+	return nil
 }
 
 // checkMetricConsistency checks if the provided Metric is consistent with the
