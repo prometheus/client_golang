@@ -37,6 +37,7 @@ type Counter interface {
 	// Inc increments the counter by 1. Use Add to increment it by arbitrary
 	// non-negative values.
 	Inc()
+
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
