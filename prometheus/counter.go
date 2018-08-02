@@ -72,7 +72,6 @@ type counter struct {
 	// in the struct to guarantee alignment for atomic operations.
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	valBits uint64
-	valInt  uint64
 
 	selfCollector
 	desc *Desc
@@ -88,11 +87,6 @@ func (c *counter) Add(v float64) {
 	if v < 0 {
 		panic(errors.New("counter cannot decrease in value"))
 	}
-	ival := uint64(v)
-	if float64(ival) == v {
-		atomic.AddUint64(&c.valInt, ival)
-		return
-	}
 
 	for {
 		oldBits := atomic.LoadUint64(&c.valBits)
@@ -104,14 +98,11 @@ func (c *counter) Add(v float64) {
 }
 
 func (c *counter) Inc() {
-	atomic.AddUint64(&c.valInt, 1)
+	c.Add(1)
 }
 
 func (c *counter) Write(out *dto.Metric) error {
-	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
-	ival := atomic.LoadUint64(&c.valInt)
-	val := fval + float64(ival)
-
+	val := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	return populateMetric(CounterValue, val, c.labelPairs, out)
 }
 
