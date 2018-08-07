@@ -307,7 +307,7 @@ func InstrumentHandlerFuncWithOpts(opts SummaryOpts, handlerFunc func(http.Respo
 }
 
 func computeApproximateRequestSize(r *http.Request) <-chan int {
-	// Get URL length in current go routine for avoiding a race condition.
+	// Get URL length in current goroutine for avoiding a race condition.
 	// HandlerFunc that runs in parallel may modify the URL.
 	s := 0
 	if r.URL != nil {
