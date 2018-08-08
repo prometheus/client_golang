@@ -74,7 +74,7 @@ func NewProcessCollectorPIDFn(
 			nil, nil,
 		),
 		maxVsize: NewDesc(
-			ns+"process_max_virtual_memory_bytes",
+			ns+"process_virtual_memory_max_bytes",
 			"Maximum amount of virtual memory available in bytes.",
 			nil, nil,
 		),
