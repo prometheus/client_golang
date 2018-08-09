@@ -79,15 +79,15 @@ func (v *valueFunc) Write(out *dto.Metric) error {
 // the Collect method. NewConstMetric returns an error if the length of
 // labelValues is not consistent with the variable labels in Desc.
 func NewConstMetric(desc *Desc, valueType ValueType, value float64, labelValues ...string) (Metric, error) {
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
-		return nil, err
-	}
-	return &constMetric{
-		desc:       desc,
-		valType:    valueType,
-		val:        value,
-		labelPairs: makeLabelPairs(desc, labelValues),
-	}, nil
+	return newConstMetric(desc, valueType, value, nil, labelValues...)
+}
+
+// NewConstMetricWithTimestamp returns a metric similar to NewConstMetric
+// except that the timestamp is set. It should be used only for very specific
+// use cases such as exposing metrics coming from push-based systems and for
+// which it it important to retain the original timestamp.
+func NewConstMetricWithTimestamp(desc *Desc, valueType ValueType, value float64, ts int64, labelValues ...string) (Metric, error) {
+	return newConstMetric(desc, valueType, value, &ts, labelValues...)
 }
 
 // MustNewConstMetric is a version of NewConstMetric that panics where
@@ -100,11 +100,35 @@ func MustNewConstMetric(desc *Desc, valueType ValueType, value float64, labelVal
 	return m
 }
 
+// MustNewConstMetricWithTimestamp is a version of NewConstMetricWithTimestamp
+// that panics where NewConstMetricWithTimestamp would have returned an error.
+func MustNewConstMetricWithTimestamp(desc *Desc, valueType ValueType, value float64, ts int64, labelValues ...string) Metric {
+	m, err := NewConstMetricWithTimestamp(desc, valueType, value, ts, labelValues...)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+func newConstMetric(desc *Desc, valueType ValueType, value float64, ts *int64, labelValues ...string) (*constMetric, error) {
+	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
+		return nil, err
+	}
+	return &constMetric{
+		desc:       desc,
+		valType:    valueType,
+		val:        value,
+		ts:         ts,
+		labelPairs: makeLabelPairs(desc, labelValues),
+	}, nil
+}
+
 type constMetric struct {
 	desc       *Desc
 	valType    ValueType
 	val        float64
 	labelPairs []*dto.LabelPair
+	ts         *int64
 }
 
 func (m *constMetric) Desc() *Desc {
@@ -112,12 +136,22 @@ func (m *constMetric) Desc() *Desc {
 }
 
 func (m *constMetric) Write(out *dto.Metric) error {
-	return populateMetric(m.valType, m.val, m.labelPairs, out)
+	return populateMetricWithTimestamp(m.valType, m.val, m.ts, m.labelPairs, out)
 }
 
 func populateMetric(
 	t ValueType,
 	v float64,
+	labelPairs []*dto.LabelPair,
+	m *dto.Metric,
+) error {
+	return populateMetricWithTimestamp(t, v, nil, labelPairs, m)
+}
+
+func populateMetricWithTimestamp(
+	t ValueType,
+	v float64,
+	ts *int64,
 	labelPairs []*dto.LabelPair,
 	m *dto.Metric,
 ) error {
@@ -132,6 +166,7 @@ func populateMetric(
 	default:
 		return fmt.Errorf("encountered unknown type %v", t)
 	}
+	m.TimestampMs = ts
 	return nil
 }
 
