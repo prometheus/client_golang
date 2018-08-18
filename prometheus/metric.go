@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+
 	dto "github.com/prometheus/client_model/go"
 )
 
