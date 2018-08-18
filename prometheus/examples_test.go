@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -750,4 +751,37 @@ temperature_kelvin 4.5
 	// temperature_kelvin 4.5
 	// temperature_kelvin{location="inside"} 298.44
 	// temperature_kelvin{location="outside"} 273.14
+}
+
+func ExampleNewMetricWithTimestamp() {
+	desc := prometheus.NewDesc(
+		"temperature_kelvin",
+		"Current temperature in Kelvin.",
+		nil, nil,
+	)
+
+	// Create a constant gauge from values we got from an external
+	// temperature reporting system. Those values are reported with a slight
+	// delay, so we want to add the timestamp of the actual measurement.
+	temperatureReportedByExternalSystem := 298.15
+	timeReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)
+	s := prometheus.NewMetricWithTimestamp(
+		timeReportedByExternalSystem,
+		prometheus.MustNewConstMetric(
+			desc, prometheus.GaugeValue, temperatureReportedByExternalSystem,
+		),
+	)
+
+	// Just for demonstration, let's check the state of the gauge by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(proto.MarshalTextString(metric))
+
+	// Output:
+	// gauge: <
+	//   value: 298.15
+	// >
+	// timestamp_ms: 1257894000012
 }
