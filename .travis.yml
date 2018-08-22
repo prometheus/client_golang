@@ -8,4 +8,5 @@ go:
   - 1.10.x
 
 script:
+  - make check_license
   - go test -short ./...
