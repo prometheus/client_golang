@@ -22,7 +22,8 @@ func TestGatherAndCompare(t *testing.T) {
 	c.Inc()
 
 	expected := `
-		some_total{label1="value1"} 1
+
+		some_total{ label1 = "value1" } 1
 	`
 
 	if err := GatherAndCompare(c, metadata+expected, "some_total"); err != nil {

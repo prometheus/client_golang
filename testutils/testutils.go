@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -32,8 +31,6 @@ import (
 // to an expected output in the Prometheus text exposition format.
 // metricNames allows only comparing the given metrics. All are compared if it's nil.
 func GatherAndCompare(c prometheus.Collector, expected string, metricNames ...string) error {
-	expected = removeUnusedWhitespace(expected)
-
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
 		return fmt.Errorf("registering collector failed: %s", err)
@@ -98,26 +95,6 @@ func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFam
 		}
 	}
 	return filtered
-}
-
-func removeUnusedWhitespace(s string) string {
-	var (
-		trimmedLine  string
-		trimmedLines []string
-		lines        = strings.Split(s, "\n")
-	)
-
-	for _, l := range lines {
-		trimmedLine = strings.TrimSpace(l)
-
-		if len(trimmedLine) > 0 {
-			trimmedLines = append(trimmedLines, trimmedLine)
-		}
-	}
-
-	// The Prometheus metrics representation parser expects an empty line at the
-	// end otherwise fails with an unexpected EOF error.
-	return strings.Join(trimmedLines, "\n") + "\n"
 }
 
 // The below sorting code is copied form the Prometheus client library modulo the added
