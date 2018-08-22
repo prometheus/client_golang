@@ -16,6 +16,7 @@ package testutil
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"reflect"
 	"sort"
 
@@ -26,15 +27,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// GatherAndCompare retrieves all metrics exposed by a collector and compares it
-// to an expected output in the Prometheus text exposition format.
-// metricNames allows only comparing the given metrics. All are compared if it's nil.
-func GatherAndCompare(c prometheus.Collector, expected string, metricNames ...string) error {
+// CollectAndCompare registers the provided Collector with a newly created
+// pedantic Registry. It then does the same as GatherAndCompare, gathering the
+// metrics from the pedantic Registry.
+func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
 		return fmt.Errorf("registering collector failed: %s", err)
 	}
-	metrics, err := reg.Gather()
+	return GatherAndCompare(reg, expected, metricNames...)
+}
+
+// GatherAndCompare gathers all metrics from the provided Gatherer and compares
+// it to an expected output read from the provided Reader in the Prometheus text
+// exposition format. If any metricNames are provided, only metrics with those
+// names are compared.
+func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
+	metrics, err := g.Gather()
 	if err != nil {
 		return fmt.Errorf("gathering metrics failed: %s", err)
 	}
@@ -42,13 +51,13 @@ func GatherAndCompare(c prometheus.Collector, expected string, metricNames ...st
 		metrics = filterMetrics(metrics, metricNames)
 	}
 	var tp expfmt.TextParser
-	expectedMetrics, err := tp.TextToMetricFamilies(bytes.NewReader([]byte(expected)))
+	expectedMetrics, err := tp.TextToMetricFamilies(expected)
 	if err != nil {
 		return fmt.Errorf("parsing expected metrics failed: %s", err)
 	}
 
 	if !reflect.DeepEqual(metrics, normalizeMetricFamilies(expectedMetrics)) {
-		// Encode the gathered output to the readbale text format for comparison.
+		// Encode the gathered output to the readable text format for comparison.
 		var buf1 bytes.Buffer
 		enc := expfmt.NewEncoder(&buf1, expfmt.FmtText)
 		for _, mf := range metrics {
@@ -82,15 +91,11 @@ got:
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
 	var filtered []*dto.MetricFamily
 	for _, m := range metrics {
-		drop := true
 		for _, name := range names {
 			if m.GetName() == name {
-				drop = false
+				filtered = append(filtered, m)
 				break
 			}
-		}
-		if !drop {
-			filtered = append(filtered, m)
 		}
 	}
 	return filtered

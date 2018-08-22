@@ -1,4 +1,4 @@
-// Copyright 2018 he Prometheus Authors
+// Copyright 2018 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -14,12 +14,13 @@
 package testutil
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestGatherAndCompare(t *testing.T) {
+func TestCollectAndCompare(t *testing.T) {
 	const metadata = `
 		# HELP some_total A value that represents a counter.
 		# TYPE some_total counter
@@ -39,7 +40,7 @@ func TestGatherAndCompare(t *testing.T) {
 		some_total{ label1 = "value1" } 1
 	`
 
-	if err := GatherAndCompare(c, metadata+expected, "some_total"); err != nil {
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -63,7 +64,7 @@ func TestNoMetricFilter(t *testing.T) {
 		some_total{label1="value1"} 1
 	`
 
-	if err := GatherAndCompare(c, metadata+expected); err != nil {
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected)); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -103,7 +104,7 @@ some_total{label1="value1"} 1
 
 `
 
-	err := GatherAndCompare(c, metadata+expected)
+	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
 	if err == nil {
 		t.Error("Expected error, got no error.")
 	}
