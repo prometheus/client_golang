@@ -14,6 +14,9 @@
 include Makefile.common
 
 .PHONY: get_dep
-getdep:
+get_dep:
 	@echo ">> getting dependencies" 
 	$(GO) get -t ./...
+
+.PHONY: test
+test: get_dep common-test
