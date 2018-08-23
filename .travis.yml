@@ -8,4 +8,4 @@ go:
   - 1.10.x
 
 script:
-  - go test -short ./...
+  - make check_license get_dep test-short
