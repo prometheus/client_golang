@@ -9,5 +9,4 @@ go:
 
 script:
   - make check_license style unused test
-  - echo $TRAVIS_GO_VERSION
-  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.(7|8)\.[0-9]+$ ]]; then make staticcheck; fi
+  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.(7|8)\.[x0-9]+$ ]]; then make staticcheck; fi
