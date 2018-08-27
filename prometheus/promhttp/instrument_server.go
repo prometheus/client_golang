@@ -322,23 +322,23 @@ func computeApproximateRequestSize(r *http.Request) int {
 func sanitizeMethod(m string) string {
 	switch m {
 	case "GET", "get":
-		return "get"
+		return "GET"
 	case "PUT", "put":
-		return "put"
+		return "PUT"
 	case "HEAD", "head":
-		return "head"
+		return "HEAD"
 	case "POST", "post":
-		return "post"
+		return "POST"
 	case "DELETE", "delete":
-		return "delete"
+		return "DELETE"
 	case "CONNECT", "connect":
-		return "connect"
+		return "CONNECT"
 	case "OPTIONS", "options":
-		return "options"
+		return "OPTIONS"
 	case "NOTIFY", "notify":
-		return "notify"
+		return "NOTIFY"
 	default:
-		return strings.ToLower(m)
+		return strings.ToUpper(m)
 	}
 }
 
