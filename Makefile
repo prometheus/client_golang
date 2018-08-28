@@ -20,3 +20,6 @@ get_dep:
 
 .PHONY: test
 test: get_dep common-test
+
+.PHONY: test-short
+test-short: get_dep common-test-short
