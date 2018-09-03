@@ -156,7 +156,7 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 			Value: proto.String(v),
 		})
 	}
-	sort.Sort(LabelPairSorter(d.constLabelPairs))
+	sort.Sort(labelPairSorter(d.constLabelPairs))
 	return d
 }
 

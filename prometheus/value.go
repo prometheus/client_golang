@@ -153,6 +153,6 @@ func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		})
 	}
 	labelPairs = append(labelPairs, desc.constLabelPairs...)
-	sort.Sort(LabelPairSorter(labelPairs))
+	sort.Sort(labelPairSorter(labelPairs))
 	return labelPairs
 }

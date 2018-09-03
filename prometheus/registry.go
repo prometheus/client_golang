@@ -819,7 +819,7 @@ func checkMetricConsistency(
 	h = hashAddByte(h, separatorByte)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
-	sort.Sort(LabelPairSorter(dtoMetric.Label))
+	sort.Sort(labelPairSorter(dtoMetric.Label))
 	for _, lp := range dtoMetric.Label {
 		h = hashAdd(h, lp.GetName())
 		h = hashAddByte(h, separatorByte)
@@ -863,7 +863,7 @@ func checkDescConsistency(
 			metricFamily.GetName(), dtoMetric, desc,
 		)
 	}
-	sort.Sort(LabelPairSorter(lpsFromDesc))
+	sort.Sort(labelPairSorter(lpsFromDesc))
 	for i, lpFromDesc := range lpsFromDesc {
 		lpFromMetric := dtoMetric.Label[i]
 		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
