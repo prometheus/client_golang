@@ -19,7 +19,6 @@ import (
 	"math"
 	"net/http"
 	"runtime"
-	"sort"
 	"strings"
 	"time"
 
@@ -166,19 +165,6 @@ func ExampleInstrumentHandler() {
 	http.Handle("/metrics", prometheus.InstrumentHandler(
 		"metrics", prometheus.UninstrumentedHandler(),
 	))
-}
-
-func ExampleLabelPairSorter() {
-	labelPairs := []*dto.LabelPair{
-		{Name: proto.String("status"), Value: proto.String("404")},
-		{Name: proto.String("method"), Value: proto.String("get")},
-	}
-
-	sort.Sort(prometheus.LabelPairSorter(labelPairs))
-
-	fmt.Println(labelPairs)
-	// Output:
-	// [name:"method" value:"get"  name:"status" value:"404" ]
 }
 
 func ExampleRegister() {
