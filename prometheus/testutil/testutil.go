@@ -11,6 +11,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package testutil provides helpers to test code using the prometheus package
+// of client_golang.
+//
+// While writing unit tests to verify correct instrumentation of your code, it's
+// a common mistake to mostly test the instrumentation library instead of your
+// own code. Rather than verifying that a prometheus.Counter's value has changed
+// as expected or that it shows up in the exposition after registration, it is
+// in general more robust and more faithful to the concept of unit tests to use
+// mock implementations of the prometheus.Counter and prometheus.Registerer
+// interfaces that simply assert that the Add or Register methods have been
+// called with the expected arguments. However, this might be overkill in simple
+// scenarios. The ToFloat64 function is provided for simple inspection of a
+// single-value metric, but it has to be used with caution.
+//
+// End-to-end tests to verify all or larger parts of the metrics exposition can
+// be implemented with the CollectAndCompare or GatherAndCompare functions. The
+// most appropriate use is not so much testing instrumentation of your code, but
+// testing custom prometheus.Collector implementations and in particular whole
+// exporters, i.e. programs that retrieve telemetry data from a 3rd party source
+// and convert it into Prometheus metrics.
 package testutil
 
 import (
@@ -26,6 +46,68 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
 )
+
+// ToFloat64 collects all Metrics from the provided Collector. It expects that
+// this results in exactly one Metric being collected, which must be a Gauge,
+// Counter, or Untyped. In all other cases, ToFloat64 panics. ToFloat64 returns
+// the value of the collected Metric.
+//
+// The Collector provided is typically a simple instance of Gauge or Counter, or
+// – less commonly – a GaugeVec or CounterVec with exactly one element. But any
+// Collector fulfilling the prerequisites described above will do.
+//
+// Use this function with caution. It is computationally very expensive and thus
+// not suited at all to read values from Metrics in regular code. This is really
+// only for testing purposes, and even for testing, other approaches are often
+// more appropriate (see this package's documentation).
+//
+// A clear anti-pattern would be to use a metric type from the prometheus
+// package to track values that are also needed for something else than the
+// exposition of Prometheus metrics. For example, you would like to track the
+// number of items in a queue because your code should reject queuing further
+// items if a certain limit is reached. It is tempting to track the number of
+// items in a prometheus.Gauge, as it is then easily available as a metric for
+// exposition, too. However, then you would need to call ToFloat64 in your
+// regular code, potentially quite often. The recommended way is to track the
+// number of items conventionally (in the way you would have done it without
+// considering Prometheus metrics) and then expose the number with a
+// prometheus.GaugeFunc.
+func ToFloat64(c prometheus.Collector) float64 {
+	var (
+		m      prometheus.Metric
+		mCount int
+		mChan  = make(chan prometheus.Metric)
+		done   = make(chan struct{})
+	)
+
+	go func() {
+		for m = range mChan {
+			mCount++
+		}
+		close(done)
+	}()
+
+	c.Collect(mChan)
+	close(mChan)
+	<-done
+
+	if mCount != 1 {
+		panic(fmt.Errorf("collected %d metrics instead of exactly 1", mCount))
+	}
+
+	pb := &dto.Metric{}
+	m.Write(pb)
+	if pb.Gauge != nil {
+		return pb.Gauge.GetValue()
+	}
+	if pb.Counter != nil {
+		return pb.Counter.GetValue()
+	}
+	if pb.Untyped != nil {
+		return pb.Untyped.GetValue()
+	}
+	panic(fmt.Errorf("collected a non-gauge/counter/untyped metric: %s", pb))
+}
 
 // CollectAndCompare registers the provided Collector with a newly created
 // pedantic Registry. It then does the same as GatherAndCompare, gathering the
