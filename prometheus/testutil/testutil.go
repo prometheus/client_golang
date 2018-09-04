@@ -11,6 +11,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package testutil provides helpers to test code using the prometheus package
+// of client_golang.
+//
+// While writing unit tests to verify correct instrumentation of your code, it's
+// a common mistake to mostly test the instrumentation library instead of your
+// own code. Rather than verifying that a prometheus.Counter's value has changed
+// as expected or that it shows up in the exposition after registration, it is
+// in general more robust and more faithful to the concept of unit tests to use
+// mock implementations of the prometheus.Counter and prometheus.Registerer
+// interfaces that simply assert that the Add or Register methods have been
+// called with the expected arguments. However, this might be overkill in simple
+// scenarios. The ToFloat64 function is provided for simple inspection of a
+// single-value metric, but it has to be used with caution.
+//
+// End-to-end tests to verify all or larger parts of the metrics exposition can
+// be implemented with the CollectAndCompare or GatherAndCompare functions. The
+// most appropriate use is not so much testing instrumentation of your code, but
+// testing custom prometheus.Collector implementations and in particular whole
+// exporters, i.e. programs that retrieve telemetry data from a 3rd party source
+// and convert it into Prometheus metrics.
 package testutil
 
 import (
