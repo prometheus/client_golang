@@ -358,7 +358,7 @@ func TestHistogramAtomicObserve(t *testing.T) {
 
 	defer func() { close(quit) }()
 
-	go func() {
+	observe := func() {
 		for {
 			select {
 			case <-quit:
@@ -367,7 +367,11 @@ func TestHistogramAtomicObserve(t *testing.T) {
 				his.Observe(1)
 			}
 		}
-	}()
+	}
+
+	go observe()
+	go observe()
+	go observe()
 
 	for i := 0; i < 100; i++ {
 		m := &dto.Metric{}
@@ -376,10 +380,12 @@ func TestHistogramAtomicObserve(t *testing.T) {
 		}
 		h := m.GetHistogram()
 		if h.GetSampleCount() != uint64(h.GetSampleSum()) ||
-			h.GetSampleCount() != h.GetBucket()[1].GetCumulativeCount() {
+			h.GetSampleCount() != h.GetBucket()[1].GetCumulativeCount() ||
+			h.GetSampleCount() != h.GetBucket()[2].GetCumulativeCount() {
 			t.Fatalf(
-				"inconsistent counts in histogram: count=%d sum=%f bucket=%d",
-				h.GetSampleCount(), h.GetSampleSum(), h.GetBucket()[1].GetCumulativeCount(),
+				"inconsistent counts in histogram: count=%d sum=%f buckets=[%d, %d]",
+				h.GetSampleCount(), h.GetSampleSum(),
+				h.GetBucket()[1].GetCumulativeCount(), h.GetBucket()[2].GetCumulativeCount(),
 			)
 		}
 		runtime.Gosched()
