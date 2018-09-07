@@ -16,7 +16,6 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"runtime"
 	"sort"
 	"strings"
@@ -54,7 +53,7 @@ var (
 )
 
 func init() {
-	MustRegister(NewProcessCollector(os.Getpid(), ""))
+	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
 	MustRegister(NewGoCollector())
 }
 
