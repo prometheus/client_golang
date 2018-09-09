@@ -539,6 +539,11 @@ func processMetric(
 	registeredDescIDs map[uint64]struct{},
 ) error {
 	desc := metric.Desc()
+	// Wrapped metrics collected by an unchecked Collector can have an
+	// invalid Desc.
+	if desc.err != nil {
+		return desc.err
+	}
 	dtoMetric := &dto.Metric{}
 	if err := metric.Write(dtoMetric); err != nil {
 		return fmt.Errorf("error collecting metric %v: %s", desc, err)
