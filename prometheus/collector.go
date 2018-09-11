@@ -81,6 +81,8 @@ type Collector interface {
 // it might even get registered as an unchecked Collecter (cf. the Register
 // method of the Registerer interface). Hence, only use this shortcut
 // implementation of Describe if you are certain to fulfill the contract.
+//
+// The Collector example demonstrates a use of DescribeByCollect.
 func DescribeByCollect(c Collector, descs chan<- *Desc) {
 	metrics := make(chan Metric)
 	go func() {

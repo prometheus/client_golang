@@ -30,6 +30,8 @@ import (
 //
 // WrapWith provides a way to add fixed labels to a subset of Collectors. It
 // should not be used to add fixed labels to all metrics exposed.
+//
+// The Collector example demonstrates a use of WrapWith.
 func WrapWith(labels Labels, reg Registerer) Registerer {
 	return &wrappingRegisterer{
 		wrappedRegisterer: reg,
