@@ -111,7 +111,7 @@ func NewClusterManager(zone string, reg prometheus.Registerer) *ClusterManager {
 		Zone: zone,
 	}
 	cc := ClusterManagerCollector{ClusterManager: c}
-	prometheus.WrapWith(prometheus.Labels{"zone": zone}, reg).MustRegister(cc)
+	prometheus.WrapRegistererWith(prometheus.Labels{"zone": zone}, reg).MustRegister(cc)
 	return c
 }
 

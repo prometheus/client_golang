@@ -275,9 +275,9 @@ func TestWrap(t *testing.T) {
 					t.Fatal("error registering with unwrapped registry:", err)
 				}
 			}
-			preReg := WrapWithPrefix(s.prefix, reg)
-			lReg := WrapWith(s.labels, preReg)
-			l2Reg := WrapWith(s.labels2, preReg)
+			preReg := WrapRegistererWithPrefix(s.prefix, reg)
+			lReg := WrapRegistererWith(s.labels, preReg)
+			l2Reg := WrapRegistererWith(s.labels2, preReg)
 			for i, tr := range s.toRegister {
 				var err error
 				if i%2 != 0 && len(s.labels2) != 0 {

@@ -22,32 +22,33 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// WrapWith returns a Registerer wrapping the provided Registerer. Collectors
-// registered with the returned Registerer will be registered with the wrapped
-// Registerer in a modified way. The modified Collector adds the provided Labels
-// to all Metrics it collects (as ConstLabels). The Metrics collected by the
-// unmodified Collector must not duplicate any of those labels.
+// WrapRegistererWith returns a Registerer wrapping the provided
+// Registerer. Collectors registered with the returned Registerer will be
+// registered with the wrapped Registerer in a modified way. The modified
+// Collector adds the provided Labels to all Metrics it collects (as
+// ConstLabels). The Metrics collected by the unmodified Collector must not
+// duplicate any of those labels.
 //
-// WrapWith provides a way to add fixed labels to a subset of Collectors. It
-// should not be used to add fixed labels to all metrics exposed.
+// WrapRegistererWith provides a way to add fixed labels to a subset of
+// Collectors. It should not be used to add fixed labels to all metrics exposed.
 //
-// The Collector example demonstrates a use of WrapWith.
-func WrapWith(labels Labels, reg Registerer) Registerer {
+// The Collector example demonstrates a use of WrapRegistererWith.
+func WrapRegistererWith(labels Labels, reg Registerer) Registerer {
 	return &wrappingRegisterer{
 		wrappedRegisterer: reg,
 		labels:            labels,
 	}
 }
 
-// WrapWithPrefix returns a Registerer wrapping the provided Registerer. Collectors
-// registered with the returned Registerer will be registered with the wrapped
-// Registerer in a modified way. The modified Collector adds the provided prefix
-// to the name of all Metrics it collects.
+// WrapRegistererWithPrefix returns a Registerer wrapping the provided
+// Registerer. Collectors registered with the returned Registerer will be
+// registered with the wrapped Registerer in a modified way. The modified
+// Collector adds the provided prefix to the name of all Metrics it collects.
 //
-// WrapWithPrefix is useful to have one place to prefix all metrics of a
-// sub-system. To make this work, register metrics of the sub-system with the
-// wrapping Registerer returned by WrapWithPrefix.
-func WrapWithPrefix(prefix string, reg Registerer) Registerer {
+// WrapRegistererWithPrefix is useful to have one place to prefix all metrics of
+// a sub-system. To make this work, register metrics of the sub-system with the
+// wrapping Registerer returned by WrapRegistererWithPrefix.
+func WrapRegistererWithPrefix(prefix string, reg Registerer) Registerer {
 	return &wrappingRegisterer{
 		wrappedRegisterer: reg,
 		prefix:            prefix,
