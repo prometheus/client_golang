@@ -47,7 +47,13 @@ func WrapRegistererWith(labels Labels, reg Registerer) Registerer {
 //
 // WrapRegistererWithPrefix is useful to have one place to prefix all metrics of
 // a sub-system. To make this work, register metrics of the sub-system with the
-// wrapping Registerer returned by WrapRegistererWithPrefix.
+// wrapping Registerer returned by WrapRegistererWithPrefix. It is rarely useful
+// to use the same prefix for all metrics exposed. In particular, do not prefix
+// metric names that are standardized across applications, as that would break
+// horizontal monitoring, for example the metrics provided by the Go collector
+// (see NewGoCollector) and the process collector (see NewProcessCollector). (In
+// fact, those metrics are already prefixed with “go_” or “process_”,
+// respectively.)
 func WrapRegistererWithPrefix(prefix string, reg Registerer) Registerer {
 	return &wrappingRegisterer{
 		wrappedRegisterer: reg,
