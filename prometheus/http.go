@@ -149,21 +149,14 @@ var now nower = nowFunc(func() time.Time {
 // (label name "method") and HTTP status code (label name "code").
 //
 // Deprecated: InstrumentHandler has several issues. Use the tooling provided in
-// package promhttp instead. The issues are the following:
-//
-// - It uses Summaries rather than Histograms. Summaries are not useful if
-// aggregation across multiple instances is required.
-//
-// - It uses microseconds as unit, which is deprecated and should be replaced by
-// seconds.
-//
-// - The size of the request is calculated in a separate goroutine. Since this
-// calculator requires access to the request header, it creates a race with
-// any writes to the header performed during request handling.
-// httputil.ReverseProxy is a prominent example for a handler
-// performing such writes.
-//
-// - It has additional issues with HTTP/2, cf.
+// package promhttp instead. The issues are the following: (1) It uses Summaries
+// rather than Histograms. Summaries are not useful if aggregation across
+// multiple instances is required. (2) It uses microseconds as unit, which is
+// deprecated and should be replaced by seconds. (3) The size of the request is
+// calculated in a separate goroutine. Since this calculator requires access to
+// the request header, it creates a race with any writes to the header performed
+// during request handling.  httputil.ReverseProxy is a prominent example for a
+// handler performing such writes. (4) It has additional issues with HTTP/2, cf.
 // https://github.com/prometheus/client_golang/issues/272.
 func InstrumentHandler(handlerName string, handler http.Handler) http.HandlerFunc {
 	return InstrumentHandlerFunc(handlerName, handler.ServeHTTP)
