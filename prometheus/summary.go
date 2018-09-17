@@ -81,10 +81,10 @@ const (
 )
 
 // SummaryOpts bundles the options for creating a Summary metric. It is
-// mandatory to set Name and Help to a non-empty string. While all other fields
-// are optional and can safely be left at their zero value, it is recommended to
-// explicitly set the Objectives field to the desired value as the default value
-// will change in the upcoming v0.10 of the library.
+// mandatory to set Name to a non-empty string. While all other fields are
+// optional and can safely be left at their zero value, it is recommended to set
+// a help string and to explicitly set the Objectives field to the desired value
+// as the default value will change in the upcoming v0.10 of the library.
 type SummaryOpts struct {
 	// Namespace, Subsystem, and Name are components of the fully-qualified
 	// name of the Summary (created by joining these components with
@@ -95,7 +95,7 @@ type SummaryOpts struct {
 	Subsystem string
 	Name      string
 
-	// Help provides information about this Summary. Mandatory!
+	// Help provides information about this Summary.
 	//
 	// Metrics with the same fully-qualified name must have the same Help
 	// string.

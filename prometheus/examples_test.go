@@ -89,37 +89,6 @@ func ExampleGaugeFunc() {
 	// GaugeFunc 'goroutines_count' registered.
 }
 
-func ExampleCounter() {
-	pushCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "repository_pushes", // Note: No help string...
-	})
-	err := prometheus.Register(pushCounter) // ... so this will return an error.
-	if err != nil {
-		fmt.Println("Push counter couldn't be registered, no counting will happen:", err)
-		return
-	}
-
-	// Try it once more, this time with a help string.
-	pushCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "repository_pushes",
-		Help: "Number of pushes to external repository.",
-	})
-	err = prometheus.Register(pushCounter)
-	if err != nil {
-		fmt.Println("Push counter couldn't be registered AGAIN, no counting will happen:", err)
-		return
-	}
-
-	pushComplete := make(chan struct{})
-	// TODO: Start a goroutine that performs repository pushes and reports
-	// each completion via the channel.
-	for range pushComplete {
-		pushCounter.Inc()
-	}
-	// Output:
-	// Push counter couldn't be registered, no counting will happen: descriptor Desc{fqName: "repository_pushes", help: "", constLabels: {}, variableLabels: []} is invalid: empty help string
-}
-
 func ExampleCounterVec() {
 	httpReqs := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
