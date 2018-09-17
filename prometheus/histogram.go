@@ -110,8 +110,9 @@ func ExponentialBuckets(start, factor float64, count int) []float64 {
 }
 
 // HistogramOpts bundles the options for creating a Histogram metric. It is
-// mandatory to set Name and Help to a non-empty string. All other fields are
-// optional and can safely be left at their zero value.
+// mandatory to set Name to a non-empty string. All other fields are optional
+// and can safely be left at their zero value, although it is strongly
+// encouraged to set a Help string.
 type HistogramOpts struct {
 	// Namespace, Subsystem, and Name are components of the fully-qualified
 	// name of the Histogram (created by joining these components with
@@ -122,7 +123,7 @@ type HistogramOpts struct {
 	Subsystem string
 	Name      string
 
-	// Help provides information about this Histogram. Mandatory!
+	// Help provides information about this Histogram.
 	//
 	// Metrics with the same fully-qualified name must have the same Help
 	// string.
@@ -554,7 +555,7 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 // bucket.
 //
 // NewConstHistogram returns an error if the length of labelValues is not
-// consistent with the variable labels in Desc.
+// consistent with the variable labels in Desc or if Desc is invalid.
 func NewConstHistogram(
 	desc *Desc,
 	count uint64,
@@ -562,6 +563,9 @@ func NewConstHistogram(
 	buckets map[float64]uint64,
 	labelValues ...string,
 ) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
 	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
 		return nil, err
 	}
