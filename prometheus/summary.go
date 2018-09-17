@@ -586,7 +586,7 @@ func (s *constSummary) Write(out *dto.Metric) error {
 //     map[float64]float64{0.5: 0.23, 0.99: 0.56}
 //
 // NewConstSummary returns an error if the length of labelValues is not
-// consistent with the variable labels in Desc.
+// consistent with the variable labels in Desc or if Desc is invalid.
 func NewConstSummary(
 	desc *Desc,
 	count uint64,
@@ -594,6 +594,9 @@ func NewConstSummary(
 	quantiles map[float64]float64,
 	labelValues ...string,
 ) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
 	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
 		return nil, err
 	}
