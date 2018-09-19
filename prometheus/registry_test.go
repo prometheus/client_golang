@@ -671,7 +671,7 @@ collected metric named "complex_count" collides with previously collected histog
 		handler(writer, request)
 
 		for key, value := range scenario.out.headers {
-			if writer.HeaderMap.Get(key) != value {
+			if writer.Header().Get(key) != value {
 				t.Errorf(
 					"%d. expected %q for header %q, got %q",
 					i, value, key, writer.Header().Get(key),
