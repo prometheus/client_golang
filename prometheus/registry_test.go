@@ -330,7 +330,10 @@ collected metric named "complex_count" collides with previously collected histog
 			},
 		},
 	}
-	duplicateLabelMsg := []byte(`duplicate label mumble mumble`)
+	duplicateLabelMsg := []byte(`An error has occurred during metrics gathering:
+
+collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"foo" value:"baz" > counter:<value:2.7 > } has two or more labels with the same name: foo
+`)
 
 	type output struct {
 		headers map[string]string
@@ -675,7 +678,7 @@ collected metric named "complex_count" collides with previously collected histog
 			},
 			out: output{
 				headers: map[string]string{
-					"Content-Type": `text/plain; version=0.0.4; charset=utf-8`,
+					"Content-Type": `text/plain; charset=utf-8`,
 				},
 				body: duplicateLabelMsg,
 			},
