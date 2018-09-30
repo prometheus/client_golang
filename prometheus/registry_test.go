@@ -308,6 +308,29 @@ collected metric named "complex_count" collides with previously collected summar
 
 collected metric named "complex_count" collides with previously collected histogram named "complex"
 `)
+	externalMetricFamilyWithDuplicateLabel := &dto.MetricFamily{
+		Name: proto.String("broken_metric"),
+		Help: proto.String("The registry should detect the duplicate label."),
+		Type: dto.MetricType_COUNTER.Enum(),
+		Metric: []*dto.Metric{
+			{
+				Label: []*dto.LabelPair{
+					{
+						Name:  proto.String("foo"),
+						Value: proto.String("bar"),
+					},
+					{
+						Name:  proto.String("foo"),
+						Value: proto.String("baz"),
+					},
+				},
+				Counter: &dto.Counter{
+					Value: proto.Float64(2.7),
+				},
+			},
+		},
+	}
+	duplicateLabelMsg := []byte(`duplicate label mumble mumble`)
 
 	type output struct {
 		headers map[string]string
@@ -644,6 +667,20 @@ collected metric named "complex_count" collides with previously collected histog
 			collector: summary,
 			externalMF: []*dto.MetricFamily{
 				externalMetricFamilyWithBucketSuffix,
+			},
+		},
+		{ // 22
+			headers: map[string]string{
+				"Accept": "text/plain",
+			},
+			out: output{
+				headers: map[string]string{
+					"Content-Type": `text/plain; version=0.0.4; charset=utf-8`,
+				},
+				body: duplicateLabelMsg,
+			},
+			externalMF: []*dto.MetricFamily{
+				externalMetricFamilyWithDuplicateLabel,
 			},
 		},
 	}
