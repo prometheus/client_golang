@@ -477,7 +477,7 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 
 	var result apiResponse
 
-	if 204 != code {
+	if http.StatusNoContent != code {
 		if err = json.Unmarshal(body, &result); err != nil {
 			return resp, body, &Error{
 				Type: ErrBadResponse,
