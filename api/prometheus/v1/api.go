@@ -477,10 +477,12 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 
 	var result apiResponse
 
-	if err = json.Unmarshal(body, &result); err != nil {
-		return resp, body, &Error{
-			Type: ErrBadResponse,
-			Msg:  err.Error(),
+	if 204 != code {
+		if err = json.Unmarshal(body, &result); err != nil {
+			return resp, body, &Error{
+				Type: ErrBadResponse,
+				Msg:  err.Error(),
+			}
 		}
 	}
 
