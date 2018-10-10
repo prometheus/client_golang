@@ -738,14 +738,8 @@ func BenchmarkHandler(b *testing.B) {
 	}
 }
 
-func TestRegisterWithOrGet(t *testing.T) {
-	// Replace the default registerer just to be sure. This is bad, but this
-	// whole test will go away once RegisterOrGet is removed.
-	oldRegisterer := prometheus.DefaultRegisterer
-	defer func() {
-		prometheus.DefaultRegisterer = oldRegisterer
-	}()
-	prometheus.DefaultRegisterer = prometheus.NewRegistry()
+func TestAlreadyRegistered(t *testing.T) {
+	reg := prometheus.NewRegistry()
 	original := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "test",
@@ -761,11 +755,11 @@ func TestRegisterWithOrGet(t *testing.T) {
 		[]string{"foo", "bar"},
 	)
 	var err error
-	if err = prometheus.Register(original); err != nil {
+	if err = reg.Register(original); err != nil {
 		t.Fatal(err)
 	}
-	if err = prometheus.Register(equalButNotSame); err == nil {
-		t.Fatal("expected error when registringe equal collector")
+	if err = reg.Register(equalButNotSame); err == nil {
+		t.Fatal("expected error when registering equal collector")
 	}
 	if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
 		if are.ExistingCollector != original {
