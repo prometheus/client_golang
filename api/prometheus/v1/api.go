@@ -69,8 +69,9 @@ const (
 
 // Error is an error returned by the API.
 type Error struct {
-	Type ErrorType
-	Msg  string
+	Type   ErrorType
+	Msg    string
+	Detail string
 }
 
 func (e *Error) Error() string {
@@ -470,8 +471,9 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 
 	if code/100 != 2 && !apiError(code) {
 		return resp, body, &Error{
-			Type: ErrBadResponse,
-			Msg:  fmt.Sprintf("bad response code %d", resp.StatusCode),
+			Type:   ErrBadResponse,
+			Msg:    fmt.Sprintf("bad response code %d", resp.StatusCode),
+			Detail: string(body),
 		}
 	}
 

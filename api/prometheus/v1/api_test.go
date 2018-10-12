@@ -30,15 +30,17 @@ import (
 )
 
 type apiTest struct {
-	do    func() (interface{}, error)
-	inErr error
-	inRes interface{}
+	do     func() (interface{}, error)
+	inErr  error
+	inCode int
+	inRes  interface{}
 
 	reqPath   string
 	reqParam  url.Values
 	reqMethod string
 	res       interface{}
 	err       error
+	errCheck  func(error) error
 }
 
 type apiTestClient struct {
@@ -75,7 +77,9 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	}
 
 	resp := &http.Response{}
-	if test.inErr != nil {
+	if test.inCode != 0 {
+		resp.StatusCode = test.inCode
+	} else if test.inErr != nil {
 		resp.StatusCode = statusAPIError
 	} else {
 		resp.StatusCode = http.StatusOK
@@ -193,6 +197,30 @@ func TestAPIs(t *testing.T) {
 				"time":  []string{testTime.Format(time.RFC3339Nano)},
 			},
 			err: fmt.Errorf("some error"),
+		},
+		{
+			do:     doQuery("2", testTime),
+			inRes:  "some body",
+			inCode: 500,
+			inErr: &Error{
+				Type:   ErrBadResponse,
+				Msg:    "bad response code: 500",
+				Detail: "a body",
+			},
+
+			reqMethod: "GET",
+			reqPath:   "/api/v1/query",
+			reqParam: url.Values{
+				"query": []string{"2"},
+				"time":  []string{testTime.Format(time.RFC3339Nano)},
+			},
+			errCheck: func(err error) error {
+				apiErr := err.(*Error)
+				if apiErr.Detail != "a body" {
+					return fmt.Errorf("%q should be %q", apiErr.Detail, "a body")
+				}
+				return nil
+			},
 		},
 
 		{
@@ -503,7 +531,13 @@ func TestAPIs(t *testing.T) {
 
 		res, err := test.do()
 
-		if test.err != nil {
+		if test.errCheck != nil {
+			err = test.errCheck(err)
+			if err != nil {
+				t.Errorf("returned error is wrong: %s", err)
+			}
+			continue
+		} else if test.err != nil {
 			if err == nil {
 				t.Errorf("expected error %q but got none", test.err)
 				continue
