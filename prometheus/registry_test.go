@@ -256,8 +256,9 @@ collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"la
 `)
 
 	summary := prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "complex",
-		Help: "A metric to check collisions with _sum and _count.",
+		Name:       "complex",
+		Help:       "A metric to check collisions with _sum and _count.",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
 	summaryAsText := []byte(`# HELP complex A metric to check collisions with _sum and _count.
 # TYPE complex summary
