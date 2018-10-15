@@ -706,12 +706,12 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 			registry.MustRegister(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
-		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
+		handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
 		}
-		handler(writer, request)
+		handler.ServeHTTP(writer, request)
 
 		for key, value := range scenario.out.headers {
 			if writer.Header().Get(key) != value {

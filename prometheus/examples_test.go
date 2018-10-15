@@ -28,6 +28,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func ExampleGauge() {
@@ -117,25 +118,6 @@ func ExampleCounterVec() {
 	httpReqs.Delete(prometheus.Labels{"method": "GET", "code": "200"})
 }
 
-func ExampleInstrumentHandler() {
-	// Handle the "/doc" endpoint with the standard http.FileServer handler.
-	// By wrapping the handler with InstrumentHandler, request count,
-	// request and response sizes, and request latency are automatically
-	// exported to Prometheus, partitioned by HTTP status code and method
-	// and by the handler name (here "fileserver").
-	http.Handle("/doc", prometheus.InstrumentHandler(
-		"fileserver", http.FileServer(http.Dir("/usr/share/doc")),
-	))
-	// The Prometheus handler still has to be registered to handle the
-	// "/metrics" endpoint. The handler returned by prometheus.Handler() is
-	// already instrumented - with "prometheus" as the handler name. In this
-	// example, we want the handler name to be "metrics", so we instrument
-	// the uninstrumented Prometheus handler ourselves.
-	http.Handle("/metrics", prometheus.InstrumentHandler(
-		"metrics", prometheus.UninstrumentedHandler(),
-	))
-}
-
 func ExampleRegister() {
 	// Imagine you have a worker pool and want to count the tasks completed.
 	taskCounter := prometheus.NewCounter(prometheus.CounterOpts{
@@ -151,7 +133,7 @@ func ExampleRegister() {
 	}
 	// Don't forget to tell the HTTP server about the Prometheus handler.
 	// (In a real program, you still need to start the HTTP server...)
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	// Now you can start workers and give every one of them a pointer to
 	// taskCounter and let it increment it whenever it completes a task.
