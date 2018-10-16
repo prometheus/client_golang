@@ -426,8 +426,8 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 // any observations.
 //
 // Keeping the Summary for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Clear, DeleteLabelValues and
-// Delete can be used to delete the Summary from the SummaryVec. In that case,
+// performance is critical), but keep in mind that Clear, RemoveLabelValues and
+// Remove can be used to remove the Summary from the SummaryVec. In that case,
 // the Summary will still exist, but it will not be exported anymore, even if a
 // Summary with the same label values is created later. See also the CounterVec
 // example.

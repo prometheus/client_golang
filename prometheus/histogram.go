@@ -409,16 +409,16 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 // values (same order as the VariableLabels in Desc). If that combination of
 // label values is accessed for the first time, a new Histogram is created.
 //
-// It is possible to call this method without using the returned Histogram to only
-// create the new Histogram but leave it at its starting value, a Histogram without
-// any observations.
+// It is possible to call this method without using the returned Histogram to
+// only create the new Histogram but leave it at its starting value, a Histogram
+// without any observations.
 //
 // Keeping the Histogram for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Clear, DeleteLabelValues and
-// Delete can be used to delete the Histogram from the HistogramVec. In that case, the
-// Histogram will still exist, but it will not be exported anymore, even if a
-// Histogram with the same label values is created later. See also the CounterVec
-// example.
+// performance is critical), but keep in mind that Clear, RemoveLabelValues and
+// Remove can be used to remove the Histogram from the HistogramVec. In that
+// case, the Histogram will still exist, but it will not be exported anymore,
+// even if a Histogram with the same label values is created later. See also the
+// CounterVec example.
 //
 // An error is returned if the number of label values is not the same as the
 // number of VariableLabels in Desc (minus any curried labels).

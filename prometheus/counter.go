@@ -154,8 +154,8 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 // SummaryVec example.
 //
 // Keeping the Counter for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Clear, DeleteLabelValues and
-// Delete can be used to delete the Counter from the CounterVec. In that case,
+// performance is critical), but keep in mind that Clear, RemoveLabelValues and
+// Remove can be used to remove the Counter from the CounterVec. In that case,
 // the Counter will still exist, but it will not be exported anymore, even if a
 // Counter with the same label values is created later.
 //

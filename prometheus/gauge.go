@@ -165,8 +165,8 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 // SummaryVec example.
 //
 // Keeping the Gauge for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Reset, DeleteLabelValues and
-// Delete can be used to delete the Gauge from the GaugeVec. In that case, the
+// performance is critical), but keep in mind that Clear, RemoveLabelValues and
+// Remove can be used to remove the Gauge from the GaugeVec. In that case, the
 // Gauge will still exist, but it will not be exported anymore, even if a
 // Gauge with the same label values is created later. See also the CounterVec
 // example.
@@ -241,7 +241,7 @@ func (v *GaugeVec) With(labels Labels) Gauge {
 // The metrics contained in the GaugeVec are shared between the curried and
 // uncurried vectors. They are just accessed differently. Curried and uncurried
 // vectors behave identically in terms of collection. Only one must be
-// registered with a given registry (usually the uncurried version). The Reset
+// registered with a given registry (usually the uncurried version). The Clear
 // method deletes all metrics, even if called on a curried vector.
 func (v *GaugeVec) CurryWith(labels Labels) (*GaugeVec, error) {
 	vec, err := v.curryWith(labels)

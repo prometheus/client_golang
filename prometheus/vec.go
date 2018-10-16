@@ -48,9 +48,9 @@ func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
 	}
 }
 
-// DeleteLabelValues removes the metric where the variable labels are the same
+// RemoveLabelValues removes the metric where the variable labels are the same
 // as those passed in as labels (same order as the VariableLabels in Desc). It
-// returns true if a metric was deleted.
+// returns true if a metric was removed.
 //
 // It is not an error if the number of label values is not the same as the
 // number of VariableLabels in Desc. However, such inconsistent label count can
@@ -58,37 +58,37 @@ func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
 // case.
 //
 // Note that for more than one label value, this method is prone to mistakes
-// caused by an incorrect order of arguments. Consider Delete(Labels) as an
+// caused by an incorrect order of arguments. Consider Remove(Labels) as an
 // alternative to avoid that type of mistake. For higher label numbers, the
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the CounterVec example.
-func (m *metricVec) DeleteLabelValues(lvs ...string) bool {
+func (m *metricVec) RemoveLabelValues(lvs ...string) bool {
 	h, err := m.hashLabelValues(lvs)
 	if err != nil {
 		return false
 	}
 
-	return m.metricMap.deleteByHashWithLabelValues(h, lvs, m.curry)
+	return m.metricMap.removeByHashWithLabelValues(h, lvs, m.curry)
 }
 
-// Delete deletes the metric where the variable labels are the same as those
-// passed in as labels. It returns true if a metric was deleted.
+// Remove removes the metric where the variable labels are the same as those
+// passed in as labels. It returns true if a metric was removed.
 //
 // It is not an error if the number and names of the Labels are inconsistent
 // with those of the VariableLabels in Desc. However, such inconsistent Labels
 // can never match an actual metric, so the method will always return false in
 // that case.
 //
-// This method is used for the same purpose as DeleteLabelValues(...string). See
+// This method is used for the same purpose as RemoveLabelValues(...string). See
 // there for pros and cons of the two methods.
-func (m *metricVec) Delete(labels Labels) bool {
+func (m *metricVec) Remove(labels Labels) bool {
 	h, err := m.hashLabels(labels)
 	if err != nil {
 		return false
 	}
 
-	return m.metricMap.deleteByHashWithLabels(h, labels, m.curry)
+	return m.metricMap.removeByHashWithLabels(h, labels, m.curry)
 }
 
 func (m *metricVec) curryWith(labels Labels) (*metricVec, error) {
@@ -234,7 +234,7 @@ func (m *metricMap) Collect(ch chan<- Metric) {
 	}
 }
 
-// Clear deletes all metrics in this vector.
+// Clear removes all metrics from this vector.
 func (m *metricMap) Clear() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -244,10 +244,10 @@ func (m *metricMap) Clear() {
 	}
 }
 
-// deleteByHashWithLabelValues removes the metric from the hash bucket h. If
+// removeByHashWithLabelValues removes the metric from the hash bucket h. If
 // there are multiple matches in the bucket, use lvs to select a metric and
 // remove only that metric.
-func (m *metricMap) deleteByHashWithLabelValues(
+func (m *metricMap) removeByHashWithLabelValues(
 	h uint64, lvs []string, curry []curriedLabelValue,
 ) bool {
 	m.mtx.Lock()
@@ -271,10 +271,10 @@ func (m *metricMap) deleteByHashWithLabelValues(
 	return true
 }
 
-// deleteByHashWithLabels removes the metric from the hash bucket h. If there
+// removeByHashWithLabels removes the metric from the hash bucket h. If there
 // are multiple matches in the bucket, use lvs to select a metric and remove
 // only that metric.
-func (m *metricMap) deleteByHashWithLabels(
+func (m *metricMap) removeByHashWithLabels(
 	h uint64, labels Labels, curry []curriedLabelValue,
 ) bool {
 	m.mtx.Lock()

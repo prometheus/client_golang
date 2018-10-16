@@ -109,13 +109,13 @@ func ExampleCounterVec() {
 	for i := 0; i < 1000000; i++ {
 		m.Inc()
 	}
-	// Delete a metric from the vector. If you have previously kept a handle
+	// Remove a metric from the vector. If you have previously kept a handle
 	// to that metric (as above), future updates via that handle will go
 	// unseen (even if you re-create a metric with the same label set
 	// later).
-	httpReqs.DeleteLabelValues("200", "GET")
+	httpReqs.RemoveLabelValues("200", "GET")
 	// Same thing with the more verbose Labels syntax.
-	httpReqs.Delete(prometheus.Labels{"method": "GET", "code": "200"})
+	httpReqs.Remove(prometheus.Labels{"method": "GET", "code": "200"})
 }
 
 func ExampleRegister() {

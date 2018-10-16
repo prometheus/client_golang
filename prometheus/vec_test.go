@@ -20,7 +20,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-func TestDelete(t *testing.T) {
+func TestRemove(t *testing.T) {
 	vec := NewGaugeVec(
 		GaugeOpts{
 			Name: "test",
@@ -28,64 +28,10 @@ func TestDelete(t *testing.T) {
 		},
 		[]string{"l1", "l2"},
 	)
-	testDelete(t, vec)
+	testRemove(t, vec)
 }
 
-func TestDeleteWithCollisions(t *testing.T) {
-	vec := NewGaugeVec(
-		GaugeOpts{
-			Name: "test",
-			Help: "helpless",
-		},
-		[]string{"l1", "l2"},
-	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
-	testDelete(t, vec)
-}
-
-func testDelete(t *testing.T, vec *GaugeVec) {
-	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), true; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.Delete(Labels{"l2": "v2", "l1": "v1"}), true; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-	if got, want := vec.Delete(Labels{"l2": "v2", "l1": "v1"}), false; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.Delete(Labels{"l2": "v1", "l1": "v2"}), false; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-	if got, want := vec.Delete(Labels{"l1": "v1"}), false; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-}
-
-func TestDeleteLabelValues(t *testing.T) {
-	vec := NewGaugeVec(
-		GaugeOpts{
-			Name: "test",
-			Help: "helpless",
-		},
-		[]string{"l1", "l2"},
-	)
-	testDeleteLabelValues(t, vec)
-}
-
-func TestDeleteLabelValuesWithCollisions(t *testing.T) {
+func TestRemoveWithCollisions(t *testing.T) {
 	vec := NewGaugeVec(
 		GaugeOpts{
 			Name: "test",
@@ -95,32 +41,86 @@ func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 	)
 	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
 	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
-	testDeleteLabelValues(t, vec)
+	testRemove(t, vec)
 }
 
-func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
-	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
+func testRemove(t *testing.T, vec *GaugeVec) {
+	if got, want := vec.Remove(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	if got, want := vec.Remove(Labels{"l1": "v1", "l2": "v2"}), true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := vec.Remove(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	if got, want := vec.Remove(Labels{"l2": "v2", "l1": "v1"}), true; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := vec.Remove(Labels{"l2": "v2", "l1": "v1"}), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	if got, want := vec.Remove(Labels{"l2": "v1", "l1": "v2"}), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := vec.Remove(Labels{"l1": "v1"}), false; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+func TestRemoveLabelValues(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
+	testRemoveLabelValues(t, vec)
+}
+
+func TestRemoveLabelValuesWithCollisions(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	testRemoveLabelValues(t, vec)
+}
+
+func testRemoveLabelValues(t *testing.T, vec *GaugeVec) {
+	if got, want := vec.RemoveLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Gauge).Set(42) // Add junk data for collision.
-	if got, want := vec.DeleteLabelValues("v1", "v2"), true; got != want {
+	if got, want := vec.RemoveLabelValues("v1", "v2"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
+	if got, want := vec.RemoveLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	if got, want := vec.DeleteLabelValues("v1", "v3"), true; got != want {
+	if got, want := vec.RemoveLabelValues("v1", "v3"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	// Delete out of order.
-	if got, want := vec.DeleteLabelValues("v2", "v1"), false; got != want {
+	// Remove out of order.
+	if got, want := vec.RemoveLabelValues("v2", "v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	if got, want := vec.DeleteLabelValues("v1"), false; got != want {
+	if got, want := vec.RemoveLabelValues("v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
@@ -305,10 +305,10 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("1", "2", "3").Inc()
 		c2.With(Labels{"one": "11", "two": "22", "three": "33"}).Inc()
 		assertMetrics(t)
-		if !c1.Delete(Labels{"one": "1", "two": "2", "three": "3"}) {
+		if !c1.Remove(Labels{"one": "1", "two": "2", "three": "3"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("11", "22", "33") {
+		if !c2.RemoveLabelValues("11", "22", "33") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -319,16 +319,16 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("2", "3").Inc()
 		c2.With(Labels{"two": "22", "three": "33"}).Inc()
 		assertMetrics(t)
-		if c1.Delete(Labels{"two": "22", "three": "33"}) {
+		if c1.Remove(Labels{"two": "22", "three": "33"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if c2.DeleteLabelValues("2", "3") {
+		if c2.RemoveLabelValues("2", "3") {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"two": "2", "three": "3"}) {
+		if !c1.Remove(Labels{"two": "2", "three": "3"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("22", "33") {
+		if !c2.RemoveLabelValues("22", "33") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -339,16 +339,16 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("1", "3").Inc()
 		c2.With(Labels{"one": "11", "three": "33"}).Inc()
 		assertMetrics(t)
-		if c1.Delete(Labels{"one": "11", "three": "33"}) {
+		if c1.Remove(Labels{"one": "11", "three": "33"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if c2.DeleteLabelValues("1", "3") {
+		if c2.RemoveLabelValues("1", "3") {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"one": "1", "three": "3"}) {
+		if !c1.Remove(Labels{"one": "1", "three": "3"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("11", "33") {
+		if !c2.RemoveLabelValues("11", "33") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -359,16 +359,16 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("1", "2").Inc()
 		c2.With(Labels{"one": "11", "two": "22"}).Inc()
 		assertMetrics(t)
-		if c1.Delete(Labels{"two": "22", "one": "11"}) {
+		if c1.Remove(Labels{"two": "22", "one": "11"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if c2.DeleteLabelValues("1", "2") {
+		if c2.RemoveLabelValues("1", "2") {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"two": "2", "one": "1"}) {
+		if !c1.Remove(Labels{"two": "2", "one": "1"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("11", "22") {
+		if !c2.RemoveLabelValues("11", "22") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -379,16 +379,16 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("2").Inc()
 		c2.With(Labels{"two": "22"}).Inc()
 		assertMetrics(t)
-		if c1.Delete(Labels{"two": "22"}) {
+		if c1.Remove(Labels{"two": "22"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if c2.DeleteLabelValues("2") {
+		if c2.RemoveLabelValues("2") {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"two": "2"}) {
+		if !c1.Remove(Labels{"two": "2"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("22") {
+		if !c2.RemoveLabelValues("22") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -399,10 +399,10 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues().Inc()
 		c2.With(nil).Inc()
 		assertMetrics(t)
-		if !c1.Delete(Labels{}) {
+		if !c1.Remove(Labels{}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues() {
+		if !c2.RemoveLabelValues() {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -413,16 +413,16 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		c1.WithLabelValues("2").Inc()
 		c2.With(Labels{"two": "22"}).Inc()
 		assertMetrics(t)
-		if c1.Delete(Labels{"two": "22"}) {
+		if c1.Remove(Labels{"two": "22"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if c2.DeleteLabelValues("2") {
+		if c2.RemoveLabelValues("2") {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"two": "2"}) {
+		if !c1.Remove(Labels{"two": "2"}) {
 			t.Error("deletion failed")
 		}
-		if !c2.DeleteLabelValues("22") {
+		if !c2.RemoveLabelValues("22") {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
@@ -437,10 +437,10 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		}
 		assertNoMetric(t)
 		c1.WithLabelValues("1", "2").Inc()
-		if c1.Delete(Labels{"one": "1", "two": "2", "three": "3"}) {
+		if c1.Remove(Labels{"one": "1", "two": "2", "three": "3"}) {
 			t.Error("deletion unexpectedly succeeded")
 		}
-		if !c1.Delete(Labels{"one": "1", "two": "2"}) {
+		if !c1.Remove(Labels{"one": "1", "two": "2"}) {
 			t.Error("deletion failed")
 		}
 		assertNoMetric(t)
