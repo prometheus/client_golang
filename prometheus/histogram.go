@@ -414,7 +414,7 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 // any observations.
 //
 // Keeping the Histogram for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Reset, DeleteLabelValues and
+// performance is critical), but keep in mind that Clear, DeleteLabelValues and
 // Delete can be used to delete the Histogram from the HistogramVec. In that case, the
 // Histogram will still exist, but it will not be exported anymore, even if a
 // Histogram with the same label values is created later. See also the CounterVec
@@ -491,7 +491,7 @@ func (v *HistogramVec) With(labels Labels) Observer {
 // The metrics contained in the HistogramVec are shared between the curried and
 // uncurried vectors. They are just accessed differently. Curried and uncurried
 // vectors behave identically in terms of collection. Only one must be
-// registered with a given registry (usually the uncurried version). The Reset
+// registered with a given registry (usually the uncurried version). The Clear
 // method deletes all metrics, even if called on a curried vector.
 func (v *HistogramVec) CurryWith(labels Labels) (ObserverVec, error) {
 	vec, err := v.curryWith(labels)

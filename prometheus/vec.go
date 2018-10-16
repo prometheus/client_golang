@@ -234,8 +234,8 @@ func (m *metricMap) Collect(ch chan<- Metric) {
 	}
 }
 
-// Reset deletes all metrics in this vector.
-func (m *metricMap) Reset() {
+// Clear deletes all metrics in this vector.
+func (m *metricMap) Clear() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 

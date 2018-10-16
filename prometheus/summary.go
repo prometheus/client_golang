@@ -426,7 +426,7 @@ func NewSummaryVec(opts SummaryOpts, labelNames []string) *SummaryVec {
 // any observations.
 //
 // Keeping the Summary for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Reset, DeleteLabelValues and
+// performance is critical), but keep in mind that Clear, DeleteLabelValues and
 // Delete can be used to delete the Summary from the SummaryVec. In that case,
 // the Summary will still exist, but it will not be exported anymore, even if a
 // Summary with the same label values is created later. See also the CounterVec
@@ -503,7 +503,7 @@ func (v *SummaryVec) With(labels Labels) Observer {
 // The metrics contained in the SummaryVec are shared between the curried and
 // uncurried vectors. They are just accessed differently. Curried and uncurried
 // vectors behave identically in terms of collection. Only one must be
-// registered with a given registry (usually the uncurried version). The Reset
+// registered with a given registry (usually the uncurried version). The Clear
 // method deletes all metrics, even if called on a curried vector.
 func (v *SummaryVec) CurryWith(labels Labels) (ObserverVec, error) {
 	vec, err := v.curryWith(labels)

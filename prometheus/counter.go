@@ -154,7 +154,7 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 // SummaryVec example.
 //
 // Keeping the Counter for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Reset, DeleteLabelValues and
+// performance is critical), but keep in mind that Clear, DeleteLabelValues and
 // Delete can be used to delete the Counter from the CounterVec. In that case,
 // the Counter will still exist, but it will not be exported anymore, even if a
 // Counter with the same label values is created later.
@@ -230,7 +230,7 @@ func (v *CounterVec) With(labels Labels) Counter {
 // The metrics contained in the CounterVec are shared between the curried and
 // uncurried vectors. They are just accessed differently. Curried and uncurried
 // vectors behave identically in terms of collection. Only one must be
-// registered with a given registry (usually the uncurried version). The Reset
+// registered with a given registry (usually the uncurried version). The Clear
 // method deletes all metrics, even if called on a curried vector.
 func (v *CounterVec) CurryWith(labels Labels) (*CounterVec, error) {
 	vec, err := v.curryWith(labels)

@@ -150,7 +150,7 @@ func TestMetricVecWithCollisions(t *testing.T) {
 }
 
 func testMetricVec(t *testing.T, vec *GaugeVec) {
-	vec.Reset() // Actually test Reset now!
+	vec.Clear() // Actually test Clear now!
 
 	var pair [2]string
 	// Keep track of metrics.
@@ -199,7 +199,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 		t.Fatalf("unexpected number of metrics: %v != %v", total, len(expected))
 	}
 
-	vec.Reset()
+	vec.Clear()
 
 	if len(vec.metricMap.metrics) > 0 {
 		t.Fatalf("reset failed")
