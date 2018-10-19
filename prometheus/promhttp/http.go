@@ -59,6 +59,12 @@ var gzipPool = sync.Pool{
 	},
 }
 
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return &bytes.Buffer{}
+	},
+}
+
 // Handler returns an http.Handler for the prometheus.DefaultGatherer, using
 // default HandlerOpts, i.e. it reports the first error as an HTTP error, it has
 // no error logging, and it applies compression if requested by the client.
@@ -103,7 +109,6 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 				return
 			}
 		}
-
 		mfs, err := reg.Gather()
 		if err != nil {
 			if opts.ErrorLog != nil {
@@ -124,8 +129,11 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 		}
 
 		contentType := expfmt.Negotiate(req.Header)
-		buf := &bytes.Buffer{}
+		buf := bufPool.Get().(*bytes.Buffer)
+		buf.Reset()
 		enc := expfmt.NewEncoder(buf, contentType)
+
+		defer bufPool.Put(buf)
 
 		var lastErr error
 		for _, mf := range mfs {
@@ -150,45 +158,30 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 			http.Error(w, "No metrics encoded, last error:\n\n"+lastErr.Error(), http.StatusInternalServerError)
 			return
 		}
+		header := w.Header()
+		header.Set(contentTypeHeader, string(contentType))
+		header.Set(contentLengthHeader, fmt.Sprint(buf.Len()))
 
-		w.Header().Set(contentTypeHeader, string(contentType))
+		if !opts.DisableCompression && gzipAccepted(req.Header) {
+			header.Set(contentEncodingHeader, "gzip")
+			gz := gzipPool.Get().(*gzip.Writer)
+			defer gzipPool.Put(gz)
 
-		if _, err := w.Write(buf.Bytes()); err != nil && opts.ErrorLog != nil {
-			opts.ErrorLog.Println("error while sending encoded metrics:", err)
+			gz.Reset(w)
+			defer gz.Close()
+
+			zipWriter := gzipResponseWriter{gz, w}
+			writeResult(zipWriter, buf, opts)
+			return
 		}
+		writeResult(w, buf, opts)
 		// TODO(beorn7): Consider streaming serving of metrics.
 	})
 
-	gzipHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if opts.DisableCompression {
-			h.ServeHTTP(w, req)
-			return
-		}
-		header := req.Header.Get(acceptEncodingHeader)
-		parts := strings.Split(header, ",")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if part == "gzip" || strings.HasPrefix(part, "gzip;") {
-
-				w.Header().Set(contentEncodingHeader, "gzip")
-				gz := gzipPool.Get().(*gzip.Writer)
-				defer gzipPool.Put(gz)
-
-				gz.Reset(w)
-				defer gz.Close()
-
-				h.ServeHTTP(gzipResponseWriter{gz, w}, req)
-				return
-			}
-		}
-		h.ServeHTTP(w, req)
-		return
-	})
-
 	if opts.Timeout <= 0 {
-		return gzipHandler
+		return h
 	}
-	return http.TimeoutHandler(gzipHandler, opts.Timeout, fmt.Sprintf(
+	return http.TimeoutHandler(h, opts.Timeout, fmt.Sprintf(
 		"Exceeded configured timeout of %v.\n",
 		opts.Timeout,
 	))
@@ -312,4 +305,27 @@ type gzipResponseWriter struct {
 
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+// writeResult to buf using http.ResponseWriter.
+// If ErrorLog is enabled, err is logged in.
+func writeResult(w http.ResponseWriter, buf *bytes.Buffer, opts HandlerOpts) {
+	if _, err := w.Write(buf.Bytes()); err != nil && opts.ErrorLog != nil {
+		opts.ErrorLog.Println("error while sending encoded metrics:", err)
+	}
+}
+
+// gzipHandler return a http.HandlerFunc in charge of compressing the content
+// of the given http.HandlerFunc
+func gzipAccepted(header http.Header) bool {
+
+	a := header.Get(acceptEncodingHeader)
+	parts := strings.Split(a, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
+			return true
+		}
+	}
+	return false
 }
