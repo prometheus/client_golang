@@ -18,6 +18,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -30,17 +31,16 @@ import (
 )
 
 type apiTest struct {
-	do     func() (interface{}, error)
-	inErr  error
-	inCode int
-	inRes  interface{}
+	do           func() (interface{}, error)
+	inErr        error
+	inStatusCode int
+	inRes        interface{}
 
 	reqPath   string
 	reqParam  url.Values
 	reqMethod string
 	res       interface{}
 	err       error
-	errCheck  func(error) error
 }
 
 type apiTestClient struct {
@@ -77,8 +77,8 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	}
 
 	resp := &http.Response{}
-	if test.inCode != 0 {
-		resp.StatusCode = test.inCode
+	if test.inStatusCode != 0 {
+		resp.StatusCode = test.inStatusCode
 	} else if test.inErr != nil {
 		resp.StatusCode = statusAPIError
 	} else {
@@ -199,13 +199,13 @@ func TestAPIs(t *testing.T) {
 			err: fmt.Errorf("some error"),
 		},
 		{
-			do:     doQuery("2", testTime),
-			inRes:  "some body",
-			inCode: 500,
+			do:           doQuery("2", testTime),
+			inRes:        "some body",
+			inStatusCode: 500,
 			inErr: &Error{
 				Type:   ErrBadResponse,
 				Msg:    "bad response code: 500",
-				Detail: "a body",
+				Detail: "some body",
 			},
 
 			reqMethod: "GET",
@@ -214,13 +214,7 @@ func TestAPIs(t *testing.T) {
 				"query": []string{"2"},
 				"time":  []string{testTime.Format(time.RFC3339Nano)},
 			},
-			errCheck: func(err error) error {
-				apiErr := err.(*Error)
-				if apiErr.Detail != "a body" {
-					return fmt.Errorf("%q should be %q", apiErr.Detail, "a body")
-				}
-				return nil
-			},
+			err: errors.New("bad_response: bad response code: 500"),
 		},
 
 		{
@@ -531,19 +525,18 @@ func TestAPIs(t *testing.T) {
 
 		res, err := test.do()
 
-		if test.errCheck != nil {
-			err = test.errCheck(err)
-			if err != nil {
-				t.Errorf("returned error is wrong: %s", err)
-			}
-			continue
-		} else if test.err != nil {
+		if test.err != nil {
 			if err == nil {
 				t.Errorf("expected error %q but got none", test.err)
 				continue
 			}
 			if err.Error() != test.err.Error() {
 				t.Errorf("unexpected error: want %s, got %s", test.err, err)
+			}
+			if apiErr, ok := err.(*Error); ok {
+				if apiErr.Detail != test.inRes {
+					t.Errorf("%q should be %q", apiErr.Detail, test.inRes)
+				}
 			}
 			continue
 		}
