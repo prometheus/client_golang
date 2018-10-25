@@ -546,8 +546,7 @@ func TestAPIs(t *testing.T) {
 
 			if test.err != nil {
 				if err == nil {
-					t.Errorf("expected error %q but got none", test.err)
-					return
+					t.Fatalf("expected error %q but got none", test.err)
 				}
 				if err.Error() != test.err.Error() {
 					t.Errorf("unexpected error: want %s, got %s", test.err, err)
@@ -560,8 +559,7 @@ func TestAPIs(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Errorf("unexpected error: %s", err)
-				return
+				t.Fatalf("unexpected error: %s", err)
 			}
 
 			if !reflect.DeepEqual(res, test.res) {
@@ -743,23 +741,21 @@ func TestAPIClientDo(t *testing.T) {
 
 			if test.expectedErr != nil {
 				if err == nil {
-					t.Errorf("expected error %q but got none", test.expectedErr)
-					return
+					t.Fatalf("expected error %q but got none", test.expectedErr)
 				}
 				if test.expectedErr.Error() != err.Error() {
 					t.Errorf("unexpected error: want %q, got %q", test.expectedErr, err)
 				}
 				if test.expectedErr.Detail != "" {
-					apiERr := err.(*Error)
-					if apiERr.Detail != test.expectedErr.Detail {
-						t.Errorf("unexpected error details: want %q, got %q", test.expectedErr.Detail, apiERr.Detail)
+					apiErr := err.(*Error)
+					if apiErr.Detail != test.expectedErr.Detail {
+						t.Errorf("unexpected error details: want %q, got %q", test.expectedErr.Detail, apiErr.Detail)
 					}
 				}
 				return
 			}
 			if err != nil {
-				t.Errorf("unexpeceted error %s", err)
-				return
+				t.Fatalf("unexpeceted error %s", err)
 			}
 
 			want, got := test.expectedBody, string(body)
