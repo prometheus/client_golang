@@ -40,6 +40,8 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
+	// Set sets the Gauge to an arbitrary value.
+	Set(float64)
 }
 
 // CounterOpts is an alias for Opts. See there for doc comments.
@@ -82,6 +84,10 @@ type counter struct {
 
 func (c *counter) Desc() *Desc {
 	return c.desc
+}
+
+func (c *counter) Set(val float64) {
+	atomic.StoreUint64(&c.valBits, math.Float64bits(val))
 }
 
 func (c *counter) Add(v float64) {
