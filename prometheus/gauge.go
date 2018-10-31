@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"sync/atomic"
 	"time"

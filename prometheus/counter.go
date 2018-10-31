@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"sync/atomic"
 
