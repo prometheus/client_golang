@@ -148,7 +148,7 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 	return &GaugeVec{
 		metricVec: newMetricVec(desc, func(lvs ...string) Metric {
 			if len(lvs) != len(desc.variableLabels) {
-				err := fmt.Errorf("%s: labels and values for '%s' don't match: labels %v, values %v", errInconsistentCardinality, desc.fqName, desc.variableLabels, labelValues)
+				err := fmt.Errorf("%s: labels and values for '%s' don't match: labels %v, values %v", errInconsistentCardinality, desc.fqName, desc.variableLabels, lvs)
 				panic(err)
 			}
 			result := &gauge{desc: desc, labelPairs: makeLabelPairs(desc, lvs)}
