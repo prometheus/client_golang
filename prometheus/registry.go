@@ -562,7 +562,7 @@ func (r *Registry) WriteToTextfile(path string) error {
 			case dto.MetricType_GAUGE:
 				value := strconv.FormatFloat(metric.GetGauge().GetValue(), 'f', -1, 64)
 				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				output = append(output, fmt.Sprintf("%s%s %is%s", metricFamily.GetName(), labelString, value, timestampString))
+				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
 			case dto.MetricType_UNTYPED:
 				value := strconv.FormatFloat(metric.GetUntyped().GetValue(), 'f', -1, 64)
 				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
