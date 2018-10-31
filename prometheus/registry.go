@@ -533,6 +533,50 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
+func (r *Registry) WriteToTextfile(path string) error {
+	metricFamilies, err := r.Gather()
+	if err != nil {
+		return err
+	}
+	output := []string{}
+	for _, metricFamily := range metricFamilies {
+		output = append(output, fmt.Sprintf("# HELP %s %s", metricFamily.GetName(), metricFamily.GetHelp()))
+		output = append(output, fmt.Sprintf("# TYPE %s %s", metricFamily.GetName(), metricFamily.GetType().String()))
+		for _, metric := range metricFamily.GetMetric() {
+			labelString := ""
+			if metric.GetLabel() != nil {
+				labelStrings := []string{}
+				for _, labelPair := range metric.GetLabel() {
+					labelStrings = append(labelStrings, fmt.Sprintf("%s=\"%s\"", labelPair.GetName(), labelPair.GetValue()))
+				}
+				labelString = fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+			}
+			timestampString := ""
+			if metric.TimestampMs != nil {
+				timestampString = fmt.Sprintf(" %d", int(float64(metric.GetTimestampMs())*1000))
+			}
+			var value float64
+			switch metricFamily.GetType() {
+			case dto.MetricType_COUNTER:
+				value = metric.GetCounter().GetValue()
+			case dto.MetricType_GAUGE:
+				value = metric.GetGauge().GetValue()
+			case dto.MetricType_SUMMARY:
+				//value = metric.GetSummary().GetValue()
+				//what to do here
+			case dto.MetricType_HISTOGRAM:
+				//same
+				//value = metric.GetHistogram().GetValue()
+			case dto.MetricType_UNTYPED:
+				value = metric.GetUntyped().GetValue()
+			}
+			output = append(output, fmt.Sprintf("%s%s %f%s", metricFamily.GetName(), labelString, value, timestampString))
+		}
+	}
+	fmt.Println(strings.Join(output, "\n"))
+	return nil
+}
+
 // processMetric is an internal helper method only used by the Gather method.
 func processMetric(
 	metric Metric,
