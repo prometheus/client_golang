@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -543,34 +544,56 @@ func (r *Registry) WriteToTextfile(path string) error {
 		output = append(output, fmt.Sprintf("# HELP %s %s", metricFamily.GetName(), metricFamily.GetHelp()))
 		output = append(output, fmt.Sprintf("# TYPE %s %s", metricFamily.GetName(), metricFamily.GetType().String()))
 		for _, metric := range metricFamily.GetMetric() {
-			labelString := ""
+			labelStrings := []string{}
 			if metric.GetLabel() != nil {
-				labelStrings := []string{}
 				for _, labelPair := range metric.GetLabel() {
 					labelStrings = append(labelStrings, fmt.Sprintf("%s=\"%s\"", labelPair.GetName(), labelPair.GetValue()))
 				}
-				labelString = fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
 			}
 			timestampString := ""
 			if metric.TimestampMs != nil {
 				timestampString = fmt.Sprintf(" %d", int(float64(metric.GetTimestampMs())*1000))
 			}
-			var value float64
 			switch metricFamily.GetType() {
 			case dto.MetricType_COUNTER:
-				value = metric.GetCounter().GetValue()
+				value := strconv.FormatFloat(metric.GetCounter().GetValue(), 'f', -1, 64)
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
 			case dto.MetricType_GAUGE:
-				value = metric.GetGauge().GetValue()
-			case dto.MetricType_SUMMARY:
-				//value = metric.GetSummary().GetValue()
-				//what to do here
-			case dto.MetricType_HISTOGRAM:
-				//same
-				//value = metric.GetHistogram().GetValue()
+				value := strconv.FormatFloat(metric.GetGauge().GetValue(), 'f', -1, 64)
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+				output = append(output, fmt.Sprintf("%s%s %is%s", metricFamily.GetName(), labelString, value, timestampString))
 			case dto.MetricType_UNTYPED:
-				value = metric.GetUntyped().GetValue()
+				value := strconv.FormatFloat(metric.GetUntyped().GetValue(), 'f', -1, 64)
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
+			case dto.MetricType_SUMMARY:
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+				count := metric.GetSummary().GetSampleCount()
+				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
+				sum := strconv.FormatFloat(metric.GetSummary().GetSampleSum(), 'f', -1, 64)
+				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
+				for _, quantile := range metric.GetSummary().GetQuantile() {
+					quantileName := strconv.FormatFloat(quantile.GetQuantile(), 'f', -1, 64)
+					quantileLabelStrings := append(labelStrings, fmt.Sprintf("quantile=\"%s\"", quantileName))
+					labelString = fmt.Sprintf("{%s}", strings.Join(quantileLabelStrings, ","))
+					value := strconv.FormatFloat(quantile.GetValue(), 'f', -1, 64)
+					output = append(output, fmt.Sprintf("%s_quantile%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
+				}
+			case dto.MetricType_HISTOGRAM:
+				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
+				count := metric.GetHistogram().GetSampleCount()
+				output = append(output, fmt.Sprintf("%s_count%s %f%s", metricFamily.GetName(), labelString, float64(count), timestampString))
+				sum := metric.GetHistogram().GetSampleSum()
+				output = append(output, fmt.Sprintf("%s_sum%s %f%s", metricFamily.GetName(), labelString, sum, timestampString))
+				for _, bucket := range metric.GetHistogram().GetBucket() {
+					bucketUpperBound := strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
+					bucketLabelStrings := append(labelStrings, fmt.Sprintf("le=\"%s\"", bucketUpperBound))
+					labelString = fmt.Sprintf("{%s}", strings.Join(bucketLabelStrings, ","))
+					value := bucket.GetCumulativeCount()
+					output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), labelString, value, timestampString))
+				}
 			}
-			output = append(output, fmt.Sprintf("%s%s %f%s", metricFamily.GetName(), labelString, value, timestampString))
 		}
 	}
 	fmt.Println(strings.Join(output, "\n"))
