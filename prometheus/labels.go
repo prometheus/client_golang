@@ -39,7 +39,7 @@ var errInconsistentCardinality = errors.New("inconsistent label cardinality")
 
 func validateValuesInLabels(labels Labels, expectedNumberOfValues int) error {
 	if len(labels) != expectedNumberOfValues {
-		return errInconsistentCardinality
+		return fmt.Errorf("%s: number of labels and values don't match: expected %d, actual %d, labels %v", errInconsistentCardinality, expectedNumberOfValues, len(labels), labels)
 	}
 
 	for name, val := range labels {
