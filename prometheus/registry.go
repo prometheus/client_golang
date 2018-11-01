@@ -16,6 +16,7 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"runtime"
 	"sort"
 	"strconv"
@@ -539,10 +540,12 @@ func (r *Registry) WriteToTextfile(path string) error {
 	if err != nil {
 		return err
 	}
-	output := []string{}
+	outputMap := map[string][]string{}
+	metricNames := []string{}
 	for _, metricFamily := range metricFamilies {
+		output := []string{}
 		output = append(output, fmt.Sprintf("# HELP %s %s", metricFamily.GetName(), metricFamily.GetHelp()))
-		output = append(output, fmt.Sprintf("# TYPE %s %s", metricFamily.GetName(), metricFamily.GetType().String()))
+		output = append(output, fmt.Sprintf("# TYPE %s %s", metricFamily.GetName(), strings.ToLower(metricFamily.GetType().String())))
 		for _, metric := range metricFamily.GetMetric() {
 			labelStrings := []string{}
 			if metric.GetLabel() != nil {
@@ -570,33 +573,61 @@ func (r *Registry) WriteToTextfile(path string) error {
 			case dto.MetricType_SUMMARY:
 				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
 				count := metric.GetSummary().GetSampleCount()
-				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
 				sum := strconv.FormatFloat(metric.GetSummary().GetSampleSum(), 'f', -1, 64)
-				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
 				for _, quantile := range metric.GetSummary().GetQuantile() {
 					quantileName := strconv.FormatFloat(quantile.GetQuantile(), 'f', -1, 64)
 					quantileLabelStrings := append(labelStrings, fmt.Sprintf("quantile=\"%s\"", quantileName))
-					labelString = fmt.Sprintf("{%s}", strings.Join(quantileLabelStrings, ","))
+					loopLabelString := fmt.Sprintf("{%s}", strings.Join(quantileLabelStrings, ","))
 					value := strconv.FormatFloat(quantile.GetValue(), 'f', -1, 64)
-					output = append(output, fmt.Sprintf("%s_quantile%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
+					output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), loopLabelString, value, timestampString))
 				}
+				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
+				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
 			case dto.MetricType_HISTOGRAM:
 				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
 				count := metric.GetHistogram().GetSampleCount()
-				output = append(output, fmt.Sprintf("%s_count%s %f%s", metricFamily.GetName(), labelString, float64(count), timestampString))
-				sum := metric.GetHistogram().GetSampleSum()
-				output = append(output, fmt.Sprintf("%s_sum%s %f%s", metricFamily.GetName(), labelString, sum, timestampString))
+				sum := strconv.FormatFloat(metric.GetHistogram().GetSampleSum(), 'f', -1, 64)
 				for _, bucket := range metric.GetHistogram().GetBucket() {
 					bucketUpperBound := strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
 					bucketLabelStrings := append(labelStrings, fmt.Sprintf("le=\"%s\"", bucketUpperBound))
-					labelString = fmt.Sprintf("{%s}", strings.Join(bucketLabelStrings, ","))
+					loopLabelString := fmt.Sprintf("{%s}", strings.Join(bucketLabelStrings, ","))
 					value := bucket.GetCumulativeCount()
-					output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), labelString, value, timestampString))
+					output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), loopLabelString, value, timestampString))
 				}
+				infBucketLabelStrings := append(labelStrings, "le=\"+Inf\"")
+				infLabelString := fmt.Sprintf("{%s}", strings.Join(infBucketLabelStrings, ","))
+				output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), infLabelString, count, timestampString))
+				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
+				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
 			}
 		}
+		outputMap[metricFamily.GetName()] = output
+		metricNames = append(metricNames, metricFamily.GetName())
 	}
-	fmt.Println(strings.Join(output, "\n"))
+
+	tmppath := fmt.Sprintf("%s.%d", path, os.Getpid())
+
+	f, err := os.Create(tmppath)
+	if err != nil {
+		return err
+	}
+
+	sort.Strings(metricNames)
+
+	outStr := ""
+	for _, metricName := range metricNames {
+		outStr = fmt.Sprintf("%s%s\n", outStr, strings.Join(outputMap[metricName], "\n"))
+	}
+
+	_, err = f.WriteString(outStr)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmppath, path); err != nil {
+		return err
+	}
+
 	return nil
 }
 
