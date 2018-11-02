@@ -958,7 +958,9 @@ test_summary_count{name="foo"} 2
 	}
 	defer os.Remove(tmpfile.Name())
 
-	registry.WriteToTextfile(tmpfile.Name())
+	if err := prometheus.WriteToTextfile(tmpfile.Name(), registry); err != nil {
+		t.Fatal(err)
+	}
 
 	fileBytes, err := ioutil.ReadFile(tmpfile.Name())
 	if err != nil {

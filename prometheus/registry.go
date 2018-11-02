@@ -16,15 +16,17 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/common/expfmt"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -535,100 +537,29 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
-func (r *Registry) WriteToTextfile(path string) error {
-	metricFamilies, err := r.Gather()
+// WriteToTextfile formats the metrics of the provided Gatherer interface and
+// emits them in text format to the path. Intended for use with the node_exporter
+// textfile collector
+func WriteToTextfile(filename string, g Gatherer) error {
+	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename))
 	if err != nil {
 		return err
 	}
-	outputMap := map[string][]string{}
-	metricNames := []string{}
-	for _, metricFamily := range metricFamilies {
-		output := []string{}
-		output = append(output, fmt.Sprintf("# HELP %s %s", metricFamily.GetName(), metricFamily.GetHelp()))
-		output = append(output, fmt.Sprintf("# TYPE %s %s", metricFamily.GetName(), strings.ToLower(metricFamily.GetType().String())))
-		for _, metric := range metricFamily.GetMetric() {
-			labelStrings := []string{}
-			if metric.GetLabel() != nil {
-				for _, labelPair := range metric.GetLabel() {
-					labelStrings = append(labelStrings, fmt.Sprintf("%s=\"%s\"", labelPair.GetName(), labelPair.GetValue()))
-				}
-			}
-			timestampString := ""
-			if metric.TimestampMs != nil {
-				timestampString = fmt.Sprintf(" %d", int(float64(metric.GetTimestampMs())*1000))
-			}
-			switch metricFamily.GetType() {
-			case dto.MetricType_COUNTER:
-				value := strconv.FormatFloat(metric.GetCounter().GetValue(), 'f', -1, 64)
-				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
-			case dto.MetricType_GAUGE:
-				value := strconv.FormatFloat(metric.GetGauge().GetValue(), 'f', -1, 64)
-				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
-			case dto.MetricType_UNTYPED:
-				value := strconv.FormatFloat(metric.GetUntyped().GetValue(), 'f', -1, 64)
-				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), labelString, value, timestampString))
-			case dto.MetricType_SUMMARY:
-				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				count := metric.GetSummary().GetSampleCount()
-				sum := strconv.FormatFloat(metric.GetSummary().GetSampleSum(), 'f', -1, 64)
-				for _, quantile := range metric.GetSummary().GetQuantile() {
-					quantileName := strconv.FormatFloat(quantile.GetQuantile(), 'f', -1, 64)
-					quantileLabelStrings := append(labelStrings, fmt.Sprintf("quantile=\"%s\"", quantileName))
-					loopLabelString := fmt.Sprintf("{%s}", strings.Join(quantileLabelStrings, ","))
-					value := strconv.FormatFloat(quantile.GetValue(), 'f', -1, 64)
-					output = append(output, fmt.Sprintf("%s%s %s%s", metricFamily.GetName(), loopLabelString, value, timestampString))
-				}
-				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
-				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
-			case dto.MetricType_HISTOGRAM:
-				labelString := fmt.Sprintf("{%s}", strings.Join(labelStrings, ","))
-				count := metric.GetHistogram().GetSampleCount()
-				sum := strconv.FormatFloat(metric.GetHistogram().GetSampleSum(), 'f', -1, 64)
-				for _, bucket := range metric.GetHistogram().GetBucket() {
-					bucketUpperBound := strconv.FormatFloat(bucket.GetUpperBound(), 'f', -1, 64)
-					bucketLabelStrings := append(labelStrings, fmt.Sprintf("le=\"%s\"", bucketUpperBound))
-					loopLabelString := fmt.Sprintf("{%s}", strings.Join(bucketLabelStrings, ","))
-					value := bucket.GetCumulativeCount()
-					output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), loopLabelString, value, timestampString))
-				}
-				infBucketLabelStrings := append(labelStrings, "le=\"+Inf\"")
-				infLabelString := fmt.Sprintf("{%s}", strings.Join(infBucketLabelStrings, ","))
-				output = append(output, fmt.Sprintf("%s_bucket%s %d%s", metricFamily.GetName(), infLabelString, count, timestampString))
-				output = append(output, fmt.Sprintf("%s_sum%s %s%s", metricFamily.GetName(), labelString, sum, timestampString))
-				output = append(output, fmt.Sprintf("%s_count%s %d%s", metricFamily.GetName(), labelString, count, timestampString))
-			}
+	defer os.Remove(tmp.Name())
+
+	mfs, err := g.Gather()
+	if err != nil {
+		return err
+	}
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(tmp, mf); err != nil {
+			return err
 		}
-		outputMap[metricFamily.GetName()] = output
-		metricNames = append(metricNames, metricFamily.GetName())
 	}
-
-	tmppath := fmt.Sprintf("%s.%d", path, os.Getpid())
-
-	f, err := os.Create(tmppath)
-	if err != nil {
+	if err := tmp.Close(); err != nil {
 		return err
 	}
-
-	sort.Strings(metricNames)
-
-	outStr := ""
-	for _, metricName := range metricNames {
-		outStr = fmt.Sprintf("%s%s\n", outStr, strings.Join(outputMap[metricName], "\n"))
-	}
-
-	_, err = f.WriteString(outStr)
-	if err != nil {
-		return err
-	}
-
-	if err := os.Rename(tmppath, path); err != nil {
-		return err
-	}
-
-	return nil
+	return os.Rename(tmp.Name(), filename)
 }
 
 // processMetric is an internal helper method only used by the Gather method.
