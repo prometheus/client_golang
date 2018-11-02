@@ -537,9 +537,12 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
-// WriteToTextfile formats the metrics of the provided Gatherer interface and
-// emits them in text format to the path. Intended for use with the node_exporter
-// textfile collector
+// WriteToTextfile calls Gather on the provided Gatherer, encodes the result in the
+// Prometheus text format, and writes it to a temporary file. Upon success, the
+// temporary file is renamed to the provided filename.
+//
+// This is intended for use with the textfile collector of the node exporter.
+// Note that the node exporter expects the filename to be suffixed with ".prom".
 func WriteToTextfile(filename string, g Gatherer) error {
 	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename))
 	if err != nil {
