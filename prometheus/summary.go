@@ -181,8 +181,7 @@ func NewSummary(opts SummaryOpts) Summary {
 
 func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	if len(desc.variableLabels) != len(labelValues) {
-		err := fmt.Errorf("%s: labels and values for '%s' don't match: labels %v, values %v", errInconsistentCardinality, desc.fqName, desc.variableLabels, labelValues)
-		panic(err)
+		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels, labelValues))
 	}
 
 	for _, n := range desc.variableLabels {
