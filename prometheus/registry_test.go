@@ -21,9 +21,11 @@ package prometheus_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -870,4 +872,103 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 	time.Sleep(time.Second)
 	close(quit)
 	wg.Wait()
+}
+
+func TestWriteToTextfile(t *testing.T) {
+	expectedOut := `# HELP test_counter test counter
+# TYPE test_counter counter
+test_counter{name="qux"} 1
+# HELP test_gauge test gauge
+# TYPE test_gauge gauge
+test_gauge{name="baz"} 1.1
+# HELP test_hist test histogram
+# TYPE test_hist histogram
+test_hist_bucket{name="bar",le="0.005"} 0
+test_hist_bucket{name="bar",le="0.01"} 0
+test_hist_bucket{name="bar",le="0.025"} 0
+test_hist_bucket{name="bar",le="0.05"} 0
+test_hist_bucket{name="bar",le="0.1"} 0
+test_hist_bucket{name="bar",le="0.25"} 0
+test_hist_bucket{name="bar",le="0.5"} 0
+test_hist_bucket{name="bar",le="1"} 1
+test_hist_bucket{name="bar",le="2.5"} 1
+test_hist_bucket{name="bar",le="5"} 2
+test_hist_bucket{name="bar",le="10"} 2
+test_hist_bucket{name="bar",le="+Inf"} 2
+test_hist_sum{name="bar"} 3.64
+test_hist_count{name="bar"} 2
+# HELP test_summary test summary
+# TYPE test_summary summary
+test_summary{name="foo",quantile="0.5"} 10
+test_summary{name="foo",quantile="0.9"} 20
+test_summary{name="foo",quantile="0.99"} 20
+test_summary_sum{name="foo"} 30
+test_summary_count{name="foo"} 2
+`
+
+	registry := prometheus.NewRegistry()
+
+	summary := prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name: "test_summary",
+			Help: "test summary",
+		},
+		[]string{"name"},
+	)
+
+	histogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "test_hist",
+			Help: "test histogram",
+		},
+		[]string{"name"},
+	)
+
+	gauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "test_gauge",
+			Help: "test gauge",
+		},
+		[]string{"name"},
+	)
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "test counter",
+		},
+		[]string{"name"},
+	)
+
+	registry.MustRegister(summary)
+	registry.MustRegister(histogram)
+	registry.MustRegister(gauge)
+	registry.MustRegister(counter)
+
+	summary.With(prometheus.Labels{"name": "foo"}).Observe(10)
+	summary.With(prometheus.Labels{"name": "foo"}).Observe(20)
+	histogram.With(prometheus.Labels{"name": "bar"}).Observe(0.93)
+	histogram.With(prometheus.Labels{"name": "bar"}).Observe(2.71)
+	gauge.With(prometheus.Labels{"name": "baz"}).Set(1.1)
+	counter.With(prometheus.Labels{"name": "qux"}).Inc()
+
+	tmpfile, err := ioutil.TempFile("", "prom_registry_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if err := prometheus.WriteToTextfile(tmpfile.Name(), registry); err != nil {
+		t.Fatal(err)
+	}
+
+	fileBytes, err := ioutil.ReadFile(tmpfile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileContents := string(fileBytes)
+
+	if fileContents != expectedOut {
+		t.Error("file contents didn't match unexpected")
+	}
 }
