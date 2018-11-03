@@ -1,3 +1,15 @@
+## 0.9.1 / 2018-11-03
+* [FEATURE] Add `WriteToTextfile` function to facilitate the creation of
+  *.prom files for the textfile collector of the node exporter. #489
+* [ENHANCEMENT] More descriptive error messages for inconsistent label
+  cardinality. #487
+* [ENHANCEMENT] Exposition: Use a GZIP encoder pool to avoid allocations in
+  high-frequency scrape scenarios. #366
+* [ENHANCEMENT] Exposition: Streaming serving of metrics data while encoding.
+  #482
+* [ENHANCEMENT] API client: Add a way to return the body of a 5xx response.
+  #479
+
 ## 0.9.0 / 2018-10-15
 * [CHANGE] Go1.6 is no longer supported.
 * [CHANGE] More refinements of the `Registry` consistency checks: Duplicated
