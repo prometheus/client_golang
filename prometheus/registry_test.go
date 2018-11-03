@@ -913,6 +913,11 @@ test_summary_count{name="foo"} 2
 		prometheus.SummaryOpts{
 			Name: "test_summary",
 			Help: "test summary",
+			Objectives: map[float64]float64{
+				0.5:  0.05,
+				0.9:  0.01,
+				0.99: 0.001,
+			},
 		},
 		[]string{"name"},
 	)
@@ -970,6 +975,9 @@ test_summary_count{name="foo"} 2
 	fileContents := string(fileBytes)
 
 	if fileContents != expectedOut {
-		t.Error("file contents didn't match unexpected")
+		t.Errorf(
+			"files don't match, got:\n%s\nwant:\n%s",
+			fileContents, expectedOut,
+		)
 	}
 }
