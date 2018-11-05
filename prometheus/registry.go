@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -815,8 +816,8 @@ func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamil
 }
 
 // checkMetricConsistency checks if the provided Metric is consistent with the
-// provided MetricFamily. It also hashes the Metric labels and the MetricFamily
-// name. If the resulting hash is already in the provided metricHashes, an error
+// provided MetricFamily. It also hashes the Metric labels, the MetricFamily name and
+// the timestamp. If the resulting hash is already in the provided metricHashes, an error
 // is returned. If not, it is added to metricHashes.
 func checkMetricConsistency(
 	metricFamily *dto.MetricFamily,
@@ -866,7 +867,7 @@ func checkMetricConsistency(
 		previousLabelName = labelName
 	}
 
-	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
+	// Is the metric unique (i.e. no other metric with the same name, the same labels and the same timestamp)?
 	h := hashNew()
 	h = hashAdd(h, name)
 	h = hashAddByte(h, separatorByte)
@@ -877,6 +878,12 @@ func checkMetricConsistency(
 		h = hashAdd(h, lp.GetName())
 		h = hashAddByte(h, separatorByte)
 		h = hashAdd(h, lp.GetValue())
+		h = hashAddByte(h, separatorByte)
+	}
+	if dtoMetric.TimestampMs != nil {
+		h = hashAdd(h, "timestampMs")
+		h = hashAddByte(h, separatorByte)
+		h = hashAdd(h, strconv.FormatInt(*dtoMetric.TimestampMs, 10))
 		h = hashAddByte(h, separatorByte)
 	}
 	if _, exists := metricHashes[h]; exists {
