@@ -143,6 +143,28 @@ func TestCollectAndCompare(t *testing.T) {
 	}
 }
 
+func TestCollectAndCompareNoLabel(t *testing.T) {
+	const metadata = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+	`
+
+	c := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "some_total",
+		Help: "A value that represents a counter.",
+	})
+	c.Inc()
+
+	expected := `
+
+		some_total 1
+	`
+
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
+		t.Errorf("unexpected collecting result:\n%s", err)
+	}
+}
+
 func TestNoMetricFilter(t *testing.T) {
 	const metadata = `
 		# HELP some_total A value that represents a counter.
