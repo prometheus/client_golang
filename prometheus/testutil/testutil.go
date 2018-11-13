@@ -37,7 +37,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"reflect"
 
 	"github.com/prometheus/common/expfmt"
 
@@ -125,39 +124,49 @@ func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames .
 // exposition format. If any metricNames are provided, only metrics with those
 // names are compared.
 func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
-	metrics, err := g.Gather()
+	got, err := g.Gather()
 	if err != nil {
 		return fmt.Errorf("gathering metrics failed: %s", err)
 	}
 	if metricNames != nil {
-		metrics = filterMetrics(metrics, metricNames)
+		got = filterMetrics(got, metricNames)
 	}
 	var tp expfmt.TextParser
-	expectedMetrics, err := tp.TextToMetricFamilies(expected)
+	wantRaw, err := tp.TextToMetricFamilies(expected)
 	if err != nil {
 		return fmt.Errorf("parsing expected metrics failed: %s", err)
 	}
+	want := internal.NormalizeMetricFamilies(wantRaw)
 
-	if !reflect.DeepEqual(metrics, internal.NormalizeMetricFamilies(expectedMetrics)) {
-		// Encode the gathered output to the readable text format for comparison.
-		var buf1 bytes.Buffer
-		enc := expfmt.NewEncoder(&buf1, expfmt.FmtText)
-		for _, mf := range metrics {
-			if err := enc.Encode(mf); err != nil {
-				return fmt.Errorf("encoding result failed: %s", err)
-			}
+	if len(got) != len(want) {
+		return notMatchingError(got, want)
+	}
+	for i := range got {
+		if got[i].String() != want[i].String() {
+			return notMatchingError(got, want)
 		}
-		// Encode normalized expected metrics again to generate them in the same ordering
-		// the registry does to spot differences more easily.
-		var buf2 bytes.Buffer
-		enc = expfmt.NewEncoder(&buf2, expfmt.FmtText)
-		for _, mf := range internal.NormalizeMetricFamilies(expectedMetrics) {
-			if err := enc.Encode(mf); err != nil {
-				return fmt.Errorf("encoding result failed: %s", err)
-			}
-		}
+	}
+	return nil
+}
 
-		return fmt.Errorf(`
+// notMatchingError encodes both provided slices of metric families into the
+// text format and creates a readable error message from the result.
+func notMatchingError(got, want []*dto.MetricFamily) error {
+	var gotBuf, wantBuf bytes.Buffer
+	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
+	for _, mf := range got {
+		if err := enc.Encode(mf); err != nil {
+			return fmt.Errorf("encoding gathered metrics failed: %s", err)
+		}
+	}
+	enc = expfmt.NewEncoder(&wantBuf, expfmt.FmtText)
+	for _, mf := range want {
+		if err := enc.Encode(mf); err != nil {
+			return fmt.Errorf("encoding expected metrics failed: %s", err)
+		}
+	}
+
+	return fmt.Errorf(`
 metric output does not match expectation; want:
 
 %s
@@ -165,9 +174,7 @@ metric output does not match expectation; want:
 got:
 
 %s
-`, buf2.String(), buf1.String())
-	}
-	return nil
+`, wantBuf.String(), gotBuf.String())
 }
 
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
