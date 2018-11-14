@@ -138,20 +138,13 @@ func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...
 	}
 	want := internal.NormalizeMetricFamilies(wantRaw)
 
-	if len(got) != len(want) {
-		return notMatchingError(got, want)
-	}
-	for i := range got {
-		if got[i].String() != want[i].String() {
-			return notMatchingError(got, want)
-		}
-	}
-	return nil
+	return compare(got, want)
 }
 
-// notMatchingError encodes both provided slices of metric families into the
-// text format and creates a readable error message from the result.
-func notMatchingError(got, want []*dto.MetricFamily) error {
+// compare encodes both provided slices of metric families into the text format,
+// compares their string message, and returns an error if they do not match.
+// The error contains the encoded text, of both the desired, and actual result.
+func compare(got, want []*dto.MetricFamily) error {
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
 	for _, mf := range got {
@@ -166,7 +159,8 @@ func notMatchingError(got, want []*dto.MetricFamily) error {
 		}
 	}
 
-	return fmt.Errorf(`
+	if wantBuf.String() != gotBuf.String() {
+		return fmt.Errorf(`
 metric output does not match expectation; want:
 
 %s
@@ -175,6 +169,9 @@ got:
 
 %s
 `, wantBuf.String(), gotBuf.String())
+
+	}
+	return nil
 }
 
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
