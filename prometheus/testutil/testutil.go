@@ -143,7 +143,8 @@ func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...
 
 // compare encodes both provided slices of metric families into the text format,
 // compares their string message, and returns an error if they do not match.
-// The error contains the encoded text, of both the desired, and actual result.
+// The error contains the encoded text of both the desired and the actual
+// result.
 func compare(got, want []*dto.MetricFamily) error {
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
