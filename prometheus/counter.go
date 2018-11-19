@@ -40,7 +40,7 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
-	// Set sets the Gauge to an arbitrary value.
+	// Set sets the Counter to an arbitrary value.
 	Set(float64)
 }
 
