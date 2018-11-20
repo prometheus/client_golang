@@ -131,7 +131,7 @@ func ExampleCollector() {
 	NewClusterManager("db", reg)
 	NewClusterManager("ca", reg)
 
-	// Add the built in process and golang metrics to this registry
+	// Add the standard process and Go metrics to the custom registry.
 	reg.MustRegister(
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 		prometheus.NewGoCollector(),
