@@ -40,6 +40,7 @@ const (
 	epLabelValues     = apiPrefix + "/label/:name/values"
 	epSeries          = apiPrefix + "/series"
 	epTargets         = apiPrefix + "/targets"
+	epRules           = apiPrefix + "/rules"
 	epSnapshot        = apiPrefix + "/admin/tsdb/snapshot"
 	epDeleteSeries    = apiPrefix + "/admin/tsdb/delete_series"
 	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
@@ -47,13 +48,27 @@ const (
 	epFlags           = apiPrefix + "/status/flags"
 )
 
+// AlertState models the state of an alert.
+type AlertState string
+
 // ErrorType models the different API error types.
 type ErrorType string
 
 // HealthStatus models the health status of a scrape target.
 type HealthStatus string
 
+// RuleType models the type of a rule.
+type RuleType string
+
+// RuleHealth models the health status of a rule.
+type RuleHealth string
+
 const (
+	// Possible values for AlertState.
+	AlertStateFiring   AlertState = "firing"
+	AlertStateInactive AlertState = "inactive"
+	AlertStatePending  AlertState = "pending"
+
 	// Possible values for ErrorType.
 	ErrBadData     ErrorType = "bad_data"
 	ErrTimeout     ErrorType = "timeout"
@@ -67,6 +82,15 @@ const (
 	HealthGood    HealthStatus = "up"
 	HealthUnknown HealthStatus = "unknown"
 	HealthBad     HealthStatus = "down"
+
+	// Possible values for RuleType.
+	RuleTypeRecording RuleType = "recording"
+	RuleTypeAlerting  RuleType = "alerting"
+
+	// Possible values for RuleHealth.
+	RuleHealthGood    = "ok"
+	RuleHealthUnknown = "unknown"
+	RuleHealthBad     = "err"
 )
 
 // Error is an error returned by the API.
@@ -111,6 +135,8 @@ type API interface {
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
+	// Rules returns a list of alerting and recording rules that are currently loaded.
+	Rules(ctx context.Context) (RulesResult, error)
 	// Targets returns an overview of the current state of the Prometheus target discovery.
 	Targets(ctx context.Context) (TargetsResult, error)
 }
@@ -137,6 +163,38 @@ type FlagsResult map[string]string
 // SnapshotResult contains the result from querying the snapshot endpoint.
 type SnapshotResult struct {
 	Name string `json:"name"`
+}
+
+// RulesResult contains the result from querying the rules endpoint.
+type RulesResult struct {
+	Groups []RuleGroup `json:"groups"`
+}
+
+type RuleGroup struct {
+	Name     string  `json:"name"`
+	File     string  `json:"file"`
+	Rules    []Rule  `json:"rules"`
+	Interval float64 `json:"interval"`
+}
+
+type Rule struct {
+	Alerts      []Alert        `json:"alerts",omitempty`
+	Annotations model.LabelSet `json:"annotations",omitempty`
+	Labels      model.LabelSet `json:"labels",omitempty`
+	Duration    float64        `json:"duration",omitempty`
+	Health      RuleHealth     `json:"health"`
+	Name        string         `json:"name"`
+	Query       string         `json:"query"`
+	LastError   string         `json:"lastError,omitempty"`
+	Type        RuleType       `json:"type"`
+}
+
+type Alert struct {
+	ActiveAt    time.Time `json:"activeAt"`
+	Annotations model.LabelSet
+	Labels      model.LabelSet
+	State       AlertState
+	Value       float64
 }
 
 // TargetsResult contains the result from querying the targets endpoint.
@@ -423,6 +481,24 @@ func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, 
 	}
 
 	var res SnapshotResult
+	err = json.Unmarshal(body, &res)
+	return res, err
+}
+
+func (h *httpAPI) Rules(ctx context.Context) (RulesResult, error) {
+	u := h.client.URL(epRules, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return RulesResult{}, err
+	}
+
+	_, body, err := h.client.Do(ctx, req)
+	if err != nil {
+		return RulesResult{}, err
+	}
+
+	var res RulesResult
 	err = json.Unmarshal(body, &res)
 	return res, err
 }
