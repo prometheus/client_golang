@@ -20,6 +20,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -170,25 +171,37 @@ type RulesResult struct {
 	Groups []RuleGroup `json:"groups"`
 }
 
+// RuleGroup models a rule group that contains a set of recording and alerting rules.
 type RuleGroup struct {
-	Name     string  `json:"name"`
-	File     string  `json:"file"`
-	Rules    []Rule  `json:"rules"`
-	Interval float64 `json:"interval"`
+	Name           string          `json:"name"`
+	File           string          `json:"file"`
+	Interval       float64         `json:"interval"`
+	AlertingRules  []AlertingRule  `json:"alertingRules"`
+	RecordingRules []RecordingRule `json:"recordingRule"`
 }
 
-type Rule struct {
-	Alerts      []Alert        `json:"alerts",omitempty`
-	Annotations model.LabelSet `json:"annotations",omitempty`
-	Labels      model.LabelSet `json:"labels",omitempty`
-	Duration    float64        `json:"duration",omitempty`
-	Health      RuleHealth     `json:"health"`
+// AlertingRule models a alerting rule.
+type AlertingRule struct {
 	Name        string         `json:"name"`
 	Query       string         `json:"query"`
+	Duration    float64        `json:"duration"`
+	Labels      model.LabelSet `json:"labels"`
+	Annotations model.LabelSet `json:"annotations"`
+	Alerts      []*Alert       `json:"alerts"`
+	Health      RuleHealth     `json:"health"`
 	LastError   string         `json:"lastError,omitempty"`
-	Type        RuleType       `json:"type"`
 }
 
+// RecordingRule models a recording rule.
+type RecordingRule struct {
+	Name      string         `json:"name"`
+	Query     string         `json:"query"`
+	Labels    model.LabelSet `json:"labels,omitempty"`
+	Health    RuleHealth     `json:"health"`
+	LastError string         `json:"lastError,omitempty"`
+}
+
+// Alert models an active alert.
 type Alert struct {
 	ActiveAt    time.Time `json:"activeAt"`
 	Annotations model.LabelSet
@@ -225,6 +238,63 @@ type queryResult struct {
 
 	// The decoded value.
 	v model.Value
+}
+
+func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
+	v := struct {
+		Name     string                   `json:"name"`
+		File     string                   `json:"file"`
+		Interval float64                  `json:"interval"`
+		Rules    []map[string]interface{} `json:"rules"`
+	}{}
+
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+
+	rg.Name = v.Name
+	rg.File = v.File
+	rg.Interval = v.Interval
+
+	var alertingRules []AlertingRule
+	var recordingRules []RecordingRule
+
+	for _, rule := range v.Rules {
+		// Because both recording and alerting rules are stored in the same
+		// JSON array, each rule is first encoded into JSON and then decoded
+		// into either a RecordingRule or AlertingRule to provide strong typing
+		// for API client consumers.
+		t, ok := rule["type"]
+		if !ok {
+			return errors.New("rule has no type field")
+		}
+		ruleJSON, err := json.Marshal(rule)
+		if err != nil {
+			return err
+		}
+
+		switch fmt.Sprintf("%s", t) {
+		case fmt.Sprintf("%s", RuleTypeRecording):
+			recordingRule := RecordingRule{}
+			if err := json.Unmarshal(ruleJSON, &recordingRule); err != nil {
+				return err
+			}
+			recordingRules = append(recordingRules, recordingRule)
+		case fmt.Sprintf("%s", RuleTypeAlerting):
+			alertingRule := AlertingRule{}
+			if err := json.Unmarshal(ruleJSON, &alertingRule); err != nil {
+				return err
+			}
+			alertingRules = append(alertingRules, alertingRule)
+		default:
+			return fmt.Errorf("unknown rule type %s", t)
+		}
+	}
+
+	rg.AlertingRules = alertingRules
+	rg.RecordingRules = recordingRules
+
+	return nil
 }
 
 func (qr *queryResult) UnmarshalJSON(b []byte) error {
