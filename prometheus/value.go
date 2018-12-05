@@ -125,7 +125,7 @@ func populateMetric(
 	labelPairs []*dto.LabelPair,
 	m *dto.Metric,
 ) error {
-	m.Label = labelPairs
+	m.Label = copyLabelPairs(labelPairs)
 	switch t {
 	case CounterValue:
 		m.Counter = &dto.Counter{Value: proto.Float64(v)}
@@ -158,5 +158,17 @@ func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 	}
 	labelPairs = append(labelPairs, desc.constLabelPairs...)
 	sort.Sort(labelPairSorter(labelPairs))
+	return labelPairs
+}
+
+func copyLabelPairs(source []*dto.LabelPair) []*dto.LabelPair {
+	labelPairs := make([]*dto.LabelPair, 0, len(source))
+	for _, pair := range source {
+		labelPairs = append(labelPairs, &dto.LabelPair{
+			Name:  pair.Name,
+			Value: pair.Value,
+		})
+	}
+	// shouldn't need sorting, as it should already be sorted
 	return labelPairs
 }

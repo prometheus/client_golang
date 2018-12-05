@@ -360,7 +360,7 @@ func (h *histogram) Write(out *dto.Metric) error {
 
 	his.Bucket = buckets
 	out.Histogram = his
-	out.Label = h.labelPairs
+	out.Label = copyLabelPairs(h.labelPairs)
 
 	// Finally add all the cold counts to the new hot counts and reset the cold counts.
 	atomic.AddUint64(&hotCounts.count, count)

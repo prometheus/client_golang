@@ -791,7 +791,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 				Help:        "This helps testing.",
 				ConstLabels: prometheus.Labels{"foo": "bar"},
 			},
-			[]string{"one", "two", "three"},
+			[]string{"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen"},
 		)
 		labelValues = []string{"a", "b", "c", "alpha", "beta", "gamma", "aleph", "beth", "gimel"}
 		quit        = make(chan struct{})
@@ -807,6 +807,19 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 			default:
 				obs := rand.NormFloat64()*.1 + .2
 				hv.WithLabelValues(
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
+					labelValues[rand.Intn(len(labelValues))],
 					labelValues[rand.Intn(len(labelValues))],
 					labelValues[rand.Intn(len(labelValues))],
 					labelValues[rand.Intn(len(labelValues))],
@@ -848,7 +861,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 					if len(g) != 1 {
 						t.Error("Gathered unexpected number of metric families:", len(g))
 					}
-					if len(g[0].Metric[0].Label) != 4 {
+					if len(g[0].Metric[0].Label) != 17 {
 						t.Error("Gathered unexpected number of label pairs:", len(g[0].Metric[0].Label))
 					}
 				}
@@ -869,7 +882,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 	go gather()
 	go observe()
 
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 	close(quit)
 	wg.Wait()
 }
