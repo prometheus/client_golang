@@ -21,6 +21,7 @@ package prometheus_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -783,6 +784,11 @@ func TestAlreadyRegistered(t *testing.T) {
 // same HistogramVec is registered concurrently and the Gather method of the
 // registry is called concurrently.
 func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
+	labelNames := make([]string, 16) // Need at least 13 to expose #512.
+	for i := range labelNames {
+		labelNames[i] = fmt.Sprint("label_", i)
+	}
+
 	var (
 		reg = prometheus.NewPedanticRegistry()
 		hv  = prometheus.NewHistogramVec(
@@ -791,7 +797,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 				Help:        "This helps testing.",
 				ConstLabels: prometheus.Labels{"foo": "bar"},
 			},
-			[]string{"one", "two", "three"},
+			labelNames,
 		)
 		labelValues = []string{"a", "b", "c", "alpha", "beta", "gamma", "aleph", "beth", "gimel"}
 		quit        = make(chan struct{})
@@ -806,11 +812,11 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 				return
 			default:
 				obs := rand.NormFloat64()*.1 + .2
-				hv.WithLabelValues(
-					labelValues[rand.Intn(len(labelValues))],
-					labelValues[rand.Intn(len(labelValues))],
-					labelValues[rand.Intn(len(labelValues))],
-				).Observe(obs)
+				values := make([]string, 0, len(labelNames))
+				for range labelNames {
+					values = append(values, labelValues[rand.Intn(len(labelValues))])
+				}
+				hv.WithLabelValues(values...).Observe(obs)
 			}
 		}
 	}
@@ -848,7 +854,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 					if len(g) != 1 {
 						t.Error("Gathered unexpected number of metric families:", len(g))
 					}
-					if len(g[0].Metric[0].Label) != 4 {
+					if len(g[0].Metric[0].Label) != len(labelNames)+1 {
 						t.Error("Gathered unexpected number of label pairs:", len(g[0].Metric[0].Label))
 					}
 				}
