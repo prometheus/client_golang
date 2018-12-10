@@ -173,12 +173,23 @@ type RulesResult struct {
 
 // RuleGroup models a rule group that contains a set of recording and alerting rules.
 type RuleGroup struct {
-	Name           string          `json:"name"`
-	File           string          `json:"file"`
-	Interval       float64         `json:"interval"`
-	AlertingRules  []AlertingRule  `json:"alertingRules"`
-	RecordingRules []RecordingRule `json:"recordingRule"`
+	Name     string        `json:"name"`
+	File     string        `json:"file"`
+	Interval float64       `json:"interval"`
+	Rules    []interface{} `json:"rules"`
 }
+
+// Recording and alerting rules are stored in the same slice to preserve the order
+// that rules are returned in by the API. Rule types can be determined using a type switch:
+//   switch v := rule.(type) {
+//   case RecordingRule:
+//   	fmt.Print("got a recording rule")
+//   case AlertingRule:
+//   	fmt.Print("got a alerting rule")
+//   default:
+//   	fmt.Printf("unknown rule type %s", v)
+//   }
+type Rules []interface{}
 
 // AlertingRule models a alerting rule.
 type AlertingRule struct {
@@ -256,14 +267,10 @@ func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	rg.File = v.File
 	rg.Interval = v.Interval
 
-	var alertingRules []AlertingRule
-	var recordingRules []RecordingRule
-
 	for _, rule := range v.Rules {
 		// Because both recording and alerting rules are stored in the same
 		// JSON array, each rule is first encoded into JSON and then decoded
-		// into either a RecordingRule or AlertingRule to provide strong typing
-		// for API client consumers.
+		// into either a RecordingRule or AlertingRule.
 		t, ok := rule["type"]
 		if !ok {
 			return errors.New("rule has no type field")
@@ -279,20 +286,17 @@ func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 			if err := json.Unmarshal(ruleJSON, &recordingRule); err != nil {
 				return err
 			}
-			recordingRules = append(recordingRules, recordingRule)
+			rg.Rules = append(rg.Rules, recordingRule)
 		case fmt.Sprintf("%s", RuleTypeAlerting):
 			alertingRule := AlertingRule{}
 			if err := json.Unmarshal(ruleJSON, &alertingRule); err != nil {
 				return err
 			}
-			alertingRules = append(alertingRules, alertingRule)
+			rg.Rules = append(rg.Rules, alertingRule)
 		default:
 			return fmt.Errorf("unknown rule type %s", t)
 		}
 	}
-
-	rg.AlertingRules = alertingRules
-	rg.RecordingRules = recordingRules
 
 	return nil
 }

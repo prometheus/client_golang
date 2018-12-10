@@ -520,16 +520,8 @@ func TestAPIs(t *testing.T) {
 						Name:     "example",
 						File:     "/rules.yaml",
 						Interval: 60,
-						RecordingRules: []RecordingRule{
-							{
-								Health:    RuleHealthGood,
-								Name:      "job:http_inprogress_requests:sum",
-								Query:     "sum(http_inprogress_requests) by (job)",
-								LastError: "",
-							},
-						},
-						AlertingRules: []AlertingRule{
-							{
+						Rules: []interface{}{
+							AlertingRule{
 								Alerts: []*Alert{
 									{
 										ActiveAt: testTime.UTC(),
@@ -554,6 +546,12 @@ func TestAPIs(t *testing.T) {
 								Health:    RuleHealthGood,
 								Name:      "HighRequestLatency",
 								Query:     "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								LastError: "",
+							},
+							RecordingRule{
+								Health:    RuleHealthGood,
+								Name:      "job:http_inprogress_requests:sum",
+								Query:     "sum(http_inprogress_requests) by (job)",
 								LastError: "",
 							},
 						},
