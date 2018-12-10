@@ -180,7 +180,9 @@ type RuleGroup struct {
 }
 
 // Recording and alerting rules are stored in the same slice to preserve the order
-// that rules are returned in by the API. Rule types can be determined using a type switch:
+// that rules are returned in by the API.
+//
+// Rule types can be determined using a type switch:
 //   switch v := rule.(type) {
 //   case RecordingRule:
 //   	fmt.Print("got a recording rule")
