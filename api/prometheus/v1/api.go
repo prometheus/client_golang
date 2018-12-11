@@ -173,10 +173,10 @@ type RulesResult struct {
 
 // RuleGroup models a rule group that contains a set of recording and alerting rules.
 type RuleGroup struct {
-	Name     string        `json:"name"`
-	File     string        `json:"file"`
-	Interval float64       `json:"interval"`
-	Rules    []interface{} `json:"rules"`
+	Name     string  `json:"name"`
+	File     string  `json:"file"`
+	Interval float64 `json:"interval"`
+	Rules    Rules   `json:"rules"`
 }
 
 // Recording and alerting rules are stored in the same slice to preserve the order
