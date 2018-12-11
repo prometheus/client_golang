@@ -255,10 +255,10 @@ type queryResult struct {
 
 func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	v := struct {
-		Name     string                   `json:"name"`
-		File     string                   `json:"file"`
-		Interval float64                  `json:"interval"`
-		Rules    []map[string]interface{} `json:"rules"`
+		Name     string            `json:"name"`
+		File     string            `json:"file"`
+		Interval float64           `json:"interval"`
+		Rules    []json.RawMessage `json:"rules"`
 	}{}
 
 	if err := json.Unmarshal(b, &v); err != nil {
@@ -270,35 +270,90 @@ func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	rg.Interval = v.Interval
 
 	for _, rule := range v.Rules {
-		// Because both recording and alerting rules are stored in the same
-		// JSON array, each rule is first encoded into JSON and then decoded
-		// into either a RecordingRule or AlertingRule.
-		t, ok := rule["type"]
-		if !ok {
-			return errors.New("rule has no type field")
-		}
-		ruleJSON, err := json.Marshal(rule)
-		if err != nil {
-			return err
-		}
-
-		switch fmt.Sprintf("%s", t) {
-		case fmt.Sprintf("%s", RuleTypeRecording):
-			recordingRule := RecordingRule{}
-			if err := json.Unmarshal(ruleJSON, &recordingRule); err != nil {
-				return err
-			}
-			rg.Rules = append(rg.Rules, recordingRule)
-		case fmt.Sprintf("%s", RuleTypeAlerting):
-			alertingRule := AlertingRule{}
-			if err := json.Unmarshal(ruleJSON, &alertingRule); err != nil {
-				return err
-			}
+		alertingRule := AlertingRule{}
+		if err := json.Unmarshal(rule, &alertingRule); err == nil {
 			rg.Rules = append(rg.Rules, alertingRule)
-		default:
-			return fmt.Errorf("unknown rule type %s", t)
+			continue
 		}
+		recordingRule := RecordingRule{}
+		if err := json.Unmarshal(rule, &recordingRule); err == nil {
+			rg.Rules = append(rg.Rules, recordingRule)
+			continue
+		}
+		return errors.New("failed to decode JSON into an alerting or recording rule")
 	}
+
+	return nil
+}
+
+func (r *AlertingRule) UnmarshalJSON(b []byte) error {
+	v := struct {
+		Type string `json:"type"`
+	}{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	if v.Type == "" {
+		return errors.New("type field not present in rule")
+	}
+	if v.Type != string(RuleTypeAlerting) {
+		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeAlerting), v.Type)
+	}
+
+	rule := struct {
+		Name        string         `json:"name"`
+		Query       string         `json:"query"`
+		Duration    float64        `json:"duration"`
+		Labels      model.LabelSet `json:"labels"`
+		Annotations model.LabelSet `json:"annotations"`
+		Alerts      []*Alert       `json:"alerts"`
+		Health      RuleHealth     `json:"health"`
+		LastError   string         `json:"lastError,omitempty"`
+	}{}
+	if err := json.Unmarshal(b, &rule); err != nil {
+		return err
+	}
+	r.Health = rule.Health
+	r.Annotations = rule.Annotations
+	r.Name = rule.Name
+	r.Query = rule.Query
+	r.Alerts = rule.Alerts
+	r.Duration = rule.Duration
+	r.Labels = rule.Labels
+	r.LastError = rule.LastError
+
+	return nil
+}
+
+func (r *RecordingRule) UnmarshalJSON(b []byte) error {
+	v := struct {
+		Type string `json:"type"`
+	}{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	if v.Type == "" {
+		return errors.New("type field not present in rule")
+	}
+	if v.Type != string(RuleTypeRecording) {
+		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeRecording), v.Type)
+	}
+
+	rule := struct {
+		Name      string         `json:"name"`
+		Query     string         `json:"query"`
+		Labels    model.LabelSet `json:"labels,omitempty"`
+		Health    RuleHealth     `json:"health"`
+		LastError string         `json:"lastError,omitempty"`
+	}{}
+	if err := json.Unmarshal(b, &rule); err != nil {
+		return err
+	}
+	r.Health = rule.Health
+	r.Labels = rule.Labels
+	r.Name = rule.Name
+	r.LastError = rule.LastError
+	r.Query = rule.Query
 
 	return nil
 }
