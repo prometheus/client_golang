@@ -109,11 +109,11 @@ error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", cons
 `
 	wantOKBody := `# HELP name docstring
 # TYPE name counter
-name{constname="constvalue",labelname="val1"} 1
-name{constname="constvalue",labelname="val2"} 1
+name{constname="constvalue",labelname="val1"} 1.0
+name{constname="constvalue",labelname="val2"} 1.0
 # HELP the_count Ah-ah-ah! Thunder and lightning!
 # TYPE the_count counter
-the_count 0
+the_count 0.0
 `
 
 	errorHandler.ServeHTTP(writer, request)
@@ -163,11 +163,11 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
 
-	want := "promhttp_metric_handler_requests_in_flight 1\n"
+	want := "promhttp_metric_handler_requests_in_flight 1.0\n"
 	if got := writer.Body.String(); !strings.Contains(got, want) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
-	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0\n"
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0.0\n"
 	if got := writer.Body.String(); !strings.Contains(got, want) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
@@ -178,11 +178,11 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
 
-	want = "promhttp_metric_handler_requests_in_flight 1\n"
+	want = "promhttp_metric_handler_requests_in_flight 1.0\n"
 	if got := writer.Body.String(); !strings.Contains(got, want) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
-	want = "promhttp_metric_handler_requests_total{code=\"200\"} 1\n"
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 1.0\n"
 	if got := writer.Body.String(); !strings.Contains(got, want) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
