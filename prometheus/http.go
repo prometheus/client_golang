@@ -376,98 +376,98 @@ func sanitizeMethod(m string) string {
 
 func sanitizeCode(s int) string {
 	switch s {
-	case 100:
+	case http.StatusContinue:
 		return "100"
-	case 101:
+	case http.StatusSwitchingProtocols:
 		return "101"
 
-	case 200:
+	case http.StatusOK:
 		return "200"
-	case 201:
+	case http.StatusCreated:
 		return "201"
-	case 202:
+	case http.StatusAccepted:
 		return "202"
-	case 203:
+	case http.StatusNonAuthoritativeInfo:
 		return "203"
-	case 204:
+	case http.StatusNoContent:
 		return "204"
-	case 205:
+	case http.StatusResetContent:
 		return "205"
-	case 206:
+	case http.StatusPartialContent:
 		return "206"
 
-	case 300:
+	case http.StatusMultipleChoices:
 		return "300"
-	case 301:
+	case http.StatusMovedPermanently:
 		return "301"
-	case 302:
+	case http.StatusFound:
 		return "302"
-	case 304:
+	case http.StatusNotModified:
 		return "304"
-	case 305:
+	case http.StatusUseProxy:
 		return "305"
-	case 307:
+	case http.StatusTemporaryRedirect:
 		return "307"
 
-	case 400:
+	case http.StatusBadRequest:
 		return "400"
-	case 401:
+	case http.StatusUnauthorized:
 		return "401"
-	case 402:
+	case http.StatusPaymentRequired:
 		return "402"
-	case 403:
+	case http.StatusForbidden:
 		return "403"
-	case 404:
+	case http.StatusNotFound:
 		return "404"
-	case 405:
+	case http.StatusMethodNotAllowed:
 		return "405"
-	case 406:
+	case http.StatusNotAcceptable:
 		return "406"
-	case 407:
+	case http.StatusProxyAuthRequired:
 		return "407"
-	case 408:
+	case http.StatusRequestTimeout:
 		return "408"
-	case 409:
+	case http.StatusConflict:
 		return "409"
-	case 410:
+	case http.StatusGone:
 		return "410"
-	case 411:
+	case http.StatusLengthRequired:
 		return "411"
-	case 412:
+	case http.StatusPreconditionFailed:
 		return "412"
-	case 413:
+	case http.StatusRequestEntityTooLarge:
 		return "413"
-	case 414:
+	case http.StatusRequestURITooLong:
 		return "414"
-	case 415:
+	case http.StatusUnsupportedMediaType:
 		return "415"
-	case 416:
+	case http.StatusRequestedRangeNotSatisfiable:
 		return "416"
-	case 417:
+	case http.StatusExpectationFailed:
 		return "417"
-	case 418:
+	case http.StatusTeapot:
 		return "418"
 
-	case 500:
+	case http.StatusInternalServerError:
 		return "500"
-	case 501:
+	case http.StatusNotImplemented:
 		return "501"
-	case 502:
+	case http.StatusBadGateway:
 		return "502"
-	case 503:
+	case http.StatusServiceUnavailable:
 		return "503"
-	case 504:
+	case http.StatusGatewayTimeout:
 		return "504"
-	case 505:
+	case http.StatusHTTPVersionNotSupported:
 		return "505"
 
-	case 428:
+	case http.StatusPreconditionRequired:
 		return "428"
-	case 429:
+	case http.StatusTooManyRequests:
 		return "429"
-	case 431:
+	case http.StatusRequestHeaderFieldsTooLarge:
 		return "431"
-	case 511:
+	case http.StatusNetworkAuthenticationRequired:
 		return "511"
 
 	default:
