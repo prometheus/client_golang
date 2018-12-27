@@ -128,7 +128,7 @@
 // errors. Thus, with unchecked Collectors, the responsibility to not collect
 // metrics that lead to inconsistencies in the total scrape result lies with the
 // implementer of the Collector. While this is not a desirable state, it is
-// sometimes necessary. The typical use case is a situatios where the exact
+// sometimes necessary. The typical use case is a situation where the exact
 // metrics to be returned by a Collector cannot be predicted at registration
 // time, but the implementer has sufficient knowledge of the whole system to
 // guarantee metric consistency.
