@@ -122,8 +122,8 @@
 // the Collect method. The Describe method has to return separate Desc
 // instances, representative of the “throw-away” metrics to be created later.
 // NewDesc comes in handy to create those Desc instances. Alternatively, you
-// could return no Desc at all, which will marke the Collector “unchecked”.  No
-// checks are porformed at registration time, but metric consistency will still
+// could return no Desc at all, which will make the Collector “unchecked”.  No
+// checks are performed at registration time, but metric consistency will still
 // be ensured at scrape time, i.e. any inconsistencies will lead to scrape
 // errors. Thus, with unchecked Collectors, the responsibility to not collect
 // metrics that lead to inconsistencies in the total scrape result lies with the
