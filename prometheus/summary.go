@@ -153,7 +153,7 @@ type SummaryOpts struct {
 	BufCap uint32
 }
 
-// Great fuck-up with the sliding-window decay algorithm... The Merge method of
+// Problem with the sliding-window decay algorithm... The Merge method of
 // perk/quantile is actually not working as advertised - and it might be
 // unfixable, as the underlying algorithm is apparently not capable of merging
 // summaries in the first place. To avoid using Merge, we are currently adding
