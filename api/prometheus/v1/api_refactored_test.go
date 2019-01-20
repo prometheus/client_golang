@@ -27,6 +27,7 @@ import (
 
 	//"github.com/prometheus/common/model" // will need later
 	goclient "github.com/prometheus/client_golang/api"
+	//prometheus "github.com/prometheus/prometheus/web/api/v1"
 )
 
 var (
