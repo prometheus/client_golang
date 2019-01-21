@@ -231,17 +231,17 @@ type TargetsResult struct {
 
 // ActiveTarget models an active Prometheus scrape target.
 type ActiveTarget struct {
-	DiscoveredLabels model.LabelSet `json:"discoveredLabels"`
-	Labels           model.LabelSet `json:"labels"`
-	ScrapeURL        string         `json:"scrapeUrl"`
-	LastError        string         `json:"lastError"`
-	LastScrape       time.Time      `json:"lastScrape"`
-	Health           HealthStatus   `json:"health"`
+	DiscoveredLabels map[string]string `json:"discoveredLabels"`
+	Labels           model.LabelSet    `json:"labels"`
+	ScrapeURL        string            `json:"scrapeUrl"`
+	LastError        string            `json:"lastError"`
+	LastScrape       time.Time         `json:"lastScrape"`
+	Health           HealthStatus      `json:"health"`
 }
 
 // DroppedTarget models a dropped Prometheus scrape target.
 type DroppedTarget struct {
-	DiscoveredLabels model.LabelSet `json:"discoveredLabels"`
+	DiscoveredLabels map[string]string `json:"discoveredLabels"`
 }
 
 // queryResult contains result data for a query.
