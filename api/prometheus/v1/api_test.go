@@ -605,7 +605,7 @@ func TestAPIs(t *testing.T) {
 			res: TargetsResult{
 				Active: []ActiveTarget{
 					{
-						DiscoveredLabels: model.LabelSet{
+						DiscoveredLabels: map[string]string{
 							"__address__":      "127.0.0.1:9090",
 							"__metrics_path__": "/metrics",
 							"__scheme__":       "http",
@@ -623,7 +623,7 @@ func TestAPIs(t *testing.T) {
 				},
 				Dropped: []DroppedTarget{
 					{
-						DiscoveredLabels: model.LabelSet{
+						DiscoveredLabels: map[string]string{
 							"__address__":      "127.0.0.1:9100",
 							"__metrics_path__": "/metrics",
 							"__scheme__":       "http",
