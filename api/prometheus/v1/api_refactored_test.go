@@ -308,12 +308,7 @@ func (t testAlertmanagerRetriever) Alertmanagers() []*url.URL {
 	return []*url.URL{
 		{
 			Scheme: "http",
-			Host:   "alertmanager.example.com:8080",
-			Path:   "/api/v1/alerts",
-		},
-		{
-			Scheme: "http",
-			Host:   "hrishikesh.example.com:8080",
+			Host:   "127.0.0.1:9091",
 			Path:   "/api/v1/alerts",
 		},
 	}
@@ -323,7 +318,7 @@ func (t testAlertmanagerRetriever) DroppedAlertmanagers() []*url.URL {
 	return []*url.URL{
 		{
 			Scheme: "http",
-			Host:   "dropped.alertmanager.example.com:8080",
+			Host:   "127.0.0.1:9092",
 			Path:   "/api/v1/alerts",
 		},
 	}
