@@ -17,17 +17,28 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
+	//"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"reflect"
+	"regexp"
 	"testing"
+	"time"
 
-	//"github.com/prometheus/common/model" // will need later
+	"github.com/go-kit/kit/log"
 	goclient "github.com/prometheus/client_golang/api"
-	prometheus "github.com/prometheus/prometheus/web"
+	"github.com/prometheus/common/model"
+	"github.com/prometheus/common/route"
+	"github.com/prometheus/prometheus/config"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/rules"
+	"github.com/prometheus/prometheus/scrape"
+	"github.com/prometheus/prometheus/util/testutil"
+	apiv1 "github.com/prometheus/prometheus/web/api/v1"
+	"github.com/prometheus/tsdb"
 )
 
 var (
@@ -43,55 +54,77 @@ func setup() func() {
 	}
 }
 
-// HTTP Handlers
-func getAlertManagersHandler_Response() http.Handler {
-	hf := func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]interface{}{
-			"activeAlertManagers": []map[string]string{
-				{
-					"url": "http://127.0.0.1:9091/api/v1/alerts",
-				},
-			},
-			"droppedAlertManagers": []map[string]string{
-				{
-					"url": "http://127.0.0.1:9092/api/v1/alerts",
-				},
-			},
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Type", "application/json")
-		b, _ := json.Marshal(response)
-		w.Write(b)
-	}
-	return http.HandlerFunc(hf)
-}
-
-func getAlertManagersHandler_Error() http.Handler {
-	hf := func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "Server Error", 500)
-	}
-	return http.HandlerFunc(hf)
-}
-
 type apiTest_ struct {
-	do      func(h *httpAPI) (interface{}, error)
-	handler http.Handler
-	muxPath string
-	res     interface{}
-	err     error
+	do  func() (interface{}, error)
+	res interface{}
+	err error
 }
 
 func TestAPIs_(t *testing.T) {
+	tearDown := setup()
+	defer tearDown()
 
-	doAlertManagers := func(h *httpAPI) (interface{}, error) {
-		return h.AlertManagers(context.Background())
+	// setup golang api client
+	client, err := goclient.NewClient(goclient.Config{Address: server.URL})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	promAPI := NewAPI(client)
+
+	// prepare arguments for creating the new v1api
+	suite, err := promql.NewTest(t, `
+		load 1m
+			test_metric1{foo="bar"} 0+100x100
+			test_metric1{foo="boo"} 1+0x100
+			test_metric2{foo="boo"} 1+0x100
+	`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer suite.Close()
+	if err := suite.Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	var algr rulesRetrieverMock
+	algr.testing = t
+	algr.AlertingRules()
+	algr.RuleGroups()
+
+	db := func() apiv1.TSDBAdmin {
+		return &tsdb.DB{}
+	}
+
+	logger := log.NewNopLogger()
+
+	api := apiv1.NewAPI(
+		suite.QueryEngine(),
+		suite.Storage(),
+		testTargetRetriever{},
+		testAlertmanagerRetriever{},
+		func() config.Config { return samplePrometheusCfg },
+		sampleFlagMap,
+		func(f http.HandlerFunc) http.HandlerFunc { return f },
+		db,
+		true,
+		logger,
+		algr,
+		0,
+		0,
+		regexp.MustCompile(".*"),
+	)
+
+	router := route.New()
+	api.Register(router)
+	mux.Handle("/", http.StripPrefix(apiPrefix, router))
+
+	doAlertManagers := func() (interface{}, error) {
+		return promAPI.AlertManagers(context.Background())
 	}
 
 	queryTests := []apiTest_{
 		{
-			do:      doAlertManagers,
-			handler: getAlertManagersHandler_Response(),
-			muxPath: "/api/v1/alertmanagers",
+			do: doAlertManagers,
 			res: AlertManagersResult{
 				Active: []AlertManager{
 					{
@@ -105,28 +138,12 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
-		{
-			do:      doAlertManagers,
-			handler: getAlertManagersHandler_Error(),
-			muxPath: "/api/v1/alertmanagers",
-			err:     errors.New("invalid character 'S' looking for beginning of value"),
-		},
 	}
 
 	for i, test := range queryTests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 
-			tearDown := setup()
-			defer tearDown()
-			config := goclient.Config{Address: server.URL}
-			client, err := goclient.NewClient(config)
-
-			promAPI := &httpAPI{
-				client: client,
-			}
-
-			mux.Handle(test.muxPath, test.handler)
-			res, err := test.do(promAPI)
+			res, err := test.do()
 
 			if test.err != nil {
 				if err == nil {
@@ -145,5 +162,169 @@ func TestAPIs_(t *testing.T) {
 				t.Errorf("unexpected result: want %v, got %v", test.res, res)
 			}
 		})
+	}
+}
+
+var samplePrometheusCfg = config.Config{
+	GlobalConfig:       config.GlobalConfig{},
+	AlertingConfig:     config.AlertingConfig{},
+	RuleFiles:          []string{},
+	ScrapeConfigs:      []*config.ScrapeConfig{},
+	RemoteWriteConfigs: []*config.RemoteWriteConfig{},
+	RemoteReadConfigs:  []*config.RemoteReadConfig{},
+}
+var sampleFlagMap = map[string]string{
+	"flag1": "value1",
+	"flag2": "value2",
+}
+
+type testTargetRetriever struct{}
+
+func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
+	return map[string][]*scrape.Target{
+		"test": {
+			scrape.NewTarget(
+				labels.FromMap(map[string]string{
+					model.SchemeLabel:      "http",
+					model.AddressLabel:     "example.com:8080",
+					model.MetricsPathLabel: "/metrics",
+					model.JobLabel:         "test",
+				}),
+				nil,
+				url.Values{},
+			),
+		},
+		"blackbox": {
+			scrape.NewTarget(
+				labels.FromMap(map[string]string{
+					model.SchemeLabel:      "http",
+					model.AddressLabel:     "localhost:9115",
+					model.MetricsPathLabel: "/probe",
+					model.JobLabel:         "blackbox",
+				}),
+				nil,
+				url.Values{"target": []string{"example.com"}},
+			),
+		},
+	}
+}
+func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
+	return map[string][]*scrape.Target{
+		"blackbox": {
+			scrape.NewTarget(
+				nil,
+				labels.FromMap(map[string]string{
+					model.AddressLabel:     "http://dropped.example.com:9115",
+					model.MetricsPathLabel: "/probe",
+					model.SchemeLabel:      "http",
+					model.JobLabel:         "blackbox",
+				}),
+				url.Values{},
+			),
+		},
+	}
+}
+
+type rulesRetrieverMock struct {
+	testing *testing.T
+}
+
+func (m rulesRetrieverMock) AlertingRules() []*rules.AlertingRule {
+	expr1, err := promql.ParseExpr(`absent(test_metric3) != 1`)
+	if err != nil {
+		m.testing.Fatalf("unable to parse alert expression: %s", err)
+	}
+	expr2, err := promql.ParseExpr(`up == 1`)
+	if err != nil {
+		m.testing.Fatalf("Unable to parse alert expression: %s", err)
+	}
+
+	rule1 := rules.NewAlertingRule(
+		"test_metric3",
+		expr1,
+		time.Second,
+		labels.Labels{},
+		labels.Labels{},
+		true,
+		log.NewNopLogger(),
+	)
+	rule2 := rules.NewAlertingRule(
+		"test_metric4",
+		expr2,
+		time.Second,
+		labels.Labels{},
+		labels.Labels{},
+		true,
+		log.NewNopLogger(),
+	)
+	var r []*rules.AlertingRule
+	r = append(r, rule1)
+	r = append(r, rule2)
+	return r
+}
+
+func (m rulesRetrieverMock) RuleGroups() []*rules.Group {
+	var ar rulesRetrieverMock
+	arules := ar.AlertingRules()
+	storage := testutil.NewStorage(m.testing)
+	defer storage.Close()
+
+	engineOpts := promql.EngineOpts{
+		Logger:        nil,
+		Reg:           nil,
+		MaxConcurrent: 10,
+		MaxSamples:    10,
+		Timeout:       100 * time.Second,
+	}
+
+	engine := promql.NewEngine(engineOpts)
+	opts := &rules.ManagerOptions{
+		QueryFunc:  rules.EngineQueryFunc(engine, storage),
+		Appendable: storage,
+		Context:    context.Background(),
+		Logger:     log.NewNopLogger(),
+	}
+
+	var r []rules.Rule
+
+	for _, alertrule := range arules {
+		r = append(r, alertrule)
+	}
+
+	recordingExpr, err := promql.ParseExpr(`vector(1)`)
+	if err != nil {
+		m.testing.Fatalf("unable to parse alert expression: %s", err)
+	}
+	recordingRule := rules.NewRecordingRule("recording-rule-1", recordingExpr, labels.Labels{})
+	r = append(r, recordingRule)
+
+	group := rules.NewGroup("grp", "/path/to/file", time.Second, r, false, opts)
+	return []*rules.Group{group}
+}
+
+type testAlertmanagerRetriever struct{}
+
+func (t testAlertmanagerRetriever) Alertmanagers() []*url.URL {
+	return []*url.URL{
+		{
+			Scheme: "http",
+			Host:   "alertmanager.example.com:8080",
+			Path:   "/api/v1/alerts",
+		},
+		{
+			Scheme: "http",
+			Host:   "hrishikesh.example.com:8080",
+			Path:   "/api/v1/alerts",
+		},
+	}
+}
+
+func (t testAlertmanagerRetriever) DroppedAlertmanagers() []*url.URL {
+	return []*url.URL{
+		{
+			Scheme: "http",
+			Host:   "dropped.alertmanager.example.com:8080",
+			Path:   "/api/v1/alerts",
+		},
 	}
 }

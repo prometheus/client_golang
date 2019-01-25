@@ -44,12 +44,6 @@ github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash v1.1.0
 github.com/cespare/xxhash
-# github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
-github.com/cockroachdb/cmux
-# github.com/cockroachdb/cockroach v0.0.0-20170608034007-84bc9597164f
-github.com/cockroachdb/cockroach/pkg/util/protoutil
-github.com/cockroachdb/cockroach/pkg/util/httputil
-github.com/cockroachdb/cockroach/pkg/util/syncutil
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v0.0.0-20161101193935-9ed569b5d1ac
@@ -64,7 +58,6 @@ github.com/go-logfmt/logfmt
 # github.com/gogo/protobuf v1.2.0
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/types
-github.com/gogo/protobuf/jsonpb
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/protobuf v1.2.0
 github.com/golang/protobuf/proto
@@ -74,8 +67,8 @@ github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
-github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/protoc-gen-go/descriptor
+github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/struct
 github.com/golang/protobuf/protoc-gen-go/generator/internal/remap
 github.com/golang/protobuf/protoc-gen-go/plugin
@@ -142,16 +135,11 @@ github.com/modern-go/reflect2
 github.com/mwitkow/go-conntrack
 # github.com/oklog/ulid v1.3.1
 github.com/oklog/ulid
-# github.com/opentracing-contrib/go-stdlib v0.0.0-20170113013457-1de4cc2120e7
-github.com/opentracing-contrib/go-stdlib/nethttp
 # github.com/opentracing/opentracing-go v1.0.1
 github.com/opentracing/opentracing-go
-github.com/opentracing/opentracing-go/ext
 github.com/opentracing/opentracing-go/log
 # github.com/peterbourgon/diskv v0.0.0-20180312054125-0646ccaebea1
 github.com/peterbourgon/diskv
-# github.com/petermattis/goid v0.0.0-20170504144140-0ded85884ba5
-github.com/petermattis/goid
 # github.com/pkg/errors v0.8.0
 github.com/pkg/errors
 # github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
@@ -159,8 +147,8 @@ github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.0.0-20181218105931-67670fe90761
 github.com/prometheus/common/model
 github.com/prometheus/common/expfmt
-github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/route
+github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/config
 github.com/prometheus/common/version
 # github.com/prometheus/procfs v0.0.0-20181204211112-1dc9a6cbc91a
@@ -169,33 +157,30 @@ github.com/prometheus/procfs/nfs
 github.com/prometheus/procfs/xfs
 github.com/prometheus/procfs/internal/util
 # github.com/prometheus/prometheus v0.0.0-20190121131737-b454ed3ec211
-github.com/prometheus/prometheus/web
 github.com/prometheus/prometheus/config
-github.com/prometheus/prometheus/notifier
 github.com/prometheus/prometheus/pkg/labels
-github.com/prometheus/prometheus/pkg/timestamp
-github.com/prometheus/prometheus/pkg/value
 github.com/prometheus/prometheus/promql
 github.com/prometheus/prometheus/rules
 github.com/prometheus/prometheus/scrape
-github.com/prometheus/prometheus/storage
-github.com/prometheus/prometheus/template
-github.com/prometheus/prometheus/util/httputil
+github.com/prometheus/prometheus/util/testutil
 github.com/prometheus/prometheus/web/api/v1
-github.com/prometheus/prometheus/web/api/v2
-github.com/prometheus/prometheus/web/ui
 github.com/prometheus/prometheus/discovery/config
 github.com/prometheus/prometheus/pkg/relabel
-github.com/prometheus/prometheus/discovery/targetgroup
 github.com/prometheus/prometheus/pkg/gate
 github.com/prometheus/prometheus/pkg/textparse
+github.com/prometheus/prometheus/pkg/timestamp
+github.com/prometheus/prometheus/pkg/value
+github.com/prometheus/prometheus/storage
 github.com/prometheus/prometheus/util/stats
 github.com/prometheus/prometheus/util/strutil
-github.com/prometheus/prometheus/util/testutil
 github.com/prometheus/prometheus/pkg/rulefmt
+github.com/prometheus/prometheus/template
+github.com/prometheus/prometheus/discovery/targetgroup
 github.com/prometheus/prometheus/pkg/pool
+github.com/prometheus/prometheus/storage/tsdb
 github.com/prometheus/prometheus/prompb
 github.com/prometheus/prometheus/storage/remote
+github.com/prometheus/prometheus/util/httputil
 github.com/prometheus/prometheus/discovery/azure
 github.com/prometheus/prometheus/discovery/consul
 github.com/prometheus/prometheus/discovery/dns
@@ -207,7 +192,6 @@ github.com/prometheus/prometheus/discovery/marathon
 github.com/prometheus/prometheus/discovery/openstack
 github.com/prometheus/prometheus/discovery/triton
 github.com/prometheus/prometheus/discovery/zookeeper
-github.com/prometheus/prometheus/storage/tsdb
 github.com/prometheus/prometheus/relabel
 github.com/prometheus/prometheus/util/treecache
 # github.com/prometheus/tsdb v0.4.0
@@ -220,33 +204,24 @@ github.com/prometheus/tsdb/index
 github.com/prometheus/tsdb/wal
 # github.com/samuel/go-zookeeper v0.0.0-20161028232340-1d7be4effb13
 github.com/samuel/go-zookeeper/zk
-# github.com/sasha-s/go-deadlock v0.0.0-20161201235124-341000892f3d
-github.com/sasha-s/go-deadlock
-# github.com/shurcooL/httpfs v0.0.0-20171119174359-809beceb2371
-github.com/shurcooL/httpfs/filter
-github.com/shurcooL/httpfs/union
-github.com/shurcooL/httpfs/vfsutil
-# github.com/shurcooL/vfsgen v0.0.0-20180711163814-62bca832be04
-github.com/shurcooL/vfsgen
 # golang.org/x/crypto v0.0.0-20180621125126-a49355c7e3f8
 golang.org/x/crypto/ed25519
 golang.org/x/crypto/ed25519/internal/edwards25519
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20181217023233-e147a9138326
 golang.org/x/net/context
-golang.org/x/net/netutil
-golang.org/x/net/http2
-golang.org/x/net/http2/hpack
 golang.org/x/net/trace
-golang.org/x/net/http/httpguts
-golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
 golang.org/x/net/ipv4
 golang.org/x/net/ipv6
 golang.org/x/net/context/ctxhttp
+golang.org/x/net/http2
+golang.org/x/net/http2/hpack
 golang.org/x/net/bpf
 golang.org/x/net/internal/iana
 golang.org/x/net/internal/socket
+golang.org/x/net/http/httpguts
+golang.org/x/net/idna
 # golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
 golang.org/x/oauth2/google
 golang.org/x/oauth2
@@ -288,14 +263,15 @@ google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.17.0
 google.golang.org/grpc
 google.golang.org/grpc/codes
+google.golang.org/grpc/grpclog
 google.golang.org/grpc/status
+google.golang.org/grpc/metadata
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/roundrobin
 google.golang.org/grpc/connectivity
 google.golang.org/grpc/credentials
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/proto
-google.golang.org/grpc/grpclog
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/binarylog
@@ -305,7 +281,6 @@ google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/transport
 google.golang.org/grpc/keepalive
-google.golang.org/grpc/metadata
 google.golang.org/grpc/naming
 google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
