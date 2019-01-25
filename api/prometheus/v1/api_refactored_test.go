@@ -70,14 +70,12 @@ func TestAPIs_(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	promAPI := NewAPI(client)
+	testTime := time.Now()
 
 	// prepare arguments for creating the new v1api
-	suite, err := promql.NewTest(t, `
-		load 1m
-			test_metric1{foo="bar"} 0+100x100
-			test_metric1{foo="boo"} 1+0x100
-			test_metric2{foo="boo"} 1+0x100
-	`)
+	var samplePrometheusCfg = config.Config{}
+	var sampleFlagMap = map[string]string{}
+	suite, err := promql.NewTest(t, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,18 +83,16 @@ func TestAPIs_(t *testing.T) {
 	if err := suite.Run(); err != nil {
 		t.Fatal(err)
 	}
-
 	var algr rulesRetrieverMock
 	algr.testing = t
 	algr.AlertingRules()
 	algr.RuleGroups()
-
 	db := func() apiv1.TSDBAdmin {
 		return &tsdb.DB{}
 	}
-
 	logger := log.NewNopLogger()
 
+	// create api
 	api := apiv1.NewAPI(
 		suite.QueryEngine(),
 		suite.Storage(),
@@ -114,17 +110,39 @@ func TestAPIs_(t *testing.T) {
 		regexp.MustCompile(".*"),
 	)
 
+	// register the router with the api
 	router := route.New()
 	api.Register(router)
 	mux.Handle("/", http.StripPrefix(apiPrefix, router))
 
-	doAlertManagers := func() (interface{}, error) {
-		return promAPI.AlertManagers(context.Background())
+	// do methods for test table
+	doAlertManagers := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.AlertManagers(context.Background())
+		}
 	}
+
+	doQuery := func(q string, ts time.Time) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Query(context.Background(), q, ts)
+		}
+	}
+
+	doQueryRange := func(q string, rng Range) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.QueryRange(context.Background(), q, rng)
+		}
+	}
+
+	//doLabelValues := func(label string) func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return promAPI.LabelValues(context.Background(), label)
+	//	}
+	//}
 
 	queryTests := []apiTest_{
 		{
-			do: doAlertManagers,
+			do: doAlertManagers(),
 			res: AlertManagersResult{
 				Active: []AlertManager{
 					{
@@ -138,6 +156,39 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
+		{
+			do: doQuery("2", testTime),
+			res: &model.Scalar{
+				Value:     2,
+				Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
+			},
+		},
+		{
+			do: doQueryRange("2", Range{
+				Start: testTime.Add(-time.Minute),
+				End:   testTime,
+				Step:  time.Minute,
+			}),
+			res: model.Matrix{
+				{
+					Metric: model.Metric{},
+					Values: []model.SamplePair{
+						{
+							Value:     2,
+							Timestamp: model.TimeFromUnixNano(testTime.Add(-time.Minute).UnixNano()),
+						},
+						{
+							Value:     2,
+							Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
+						},
+					},
+				},
+			},
+		},
+		//{
+		//	do:        doLabelValues("mylabel"),
+		//	res:       model.LabelValues{"val1", "val2"},
+		//},
 	}
 
 	for i, test := range queryTests {
@@ -157,6 +208,7 @@ func TestAPIs_(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
+			// TODO add the err api check
 
 			if !reflect.DeepEqual(res, test.res) {
 				t.Errorf("unexpected result: want %v, got %v", test.res, res)
@@ -165,20 +217,11 @@ func TestAPIs_(t *testing.T) {
 	}
 }
 
-var samplePrometheusCfg = config.Config{
-	GlobalConfig:       config.GlobalConfig{},
-	AlertingConfig:     config.AlertingConfig{},
-	RuleFiles:          []string{},
-	ScrapeConfigs:      []*config.ScrapeConfig{},
-	RemoteWriteConfigs: []*config.RemoteWriteConfig{},
-	RemoteReadConfigs:  []*config.RemoteReadConfig{},
-}
-var sampleFlagMap = map[string]string{
-	"flag1": "value1",
-	"flag2": "value2",
-}
-
 type testTargetRetriever struct{}
+type testAlertmanagerRetriever struct{}
+type rulesRetrieverMock struct {
+	testing *testing.T
+}
 
 func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
 	return map[string][]*scrape.Target{
@@ -208,6 +251,7 @@ func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
 		},
 	}
 }
+
 func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 	return map[string][]*scrape.Target{
 		"blackbox": {
@@ -223,10 +267,6 @@ func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 			),
 		},
 	}
-}
-
-type rulesRetrieverMock struct {
-	testing *testing.T
 }
 
 func (m rulesRetrieverMock) AlertingRules() []*rules.AlertingRule {
@@ -301,8 +341,6 @@ func (m rulesRetrieverMock) RuleGroups() []*rules.Group {
 	group := rules.NewGroup("grp", "/path/to/file", time.Second, r, false, opts)
 	return []*rules.Group{group}
 }
-
-type testAlertmanagerRetriever struct{}
 
 func (t testAlertmanagerRetriever) Alertmanagers() []*url.URL {
 	return []*url.URL{
