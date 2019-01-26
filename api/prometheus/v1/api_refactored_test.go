@@ -190,8 +190,8 @@ func TestAPIs_(t *testing.T) {
 			},
 		},
 		{
-			do:        doLabelValues("mylabel"),
-			res:       model.LabelValues{"val1", "val2"},
+			do:  doLabelValues("mylabel"),
+			res: model.LabelValues{"val1", "val2"},
 		},
 	}
 
@@ -221,7 +221,7 @@ func TestAPIs_(t *testing.T) {
 	}
 }
 
-type testStorage struct{
+type testStorage struct {
 	q storage.Querier
 }
 type testQuerier struct{}
@@ -236,7 +236,7 @@ func (t testStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Que
 }
 
 func (t testQuerier) LabelValues(name string) ([]string, error) {
-	return []string{"val1","val2"}, nil
+	return []string{"val1", "val2"}, nil
 }
 
 func (t testQuerier) Close() error {
@@ -244,7 +244,7 @@ func (t testQuerier) Close() error {
 }
 
 func (t testQuerier) LabelNames() ([]string, error) {
-	return []string{"val1","val2"}, nil
+	return []string{"val1", "val2"}, nil
 }
 
 func (t testQuerier) Select(params *storage.SelectParams, matchers ...*labels.Matcher) (storage.SeriesSet, storage.Warnings, error) {
