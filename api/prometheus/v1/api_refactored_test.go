@@ -36,6 +36,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/scrape"
+	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/util/testutil"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"github.com/prometheus/tsdb"
@@ -91,11 +92,14 @@ func TestAPIs_(t *testing.T) {
 		return &tsdb.DB{}
 	}
 	logger := log.NewNopLogger()
+	str := testStorage{
+		q: testQuerier{},
+	}
 
 	// create api
 	api := apiv1.NewAPI(
 		suite.QueryEngine(),
-		suite.Storage(),
+		str,
 		testTargetRetriever{},
 		testAlertmanagerRetriever{},
 		func() config.Config { return samplePrometheusCfg },
@@ -134,11 +138,11 @@ func TestAPIs_(t *testing.T) {
 		}
 	}
 
-	//doLabelValues := func(label string) func() (interface{}, error) {
-	//	return func() (interface{}, error) {
-	//		return promAPI.LabelValues(context.Background(), label)
-	//	}
-	//}
+	doLabelValues := func(label string) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.LabelValues(context.Background(), label)
+		}
+	}
 
 	queryTests := []apiTest_{
 		{
@@ -185,10 +189,10 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
-		//{
-		//	do:        doLabelValues("mylabel"),
-		//	res:       model.LabelValues{"val1", "val2"},
-		//},
+		{
+			do:        doLabelValues("mylabel"),
+			res:       model.LabelValues{"val1", "val2"},
+		},
 	}
 
 	for i, test := range queryTests {
@@ -217,10 +221,36 @@ func TestAPIs_(t *testing.T) {
 	}
 }
 
+type testStorage struct{
+	q storage.Querier
+}
+type testQuerier struct{}
 type testTargetRetriever struct{}
 type testAlertmanagerRetriever struct{}
 type rulesRetrieverMock struct {
 	testing *testing.T
+}
+
+func (t testStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
+	return t.q, nil
+}
+
+func (t testQuerier) LabelValues(name string) ([]string, error) {
+	return []string{"val1","val2"}, nil
+}
+
+func (t testQuerier) Close() error {
+	return nil
+}
+
+func (t testQuerier) LabelNames() ([]string, error) {
+	return []string{"val1","val2"}, nil
+}
+
+func (t testQuerier) Select(params *storage.SelectParams, matchers ...*labels.Matcher) (storage.SeriesSet, storage.Warnings, error) {
+	var seriesSet storage.SeriesSet
+	var warnings storage.Warnings
+	return seriesSet, warnings, nil
 }
 
 func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
