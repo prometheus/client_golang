@@ -135,7 +135,7 @@ func TestCollectAndCompare(t *testing.T) {
 
 	expected := `
 
-		some_total{ label1 = "value1" } 1.0
+		some_total{ label1 = "value1" } 1
 	`
 
 	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
@@ -157,7 +157,7 @@ func TestCollectAndCompareNoLabel(t *testing.T) {
 
 	expected := `
 
-		some_total 1.0
+		some_total 1
 	`
 
 	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
@@ -185,10 +185,10 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 				# TYPE some_histogram histogram
 			`,
 			expect: `
-				some_histogram{le="1"} 0.0
-				some_histogram{le="2"} 0.0
-				some_histogram{le="3"} 1.0
-        			some_histogram_bucket{le="+Inf"} 1.0
+				some_histogram{le="1"} 0
+				some_histogram{le="2"} 0
+				some_histogram{le="3"} 1
+        			some_histogram_bucket{le="+Inf"} 1
         			some_histogram_sum 2.5
         			some_histogram_count 1
 
@@ -208,12 +208,12 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 				# TYPE some_histogram histogram
 			`,
 			expect: `
-            			some_histogram_bucket{test="test",le="1"} 0.0
-            			some_histogram_bucket{test="test",le="2"} 0.0
-            			some_histogram_bucket{test="test",le="3"} 1.0
-            			some_histogram_bucket{test="test",le="+Inf"} 1.0
+            			some_histogram_bucket{test="test",le="1"} 0
+            			some_histogram_bucket{test="test",le="2"} 0
+            			some_histogram_bucket{test="test",le="3"} 1
+            			some_histogram_bucket{test="test",le="+Inf"} 1
             			some_histogram_sum{test="test"} 2.5
-           		 	some_histogram_count{test="test"} 1.0
+           		 	some_histogram_count{test="test"} 1
 		
 			`,
 			observation: 2.5,
@@ -256,7 +256,7 @@ func TestNoMetricFilter(t *testing.T) {
 	c.Inc()
 
 	expected := `
-		some_total{label1="value1"} 1.0
+		some_total{label1="value1"} 1
 	`
 
 	if err := CollectAndCompare(c, strings.NewReader(metadata+expected)); err != nil {
@@ -280,7 +280,7 @@ func TestMetricNotFound(t *testing.T) {
 	c.Inc()
 
 	expected := `
-		some_other_metric{label1="value1"} 1.0
+		some_other_metric{label1="value1"} 1
 	`
 
 	expectedError := `
@@ -288,13 +288,13 @@ metric output does not match expectation; want:
 
 # HELP some_other_metric A value that represents a counter.
 # TYPE some_other_metric counter
-some_other_metric{label1="value1"} 1.0
+some_other_metric{label1="value1"} 1
 
 got:
 
 # HELP some_total A value that represents a counter.
 # TYPE some_total counter
-some_total{label1="value1"} 1.0
+some_total{label1="value1"} 1
 `
 
 	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
