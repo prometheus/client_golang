@@ -148,6 +148,36 @@ func TestAPIs_(t *testing.T) {
 		}
 	}
 
+	//doRules := func() func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return promAPI.Rules(context.Background())
+	//	}
+	//}
+
+	doTargets := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Targets(context.Background())
+		}
+	}
+
+	//doConfig := func() func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return promAPI.Config(context.Background())
+	//	}
+	//}
+
+	//doFlags := func() func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return promAPI.Flags(context.Background())
+	//	}
+	//}
+
+	//doCleanTombstones := func() func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return nil, promAPI.CleanTombstones(context.Background())
+	//	}
+	//}
+
 	queryTests := []apiTest_{
 		{
 			do: doAlertManagers(),
@@ -164,11 +194,111 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
+		//{
+		//	do:        doConfig(),
+		//	res: ConfigResult{
+		//		YAML: "<content of the loaded config file in YAML>",
+		//	},
+		//},
+		//{
+		//	do:        doFlags(),
+		//	res: FlagsResult{
+		//		"alertmanager.notification-queue-capacity": "10000",
+		//		"alertmanager.timeout":                     "10s",
+		//		"log.level":                                "info",
+		//		"query.lookback-delta":                     "5m",
+		//		"query.max-concurrency":                    "20",
+		//	},
+		//},
+		//{
+		//	do:        doCleanTombstones(),
+		//	res:       "as",
+		//},
 		{
 			do: doQuery("2", testTime),
 			res: &model.Scalar{
 				Value:     2,
 				Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
+			},
+		},
+		//{
+		//	do:        doRules(),
+		//	res: RulesResult{
+		//		Groups: []RuleGroup{
+		//			{
+		//				Name:     "example",
+		//				File:     "/rules.yaml",
+		//				Interval: 60,
+		//				Rules: []interface{}{
+		//					AlertingRule{
+		//						Alerts: []*Alert{
+		//							{
+		//								ActiveAt: testTime.UTC(),
+		//								Annotations: model.LabelSet{
+		//									"summary": "High request latency",
+		//								},
+		//								Labels: model.LabelSet{
+		//									"alertname": "HighRequestLatency",
+		//									"severity":  "page",
+		//								},
+		//								State: AlertStateFiring,
+		//								Value: 1,
+		//							},
+		//						},
+		//						Annotations: model.LabelSet{
+		//							"summary": "High request latency",
+		//						},
+		//						Labels: model.LabelSet{
+		//							"severity": "page",
+		//						},
+		//						Duration:  600,
+		//						Health:    RuleHealthGood,
+		//						Name:      "HighRequestLatency",
+		//						Query:     "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+		//						LastError: "",
+		//					},
+		//					RecordingRule{
+		//						Health:    RuleHealthGood,
+		//						Name:      "job:http_inprogress_requests:sum",
+		//						Query:     "sum(http_inprogress_requests) by (job)",
+		//						LastError: "",
+		//					},
+		//				},
+		//			},
+		//		},
+		//	},
+		//},
+		{
+			do:        doTargets(),
+			res: TargetsResult{
+				Active: []ActiveTarget{
+					{
+						DiscoveredLabels: model.LabelSet{
+							"__address__":      "127.0.0.1:9090",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "prometheus",
+						},
+						Labels: model.LabelSet{
+							"instance": "127.0.0.1:9090",
+							"job":      "prometheus",
+						},
+						ScrapeURL:  "http://127.0.0.1:9090",
+						LastError:  "error while scraping target",
+						LastScrape: testTime.UTC(),
+						Health:     HealthGood,
+					},
+				},
+				Dropped: []DroppedTarget{
+					{
+						DiscoveredLabels: model.LabelSet{
+							"__address__":      "127.0.0.1:9100",
+							"__metrics_path__": "/metrics",
+							"__scheme__":       "http",
+							"job":              "node",
+						},
+					},
+				},
 			},
 		},
 		{
@@ -198,7 +328,7 @@ func TestAPIs_(t *testing.T) {
 			res: model.LabelValues{"val1", "val2"},
 		},
 		{
-			do: doSeries([]string{"up", "bar"}, testTime.Add(-time.Minute), testTime.Add(time.Minute)),
+			do: doSeries([]string{"up"}, testTime.Add(-time.Minute), testTime.Add(time.Minute)),
 			res: []model.LabelSet{
 				model.LabelSet{
 					"__name__": "up",
@@ -248,30 +378,32 @@ type testRulesRetriever struct {
 	testing *testing.T
 }
 
+// DiscoveredLabels: model.LabelSet{
+// 	"__address__":      "127.0.0.1:9090",
+// 	"__metrics_path__": "/metrics",
+// 	"__scheme__":       "http",
+// 	"job":              "prometheus",
+// },
+// Labels: model.LabelSet{
+// 	"instance": "127.0.0.1:9090",
+// 	"job":      "prometheus",
+// },
+// ScrapeURL:  "http://127.0.0.1:9090",
+// LastError:  "error while scraping target",
+// LastScrape: testTime.UTC(),
+// Health:     HealthGood,
 func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
 	return map[string][]*scrape.Target{
 		"test": {
 			scrape.NewTarget(
 				labels.FromMap(map[string]string{
 					model.SchemeLabel:      "http",
-					model.AddressLabel:     "example.com:8080",
+					model.AddressLabel:     "127.0.0.1:9090",
 					model.MetricsPathLabel: "/metrics",
-					model.JobLabel:         "test",
+					model.JobLabel:         "prometheus",
 				}),
 				nil,
 				url.Values{},
-			),
-		},
-		"blackbox": {
-			scrape.NewTarget(
-				labels.FromMap(map[string]string{
-					model.SchemeLabel:      "http",
-					model.AddressLabel:     "localhost:9115",
-					model.MetricsPathLabel: "/probe",
-					model.JobLabel:         "blackbox",
-				}),
-				nil,
-				url.Values{"target": []string{"example.com"}},
 			),
 		},
 	}
@@ -279,14 +411,14 @@ func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
 
 func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 	return map[string][]*scrape.Target{
-		"blackbox": {
+		"node": {
 			scrape.NewTarget(
 				nil,
 				labels.FromMap(map[string]string{
-					model.AddressLabel:     "http://dropped.example.com:9115",
-					model.MetricsPathLabel: "/probe",
+					model.AddressLabel:     "127.0.0.1:9100",
+					model.MetricsPathLabel: "/metrics",
 					model.SchemeLabel:      "http",
-					model.JobLabel:         "blackbox",
+					model.JobLabel:         "node",
 				}),
 				url.Values{},
 			),
