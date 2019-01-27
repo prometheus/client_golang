@@ -54,9 +54,10 @@ func setup() func() {
 }
 
 type apiTest_ struct {
-	do  func() (interface{}, error)
-	res interface{}
-	err error
+	do     func() (interface{}, error)
+	res    interface{}
+	err    error
+	apierr *Error
 }
 
 func TestAPIs_(t *testing.T) {
@@ -73,7 +74,13 @@ func TestAPIs_(t *testing.T) {
 
 	// prepare arguments for creating the new v1api
 	var samplePrometheusCfg = config.Config{}
-	var sampleFlagMap = map[string]string{}
+	var sampleFlagMap = map[string]string{
+		"alertmanager.notification-queue-capacity": "10000",
+		"alertmanager.timeout":                     "10s",
+		"log.level":                                "info",
+		"query.lookback-delta":                     "5m",
+		"query.max-concurrency":                    "20",
+	}
 	suite, err := promql.NewTest(t, `
 	load 10s
 		up{job="prometheus", instance="localhost:9090"} 0+100x100
@@ -87,14 +94,15 @@ func TestAPIs_(t *testing.T) {
 	if err := suite.Run(); err != nil {
 		t.Fatal(err)
 	}
-	var algr testRulesRetriever
-	algr.testing = t
+	rr := testRulesRetriever{
+		testing: t,
+	}
 	db := func() apiv1.TSDBAdmin {
 		return &tsdb.DB{}
 	}
 	logger := log.NewNopLogger()
 
-	// create api
+	// create v1 api
 	api := apiv1.NewAPI(
 		suite.QueryEngine(),
 		suite.Storage(),
@@ -106,7 +114,7 @@ func TestAPIs_(t *testing.T) {
 		db,
 		true,
 		logger,
-		algr,
+		rr,
 		0,
 		0,
 		regexp.MustCompile(".*"),
@@ -117,7 +125,7 @@ func TestAPIs_(t *testing.T) {
 	api.Register(router)
 	mux.Handle("/", http.StripPrefix(apiPrefix, router))
 
-	// do methods for test table
+	// do methods for API interfaces
 	doAlertManagers := func() func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return promAPI.AlertManagers(context.Background())
@@ -148,11 +156,11 @@ func TestAPIs_(t *testing.T) {
 		}
 	}
 
-	//doRules := func() func() (interface{}, error) {
-	//	return func() (interface{}, error) {
-	//		return promAPI.Rules(context.Background())
-	//	}
-	//}
+	doRules := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Rules(context.Background())
+		}
+	}
 
 	doTargets := func() func() (interface{}, error) {
 		return func() (interface{}, error) {
@@ -160,21 +168,31 @@ func TestAPIs_(t *testing.T) {
 		}
 	}
 
-	//doConfig := func() func() (interface{}, error) {
-	//	return func() (interface{}, error) {
-	//		return promAPI.Config(context.Background())
-	//	}
-	//}
+	doConfig := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Config(context.Background())
+		}
+	}
 
-	//doFlags := func() func() (interface{}, error) {
-	//	return func() (interface{}, error) {
-	//		return promAPI.Flags(context.Background())
-	//	}
-	//}
+	doFlags := func() func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Flags(context.Background())
+		}
+	}
 
 	//doCleanTombstones := func() func() (interface{}, error) {
 	//	return func() (interface{}, error) {
 	//		return nil, promAPI.CleanTombstones(context.Background())
+	//	}
+	//}
+	//doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
+	//	}
+	//}
+	//doSnapshot := func(skipHead bool) func() (interface{}, error) {
+	//	return func() (interface{}, error) {
+	//		return promAPI.Snapshot(context.Background(), skipHead)
 	//	}
 	//}
 
@@ -194,26 +212,22 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
-		//{
-		//	do:        doConfig(),
-		//	res: ConfigResult{
-		//		YAML: "<content of the loaded config file in YAML>",
-		//	},
-		//},
-		//{
-		//	do:        doFlags(),
-		//	res: FlagsResult{
-		//		"alertmanager.notification-queue-capacity": "10000",
-		//		"alertmanager.timeout":                     "10s",
-		//		"log.level":                                "info",
-		//		"query.lookback-delta":                     "5m",
-		//		"query.max-concurrency":                    "20",
-		//	},
-		//},
-		//{
-		//	do:        doCleanTombstones(),
-		//	res:       "as",
-		//},
+		{
+			do: doConfig(),
+			res: ConfigResult{
+				YAML: "global: {}\n",
+			},
+		},
+		{
+			do: doFlags(),
+			res: FlagsResult{
+				"alertmanager.notification-queue-capacity": "10000",
+				"alertmanager.timeout":                     "10s",
+				"log.level":                                "info",
+				"query.lookback-delta":                     "5m",
+				"query.max-concurrency":                    "20",
+			},
+		},
 		{
 			do: doQuery("2", testTime),
 			res: &model.Scalar{
@@ -221,77 +235,56 @@ func TestAPIs_(t *testing.T) {
 				Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
 			},
 		},
-		//{
-		//	do:        doRules(),
-		//	res: RulesResult{
-		//		Groups: []RuleGroup{
-		//			{
-		//				Name:     "example",
-		//				File:     "/rules.yaml",
-		//				Interval: 60,
-		//				Rules: []interface{}{
-		//					AlertingRule{
-		//						Alerts: []*Alert{
-		//							{
-		//								ActiveAt: testTime.UTC(),
-		//								Annotations: model.LabelSet{
-		//									"summary": "High request latency",
-		//								},
-		//								Labels: model.LabelSet{
-		//									"alertname": "HighRequestLatency",
-		//									"severity":  "page",
-		//								},
-		//								State: AlertStateFiring,
-		//								Value: 1,
-		//							},
-		//						},
-		//						Annotations: model.LabelSet{
-		//							"summary": "High request latency",
-		//						},
-		//						Labels: model.LabelSet{
-		//							"severity": "page",
-		//						},
-		//						Duration:  600,
-		//						Health:    RuleHealthGood,
-		//						Name:      "HighRequestLatency",
-		//						Query:     "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
-		//						LastError: "",
-		//					},
-		//					RecordingRule{
-		//						Health:    RuleHealthGood,
-		//						Name:      "job:http_inprogress_requests:sum",
-		//						Query:     "sum(http_inprogress_requests) by (job)",
-		//						LastError: "",
-		//					},
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
 		{
-			do:        doTargets(),
+			do: doRules(),
+			res: RulesResult{
+				Groups: []RuleGroup{
+					{
+						Name:     "example",
+						File:     "/rules.yml",
+						Interval: 1,
+						Rules: []interface{}{
+							AlertingRule{
+								Alerts: []*Alert{},
+								Annotations: model.LabelSet{
+									"summary": "High request latency",
+								},
+								Labels: model.LabelSet{
+									"severity": "page",
+								},
+								Duration:  600,
+								Health:    RuleHealthUnknown,
+								Name:      "HighRequestLatency",
+								Query:     "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								LastError: "",
+							},
+							RecordingRule{
+								Health:    RuleHealthUnknown,
+								Name:      "job:http_inprogress_requests:sum",
+								Query:     "sum by(job) (http_inprogress_requests)",
+								LastError: "",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			do: doTargets(),
 			res: TargetsResult{
 				Active: []ActiveTarget{
 					{
-						DiscoveredLabels: model.LabelSet{
-							"__address__":      "127.0.0.1:9090",
-							"__metrics_path__": "/metrics",
-							"__scheme__":       "http",
-							"job":              "prometheus",
-						},
+						DiscoveredLabels: map[string]string{},
 						Labels: model.LabelSet{
-							"instance": "127.0.0.1:9090",
-							"job":      "prometheus",
+							"job": "prometheus",
 						},
-						ScrapeURL:  "http://127.0.0.1:9090",
-						LastError:  "error while scraping target",
-						LastScrape: testTime.UTC(),
-						Health:     HealthGood,
+						ScrapeURL: "http://127.0.0.1:9090/metrics",
+						Health:    HealthUnknown,
 					},
 				},
 				Dropped: []DroppedTarget{
 					{
-						DiscoveredLabels: model.LabelSet{
+						DiscoveredLabels: map[string]string{
 							"__address__":      "127.0.0.1:9100",
 							"__metrics_path__": "/metrics",
 							"__scheme__":       "http",
@@ -337,6 +330,21 @@ func TestAPIs_(t *testing.T) {
 				},
 			},
 		},
+		// Error Tests
+		{
+			do: doLabelValues("invalid-label-name"),
+			apierr: &Error{
+				Type: ErrBadData,
+				Msg:  "invalid label name: \"invalid-label-name\"",
+			},
+		},
+		{
+			do: doQuery("", testTime),
+			apierr: &Error{
+				Type: ErrBadData,
+				Msg:  "parse error at char 1: no expression found in input",
+			},
+		},
 	}
 
 	for i, test := range queryTests {
@@ -344,29 +352,27 @@ func TestAPIs_(t *testing.T) {
 
 			res, err := test.do()
 
-			if test.err != nil {
+			if test.err != nil || test.apierr != nil {
 				if err == nil {
 					t.Fatalf("expected error %q but got none", test.err)
 				}
-				if err.Error() != test.err.Error() {
-					t.Errorf("unexpected error: want %s, got %s", test.err, err)
-				}
 				if apiErr, ok := err.(*Error); ok {
-					fmt.Printf("%v", apiErr)
-					//if apiErr.Detail != test.inRes {
-					//	t.Errorf("%q should be %q", apiErr.Detail, test.inRes)
-					//}
+					if !reflect.DeepEqual(apiErr, test.apierr) {
+						t.Errorf("API Error:\nrecieved %q\nexpected %q", apiErr, test.apierr.Error())
+					}
+				} else {
+					if err.Error() != test.err.Error() {
+						t.Errorf("Other Error:\nrecieved %q\nexpected %q", err, test.err)
+					}
 				}
 				return
 			}
 			if err != nil {
-				fmt.Printf("%v", err)
 				t.Fatalf("unexpected error: %s", err)
 			}
-			// TODO add the err api check
 
 			if !reflect.DeepEqual(res, test.res) {
-				t.Errorf("unexpected result: want %v, got %v", test.res, res)
+				t.Errorf("unexpected result:\nexpected %v\nrecieved %v", test.res, res)
 			}
 		})
 	}
@@ -378,23 +384,9 @@ type testRulesRetriever struct {
 	testing *testing.T
 }
 
-// DiscoveredLabels: model.LabelSet{
-// 	"__address__":      "127.0.0.1:9090",
-// 	"__metrics_path__": "/metrics",
-// 	"__scheme__":       "http",
-// 	"job":              "prometheus",
-// },
-// Labels: model.LabelSet{
-// 	"instance": "127.0.0.1:9090",
-// 	"job":      "prometheus",
-// },
-// ScrapeURL:  "http://127.0.0.1:9090",
-// LastError:  "error while scraping target",
-// LastScrape: testTime.UTC(),
-// Health:     HealthGood,
 func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
 	return map[string][]*scrape.Target{
-		"test": {
+		"prometheus": {
 			scrape.NewTarget(
 				labels.FromMap(map[string]string{
 					model.SchemeLabel:      "http",
@@ -415,9 +407,9 @@ func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 			scrape.NewTarget(
 				nil,
 				labels.FromMap(map[string]string{
+					model.SchemeLabel:      "http",
 					model.AddressLabel:     "127.0.0.1:9100",
 					model.MetricsPathLabel: "/metrics",
-					model.SchemeLabel:      "http",
 					model.JobLabel:         "node",
 				}),
 				url.Values{},
@@ -427,36 +419,25 @@ func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 }
 
 func (m testRulesRetriever) AlertingRules() []*rules.AlertingRule {
-	expr1, err := promql.ParseExpr(`absent(test_metric3) != 1`)
+	expr1, err := promql.ParseExpr(`job:request_latency_seconds:mean5m{job="myjob"} > 0.5`)
 	if err != nil {
 		m.testing.Fatalf("unable to parse alert expression: %s", err)
 	}
-	expr2, err := promql.ParseExpr(`up == 1`)
-	if err != nil {
-		m.testing.Fatalf("Unable to parse alert expression: %s", err)
-	}
-
 	rule1 := rules.NewAlertingRule(
-		"test_metric3",
+		"HighRequestLatency",
 		expr1,
-		time.Second,
-		labels.Labels{},
-		labels.Labels{},
-		true,
-		log.NewNopLogger(),
-	)
-	rule2 := rules.NewAlertingRule(
-		"test_metric4",
-		expr2,
-		time.Second,
-		labels.Labels{},
-		labels.Labels{},
+		time.Second*600,
+		labels.FromMap(map[string]string{
+			"severity": "page",
+		}),
+		labels.FromMap(map[string]string{
+			"summary": "High request latency",
+		}),
 		true,
 		log.NewNopLogger(),
 	)
 	var r []*rules.AlertingRule
 	r = append(r, rule1)
-	r = append(r, rule2)
 	return r
 }
 
@@ -488,14 +469,14 @@ func (m testRulesRetriever) RuleGroups() []*rules.Group {
 		r = append(r, alertrule)
 	}
 
-	recordingExpr, err := promql.ParseExpr(`vector(1)`)
+	recordingExpr, err := promql.ParseExpr(`sum(http_inprogress_requests) by (job)`)
 	if err != nil {
 		m.testing.Fatalf("unable to parse alert expression: %s", err)
 	}
-	recordingRule := rules.NewRecordingRule("recording-rule-1", recordingExpr, labels.Labels{})
+	recordingRule := rules.NewRecordingRule("job:http_inprogress_requests:sum", recordingExpr, labels.Labels{})
 	r = append(r, recordingRule)
 
-	group := rules.NewGroup("grp", "/path/to/file", time.Second, r, false, opts)
+	group := rules.NewGroup("example", "/rules.yml", time.Second, r, false, opts)
 	return []*rules.Group{group}
 }
 
