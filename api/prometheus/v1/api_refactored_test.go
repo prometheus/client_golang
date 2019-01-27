@@ -17,7 +17,6 @@ package v1
 
 import (
 	"context"
-	//"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +35,6 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/rules"
 	"github.com/prometheus/prometheus/scrape"
-	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/util/testutil"
 	apiv1 "github.com/prometheus/prometheus/web/api/v1"
 	"github.com/prometheus/tsdb"
@@ -71,12 +69,17 @@ func TestAPIs_(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	promAPI := NewAPI(client)
-	testTime := time.Now()
+	testTime := time.Unix(0, 0)
 
 	// prepare arguments for creating the new v1api
 	var samplePrometheusCfg = config.Config{}
 	var sampleFlagMap = map[string]string{}
-	suite, err := promql.NewTest(t, "")
+	suite, err := promql.NewTest(t, `
+	load 10s
+		up{job="prometheus", instance="localhost:9090"} 0+100x100
+		test_metric1{foo="val1",} 0+100x100
+		test_metric1{foo="val2",} 1+0x100
+	`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,22 +87,17 @@ func TestAPIs_(t *testing.T) {
 	if err := suite.Run(); err != nil {
 		t.Fatal(err)
 	}
-	var algr rulesRetrieverMock
+	var algr testRulesRetriever
 	algr.testing = t
-	algr.AlertingRules()
-	algr.RuleGroups()
 	db := func() apiv1.TSDBAdmin {
 		return &tsdb.DB{}
 	}
 	logger := log.NewNopLogger()
-	str := testStorage{
-		q: testQuerier{},
-	}
 
 	// create api
 	api := apiv1.NewAPI(
 		suite.QueryEngine(),
-		str,
+		suite.Storage(),
 		testTargetRetriever{},
 		testAlertmanagerRetriever{},
 		func() config.Config { return samplePrometheusCfg },
@@ -141,6 +139,12 @@ func TestAPIs_(t *testing.T) {
 	doLabelValues := func(label string) func() (interface{}, error) {
 		return func() (interface{}, error) {
 			return promAPI.LabelValues(context.Background(), label)
+		}
+	}
+
+	doSeries := func(matcher []string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
+		return func() (interface{}, error) {
+			return promAPI.Series(context.Background(), matcher, startTime, endTime)
 		}
 	}
 
@@ -190,8 +194,18 @@ func TestAPIs_(t *testing.T) {
 			},
 		},
 		{
-			do:  doLabelValues("mylabel"),
+			do:  doLabelValues("foo"),
 			res: model.LabelValues{"val1", "val2"},
+		},
+		{
+			do: doSeries([]string{"up", "bar"}, testTime.Add(-time.Minute), testTime.Add(time.Minute)),
+			res: []model.LabelSet{
+				model.LabelSet{
+					"__name__": "up",
+					"job":      "prometheus",
+					"instance": "localhost:9090",
+				},
+			},
 		},
 	}
 
@@ -207,9 +221,16 @@ func TestAPIs_(t *testing.T) {
 				if err.Error() != test.err.Error() {
 					t.Errorf("unexpected error: want %s, got %s", test.err, err)
 				}
+				if apiErr, ok := err.(*Error); ok {
+					fmt.Printf("%v", apiErr)
+					//if apiErr.Detail != test.inRes {
+					//	t.Errorf("%q should be %q", apiErr.Detail, test.inRes)
+					//}
+				}
 				return
 			}
 			if err != nil {
+				fmt.Printf("%v", err)
 				t.Fatalf("unexpected error: %s", err)
 			}
 			// TODO add the err api check
@@ -221,36 +242,10 @@ func TestAPIs_(t *testing.T) {
 	}
 }
 
-type testStorage struct {
-	q storage.Querier
-}
-type testQuerier struct{}
 type testTargetRetriever struct{}
 type testAlertmanagerRetriever struct{}
-type rulesRetrieverMock struct {
+type testRulesRetriever struct {
 	testing *testing.T
-}
-
-func (t testStorage) Querier(ctx context.Context, mint, maxt int64) (storage.Querier, error) {
-	return t.q, nil
-}
-
-func (t testQuerier) LabelValues(name string) ([]string, error) {
-	return []string{"val1", "val2"}, nil
-}
-
-func (t testQuerier) Close() error {
-	return nil
-}
-
-func (t testQuerier) LabelNames() ([]string, error) {
-	return []string{"val1", "val2"}, nil
-}
-
-func (t testQuerier) Select(params *storage.SelectParams, matchers ...*labels.Matcher) (storage.SeriesSet, storage.Warnings, error) {
-	var seriesSet storage.SeriesSet
-	var warnings storage.Warnings
-	return seriesSet, warnings, nil
 }
 
 func (t testTargetRetriever) TargetsActive() map[string][]*scrape.Target {
@@ -299,7 +294,7 @@ func (t testTargetRetriever) TargetsDropped() map[string][]*scrape.Target {
 	}
 }
 
-func (m rulesRetrieverMock) AlertingRules() []*rules.AlertingRule {
+func (m testRulesRetriever) AlertingRules() []*rules.AlertingRule {
 	expr1, err := promql.ParseExpr(`absent(test_metric3) != 1`)
 	if err != nil {
 		m.testing.Fatalf("unable to parse alert expression: %s", err)
@@ -333,8 +328,8 @@ func (m rulesRetrieverMock) AlertingRules() []*rules.AlertingRule {
 	return r
 }
 
-func (m rulesRetrieverMock) RuleGroups() []*rules.Group {
-	var ar rulesRetrieverMock
+func (m testRulesRetriever) RuleGroups() []*rules.Group {
+	var ar testRulesRetriever
 	arules := ar.AlertingRules()
 	storage := testutil.NewStorage(m.testing)
 	defer storage.Close()
