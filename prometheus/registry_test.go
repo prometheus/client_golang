@@ -99,7 +99,7 @@ func testHandler(t testing.TB) {
 	externalMetricFamilyAsBytes := externalBuf.Bytes()
 	externalMetricFamilyAsText := []byte(`# HELP externalname externaldocstring
 # TYPE externalname counter
-externalname{externalconstname="externalconstvalue",externallabelname="externalval1"} 1.0
+externalname{externalconstname="externalconstvalue",externallabelname="externalval1"} 1
 `)
 	externalMetricFamilyAsProtoText := []byte(`name: "externalname"
 help: "externaldocstring"
@@ -167,8 +167,8 @@ metric: <
 	expectedMetricFamilyAsBytes := buf.Bytes()
 	expectedMetricFamilyAsText := []byte(`# HELP name docstring
 # TYPE name counter
-name{constname="constvalue",labelname="val1"} 1.0
-name{constname="constvalue",labelname="val2"} 1.0
+name{constname="constvalue",labelname="val1"} 1
+name{constname="constvalue",labelname="val2"} 1
 `)
 	expectedMetricFamilyAsProtoText := []byte(`name: "name"
 help: "docstring"
@@ -267,8 +267,8 @@ collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"la
 complex{quantile="0.5"} NaN
 complex{quantile="0.9"} NaN
 complex{quantile="0.99"} NaN
-complex_sum 0.0
-complex_count 0.0
+complex_sum 0
+complex_count 0
 `)
 	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name: "complex",
@@ -288,7 +288,7 @@ complex_count 0.0
 	}
 	externalMetricFamilyWithBucketSuffixAsText := []byte(`# HELP complex_bucket externaldocstring
 # TYPE complex_bucket counter
-complex_bucket 1.0
+complex_bucket 1
 `)
 	externalMetricFamilyWithCountSuffix := &dto.MetricFamily{
 		Name: proto.String("complex_count"),
@@ -883,33 +883,33 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 func TestWriteToTextfile(t *testing.T) {
 	expectedOut := `# HELP test_counter test counter
 # TYPE test_counter counter
-test_counter{name="qux"} 1.0
+test_counter{name="qux"} 1
 # HELP test_gauge test gauge
 # TYPE test_gauge gauge
 test_gauge{name="baz"} 1.1
 # HELP test_hist test histogram
 # TYPE test_hist histogram
-test_hist_bucket{name="bar",le="0.005"} 0.0
-test_hist_bucket{name="bar",le="0.01"} 0.0
-test_hist_bucket{name="bar",le="0.025"} 0.0
-test_hist_bucket{name="bar",le="0.05"} 0.0
-test_hist_bucket{name="bar",le="0.1"} 0.0
-test_hist_bucket{name="bar",le="0.25"} 0.0
-test_hist_bucket{name="bar",le="0.5"} 0.0
-test_hist_bucket{name="bar",le="1.0"} 1.0
-test_hist_bucket{name="bar",le="2.5"} 1.0
-test_hist_bucket{name="bar",le="5.0"} 2.0
-test_hist_bucket{name="bar",le="10.0"} 2.0
-test_hist_bucket{name="bar",le="+Inf"} 2.0
+test_hist_bucket{name="bar",le="0.005"} 0
+test_hist_bucket{name="bar",le="0.01"} 0
+test_hist_bucket{name="bar",le="0.025"} 0
+test_hist_bucket{name="bar",le="0.05"} 0
+test_hist_bucket{name="bar",le="0.1"} 0
+test_hist_bucket{name="bar",le="0.25"} 0
+test_hist_bucket{name="bar",le="0.5"} 0
+test_hist_bucket{name="bar",le="1"} 1
+test_hist_bucket{name="bar",le="2.5"} 1
+test_hist_bucket{name="bar",le="5"} 2
+test_hist_bucket{name="bar",le="10"} 2
+test_hist_bucket{name="bar",le="+Inf"} 2
 test_hist_sum{name="bar"} 3.64
-test_hist_count{name="bar"} 2.0
+test_hist_count{name="bar"} 2
 # HELP test_summary test summary
 # TYPE test_summary summary
-test_summary{name="foo",quantile="0.5"} 10.0
-test_summary{name="foo",quantile="0.9"} 20.0
-test_summary{name="foo",quantile="0.99"} 20.0
-test_summary_sum{name="foo"} 30.0
-test_summary_count{name="foo"} 2.0
+test_summary{name="foo",quantile="0.5"} 10
+test_summary{name="foo",quantile="0.9"} 20
+test_summary{name="foo",quantile="0.99"} 20
+test_summary_sum{name="foo"} 30
+test_summary_count{name="foo"} 2
 `
 
 	registry := prometheus.NewRegistry()
@@ -975,6 +975,6 @@ test_summary_count{name="foo"} 2.0
 	fileContents := string(fileBytes)
 
 	if fileContents != expectedOut {
-		t.Error("file contents didn't match expected result")
+		t.Error("file contents didn't match unexpected")
 	}
 }
