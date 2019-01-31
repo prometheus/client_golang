@@ -36,6 +36,9 @@ func main()  {
 
 	config := prometheus.Config{Address: hostname, RoundTripper:prometheus.DefaultRoundTripper}
 	client, err := prometheus.NewClient(config)
+	if err != nil {
+		fmt.Println(err)
+	}
 	httpApi := v1.NewAPI(client)
 
 	//Query time series data(memory usage in bytes for containers) for 5m
