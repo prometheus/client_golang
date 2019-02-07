@@ -183,11 +183,13 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		opts.Buckets = DefBuckets
 	}
 
+	// one memory alloctation
+	var bothCounts [2]histogramCounts
 	h := &histogram{
 		desc:        desc,
 		upperBounds: opts.Buckets,
 		labelPairs:  makeLabelPairs(desc, labelValues),
-		counts:      [2]*histogramCounts{&histogramCounts{}, &histogramCounts{}},
+		counts:      [2]*histogramCounts{&bothCounts[0], &bothCounts[1]},
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -205,9 +207,10 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		}
 	}
 	// Finally we know the final length of h.upperBounds and can make buckets
-	// for both counts:
-	h.counts[0].buckets = make([]uint64, len(h.upperBounds))
-	h.counts[1].buckets = make([]uint64, len(h.upperBounds))
+	// for both counts (with one memory allocation):
+	bothBounds := make([]uint64, 2*len(h.upperBounds))
+	h.counts[0].buckets = bothBounds[:len(bothBounds)/2]
+	h.counts[1].buckets = bothBounds[len(bothBounds)/2:]
 
 	h.init(h) // Init self-collection.
 	return h
@@ -227,7 +230,7 @@ type histogram struct {
 	// countAndHotIdx is a complicated one. For lock-free yet atomic
 	// observations, we need to save the total count of observations again,
 	// combined with the index of the currently-hot counts struct, so that
-	// we can perform the operation on both values atomically. The least
+	// we can perform the operation on both values atomically. The most
 	// significant bit defines the hot counts struct. The remaining 63 bits
 	// represent the total count of observations. This happens under the
 	// assumption that the 63bit count will never overflow. Rationale: An
@@ -250,7 +253,6 @@ type histogram struct {
 	// pointers to guarantee 64bit alignment of the histogramCounts, see
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG.
 	counts [2]*histogramCounts
-	hotIdx int // Index of currently-hot counts. Only used within Write.
 
 	labelPairs []*dto.LabelPair
 }
@@ -271,11 +273,11 @@ func (h *histogram) Observe(v float64) {
 	// 300 buckets: 154 ns/op linear - binary 61.6 ns/op
 	i := sort.SearchFloat64s(h.upperBounds, v)
 
-	// We increment h.countAndHotIdx by 2 so that the counter in the upper
+	// We increment h.countAndHotIdx by 1 so that the counter in the lower
 	// 63 bits gets incremented by 1. At the same time, we get the new value
 	// back, which we can use to find the currently-hot counts.
-	n := atomic.AddUint64(&h.countAndHotIdx, 2)
-	hotCounts := h.counts[n%2]
+	n := atomic.AddUint64(&h.countAndHotIdx, 1)
+	hotCounts := h.counts[n>>63]
 
 	if i < len(h.upperBounds) {
 		atomic.AddUint64(&hotCounts.buckets[i], 1)
@@ -309,41 +311,30 @@ func (h *histogram) Write(out *dto.Metric) error {
 	// This is a bit arcane, which is why the following spells out this if
 	// clause in English:
 	//
-	// If the currently-hot counts struct is #0, we atomically increment
-	// h.countAndHotIdx by 1 so that from now on Observe will use the counts
-	// struct #1. Furthermore, the atomic increment gives us the new value,
-	// which, in its most significant 63 bits, tells us the count of
+	// Adding 1<<63 switches the hot index (from 0 to 1 or from 1 to 0)
+	// without touching the count bits. After the atomic operation finishes
+	// Observe will use the counts struct #1.
+	// Furthermore, the atomic increment gives us the new value,
+	// which, in its least significant 63 bits, tells us the count of
 	// observations done so far up to and including currently ongoing
 	// observations still using the counts struct just changed from hot to
 	// cold. To have a normal uint64 for the count, we bitshift by 1 and
-	// save the result in count. We also set h.hotIdx to 1 for the next
-	// Write call, and we will refer to counts #1 as hotCounts and to counts
-	// #0 as coldCounts.
+	// save the result in count.
 	//
 	// If the currently-hot counts struct is #1, we do the corresponding
 	// things the other way round. We have to _decrement_ h.countAndHotIdx
 	// (which is a bit arcane in itself, as we have to express -1 with an
 	// unsigned int...).
-	if h.hotIdx == 0 {
-		count = atomic.AddUint64(&h.countAndHotIdx, 1) >> 1
-		h.hotIdx = 1
-		hotCounts = h.counts[1]
-		coldCounts = h.counts[0]
-	} else {
-		count = atomic.AddUint64(&h.countAndHotIdx, ^uint64(0)) >> 1 // Decrement.
-		h.hotIdx = 0
-		hotCounts = h.counts[0]
-		coldCounts = h.counts[1]
-	}
+	n := atomic.AddUint64(&h.countAndHotIdx, 1<<63)
+	count = n & ((1 << 63) - 1)
+	hotCounts = h.counts[n>>63]
+	coldCounts = h.counts[(^n)>>63]
 
 	// Now we have to wait for the now-declared-cold counts to actually cool
 	// down, i.e. wait for all observations still using it to finish. That's
 	// the case once the count in the cold counts struct is the same as the
 	// one atomically retrieved from the upper 63bits of h.countAndHotIdx.
-	for {
-		if count == atomic.LoadUint64(&coldCounts.count) {
-			break
-		}
+	for count != atomic.LoadUint64(&coldCounts.count) {
 		runtime.Gosched() // Let observations get work done.
 	}
 
