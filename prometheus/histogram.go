@@ -224,36 +224,36 @@ type histogramCounts struct {
 }
 
 type histogram struct {
-	// CountAndHotIdx enables lock-free writes with use of atomic updates.
+	// countAndHotIdx enables lock-free writes with use of atomic updates.
 	// The most significant bit is the hot index [0 or 1] of the count field
-	// below. Writes update the hot one. All remaining bits count the number
-	// of writes initiated. Write transactions start by incrementing this
-	// counter, and finish by incrementing the count field in the respective
+	// below. Observe calls update the hot one. All remaining bits count the
+	// number of Observe calls. Observe starts by incrementing this counter,
+	// and finish by incrementing the count field in the respective
 	// histogramCounts, as a marker for completion.
 	//
-	// Reads swap the hot–cold in a switchMutex lock. A cooldown is awaited
-	// (in such lock) by comparing the number of writes with the initiation
-	// count. Once they match, then the last write transaction on the now
-	// cool one completed. All cool fields must be merged into the new hot
-	// before the unlock of switchMutex.
+	// Calls of the Write method (which are non-mutating reads from the
+	// perspective of the histogram) swap the hot–cold under the writeMtx
+	// lock. A cooldown is awaited (while locked) by comparing the number of
+	// observations with the initiation count. Once they match, then the
+	// last observation on the now cool one has completed. All cool fields must
+	// be merged into the new hot before releasing writeMtx.
 	//
 	// Fields with atomic access first! See alignment constraint:
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	countAndHotIdx uint64
 
-	// Counts has to be an array of pointers to guarantee 64bit alignment of
-	// the histogramCounts, see
+	selfCollector
+	desc     *Desc
+	writeMtx sync.Mutex // Only used in the Write method.
+
+	// Two counts, one is "hot" for lock-free observations, the other is
+	// "cold" for writing out a dto.Metric. It has to be an array of
+	// pointers to guarantee 64bit alignment of the histogramCounts, see
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG.
 	counts [2]*histogramCounts
 
-	switchMtx sync.Mutex
-
-	selfCollector
-	desc *Desc
-
 	upperBounds []float64
-
-	labelPairs []*dto.LabelPair
+	labelPairs  []*dto.LabelPair
 }
 
 func (h *histogram) Desc() *Desc {
@@ -294,21 +294,25 @@ func (h *histogram) Observe(v float64) {
 }
 
 func (h *histogram) Write(out *dto.Metric) error {
-	// For simplicity, we mutex the rest of this method. It is not in the
-	// hot path, i.e.  Observe is called much more often than Write. The
-	// complication of making Write lock-free isn't worth it.
-	h.switchMtx.Lock()
-	defer h.switchMtx.Unlock()
+	// For simplicity, we protect this whole method by a mutex. It is not in
+	// the hot path, i.e. Observe is called much more often than Write. The
+	// complication of making Write lock-free isn't worth it, if possible at
+	// all.
+	h.writeMtx.Lock()
+	defer h.writeMtx.Unlock()
 
 	// Adding 1<<63 switches the hot index (from 0 to 1 or from 1 to 0)
 	// without touching the count bits. See the struct comments for a full
 	// description of the algorithm.
 	n := atomic.AddUint64(&h.countAndHotIdx, 1<<63)
+	// count is contained unchanged in the lower 63 bits.
 	count := n & ((1 << 63) - 1)
+	// The most significant bit tells us which counts is hot. The complement
+	// is thus the cold one.
 	hotCounts := h.counts[n>>63]
 	coldCounts := h.counts[(^n)>>63]
 
-	// await cooldown
+	// Await cooldown.
 	for count != atomic.LoadUint64(&coldCounts.count) {
 		runtime.Gosched() // Let observations get work done.
 	}
