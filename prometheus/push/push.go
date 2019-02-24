@@ -186,8 +186,10 @@ func (p *Pusher) BasicAuth(username, password string) *Pusher {
 }
 
 // Format configures the Pusher to use an encoding format given by the
-// provided expfmt.Format. For convenience, this method returns a
-// pointer to the Pusher itself.
+// provided expfmt.Format. The default format is expfmt.FmtProtoDelim and
+// should be used with the standard Prometheus Pushgateway. Custom
+// implementations may require different formats. For convenience, this
+// method returns a pointer to the Pusher itself.
 func (p *Pusher) Format(format expfmt.Format) *Pusher {
 	p.expfmt = format
 	return p
@@ -233,7 +235,7 @@ func (p *Pusher) push(method string) error {
 	if p.useBasicAuth {
 		req.SetBasicAuth(p.username, p.password)
 	}
-	req.Header.Set(contentTypeHeader, string(expfmt.FmtProtoDelim))
+	req.Header.Set(contentTypeHeader, string(p.expfmt))
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return err
