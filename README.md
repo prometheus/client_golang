@@ -9,7 +9,7 @@ This is the [Go](http://golang.org) client library for
 instrumenting application code, and one for creating clients that talk to the
 Prometheus HTTP API.
 
-__This library requires Go1.7 or later.__
+__This library requires Go1.8 or later.__
 
 ## Important note about releases, versioning, tagging, and stability
 
