@@ -58,7 +58,7 @@ type Client interface {
 	Do(context.Context, *http.Request) (*http.Response, []byte, error)
 }
 
-// DoGetFallback will attempt to do the request as-is, and on a 405 it will fallback to a GET request
+// DoGetFallback will attempt to do the request as-is, and on a 405 it will fallback to a GET request.
 func DoGetFallback(c Client, ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, error) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
 	if err != nil {
