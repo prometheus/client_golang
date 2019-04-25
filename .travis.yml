@@ -10,6 +10,6 @@ go:
 
 script:
   - make check_license unused test-short
-  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.(7|8|9)\.[x0-9]+$ ]]; then make staticcheck; fi
+  - if [[ ! $TRAVIS_GO_VERSION =~ ^1\.(7|8|9)\.[x0-9]+$ ]]; then make lint; fi
   # style is only checked against the latest supported Go version.
   - if [[ $TRAVIS_GO_VERSION =~ ^1\.(12)\. ]]; then make style; fi
