@@ -161,6 +161,8 @@ func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) deleg
 	}
 
 	id := 0
+	//lint:ignore SA1019 http.CloseNotifier is deprecated but we don't want to
+	//remove support from client_golang yet.
 	if _, ok := w.(http.CloseNotifier); ok {
 		id += closeNotifier
 	}
