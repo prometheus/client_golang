@@ -61,7 +61,7 @@ type Pusher struct {
 	gatherers  prometheus.Gatherers
 	registerer prometheus.Registerer
 
-	client             *http.Client
+	client             HTTPClient
 	useBasicAuth       bool
 	username, password string
 
@@ -170,7 +170,7 @@ func (p *Pusher) Grouping(name, value string) *Pusher {
 
 // Client sets a custom HTTP client for the Pusher. For convenience, this method
 // returns a pointer to the Pusher itself.
-func (p *Pusher) Client(c *http.Client) *Pusher {
+func (p *Pusher) Client(c HTTPClient) *Pusher {
 	p.client = c
 	return p
 }
