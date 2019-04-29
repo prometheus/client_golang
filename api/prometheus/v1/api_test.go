@@ -25,11 +25,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/tsdb/testutil"
 )
 
 type apiTest struct {
-	do           func() (interface{}, error)
+	do           func() (interface{}, api.Error)
+	inWarnings   []string
 	inErr        error
 	inStatusCode int
 	inRes        interface{}
@@ -58,7 +61,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 
 	test := c.curTest
 
@@ -83,7 +86,7 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inErr
+	return resp, b, api.NewErrorAPI(test.inErr, test.inWarnings)
 }
 
 func TestAPIs(t *testing.T) {
@@ -96,74 +99,74 @@ func TestAPIs(t *testing.T) {
 		client: client,
 	}
 
-	doAlertManagers := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doAlertManagers := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.AlertManagers(context.Background())
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doCleanTombstones := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doConfig := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Config(context.Background())
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doFlags := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Flags(context.Background())
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doLabelValues := func(label string) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.LabelValues(context.Background(), label)
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doQuery := func(q string, ts time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Query(context.Background(), q, ts)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doQueryRange := func(q string, rng Range) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.QueryRange(context.Background(), q, rng)
 		}
 	}
 
-	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doSnapshot := func(skipHead bool) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Snapshot(context.Background(), skipHead)
 		}
 	}
 
-	doRules := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doRules := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Rules(context.Background())
 		}
 	}
 
-	doTargets := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doTargets := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Targets(context.Background())
 		}
 	}
@@ -693,7 +696,7 @@ func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -829,6 +832,21 @@ func TestAPIClientDo(t *testing.T) {
 				Msg:  "inconsistent body for response code",
 			},
 		},
+		{
+			code: http.StatusOK,
+			response: &apiResponse{
+				Status:    "error",
+				Data:      json.RawMessage(`"test"`),
+				ErrorType: ErrTimeout,
+				Error:     "timed out",
+				Warnings:  []string{"a"},
+			},
+			expectedErr: &Error{
+				Type:     ErrBadResponse,
+				Msg:      "inconsistent body for response code",
+				warnings: []string{"a"},
+			},
+		},
 	}
 
 	tc := &testClient{
@@ -846,28 +864,20 @@ func TestAPIClientDo(t *testing.T) {
 			_, body, err := client.Do(context.Background(), tc.req)
 
 			if test.expectedErr != nil {
-				if err == nil {
-					t.Fatalf("expected error %q but got none", test.expectedErr)
-				}
-				if test.expectedErr.Error() != err.Error() {
-					t.Errorf("unexpected error: want %q, got %q", test.expectedErr, err)
-				}
+				testutil.NotOk(t, err)
+				testutil.Equals(t, test.expectedErr.Error(), err.Error())
+
 				if test.expectedErr.Detail != "" {
 					apiErr := err.(*Error)
-					if apiErr.Detail != test.expectedErr.Detail {
-						t.Errorf("unexpected error details: want %q, got %q", test.expectedErr.Detail, apiErr.Detail)
-					}
+					testutil.Equals(t, apiErr.Detail, test.expectedErr.Detail)
 				}
+
+				testutil.Equals(t, test.expectedErr.Warnings(), err.Warnings())
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpeceted error %s", err)
-			}
+			testutil.Ok(t, err)
 
-			want, got := test.expectedBody, string(body)
-			if want != got {
-				t.Errorf("unexpected body: want %q, got %q", want, got)
-			}
+			testutil.Equals(t, test.expectedBody, string(body))
 		})
 
 	}
