@@ -540,12 +540,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	_, body, err := h.client.Do(ctx, req)
+	_, body, err := api.DoGetFallback(h.client, ctx, u, q)
 	if err != nil {
 		return nil, err
 	}
@@ -571,14 +566,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	q.Set("end", end)
 	q.Set("step", step)
 
-	u.RawQuery = q.Encode()
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	_, body, err := h.client.Do(ctx, req)
+	_, body, err := api.DoGetFallback(h.client, ctx, u, q)
 	if err != nil {
 		return nil, err
 	}
