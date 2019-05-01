@@ -538,8 +538,6 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 		q.Set("time", ts.Format(time.RFC3339Nano))
 	}
 
-	u.RawQuery = q.Encode()
-
 	_, body, err := api.DoGetFallback(h.client, ctx, u, q)
 	if err != nil {
 		return nil, err
