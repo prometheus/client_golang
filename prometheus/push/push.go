@@ -50,6 +50,11 @@ import (
 
 const contentTypeHeader = "Content-Type"
 
+// HTTPDoer is an interface for the one method of http.Client that is used by Pusher
+type HTTPDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 // Pusher manages a push to the Pushgateway. Use New to create one, configure it
 // with its methods, and finally use the Add or Push method to push.
 type Pusher struct {
@@ -61,7 +66,7 @@ type Pusher struct {
 	gatherers  prometheus.Gatherers
 	registerer prometheus.Registerer
 
-	client             *http.Client
+	client             HTTPDoer
 	useBasicAuth       bool
 	username, password string
 
@@ -170,7 +175,11 @@ func (p *Pusher) Grouping(name, value string) *Pusher {
 
 // Client sets a custom HTTP client for the Pusher. For convenience, this method
 // returns a pointer to the Pusher itself.
-func (p *Pusher) Client(c *http.Client) *Pusher {
+// Pusher only needs one method of the custom HTTP client: Do(*http.Request).
+// Thus, rather than requiring a fully fledged http.Client,
+// the provided client only needs to implement the HTTPDoer interface.
+// Since *http.Client naturally implements that interface, it can still be used normally.
+func (p *Pusher) Client(c HTTPDoer) *Pusher {
 	p.client = c
 	return p
 }
