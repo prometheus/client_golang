@@ -127,9 +127,10 @@ type SummaryOpts struct {
 	// its zero value (i.e. nil). To create a Summary without Objectives,
 	// set it to an empty map (i.e. map[float64]float64{}).
 	//
-	// Deprecated: Note that the current value of DefObjectives is
-	// deprecated. It will be replaced by an empty map in v0.10 of the
-	// library. Please explicitly set Objectives to the desired value.
+	// Note that the current value of DefObjectives is deprecated. It will
+	// be replaced by an empty map in v0.10 of the library. Please
+	// explicitly set Objectives to the desired value to avoid problems
+	// during the transition.
 	Objectives map[float64]float64
 
 	// MaxAge defines the duration for which an observation stays relevant
