@@ -53,7 +53,7 @@ func (u uncheckedCollector) Collect(c chan<- prometheus.Metric) {
 func testHandler(t testing.TB) {
 	// TODO(beorn7): This test is a bit too "end-to-end". It tests quite a
 	// few moving parts that are not strongly coupled. They could/should be
-	// tested separately. However, the changes planned for v0.10 will
+	// tested separately. However, the changes planned for v2 will
 	// require a major rework of this test anyway, at which time I will
 	// structure it in a better way.
 
