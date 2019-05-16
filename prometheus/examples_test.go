@@ -232,16 +232,11 @@ func ExampleRegister() {
 
 	// A different (and somewhat tricky) approach is to use
 	// ConstLabels. ConstLabels are pairs of label names and label values
-	// that never change. You might ask what those labels are good for (and
-	// rightfully so - if they never change, they could as well be part of
-	// the metric name). There are essentially two use-cases: The first is
-	// if labels are constant throughout the lifetime of a binary execution,
-	// but they vary over time or between different instances of a running
-	// binary. The second is what we have here: Each worker creates and
-	// registers an own Counter instance where the only difference is in the
-	// value of the ConstLabels. Those Counters can all be registered
-	// because the different ConstLabel values guarantee that each worker
-	// will increment a different Counter metric.
+	// that never change. Each worker creates and registers an own Counter
+	// instance where the only difference is in the value of the
+	// ConstLabels. Those Counters can all be registered because the
+	// different ConstLabel values guarantee that each worker will increment
+	// a different Counter metric.
 	counterOpts := prometheus.CounterOpts{
 		Subsystem:   "worker_pool",
 		Name:        "completed_tasks",
