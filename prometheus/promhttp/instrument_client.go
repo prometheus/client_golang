@@ -14,7 +14,6 @@
 package promhttp
 
 import (
-	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptrace"
@@ -213,7 +212,7 @@ func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) Ro
 				}
 			},
 		}
-		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+		r = r.WithContext(httptrace.WithClientTrace(r.Context(), trace))
 
 		return next.RoundTrip(r)
 	})
