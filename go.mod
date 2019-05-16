@@ -7,4 +7,5 @@ require (
 	github.com/prometheus/common v0.3.0
 	github.com/prometheus/procfs v0.0.0-20190412120340-e22ddced7142
 	github.com/prometheus/tsdb v0.7.1
+	github.com/stretchr/testify v1.2.2
 )

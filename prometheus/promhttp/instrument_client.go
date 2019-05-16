@@ -213,7 +213,11 @@ func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) Ro
 				}
 			},
 		}
-		r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+		if ctx := r.Context(); ctx != nil {
+			r = r.WithContext(httptrace.WithClientTrace(ctx, trace))
+		} else {
+			r = r.WithContext(httptrace.WithClientTrace(context.Background(), trace))
+		}
 
 		return next.RoundTrip(r)
 	})

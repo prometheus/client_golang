@@ -14,18 +14,19 @@
 package promhttp
 
 import (
+	"fmt"
+	"context"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestClientMiddlewareAPI(t *testing.T) {
-	client := http.DefaultClient
-	client.Timeout = 1 * time.Second
-
+func instrumentClient(client *http.Client) *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -91,13 +92,85 @@ func TestClientMiddlewareAPI(t *testing.T) {
 				InstrumentRoundTripperDuration(histVec, http.DefaultTransport),
 			),
 		),
-	)
+	)	
+
+	return reg
+}
+
+func TestClientMiddlewareAPI(t *testing.T) {
+	client := http.DefaultClient
+	client.Timeout = 1 * time.Second
+
+	instrumentClient(client)
 
 	resp, err := client.Get("http://google.com")
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	defer resp.Body.Close()
+}
+
+func TestClientMiddlewareAPIWithRequestContext(t *testing.T) {
+	client := http.DefaultClient
+	client.Timeout = 1 * time.Second
+
+	reg:= instrumentClient(client);
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	req, err := http.NewRequest("GET", backend.URL, nil)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	_, err = client.Do(req)
+
+	assert.Nil(t, err)
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	if len(mfs) < 3 {
+		t.Fatalf("Expected 3 metric families, found %d", len(mfs))
+	}
+	for _, mf := range mfs {
+		assert.True(t, len(mf.Metric)>0, fmt.Sprintf("metrics %s must not be empty", mf.GetName()))
+	}
+}
+
+func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
+	client := http.DefaultClient
+	client.Timeout = 1 * time.Second
+
+	instrumentClient(client)
+
+	// slow responding server
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(250 * time.Millisecond)
+	}))
+	defer backend.Close()
+
+	req, err := http.NewRequest("GET", backend.URL, nil)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// fast timeouting client context
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	_, err = client.Do(req)
+
+	assert.NotNil(t, err)
+	assert.Equal(t, fmt.Sprintf("Get %s: context deadline exceeded", backend.URL), err.Error())
 }
 
 func ExampleInstrumentRoundTripperDuration() {
