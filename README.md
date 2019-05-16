@@ -9,55 +9,43 @@ This is the [Go](http://golang.org) client library for
 instrumenting application code, and one for creating clients that talk to the
 Prometheus HTTP API.
 
-__This library requires Go1.7 or later.__
+__This library requires Go1.9 or later.__
 
 ## Important note about releases, versioning, tagging, and stability
 
-While our goal is to follow [Semantic Versioning](https://semver.org/), this
-repository is still pre-1.0.0. To quote the
-[Semantic Versioning spec](https://semver.org/#spec-item-4): “Anything may
-change at any time. The public API should not be considered stable.” We know
-that this is at odds with the widespread use of this library. However, just
-declaring something 1.0.0 doesn't make it 1.0.0. Instead, we are working
-towards a 1.0.0 release that actually deserves its major version number.
+In this repository, we used to mostly ignore the many coming and going
+dependency management tools for Go and instead wait for a tool that most of the
+community would converge on. Our bet is that this tool has arrived now in the
+form of [Go
+Modules](https://github.com/golang/go/wiki/Modules#how-to-upgrade-and-downgrade-dependencies).
 
-Having said that, we aim for always keeping the tip of master in a workable
-state. We occasionally tag versions and track their changes in CHANGELOG.md,
-but this happens mostly to keep dependency management tools happy and to give
-people a handle they can talk about easily. In particular, all commits in the
-master branch have passed the same testing and reviewing. There is no QA
-process in place that would render tagged commits more stable or better tested
-than others.
+To make full use of what Go Modules are offering, the previous versioning
+roadmap for this repository had to be changed. In particular, Go Modules
+finally provide a way for incompatible versions of the same package to coexist
+in the same binary. For that, however, the versions must be tagged with
+different major versions of 1 or greater (following [Semantic
+Versioning](https://semver.org/)). Thus, we decided to abandon the original
+plan of introducing a lot of breaking changes _before_ releasing v1 of this
+repository, mostly driven by the widespread use this repository already has and
+the relatively stable state it is in.
 
-There is a plan behind the current (pre-1.0.0) versioning, though:
+To leverage the mechanism Go Modules offers for a transition between major
+version, the current plan is the following:
 
-- v0.9 is the “production release”, currently tracked in the master
-  branch. “Patch” releases will usually be just bug fixes, indeed, but
-  important new features that do not require invasive code changes might also
-  be included in those. We do not plan any breaking changes from one v0.9.x
-  release to any later v0.9.y release, but nothing is guaranteed. Since the
-  master branch will eventually be switched over to track the upcoming v0.10
-  (see below), we recommend to tell your dependency management tool of choice
-  to use the latest v0.9.x release, at least for your production software. In
-  that way, you should get bug fixes and non-invasive, low-risk new features
-  without the need to change anything on your part.
-- v0.10 is a planned release that will have a _lot_ of breaking changes
-  (despite being only a “minor” release in the Semantic Versioning terminology,
-  but as said, pre-1.0.0 means nothing is guaranteed). Essentially, we have
-  been piling up feature requests that require breaking changes for a while,
-  and they are all collected in the
-  [v0.10 milestone](https://github.com/prometheus/client_golang/milestone/2).
-  Since there will be so many breaking changes, the development for v0.10 is
-  currently not happening in the master branch, but in the
-  [dev-0.10 branch](https://github.com/prometheus/client_golang/tree/dev-0.10).
-  It will violently change for a while, and it will definitely be in a
-  non-working state now and then. It should only be used for sneak-peaks and
-  discussions of the new features and designs.
-- Once v0.10 is ready for real-life use, it will be merged into the master
-  branch (which is the reason why you should lock your dependency management
-  tool to v0.9.x and only migrate to v0.10 when both you and v0.10 are ready
-  for it). In the ideal case, v0.10 will be the basis for the future v1.0
-  release, but we cannot provide an ETA at this time.
+- The v0.9.x series of releases will see a small number of bugfix releases to
+  deal with a few remaining minor issues (#543, #542, #539).
+- After that, all features currently marked as _deprecated_ will be removed,
+  and the result will be released as v1.0.0.
+- The planned breaking changes previously gathered as part of the v0.10
+  milestone will now go into the v2 milestone. The v2 development happens in a
+  [separate branch](https://github.com/prometheus/client_golang/tree/dev-v2)
+  for the time being. v2 releases off that branch will happen once sufficient
+  stability is reached. v1 and v2 will coexist for a while to enable a
+  convenient transition.
+- The API client in prometheus/client_golang/api/… is still considered
+  experimental. While it will be tagged alongside the rest of the code
+  according to the plan above, we cannot strictly guarantee semver semantics
+  for it.
 
 ## Instrumenting applications
 
