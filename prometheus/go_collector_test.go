@@ -196,9 +196,11 @@ func TestGoCollectorMemStats(t *testing.T) {
 	}
 	checkCollect(1)
 	// Now msLast is set.
+	c.msMtx.Lock()
 	if want, got := uint64(1), c.msLast.Alloc; want != got {
 		t.Errorf("unexpected of msLast.Alloc, want %d, got %d", want, got)
 	}
+	c.msMtx.Unlock()
 
 	// Scenario 2: msRead responds fast, previous memstats available, new
 	// value collected.
@@ -207,9 +209,11 @@ func TestGoCollectorMemStats(t *testing.T) {
 	}
 	checkCollect(2)
 	// msLast is set, too.
+	c.msMtx.Lock()
 	if want, got := uint64(2), c.msLast.Alloc; want != got {
 		t.Errorf("unexpected of msLast.Alloc, want %d, got %d", want, got)
 	}
+	c.msMtx.Unlock()
 
 	// Scenario 3: msRead responds slowly, previous memstats available, old
 	// value collected.
@@ -220,9 +224,11 @@ func TestGoCollectorMemStats(t *testing.T) {
 	checkCollect(2)
 	// After waiting, new value is still set in msLast.
 	time.Sleep(12 * time.Millisecond)
+	c.msMtx.Lock()
 	if want, got := uint64(3), c.msLast.Alloc; want != got {
 		t.Errorf("unexpected of msLast.Alloc, want %d, got %d", want, got)
 	}
+	c.msMtx.Unlock()
 
 	// Scenario 4: msRead responds slowly, previous memstats is too old, new
 	// value collected.
@@ -231,7 +237,9 @@ func TestGoCollectorMemStats(t *testing.T) {
 		ms.Alloc = 4
 	}
 	checkCollect(4)
+	c.msMtx.Lock()
 	if want, got := uint64(4), c.msLast.Alloc; want != got {
 		t.Errorf("unexpected of msLast.Alloc, want %d, got %d", want, got)
 	}
+	c.msMtx.Unlock()
 }
