@@ -15,9 +15,9 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -25,9 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/api"
+	json "github.com/json-iterator/go"
+
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/tsdb/testutil"
+
+	"github.com/prometheus/client_golang/api"
 )
 
 type apiTest struct {
@@ -792,7 +795,7 @@ func TestAPIClientDo(t *testing.T) {
 			response: "bad json",
 			expectedErr: &Error{
 				Type: ErrBadResponse,
-				Msg:  "invalid character 'b' looking for beginning of value",
+				Msg:  "readObjectStart: expect { or n, but found b, error found in #1 byte of ...|bad json|..., bigger context ...|bad json|...",
 			},
 		},
 		{
@@ -880,5 +883,101 @@ func TestAPIClientDo(t *testing.T) {
 			testutil.Equals(t, test.expectedBody, string(body))
 		})
 
+	}
+}
+
+func TestSamplesJsonSerialization(t *testing.T) {
+	tests := []struct {
+		point    model.SamplePair
+		expected string
+	}{
+		{
+			point:    model.SamplePair{0, 0},
+			expected: `[0,"0"]`,
+		},
+		{
+			point:    model.SamplePair{1, 20},
+			expected: `[0.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{10, 20},
+			expected: `[0.010,"20"]`,
+		},
+		{
+			point:    model.SamplePair{100, 20},
+			expected: `[0.100,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1001, 20},
+			expected: `[1.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1010, 20},
+			expected: `[1.010,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1100, 20},
+			expected: `[1.100,"20"]`,
+		},
+		{
+			point:    model.SamplePair{12345678123456555, 20},
+			expected: `[12345678123456.555,"20"]`,
+		},
+		{
+			point:    model.SamplePair{-1, 20},
+			expected: `[-0.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.NaN())},
+			expected: `[0,"NaN"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.Inf(1))},
+			expected: `[0,"+Inf"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.Inf(-1))},
+			expected: `[0,"-Inf"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(1.2345678e6)},
+			expected: `[0,"1234567.8"]`,
+		},
+		{
+			point:    model.SamplePair{0, 1.2345678e-6},
+			expected: `[0,"0.0000012345678"]`,
+		},
+		{
+			point:    model.SamplePair{0, 1.2345678e-67},
+			expected: `[0,"1.2345678e-67"]`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			b, err := json.Marshal(test.point)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != test.expected {
+				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
+			}
+
+			// To test Unmarshal we will Unmarshal then re-Marshal this way we
+			// can do a string compare, otherwise Nan values don't show equivalence
+			// properly.
+			var sp model.SamplePair
+			if err = json.Unmarshal(b, &sp); err != nil {
+				t.Fatal(err)
+			}
+
+			b, err = json.Marshal(sp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != test.expected {
+				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
+			}
+		})
 	}
 }

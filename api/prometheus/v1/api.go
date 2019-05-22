@@ -17,17 +17,104 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
+
+	json "github.com/json-iterator/go"
+
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/api"
-	"github.com/prometheus/common/model"
 )
+
+func init() {
+	json.RegisterTypeEncoderFunc("model.SamplePair", marshalPointJSON, marshalPointJSONIsEmpty)
+	json.RegisterTypeDecoderFunc("model.SamplePair", unMarshalPointJSON)
+}
+
+func unMarshalPointJSON(ptr unsafe.Pointer, iter *json.Iterator) {
+	p := (*model.SamplePair)(ptr)
+	if !iter.ReadArray() {
+		iter.ReportError("unmarshal model.SamplePair", "SamplePair must be [timestamp, value]")
+		return
+	}
+	t := iter.ReadNumber()
+	if err := p.Timestamp.UnmarshalJSON([]byte(t)); err != nil {
+		iter.ReportError("unmarshal model.SamplePair", err.Error())
+		return
+	}
+	if !iter.ReadArray() {
+		iter.ReportError("unmarshal model.SamplePair", "SamplePair missing value")
+		return
+	}
+
+	f, err := strconv.ParseFloat(iter.ReadString(), 64)
+	if err != nil {
+		iter.ReportError("unmarshal model.SamplePair", err.Error())
+		return
+	}
+	p.Value = model.SampleValue(f)
+
+	if iter.ReadArray() {
+		iter.ReportError("unmarshal model.SamplePair", "SamplePair has too many values, must be [timestamp, value]")
+		return
+	}
+}
+
+func marshalPointJSON(ptr unsafe.Pointer, stream *json.Stream) {
+	p := *((*model.SamplePair)(ptr))
+	stream.WriteArrayStart()
+	// Write out the timestamp as a float divided by 1000.
+	// This is ~3x faster than converting to a float.
+	t := int64(p.Timestamp)
+	if t < 0 {
+		stream.WriteRaw(`-`)
+		t = -t
+	}
+	stream.WriteInt64(t / 1000)
+	fraction := t % 1000
+	if fraction != 0 {
+		stream.WriteRaw(`.`)
+		if fraction < 100 {
+			stream.WriteRaw(`0`)
+		}
+		if fraction < 10 {
+			stream.WriteRaw(`0`)
+		}
+		stream.WriteInt64(fraction)
+	}
+	stream.WriteMore()
+	stream.WriteRaw(`"`)
+
+	// Taken from https://github.com/json-iterator/go/blob/master/stream_float.go#L71 as a workaround
+	// to https://github.com/json-iterator/go/issues/365 (jsoniter, to follow json standard, doesn't allow inf/nan)
+	buf := stream.Buffer()
+	abs := math.Abs(float64(p.Value))
+	fmt := byte('f')
+	// Note: Must use float32 comparisons for underlying float32 value to get precise cutoffs right.
+	if abs != 0 {
+		if abs < 1e-6 || abs >= 1e21 {
+			fmt = 'e'
+			fmt = 'e'
+		}
+	}
+	buf = strconv.AppendFloat(buf, float64(p.Value), fmt, -1, 64)
+	stream.SetBuffer(buf)
+
+	stream.WriteRaw(`"`)
+	stream.WriteArrayEnd()
+
+}
+
+func marshalPointJSONIsEmpty(ptr unsafe.Pointer) bool {
+	return false
+}
 
 const (
 	statusAPIError = 422
