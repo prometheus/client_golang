@@ -138,11 +138,11 @@ func TestGoCollectorGC(t *testing.T) {
 				close(waitCh)
 				continue
 			}
-			if diff := *pb.GetSummary().SampleCount - oldGC; diff != 1 {
-				t.Errorf("want 1 new garbage collection run, got %d", diff)
+			if diff := *pb.GetSummary().SampleCount - oldGC; diff < 1 {
+				t.Errorf("want at least 1 new garbage collection run, got %d", diff)
 			}
 			if diff := *pb.GetSummary().SampleSum - oldPause; diff <= 0 {
-				t.Errorf("want moar pause, got %f", diff)
+				t.Errorf("want an increase in pause time, got a change of %f", diff)
 			}
 		case <-time.After(1 * time.Second):
 			t.Fatalf("expected collect timed out")
