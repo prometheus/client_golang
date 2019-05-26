@@ -184,14 +184,14 @@ func TestGoCollectorMemStats(t *testing.T) {
 		}
 	}
 
-	// Speed up the timing to make the tast faster.
-	c.msMaxWait = time.Millisecond
-	c.msMaxAge = 10 * time.Millisecond
+	// Speed up the timing to make the test faster.
+	c.msMaxWait = 5 * time.Millisecond
+	c.msMaxAge = 50 * time.Millisecond
 
 	// Scenario 1: msRead responds slowly, no previous memstats available,
 	// msRead is executed anyway.
 	c.msRead = func(ms *runtime.MemStats) {
-		time.Sleep(3 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 		ms.Alloc = 1
 	}
 	checkCollect(1)
@@ -218,12 +218,12 @@ func TestGoCollectorMemStats(t *testing.T) {
 	// Scenario 3: msRead responds slowly, previous memstats available, old
 	// value collected.
 	c.msRead = func(ms *runtime.MemStats) {
-		time.Sleep(3 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 		ms.Alloc = 3
 	}
 	checkCollect(2)
 	// After waiting, new value is still set in msLast.
-	time.Sleep(12 * time.Millisecond)
+	time.Sleep(80 * time.Millisecond)
 	c.msMtx.Lock()
 	if want, got := uint64(3), c.msLast.Alloc; want != got {
 		t.Errorf("unexpected of msLast.Alloc, want %d, got %d", want, got)
@@ -233,7 +233,7 @@ func TestGoCollectorMemStats(t *testing.T) {
 	// Scenario 4: msRead responds slowly, previous memstats is too old, new
 	// value collected.
 	c.msRead = func(ms *runtime.MemStats) {
-		time.Sleep(3 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
 		ms.Alloc = 4
 	}
 	checkCollect(4)
