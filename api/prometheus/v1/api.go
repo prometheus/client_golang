@@ -41,6 +41,7 @@ const (
 	epLabelValues     = apiPrefix + "/label/:name/values"
 	epSeries          = apiPrefix + "/series"
 	epTargets         = apiPrefix + "/targets"
+	epTargetsMetadata = apiPrefix + "/targets/metadata"
 	epRules           = apiPrefix + "/rules"
 	epSnapshot        = apiPrefix + "/admin/tsdb/snapshot"
 	epDeleteSeries    = apiPrefix + "/admin/tsdb/delete_series"
@@ -63,6 +64,9 @@ type RuleType string
 
 // RuleHealth models the health status of a rule.
 type RuleHealth string
+
+// MetricType models the type of a metric.
+type MetricType string
 
 const (
 	// Possible values for AlertState.
@@ -92,6 +96,16 @@ const (
 	RuleHealthGood    = "ok"
 	RuleHealthUnknown = "unknown"
 	RuleHealthBad     = "err"
+
+	// Possible values for MetricType
+	MetricTypeCounter        MetricType = "counter"
+	MetricTypeGauge          MetricType = "gauge"
+	MetricTypeHistogram      MetricType = "histogram"
+	MetricTypeGaugeHistogram MetricType = "gaugehistogram"
+	MetricTypeSummary        MetricType = "summary"
+	MetricTypeInfo           MetricType = "info"
+	MetricTypeStateset       MetricType = "stateset"
+	MetricTypeUnknown        MetricType = "unknown"
 )
 
 // Error is an error returned by the API.
@@ -155,6 +169,8 @@ type API interface {
 	Rules(ctx context.Context) (RulesResult, api.Error)
 	// Targets returns an overview of the current state of the Prometheus target discovery.
 	Targets(ctx context.Context) (TargetsResult, api.Error)
+	// TargetsMetadata returns metadata about metrics currently scraped by the target.
+	TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) ([]MetricMetadata, api.Error)
 }
 
 // AlertsResult contains the result from querying the alerts endpoint.
@@ -262,6 +278,15 @@ type ActiveTarget struct {
 // DroppedTarget models a dropped Prometheus scrape target.
 type DroppedTarget struct {
 	DiscoveredLabels map[string]string `json:"discoveredLabels"`
+}
+
+// MetricMetadata models the metadata of a metric.
+type MetricMetadata struct {
+	Target map[string]string `json:"target"`
+	Metric string            `json:"metric,omitempty"`
+	Type   MetricType        `json:"type"`
+	Help   string            `json:"help"`
+	Unit   string            `json:"unit"`
 }
 
 // queryResult contains result data for a query.
@@ -669,6 +694,31 @@ func (h *httpAPI) Targets(ctx context.Context) (TargetsResult, api.Error) {
 	}
 
 	var res TargetsResult
+	err = json.Unmarshal(body, &res)
+	return res, api.NewErrorAPI(err, nil)
+}
+
+func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) ([]MetricMetadata, api.Error) {
+	u := h.client.URL(epTargetsMetadata, nil)
+	q := u.Query()
+
+	q.Set("match_target", matchTarget)
+	q.Set("metric", metric)
+	q.Set("limit", limit)
+
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, api.NewErrorAPI(err, nil)
+	}
+
+	_, body, apiErr := h.client.Do(ctx, req)
+	if apiErr != nil {
+		return nil, apiErr
+	}
+
+	var res []MetricMetadata
 	err = json.Unmarshal(body, &res)
 	return res, api.NewErrorAPI(err, nil)
 }
