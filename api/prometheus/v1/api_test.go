@@ -493,7 +493,7 @@ func TestAPIs(t *testing.T) {
 											"severity":  "page",
 										},
 										"state": "firing",
-										"value": 1,
+										"value": "1e+00",
 									},
 								},
 								"annotations": map[string]interface{}{
@@ -537,7 +537,7 @@ func TestAPIs(t *testing.T) {
 											"severity":  "page",
 										},
 										State: AlertStateFiring,
-										Value: 1,
+										Value: "1e+00",
 									},
 								},
 								Annotations: model.LabelSet{

@@ -327,7 +327,7 @@ type Alert struct {
 	Annotations model.LabelSet
 	Labels      model.LabelSet
 	State       AlertState
-	Value       float64
+	Value       string
 }
 
 // TargetsResult contains the result from querying the targets endpoint.
