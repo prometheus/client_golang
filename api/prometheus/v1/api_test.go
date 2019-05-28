@@ -174,6 +174,12 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
+			return promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime),
@@ -296,7 +302,7 @@ func TestAPIs(t *testing.T) {
 				"end":   []string{testTime.Format(time.RFC3339Nano)},
 			},
 			res: []model.LabelSet{
-				model.LabelSet{
+				{
 					"__name__": "up",
 					"job":      "prometheus",
 					"instance": "localhost:9090",
@@ -644,6 +650,52 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/targets",
 			inErr:     fmt.Errorf("some error"),
 			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do: doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
+			inRes: []map[string]interface{}{
+				{
+					"target": map[string]interface{}{
+						"instance": "127.0.0.1:9090",
+						"job":      "prometheus",
+					},
+					"type": "gauge",
+					"help": "Number of goroutines that currently exist.",
+					"unit": "",
+				},
+			},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets/metadata",
+			reqParam: url.Values{
+				"match_target": []string{"{job=\"prometheus\"}"},
+				"metric":       []string{"go_goroutines"},
+				"limit":        []string{"1"},
+			},
+			res: []MetricMetadata{
+				{
+					Target: map[string]string{
+						"instance": "127.0.0.1:9090",
+						"job":      "prometheus",
+					},
+					Type: "gauge",
+					Help: "Number of goroutines that currently exist.",
+					Unit: "",
+				},
+			},
+		},
+
+		{
+			do:        doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets/metadata",
+			reqParam: url.Values{
+				"match_target": []string{"{job=\"prometheus\"}"},
+				"metric":       []string{"go_goroutines"},
+				"limit":        []string{"1"},
+			},
+			err: fmt.Errorf("some error"),
 		},
 	}
 
