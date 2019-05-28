@@ -28,7 +28,6 @@ import (
 	json "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/tsdb/testutil"
 
 	"github.com/prometheus/client_golang/api"
 )
@@ -919,20 +918,39 @@ func TestAPIClientDo(t *testing.T) {
 			_, body, err := client.Do(context.Background(), tc.req)
 
 			if test.expectedErr != nil {
-				testutil.NotOk(t, err)
-				testutil.Equals(t, test.expectedErr.Error(), err.Error())
+				if err == nil {
+					t.Fatal("expected error, but got none")
+				}
+
+				if test.expectedErr.Error() != err.Error() {
+					t.Fatalf("expected error:%v, but got:%v", test.expectedErr.Error(), err.Error())
+				}
 
 				if test.expectedErr.Detail != "" {
 					apiErr := err.(*Error)
-					testutil.Equals(t, apiErr.Detail, test.expectedErr.Detail)
+					if apiErr.Detail != test.expectedErr.Detail {
+						t.Fatalf("expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
+					}
 				}
 
-				testutil.Equals(t, test.expectedErr.Warnings(), err.Warnings())
+				if len(test.expectedErr.Warnings()) != len(err.Warnings()) {
+					t.Fatalf("expected warnings length :%v, but got:%v", len(test.expectedErr.Warnings()), len(err.Warnings()))
+				}
+
+				for x, warning := range test.expectedErr.Warnings() {
+					if warning != err.Warnings()[x] {
+						t.Fatalf("expected warning :%v, but got:%v", warning, err.Warnings()[x])
+					}
+				}
 				return
 			}
-			testutil.Ok(t, err)
 
-			testutil.Equals(t, test.expectedBody, string(body))
+			if err != nil {
+				t.Fatalf("unexpected error:%v", err)
+			}
+			if test.expectedBody != string(body) {
+				t.Fatalf("expected body :%v, but got:%v", test.expectedBody, string(body))
+			}
 		})
 
 	}
