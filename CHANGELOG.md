@@ -1,3 +1,12 @@
+## 0.9.4 / 2019-06-07
+* [CHANGE] API client: Switch to alert values as strings. #585
+* [FEATURE] Add a collector for Go module build information. #595
+* [FEATURE] promhttp: Add an counter for internal errors during HTTP exposition. #594
+* [FEATURE] API client: Support target metadata API. #590
+* [FEATURE] API client: Support storage warnings. #562
+* [ENHANCEMENT] API client: Improve performance handling JSON. #570
+* [BUGFIX] Reduce test flakiness. #573
+
 ## 0.9.3 / 2019-05-16
 * [CHANGE] Required Go version is now 1.9+. #561
 * [FEATURE] API client: Add POST with get fallback for Query/QueryRange. #557
