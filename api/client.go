@@ -26,6 +26,10 @@ import (
 )
 
 func NewErrorAPI(err error, warnings []string) Error {
+	if apiErr, ok := err.(Error); ok {
+		return apiErr
+	}
+
 	if err == nil && warnings == nil {
 		return nil
 	}

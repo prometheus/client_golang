@@ -211,8 +211,11 @@ func (e *Error) Error() string {
 	return "Warnings: " + strings.Join(e.warnings, " , ")
 }
 
-func (w *Error) Err() error {
-	return w
+func (e *Error) Err() error {
+	if e.Type != "" || e.Msg != "" {
+		return errors.New(fmt.Sprintf("%s: %s", e.Type, e.Msg))
+	}
+	return nil
 }
 
 func (w *Error) Warnings() []string {
@@ -847,8 +850,6 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 
 	code := resp.StatusCode
 
-	var err api.Error
-
 	if code/100 != 2 && !apiError(code) {
 		errorType, errorMsg := errorTypeAndMsgFor(resp)
 		return resp, body, &Error{
@@ -869,6 +870,8 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 		}
 	}
 
+	var err *Error
+
 	if apiError(code) != (result.Status == "error") {
 		err = &Error{
 			Type:     ErrBadResponse,
@@ -883,6 +886,13 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 			Msg:      result.Error,
 			warnings: result.Warnings,
 		}
+	}
+
+	if len(result.Warnings) > 0 {
+		if err == nil {
+			err = &Error{}
+		}
+		err.warnings = result.Warnings
 	}
 
 	return resp, []byte(result.Data), err
