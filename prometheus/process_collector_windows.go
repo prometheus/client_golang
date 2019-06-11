@@ -95,9 +95,9 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		c.reportError(ch, nil, err)
 		return
 	}
-	ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(mem.WorkingSetSize))
+	ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(mem.PrivateUsage))
 	ch <- MustNewConstMetric(c.maxVsize, GaugeValue, float64(mem.PeakWorkingSetSize))
-	ch <- MustNewConstMetric(c.rss, GaugeValue, float64(mem.PrivateUsage))
+	ch <- MustNewConstMetric(c.rss, GaugeValue, float64(mem.WorkingSetSize))
 
 	handles, err := getProcessHandleCount(h)
 	if err != nil {
@@ -105,7 +105,7 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		return
 	}
 	ch <- MustNewConstMetric(c.openFDs, GaugeValue, float64(handles))
-	ch <- MustNewConstMetric(c.maxFDs, GaugeValue, float64(16*1024*1024)) // Windows has a hard-coded max limit, not per-process
+	ch <- MustNewConstMetric(c.maxFDs, GaugeValue, float64(16*1024*1024)) // Windows has a hard-coded max limit, not per-process.
 }
 
 func fileTimeToSeconds(ft windows.Filetime) float64 {
