@@ -115,7 +115,7 @@ type SummaryOpts struct {
 	// Objectives defines the quantile rank estimates with their respective
 	// absolute error. If Objectives[q] = e, then the value reported for q
 	// will be the φ-quantile value for some φ between q-e and q+e.  The
-	// default value is is an empty map, resulting in a summary without
+	// default value is an empty map, resulting in a summary without
 	// quantiles.
 	Objectives map[float64]float64
 
