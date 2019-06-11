@@ -282,7 +282,6 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 	objSlice := make([]float64, 0, len(objMap))
 	for qu := range objMap {
-
 		objSlice = append(objSlice, qu)
 	}
 	sort.Float64s(objSlice)
