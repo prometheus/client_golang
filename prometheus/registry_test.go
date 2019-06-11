@@ -259,8 +259,9 @@ collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"la
 `)
 
 	summary := prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "complex",
-		Help: "A metric to check collisions with _sum and _count.",
+		Name:       "complex",
+		Help:       "A metric to check collisions with _sum and _count.",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
 	summaryAsText := []byte(`# HELP complex A metric to check collisions with _sum and _count.
 # TYPE complex summary
@@ -709,12 +710,12 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 			registry.MustRegister(scenario.collector)
 		}
 		writer := httptest.NewRecorder()
-		handler := prometheus.InstrumentHandler("prometheus", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{}))
+		handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
 		request, _ := http.NewRequest("GET", "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
 		}
-		handler(writer, request)
+		handler.ServeHTTP(writer, request)
 
 		for key, value := range scenario.out.headers {
 			if writer.Header().Get(key) != value {
@@ -918,6 +919,11 @@ test_summary_count{name="foo"} 2
 		prometheus.SummaryOpts{
 			Name: "test_summary",
 			Help: "test summary",
+			Objectives: map[float64]float64{
+				0.5:  0.05,
+				0.9:  0.01,
+				0.99: 0.001,
+			},
 		},
 		[]string{"name"},
 	)
@@ -975,6 +981,9 @@ test_summary_count{name="foo"} 2
 	fileContents := string(fileBytes)
 
 	if fileContents != expectedOut {
-		t.Error("file contents didn't match unexpected")
+		t.Errorf(
+			"files don't match, got:\n%s\nwant:\n%s",
+			fileContents, expectedOut,
+		)
 	}
 }
