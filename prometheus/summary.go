@@ -39,7 +39,7 @@ const quantileLabel = "quantile"
 // A typical use-case is the observation of request latencies. By default, a
 // Summary provides the median, the 90th and the 99th percentile of the latency
 // as rank estimations. However, the default behavior will change in the
-// upcoming v0.10 of the library. There will be no rank estimations at all by
+// upcoming v1.0.0 of the library. There will be no rank estimations at all by
 // default. For a sane transition, it is recommended to set the desired rank
 // estimations explicitly.
 //
@@ -78,7 +78,7 @@ const (
 // mandatory to set Name to a non-empty string. While all other fields are
 // optional and can safely be left at their zero value, it is recommended to set
 // a help string and to explicitly set the Objectives field to the desired value
-// as the default value will change in the upcoming v0.10 of the library.
+// as the default value will change in the upcoming v1.0.0 of the library.
 type SummaryOpts struct {
 	// Namespace, Subsystem, and Name are components of the fully-qualified
 	// name of the Summary (created by joining these components with

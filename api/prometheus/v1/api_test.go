@@ -15,9 +15,9 @@ package v1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -25,11 +25,16 @@ import (
 	"testing"
 	"time"
 
+	json "github.com/json-iterator/go"
+
 	"github.com/prometheus/common/model"
+
+	"github.com/prometheus/client_golang/api"
 )
 
 type apiTest struct {
-	do           func() (interface{}, error)
+	do           func() (interface{}, api.Error)
+	inWarnings   []string
 	inErr        error
 	inStatusCode int
 	inRes        interface{}
@@ -58,7 +63,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 
 	test := c.curTest
 
@@ -83,7 +88,7 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inErr
+	return resp, b, api.NewErrorAPI(test.inErr, test.inWarnings)
 }
 
 func TestAPIs(t *testing.T) {
@@ -96,75 +101,81 @@ func TestAPIs(t *testing.T) {
 		client: client,
 	}
 
-	doAlertManagers := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doAlertManagers := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.AlertManagers(context.Background())
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doCleanTombstones := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doConfig := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Config(context.Background())
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doFlags := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Flags(context.Background())
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doLabelValues := func(label string) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.LabelValues(context.Background(), label)
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doQuery := func(q string, ts time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Query(context.Background(), q, ts)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doQueryRange := func(q string, rng Range) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.QueryRange(context.Background(), q, rng)
 		}
 	}
 
-	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doSnapshot := func(skipHead bool) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Snapshot(context.Background(), skipHead)
 		}
 	}
 
-	doRules := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doRules := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Rules(context.Background())
 		}
 	}
 
-	doTargets := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	doTargets := func() func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
 			return promAPI.Targets(context.Background())
+		}
+	}
+
+	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, api.Error) {
+		return func() (interface{}, api.Error) {
+			return promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
 		}
 	}
 
@@ -290,7 +301,7 @@ func TestAPIs(t *testing.T) {
 				"end":   []string{testTime.Format(time.RFC3339Nano)},
 			},
 			res: []model.LabelSet{
-				model.LabelSet{
+				{
 					"__name__": "up",
 					"job":      "prometheus",
 					"instance": "localhost:9090",
@@ -487,7 +498,7 @@ func TestAPIs(t *testing.T) {
 											"severity":  "page",
 										},
 										"state": "firing",
-										"value": 1,
+										"value": "1e+00",
 									},
 								},
 								"annotations": map[string]interface{}{
@@ -531,7 +542,7 @@ func TestAPIs(t *testing.T) {
 											"severity":  "page",
 										},
 										State: AlertStateFiring,
-										Value: 1,
+										Value: "1e+00",
 									},
 								},
 								Annotations: model.LabelSet{
@@ -639,6 +650,52 @@ func TestAPIs(t *testing.T) {
 			inErr:     fmt.Errorf("some error"),
 			err:       fmt.Errorf("some error"),
 		},
+
+		{
+			do: doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
+			inRes: []map[string]interface{}{
+				{
+					"target": map[string]interface{}{
+						"instance": "127.0.0.1:9090",
+						"job":      "prometheus",
+					},
+					"type": "gauge",
+					"help": "Number of goroutines that currently exist.",
+					"unit": "",
+				},
+			},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets/metadata",
+			reqParam: url.Values{
+				"match_target": []string{"{job=\"prometheus\"}"},
+				"metric":       []string{"go_goroutines"},
+				"limit":        []string{"1"},
+			},
+			res: []MetricMetadata{
+				{
+					Target: map[string]string{
+						"instance": "127.0.0.1:9090",
+						"job":      "prometheus",
+					},
+					Type: "gauge",
+					Help: "Number of goroutines that currently exist.",
+					Unit: "",
+				},
+			},
+		},
+
+		{
+			do:        doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/targets/metadata",
+			reqParam: url.Values{
+				"match_target": []string{"{job=\"prometheus\"}"},
+				"metric":       []string{"go_goroutines"},
+				"limit":        []string{"1"},
+			},
+			err: fmt.Errorf("some error"),
+		},
 	}
 
 	var tests []apiTest
@@ -693,7 +750,7 @@ func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -789,7 +846,7 @@ func TestAPIClientDo(t *testing.T) {
 			response: "bad json",
 			expectedErr: &Error{
 				Type: ErrBadResponse,
-				Msg:  "invalid character 'b' looking for beginning of value",
+				Msg:  "readObjectStart: expect { or n, but found b, error found in #1 byte of ...|bad json|..., bigger context ...|bad json|...",
 			},
 		},
 		{
@@ -829,6 +886,21 @@ func TestAPIClientDo(t *testing.T) {
 				Msg:  "inconsistent body for response code",
 			},
 		},
+		{
+			code: http.StatusOK,
+			response: &apiResponse{
+				Status:    "error",
+				Data:      json.RawMessage(`"test"`),
+				ErrorType: ErrTimeout,
+				Error:     "timed out",
+				Warnings:  []string{"a"},
+			},
+			expectedErr: &Error{
+				Type:     ErrBadResponse,
+				Msg:      "inconsistent body for response code",
+				warnings: []string{"a"},
+			},
+		},
 	}
 
 	tc := &testClient{
@@ -847,28 +919,135 @@ func TestAPIClientDo(t *testing.T) {
 
 			if test.expectedErr != nil {
 				if err == nil {
-					t.Fatalf("expected error %q but got none", test.expectedErr)
+					t.Fatal("expected error, but got none")
 				}
+
 				if test.expectedErr.Error() != err.Error() {
-					t.Errorf("unexpected error: want %q, got %q", test.expectedErr, err)
+					t.Fatalf("expected error:%v, but got:%v", test.expectedErr.Error(), err.Error())
 				}
+
 				if test.expectedErr.Detail != "" {
 					apiErr := err.(*Error)
 					if apiErr.Detail != test.expectedErr.Detail {
-						t.Errorf("unexpected error details: want %q, got %q", test.expectedErr.Detail, apiErr.Detail)
+						t.Fatalf("expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
+					}
+				}
+
+				if len(test.expectedErr.Warnings()) != len(err.Warnings()) {
+					t.Fatalf("expected warnings length :%v, but got:%v", len(test.expectedErr.Warnings()), len(err.Warnings()))
+				}
+
+				for x, warning := range test.expectedErr.Warnings() {
+					if warning != err.Warnings()[x] {
+						t.Fatalf("expected warning :%v, but got:%v", warning, err.Warnings()[x])
 					}
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpeceted error %s", err)
-			}
 
-			want, got := test.expectedBody, string(body)
-			if want != got {
-				t.Errorf("unexpected body: want %q, got %q", want, got)
+			if err != nil {
+				t.Fatalf("unexpected error:%v", err)
+			}
+			if test.expectedBody != string(body) {
+				t.Fatalf("expected body :%v, but got:%v", test.expectedBody, string(body))
 			}
 		})
 
+	}
+}
+
+func TestSamplesJsonSerialization(t *testing.T) {
+	tests := []struct {
+		point    model.SamplePair
+		expected string
+	}{
+		{
+			point:    model.SamplePair{0, 0},
+			expected: `[0,"0"]`,
+		},
+		{
+			point:    model.SamplePair{1, 20},
+			expected: `[0.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{10, 20},
+			expected: `[0.010,"20"]`,
+		},
+		{
+			point:    model.SamplePair{100, 20},
+			expected: `[0.100,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1001, 20},
+			expected: `[1.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1010, 20},
+			expected: `[1.010,"20"]`,
+		},
+		{
+			point:    model.SamplePair{1100, 20},
+			expected: `[1.100,"20"]`,
+		},
+		{
+			point:    model.SamplePair{12345678123456555, 20},
+			expected: `[12345678123456.555,"20"]`,
+		},
+		{
+			point:    model.SamplePair{-1, 20},
+			expected: `[-0.001,"20"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.NaN())},
+			expected: `[0,"NaN"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.Inf(1))},
+			expected: `[0,"+Inf"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(math.Inf(-1))},
+			expected: `[0,"-Inf"]`,
+		},
+		{
+			point:    model.SamplePair{0, model.SampleValue(1.2345678e6)},
+			expected: `[0,"1234567.8"]`,
+		},
+		{
+			point:    model.SamplePair{0, 1.2345678e-6},
+			expected: `[0,"0.0000012345678"]`,
+		},
+		{
+			point:    model.SamplePair{0, 1.2345678e-67},
+			expected: `[0,"1.2345678e-67"]`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			b, err := json.Marshal(test.point)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != test.expected {
+				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
+			}
+
+			// To test Unmarshal we will Unmarshal then re-Marshal this way we
+			// can do a string compare, otherwise Nan values don't show equivalence
+			// properly.
+			var sp model.SamplePair
+			if err = json.Unmarshal(b, &sp); err != nil {
+				t.Fatal(err)
+			}
+
+			b, err = json.Marshal(sp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(b) != test.expected {
+				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
+			}
+		})
 	}
 }
