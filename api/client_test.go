@@ -152,7 +152,7 @@ func TestDoGetFallback(t *testing.T) {
 	client := &httpClient{client: *(server.Client())}
 
 	// Do a post, and ensure that the post succeeds.
-	_, b, err := DoGetFallback(client, context.TODO(), u, v)
+	_, b, _, err := DoGetFallback(client, context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallbcak to a get.
 	u.Path = "/blockPost"
-	_, b, err = DoGetFallback(client, context.TODO(), u, v)
+	_, b, _, err = DoGetFallback(client, context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
