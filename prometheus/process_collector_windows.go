@@ -96,7 +96,6 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		return
 	}
 	ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(mem.PrivateUsage))
-	ch <- MustNewConstMetric(c.maxVsize, GaugeValue, float64(mem.PeakWorkingSetSize))
 	ch <- MustNewConstMetric(c.rss, GaugeValue, float64(mem.WorkingSetSize))
 
 	handles, err := getProcessHandleCount(h)
