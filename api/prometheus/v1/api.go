@@ -124,6 +124,7 @@ const (
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epQuery           = apiPrefix + "/query"
 	epQueryRange      = apiPrefix + "/query_range"
+	epLabels          = apiPrefix + "/labels"
 	epLabelValues     = apiPrefix + "/label/:name/values"
 	epSeries          = apiPrefix + "/series"
 	epTargets         = apiPrefix + "/targets"
@@ -227,6 +228,8 @@ type API interface {
 	DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
+	// LabelNames returns all the unique label names present in the block in sorted order.
+	LabelNames(ctx context.Context) ([]string, error)
 	// LabelValues performs a query for the values of the given label.
 	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
 	// Query performs a query for the given time.
@@ -620,6 +623,20 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 
 	var res FlagsResult
 	return res, json.Unmarshal(body, &res)
+}
+
+func (h *httpAPI) LabelNames(ctx context.Context) ([]string, error) {
+	u := h.client.URL(epLabels, nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	_, body, _, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	var labelNames []string
+	return labelNames, json.Unmarshal(body, &labelNames)
 }
 
 func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, error) {
