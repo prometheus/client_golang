@@ -16,8 +16,6 @@ package prometheus
 import (
 	"errors"
 	"os"
-
-	"github.com/prometheus/procfs"
 )
 
 type processCollector struct {
@@ -126,7 +124,7 @@ func NewProcessCollector(opts ProcessCollectorOpts) Collector {
 	}
 
 	// Set up process metric collection if supported by the runtime.
-	if _, err := procfs.NewDefaultFS(); err == nil {
+	if canCollectProcess() {
 		c.collectFn = c.processCollect
 	} else {
 		c.collectFn = func(ch chan<- Metric) {
@@ -151,46 +149,6 @@ func (c *processCollector) Describe(ch chan<- *Desc) {
 // Collect returns the current state of all metrics of the collector.
 func (c *processCollector) Collect(ch chan<- Metric) {
 	c.collectFn(ch)
-}
-
-func (c *processCollector) processCollect(ch chan<- Metric) {
-	pid, err := c.pidFn()
-	if err != nil {
-		c.reportError(ch, nil, err)
-		return
-	}
-
-	p, err := procfs.NewProc(pid)
-	if err != nil {
-		c.reportError(ch, nil, err)
-		return
-	}
-
-	if stat, err := p.Stat(); err == nil {
-		ch <- MustNewConstMetric(c.cpuTotal, CounterValue, stat.CPUTime())
-		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(stat.VirtualMemory()))
-		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(stat.ResidentMemory()))
-		if startTime, err := stat.StartTime(); err == nil {
-			ch <- MustNewConstMetric(c.startTime, GaugeValue, startTime)
-		} else {
-			c.reportError(ch, c.startTime, err)
-		}
-	} else {
-		c.reportError(ch, nil, err)
-	}
-
-	if fds, err := p.FileDescriptorsLen(); err == nil {
-		ch <- MustNewConstMetric(c.openFDs, GaugeValue, float64(fds))
-	} else {
-		c.reportError(ch, c.openFDs, err)
-	}
-
-	if limits, err := p.Limits(); err == nil {
-		ch <- MustNewConstMetric(c.maxFDs, GaugeValue, float64(limits.OpenFiles))
-		ch <- MustNewConstMetric(c.maxVsize, GaugeValue, float64(limits.AddressSpace))
-	} else {
-		c.reportError(ch, nil, err)
-	}
 }
 
 func (c *processCollector) reportError(ch chan<- Metric, desc *Desc, err error) {
