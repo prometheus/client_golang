@@ -135,6 +135,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doLabelNames := func(label string) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.LabelNames(context.Background())
+			return v, nil, err
+		}
+	}
+
 	doLabelValues := func(label string) func() (interface{}, api.Warnings, error) {
 		return func() (interface{}, api.Warnings, error) {
 			v, err := promAPI.LabelValues(context.Background(), label)
@@ -322,6 +329,22 @@ func TestAPIs(t *testing.T) {
 				"step":  []string{time.Minute.String()},
 			},
 			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doLabelNames("mylabel"),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			res:       []string{"val1", "val2"},
+		},
+
+		{
+			do:        doLabelNames("mylabel"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			err:       fmt.Errorf("some error"),
 		},
 
 		{
