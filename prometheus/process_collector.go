@@ -57,20 +57,9 @@ type ProcessCollectorOpts struct {
 // collector for the current process with an empty namespace string and no error
 // reporting.
 //
-// Currently, the collector depends on a Linux-style proc filesystem and
-// therefore only exports metrics for Linux.
-//
-// Note: An older version of this function had the following signature:
-//
-//     NewProcessCollector(pid int, namespace string) Collector
-//
-// Most commonly, it was called as
-//
-//     NewProcessCollector(os.Getpid(), "")
-//
-// The following call of the current version is equivalent to the above:
-//
-//     NewProcessCollector(ProcessCollectorOpts{})
+// The collector only works on operating systems with a Linux-style proc
+// filesystem and on Microsoft Windows. On other operating systems, it will not
+// collect any metrics.
 func NewProcessCollector(opts ProcessCollectorOpts) Collector {
 	ns := ""
 	if len(opts.Namespace) > 0 {
