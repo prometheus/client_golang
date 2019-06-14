@@ -237,7 +237,7 @@ type API interface {
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, api.Warnings, error)
 	// Series finds series by label matchers.
-	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error)
+	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, api.Warnings, error)
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
@@ -696,7 +696,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, error) {
+func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, api.Warnings, error) {
 	u := h.client.URL(epSeries, nil)
 	q := u.Query()
 
@@ -711,16 +711,16 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.T
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, warnings, err := h.client.Do(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, warnings, err
 	}
 
 	var mset []model.LabelSet
-	return mset, json.Unmarshal(body, &mset)
+	return mset, warnings, json.Unmarshal(body, &mset)
 }
 
 func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error) {
