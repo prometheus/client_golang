@@ -33,7 +33,7 @@ import (
 )
 
 type apiTest struct {
-	do           func() (interface{}, api.Error)
+	do           func() (interface{}, api.Warnings, error)
 	inWarnings   []string
 	inErr        error
 	inStatusCode int
@@ -43,6 +43,7 @@ type apiTest struct {
 	reqParam  url.Values
 	reqMethod string
 	res       interface{}
+	warnings  api.Warnings
 	err       error
 }
 
@@ -63,7 +64,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
+func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
 
 	test := c.curTest
 
@@ -88,7 +89,7 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, api.NewErrorAPI(test.inErr, test.inWarnings)
+	return resp, b, test.inWarnings, test.inErr
 }
 
 func TestAPIs(t *testing.T) {
@@ -101,81 +102,96 @@ func TestAPIs(t *testing.T) {
 		client: client,
 	}
 
-	doAlertManagers := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.AlertManagers(context.Background())
+	doAlertManagers := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.AlertManagers(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return nil, promAPI.CleanTombstones(context.Background())
+	doCleanTombstones := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			return nil, nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.Config(context.Background())
+	doConfig := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.Config(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
+	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			return nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.Flags(context.Background())
+	doFlags := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.Flags(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.LabelValues(context.Background(), label)
+	doLabelNames := func(label string) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.LabelNames(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
+	doLabelValues := func(label string) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.LabelValues(context.Background(), label)
+			return v, nil, err
+		}
+	}
+
+	doQuery := func(q string, ts time.Time) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
 			return promAPI.Query(context.Background(), q, ts)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
+	doQueryRange := func(q string, rng Range) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
 			return promAPI.QueryRange(context.Background(), q, rng)
 		}
 	}
 
-	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
+	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.Snapshot(context.Background(), skipHead)
+	doSnapshot := func(skipHead bool) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.Snapshot(context.Background(), skipHead)
+			return v, nil, err
 		}
 	}
 
-	doRules := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.Rules(context.Background())
+	doRules := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.Rules(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doTargets := func() func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.Targets(context.Background())
+	doTargets := func() func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.Targets(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, api.Error) {
-		return func() (interface{}, api.Error) {
-			return promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
+	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, api.Warnings, error) {
+		return func() (interface{}, api.Warnings, error) {
+			v, err := promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
+			return v, nil, err
 		}
 	}
 
@@ -249,6 +265,51 @@ func TestAPIs(t *testing.T) {
 			},
 			err: errors.New("client_error: client error: 404"),
 		},
+		// Warning only.
+		{
+			do:         doQuery("2", testTime),
+			inWarnings: []string{"warning"},
+			inRes: &queryResult{
+				Type: model.ValScalar,
+				Result: &model.Scalar{
+					Value:     2,
+					Timestamp: model.TimeFromUnix(testTime.Unix()),
+				},
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			reqParam: url.Values{
+				"query": []string{"2"},
+				"time":  []string{testTime.Format(time.RFC3339Nano)},
+			},
+			res: &model.Scalar{
+				Value:     2,
+				Timestamp: model.TimeFromUnix(testTime.Unix()),
+			},
+			warnings: []string{"warning"},
+		},
+		// Warning + error.
+		{
+			do:           doQuery("2", testTime),
+			inWarnings:   []string{"warning"},
+			inRes:        "some body",
+			inStatusCode: 404,
+			inErr: &Error{
+				Type:   ErrClient,
+				Msg:    "client error: 404",
+				Detail: "some body",
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			reqParam: url.Values{
+				"query": []string{"2"},
+				"time":  []string{testTime.Format(time.RFC3339Nano)},
+			},
+			err:      errors.New("client_error: client error: 404"),
+			warnings: []string{"warning"},
+		},
 
 		{
 			do: doQueryRange("2", Range{
@@ -267,6 +328,22 @@ func TestAPIs(t *testing.T) {
 				"step":  []string{time.Minute.String()},
 			},
 			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doLabelNames("mylabel"),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			res:       []string{"val1", "val2"},
+		},
+
+		{
+			do:        doLabelNames("mylabel"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			err:       fmt.Errorf("some error"),
 		},
 
 		{
@@ -308,6 +385,32 @@ func TestAPIs(t *testing.T) {
 				},
 			},
 		},
+		// Series with data + warning.
+		{
+			do: doSeries("up", testTime.Add(-time.Minute), testTime),
+			inRes: []map[string]string{
+				{
+					"__name__": "up",
+					"job":      "prometheus",
+					"instance": "localhost:9090"},
+			},
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/series",
+			reqParam: url.Values{
+				"match": []string{"up"},
+				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
+				"end":   []string{testTime.Format(time.RFC3339Nano)},
+			},
+			res: []model.LabelSet{
+				{
+					"__name__": "up",
+					"job":      "prometheus",
+					"instance": "localhost:9090",
+				},
+			},
+			warnings: []string{"a"},
+		},
 
 		{
 			do:        doSeries("up", testTime.Add(-time.Minute), testTime),
@@ -320,6 +423,21 @@ func TestAPIs(t *testing.T) {
 				"end":   []string{testTime.Format(time.RFC3339Nano)},
 			},
 			err: fmt.Errorf("some error"),
+		},
+		// Series with error and warning.
+		{
+			do:         doSeries("up", testTime.Add(-time.Minute), testTime),
+			inErr:      fmt.Errorf("some error"),
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/series",
+			reqParam: url.Values{
+				"match": []string{"up"},
+				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
+				"end":   []string{testTime.Format(time.RFC3339Nano)},
+			},
+			err:      fmt.Errorf("some error"),
+			warnings: []string{"a"},
 		},
 
 		{
@@ -705,7 +823,11 @@ func TestAPIs(t *testing.T) {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			client.curTest = test
 
-			res, err := test.do()
+			res, warnings, err := test.do()
+
+			if (test.inWarnings == nil) != (warnings == nil) && !reflect.DeepEqual(test.inWarnings, warnings) {
+				t.Fatalf("mismatch in warnings expected=%v actual=%v", test.inWarnings, warnings)
+			}
 
 			if test.err != nil {
 				if err == nil {
@@ -740,17 +862,18 @@ type testClient struct {
 }
 
 type apiClientTest struct {
-	code         int
-	response     interface{}
-	expectedBody string
-	expectedErr  *Error
+	code             int
+	response         interface{}
+	expectedBody     string
+	expectedErr      *Error
+	expectedWarnings api.Warnings
 }
 
 func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -777,7 +900,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		StatusCode: test.code,
 	}
 
-	return resp, b, nil
+	return resp, b, test.expectedWarnings, nil
 }
 
 func TestAPIClientDo(t *testing.T) {
@@ -896,10 +1019,10 @@ func TestAPIClientDo(t *testing.T) {
 				Warnings:  []string{"a"},
 			},
 			expectedErr: &Error{
-				Type:     ErrBadResponse,
-				Msg:      "inconsistent body for response code",
-				warnings: []string{"a"},
+				Type: ErrBadResponse,
+				Msg:  "inconsistent body for response code",
 			},
+			expectedWarnings: []string{"a"},
 		},
 	}
 
@@ -915,7 +1038,17 @@ func TestAPIClientDo(t *testing.T) {
 
 			tc.ch <- test
 
-			_, body, err := client.Do(context.Background(), tc.req)
+			_, body, warnings, err := client.Do(context.Background(), tc.req)
+
+			if test.expectedWarnings != nil {
+				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
+					t.Fatalf("mismatch in warnings expected=%v actual=%v", test.expectedWarnings, warnings)
+				}
+			} else {
+				if warnings != nil {
+					t.Fatalf("unexpexted warnings: %v", warnings)
+				}
+			}
 
 			if test.expectedErr != nil {
 				if err == nil {
@@ -933,15 +1066,6 @@ func TestAPIClientDo(t *testing.T) {
 					}
 				}
 
-				if len(test.expectedErr.Warnings()) != len(err.Warnings()) {
-					t.Fatalf("expected warnings length :%v, but got:%v", len(test.expectedErr.Warnings()), len(err.Warnings()))
-				}
-
-				for x, warning := range test.expectedErr.Warnings() {
-					if warning != err.Warnings()[x] {
-						t.Fatalf("expected warning :%v, but got:%v", warning, err.Warnings()[x])
-					}
-				}
 				return
 			}
 
