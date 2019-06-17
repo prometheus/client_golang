@@ -137,15 +137,13 @@ func TestAPIs(t *testing.T) {
 
 	doLabelNames := func(label string) func() (interface{}, api.Warnings, error) {
 		return func() (interface{}, api.Warnings, error) {
-			v, err := promAPI.LabelNames(context.Background())
-			return v, nil, err
+			return promAPI.LabelNames(context.Background())
 		}
 	}
 
 	doLabelValues := func(label string) func() (interface{}, api.Warnings, error) {
 		return func() (interface{}, api.Warnings, error) {
-			v, err := promAPI.LabelValues(context.Background(), label)
-			return v, nil, err
+			return promAPI.LabelValues(context.Background(), label)
 		}
 	}
 
@@ -337,6 +335,15 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/labels",
 			res:       []string{"val1", "val2"},
 		},
+		{
+			do:         doLabelNames("mylabel"),
+			inRes:      []string{"val1", "val2"},
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/labels",
+			res:        []string{"val1", "val2"},
+			warnings:   []string{"a"},
+		},
 
 		{
 			do:        doLabelNames("mylabel"),
@@ -344,6 +351,15 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
 			err:       fmt.Errorf("some error"),
+		},
+		{
+			do:         doLabelNames("mylabel"),
+			inErr:      fmt.Errorf("some error"),
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/labels",
+			err:        fmt.Errorf("some error"),
+			warnings:   []string{"a"},
 		},
 
 		{
@@ -353,6 +369,15 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/label/mylabel/values",
 			res:       model.LabelValues{"val1", "val2"},
 		},
+		{
+			do:         doLabelValues("mylabel"),
+			inRes:      []string{"val1", "val2"},
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/label/mylabel/values",
+			res:        model.LabelValues{"val1", "val2"},
+			warnings:   []string{"a"},
+		},
 
 		{
 			do:        doLabelValues("mylabel"),
@@ -360,6 +385,15 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			err:       fmt.Errorf("some error"),
+		},
+		{
+			do:         doLabelValues("mylabel"),
+			inErr:      fmt.Errorf("some error"),
+			inWarnings: []string{"a"},
+			reqMethod:  "GET",
+			reqPath:    "/api/v1/label/mylabel/values",
+			err:        fmt.Errorf("some error"),
+			warnings:   []string{"a"},
 		},
 
 		{

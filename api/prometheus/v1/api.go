@@ -229,9 +229,9 @@ type API interface {
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns all the unique label names present in the block in sorted order.
-	LabelNames(ctx context.Context) ([]string, error)
+	LabelNames(ctx context.Context) ([]string, api.Warnings, error)
 	// LabelValues performs a query for the values of the given label.
-	LabelValues(ctx context.Context, label string) (model.LabelValues, error)
+	LabelValues(ctx context.Context, label string) (model.LabelValues, api.Warnings, error)
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, api.Warnings, error)
 	// QueryRange performs a query for the given range.
@@ -625,32 +625,32 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context) ([]string, error) {
+func (h *httpAPI) LabelNames(ctx context.Context) ([]string, api.Warnings, error) {
 	u := h.client.URL(epLabels, nil)
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, w, err := h.client.Do(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, w, err
 	}
 	var labelNames []string
-	return labelNames, json.Unmarshal(body, &labelNames)
+	return labelNames, w, json.Unmarshal(body, &labelNames)
 }
 
-func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, error) {
+func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, api.Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, w, err := h.client.Do(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, w, err
 	}
 	var labelValues model.LabelValues
-	return labelValues, json.Unmarshal(body, &labelValues)
+	return labelValues, w, json.Unmarshal(body, &labelValues)
 }
 
 func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, api.Warnings, error) {
