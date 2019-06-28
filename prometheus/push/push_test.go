@@ -191,4 +191,22 @@ func TestPush(t *testing.T) {
 	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
 		t.Error("unexpected path:", lastPath)
 	}
+
+	// Delete, all good.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("a", "x").
+		Grouping("b", "y").
+		Delete(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != "DELETE" {
+		t.Error("want method DELETE for delete, got", lastMethod)
+	}
+	if len(lastBody) != 0 {
+		t.Errorf("got body of length %d, want empty body", len(lastBody))
+	}
+	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
+		t.Error("unexpected path:", lastPath)
+	}
+
 }
