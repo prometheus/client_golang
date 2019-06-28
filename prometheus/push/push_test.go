@@ -93,8 +93,8 @@ func TestPush(t *testing.T) {
 		Push(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "PUT" {
-		t.Error("want method PUT for Push, got", lastMethod)
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
 	}
 	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -110,8 +110,8 @@ func TestPush(t *testing.T) {
 		Add(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "POST" {
-		t.Error("want method POST for Add, got", lastMethod)
+	if lastMethod != http.MethodPost {
+		t.Errorf("got method %q for Add, want %q", lastMethod, http.MethodPost)
 	}
 	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -167,8 +167,8 @@ func TestPush(t *testing.T) {
 		Push(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "PUT" {
-		t.Error("want method PUT for Push, got", lastMethod)
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
 	}
 	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -182,8 +182,8 @@ func TestPush(t *testing.T) {
 		Add(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "POST" {
-		t.Error("want method POST for Add, got", lastMethod)
+	if lastMethod != http.MethodPost {
+		t.Errorf("got method %q for Add, want %q", lastMethod, http.MethodPost)
 	}
 	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
@@ -199,8 +199,8 @@ func TestPush(t *testing.T) {
 		Delete(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "DELETE" {
-		t.Error("want method DELETE for delete, got", lastMethod)
+	if lastMethod != http.MethodDelete {
+		t.Errorf("got method %q for Delete, want %q", lastMethod, http.MethodDelete)
 	}
 	if len(lastBody) != 0 {
 		t.Errorf("got body of length %d, want empty body", len(lastBody))
