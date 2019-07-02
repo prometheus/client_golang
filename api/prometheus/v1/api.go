@@ -704,8 +704,12 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.T
 		q.Add("match[]", m)
 	}
 
-	q.Set("start", startTime.Format(time.RFC3339Nano))
-	q.Set("end", endTime.Format(time.RFC3339Nano))
+	if !startTime.IsZero() {
+		q.Set("start", startTime.Format(time.RFC3339Nano))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", endTime.Format(time.RFC3339Nano))
+	}
 
 	u.RawQuery = q.Encode()
 
