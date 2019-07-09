@@ -594,8 +594,8 @@ func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime 
 		q.Add("match[]", m)
 	}
 
-	q.Set("start", startTime.Format(time.RFC3339Nano))
-	q.Set("end", endTime.Format(time.RFC3339Nano))
+	q.Set("start", formatTime(startTime))
+	q.Set("end", formatTime(endTime))
 
 	u.RawQuery = q.Encode()
 
@@ -659,7 +659,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 
 	q.Set("query", query)
 	if !ts.IsZero() {
-		q.Set("time", ts.Format(time.RFC3339Nano))
+		q.Set("time", formatTime(ts))
 	}
 
 	_, body, warnings, err := api.DoGetFallback(h.client, ctx, u, q)
@@ -675,16 +675,10 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	u := h.client.URL(epQueryRange, nil)
 	q := u.Query()
 
-	var (
-		start = r.Start.Format(time.RFC3339Nano)
-		end   = r.End.Format(time.RFC3339Nano)
-		step  = strconv.FormatFloat(r.Step.Seconds(), 'f', 3, 64)
-	)
-
 	q.Set("query", query)
-	q.Set("start", start)
-	q.Set("end", end)
-	q.Set("step", step)
+	q.Set("start", formatTime(r.Start))
+	q.Set("end", formatTime(r.End))
+	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
 
 	_, body, warnings, err := api.DoGetFallback(h.client, ctx, u, q)
 	if err != nil {
@@ -704,8 +698,8 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.T
 		q.Add("match[]", m)
 	}
 
-	q.Set("start", startTime.Format(time.RFC3339Nano))
-	q.Set("end", endTime.Format(time.RFC3339Nano))
+	q.Set("start", formatTime(startTime))
+	q.Set("end", formatTime(endTime))
 
 	u.RawQuery = q.Encode()
 
@@ -876,4 +870,8 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 
 	return resp, []byte(result.Data), warnings, err
 
+}
+
+func formatTime(t time.Time) string {
+	return strconv.FormatFloat(float64(t.UnixNano())/1e9, 'f', -1, 64)
 }
