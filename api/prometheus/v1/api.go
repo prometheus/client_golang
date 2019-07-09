@@ -678,7 +678,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	q.Set("query", query)
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
-	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', 3, 64))
+	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
 
 	_, body, warnings, err := api.DoGetFallback(h.client, ctx, u, q)
 	if err != nil {
