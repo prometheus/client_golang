@@ -120,6 +120,57 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
+	// Pushes that require base64 encoding.
+	if err := New(pgwOK.URL, "test/job").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job@base64/dGVzdC9qb2I" {
+		t.Error("unexpected path:", lastPath)
+	}
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("foobar", "bu/ms").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/foobar@base64/YnUvbXM" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Push that requires URL encoding.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("titan", "Προμηθεύς").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/titan/%CE%A0%CF%81%CE%BF%CE%BC%CE%B7%CE%B8%CE%B5%CF%8D%CF%82" {
+		t.Error("unexpected path:", lastPath)
+	}
+
 	// Push some Collectors with a broken PGW.
 	if err := New(pgwErr.URL, "testjob").
 		Collector(metric1).
@@ -139,19 +190,6 @@ func TestPush(t *testing.T) {
 		Collector(metric2).
 		Push(); err == nil {
 		t.Error("push with grouping contained in metrics succeeded")
-	}
-	if err := New(pgwOK.URL, "test/job").
-		Collector(metric1).
-		Collector(metric2).
-		Push(); err == nil {
-		t.Error("push with invalid job value succeeded")
-	}
-	if err := New(pgwOK.URL, "testjob").
-		Grouping("foobar", "bu/ms").
-		Collector(metric1).
-		Collector(metric2).
-		Push(); err == nil {
-		t.Error("push with invalid grouping succeeded")
 	}
 	if err := New(pgwOK.URL, "testjob").
 		Grouping("foo-bar", "bums").
