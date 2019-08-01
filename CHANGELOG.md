@@ -1,3 +1,10 @@
+## 1.1.0 / 2019-08-01
+
+* [CHANGE] API client: Format time as UTC rather than RFC3339Nano. #617
+* [CHANGE] API client: Add warnings to `LabelValues` and `LabelNames` calls. #609
+* [FEATURE] Push: Support base64 encoding in grouping key. #624
+* [FEATURE] Push: Add Delete method to Pusher. #613
+
 ## 1.0.0 / 2019-06-15
 
 _This release removes all previously deprecated features, resulting in the breaking changes listed below. As this is v1.0.0, semantic versioning applies from now on, with the exception of the API client and parts marked explicitly as experimental._
