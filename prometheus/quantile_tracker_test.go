@@ -29,7 +29,7 @@ func TestQEMAObserve2(t *testing.T) {
 		v := rand.NormFloat64() + 3.0
 		tr.Observe(v)
 	}
-	checkFloat64(t, tr.Estimate(), 3.0, 0.1)
+	checkFloat64(t, tr.Estimate(), 3.0, 0.11)
 }
 
 func BenchmarkQEMAObserve(b *testing.B) {
@@ -52,7 +52,7 @@ func TestMQEMAObserve(t *testing.T) {
 	checkFloat64(t, tr.est[2], 0.674, 0.1)
 	checkFloat64(t, tr.est[3], 1.28155, 0.1)
 	checkFloat64(t, tr.est[4], 1.64485, 0.2)
-	checkFloat64(t, tr.est[5], 2.43635, 0.3)
+	checkFloat64(t, tr.est[5], 2.43635, 0.4)
 }
 
 func BenchmarkMQEMAObserve(b *testing.B) {
@@ -117,12 +117,13 @@ func TestMMSPIObserve(t *testing.T) {
 		v := rand.NormFloat64()
 		tr.Observe(v)
 	}
-	checkFloat64(t, tr.est[0], -0.674, 0.1)
-	checkFloat64(t, tr.est[1], 0.0, 0.1)
-	checkFloat64(t, tr.est[2], 0.674, 0.2)
-	checkFloat64(t, tr.est[3], 1.28155, 0.2)
-	checkFloat64(t, tr.est[4], 1.64485, 0.3)
-	checkFloat64(t, tr.est[5], 2.43635, 0.3)
+	est := tr.Estimate()
+	checkFloat64(t, est[0], -0.674, 0.1)
+	checkFloat64(t, est[1], 0.0, 0.1)
+	checkFloat64(t, est[2], 0.674, 0.2)
+	checkFloat64(t, est[3], 1.28155, 0.2)
+	checkFloat64(t, est[4], 1.64485, 0.3)
+	checkFloat64(t, est[5], 2.43635, 0.3)
 }
 
 func BenchmarkMMSPIObserve(b *testing.B) {

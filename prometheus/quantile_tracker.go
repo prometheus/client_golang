@@ -139,7 +139,8 @@ type MQTracker struct {
 // However, the function itself is not threadsafe, so should be called under
 // a lock.
 func (t *MQTracker) Estimate() []float64 {
-	return append(t.est[:0:0], t.est...)
+	est := append(t.est[:0:0], t.est...)
+	return est
 }
 
 // Observe inserts new data.

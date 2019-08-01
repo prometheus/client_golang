@@ -20,7 +20,6 @@ import (
 	"sync"
 	"testing"
 	"testing/quick"
-	"time"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -34,7 +33,12 @@ func benchmarkApproxSummaryObserve(w int, b *testing.B) {
 	g := new(sync.WaitGroup)
 	g.Add(1)
 
-	s := NewSummary(SummaryOpts{})
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
+	s := NewApproxSummary(ApproxSummaryOpts{
+		Name:       "test_summary",
+		Help:       "helpless",
+		Objectives: objMap,
+	})
 
 	for i := 0; i < w; i++ {
 		go func() {
@@ -78,7 +82,12 @@ func benchmarkApproxSummaryWrite(w int, b *testing.B) {
 	g := new(sync.WaitGroup)
 	g.Add(1)
 
-	s := NewSummary(SummaryOpts{})
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
+	s := NewApproxSummary(ApproxSummaryOpts{
+		Name:       "test_summary",
+		Help:       "helpless",
+		Objectives: objMap,
+	})
 
 	for i := 0; i < 1000000; i++ {
 		s.Observe(float64(i))
@@ -119,12 +128,13 @@ func BenchmarkApproxSummaryWrite8(b *testing.B) {
 	benchmarkApproxSummaryWrite(8, b)
 }
 
-func TestApproxSummaryConcurrency(t *testing.T) {
+func TestApproxApproxSummaryConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
 
 	rand.Seed(42)
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.1, 0.99: 0.1}
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -135,9 +145,13 @@ func TestApproxSummaryConcurrency(t *testing.T) {
 		start.Add(1)
 		end.Add(concLevel)
 
-		sum := NewSummary(SummaryOpts{
-			Name: "test_summary",
-			Help: "helpless",
+		sum := NewApproxSummary(ApproxSummaryOpts{
+			Name:       "test_summary",
+			Help:       "helpless",
+			Objectives: objMap,
+			Lam:        0.001,
+			Gam:        0.001,
+			Rho:        1e-5,
 		})
 
 		allVars := make([]float64, total)
@@ -172,14 +186,14 @@ func TestApproxSummaryConcurrency(t *testing.T) {
 			t.Errorf("got sample sum %f, want %f", got, want)
 		}
 
-		objectives := make([]float64, 0, len(DefObjectives))
-		for qu := range DefObjectives {
-			objectives = append(objectives, qu)
+		objSlice := make([]float64, 0, len(objMap))
+		for qu := range objMap {
+			objSlice = append(objSlice, qu)
 		}
-		sort.Float64s(objectives)
+		sort.Float64s(objSlice)
 
-		for i, wantQ := range objectives {
-			ε := DefObjectives[wantQ]
+		for i, wantQ := range objSlice {
+			ε := objMap[wantQ]
 			gotQ := *m.Summary.Quantile[i].Quantile
 			gotV := *m.Summary.Quantile[i].Value
 			min, max := getBounds(allVars, wantQ, ε)
@@ -204,13 +218,13 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 	}
 
 	rand.Seed(42)
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.1, 0.99: 0.1}
 
-	objectives := make([]float64, 0, len(DefObjectives))
-	for qu := range DefObjectives {
-
-		objectives = append(objectives, qu)
+	objSlice := make([]float64, 0, len(objMap))
+	for qu := range objMap {
+		objSlice = append(objSlice, qu)
 	}
-	sort.Float64s(objectives)
+	sort.Float64s(objSlice)
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -221,10 +235,14 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 		start.Add(1)
 		end.Add(concLevel)
 
-		sum := NewSummaryVec(
-			SummaryOpts{
-				Name: "test_summary",
-				Help: "helpless",
+		sum := NewApproxSummaryVec(
+			ApproxSummaryOpts{
+				Name:       "test_summary",
+				Help:       "helpless",
+				Objectives: objMap,
+				Lam:        0.001,
+				Gam:        0.001,
+				Rho:        1e-5,
 			},
 			[]string{"label"},
 		)
@@ -260,15 +278,15 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
 			s := sum.WithLabelValues(string('A' + i))
-			s.Write(m)
+			s.(Summary).Write(m)
 			if got, want := int(*m.Summary.SampleCount), len(allVars[i]); got != want {
 				t.Errorf("got sample count %d for label %c, want %d", got, 'A'+i, want)
 			}
 			if got, want := *m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
 				t.Errorf("got sample sum %f for label %c, want %f", got, 'A'+i, want)
 			}
-			for j, wantQ := range objectives {
-				ε := DefObjectives[wantQ]
+			for j, wantQ := range objSlice {
+				ε := objMap[wantQ]
 				gotQ := *m.Summary.Quantile[j].Quantile
 				gotV := *m.Summary.Quantile[j].Value
 				min, max := getBounds(allVars[i], wantQ, ε)
@@ -285,45 +303,5 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 
 	if err := quick.Check(it, nil); err != nil {
 		t.Error(err)
-	}
-}
-
-func TestApproxSummaryDecay(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping test in short mode.")
-		// More because it depends on timing than because it is particularly long...
-	}
-
-	sum := NewSummary(SummaryOpts{
-		Name:       "test_summary",
-		Help:       "helpless",
-		MaxAge:     100 * time.Millisecond,
-		Objectives: map[float64]float64{0.1: 0.001},
-		AgeBuckets: 10,
-	})
-
-	m := &dto.Metric{}
-	i := 0
-	tick := time.NewTicker(time.Millisecond)
-	for range tick.C {
-		i++
-		sum.Observe(float64(i))
-		if i%10 == 0 {
-			sum.Write(m)
-			if got, want := *m.Summary.Quantile[0].Value, math.Max(float64(i)/10, float64(i-90)); math.Abs(got-want) > 20 {
-				t.Errorf("%d. got %f, want %f", i, got, want)
-			}
-			m.Reset()
-		}
-		if i >= 1000 {
-			break
-		}
-	}
-	tick.Stop()
-	// Wait for MaxAge without observations and make sure quantiles are NaN.
-	time.Sleep(100 * time.Millisecond)
-	sum.Write(m)
-	if got := *m.Summary.Quantile[0].Value; !math.IsNaN(got) {
-		t.Errorf("got %f, want NaN after expiration", got)
 	}
 }
