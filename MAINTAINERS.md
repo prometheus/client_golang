@@ -1,2 +1,2 @@
-* Krasi Georgiev <kgeorgie@redhat.com> for `api/...`
-* Björn Rabenstein <beorn@soundcloud.com> for everything else
+* Krasi Georgiev <kgeorgie@redhat.com> @krasi-georgiev for `api/...`
+* Björn Rabenstein <beorn@grafana.com> @beorn7 for everything else
