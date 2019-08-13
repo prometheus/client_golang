@@ -74,7 +74,7 @@ func NewRegistry() *Registry {
 // NewPedanticRegistry returns a registry that checks during collection if each
 // collected Metric is consistent with its reported Desc, and if the Desc has
 // actually been registered with the registry. Unchecked Collectors (those whose
-// Describe methed does not yield any descriptors) are excluded from the check.
+// Describe method does not yield any descriptors) are excluded from the check.
 //
 // Usually, a Registry will be happy as long as the union of all collected
 // Metrics is consistent and valid even if some metrics are not consistent with
