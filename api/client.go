@@ -41,6 +41,8 @@ var DefaultRoundTripper http.RoundTripper = &http.Transport{
 type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
+	// The authorization token for the Prometheus endpoint.
+	Authorization string
 
 	// RoundTripper is used by the Client to drive HTTP requests. If not
 	// provided, DefaultRoundTripper will be used.
@@ -98,12 +100,14 @@ func NewClient(cfg Config) (Client, error) {
 	return &httpClient{
 		endpoint: u,
 		client:   http.Client{Transport: cfg.roundTripper()},
+		auth:     cfg.Authorization,
 	}, nil
 }
 
 type httpClient struct {
 	endpoint *url.URL
 	client   http.Client
+	auth     string
 }
 
 func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
@@ -124,6 +128,11 @@ func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
+
+	if c.auth != "" {
+		req.Header.Add("Authorization", c.auth)
+	}
+
 	resp, err := c.client.Do(req)
 	defer func() {
 		if resp != nil {
