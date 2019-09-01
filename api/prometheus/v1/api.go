@@ -873,5 +873,6 @@ func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, [
 }
 
 func formatTime(t time.Time) string {
+	t = t.Truncate(time.Nanosecond*1e6)
 	return strconv.FormatFloat(float64(t.Unix())+float64(t.Nanosecond())/1e9, 'f', -1, 64)
 }
