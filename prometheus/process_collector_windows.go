@@ -75,14 +75,8 @@ func getProcessHandleCount(handle windows.Handle) (uint32, error) {
 }
 
 func (c *processCollector) processCollect(ch chan<- Metric) {
-	h, err := windows.GetCurrentProcess()
-	if err != nil {
-		c.reportError(ch, nil, err)
-		return
-	}
-
 	var startTime, exitTime, kernelTime, userTime windows.Filetime
-	err = windows.GetProcessTimes(h, &startTime, &exitTime, &kernelTime, &userTime)
+	err := windows.GetProcessTimes(windows.GetCurrentProcess(), &startTime, &exitTime, &kernelTime, &userTime)
 	if err != nil {
 		c.reportError(ch, nil, err)
 		return
@@ -90,7 +84,7 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	ch <- MustNewConstMetric(c.startTime, GaugeValue, float64(startTime.Nanoseconds()/1e9))
 	ch <- MustNewConstMetric(c.cpuTotal, CounterValue, fileTimeToSeconds(kernelTime)+fileTimeToSeconds(userTime))
 
-	mem, err := getProcessMemoryInfo(h)
+	mem, err := getProcessMemoryInfo(windows.GetCurrentProcess())
 	if err != nil {
 		c.reportError(ch, nil, err)
 		return
@@ -98,7 +92,7 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(mem.PrivateUsage))
 	ch <- MustNewConstMetric(c.rss, GaugeValue, float64(mem.WorkingSetSize))
 
-	handles, err := getProcessHandleCount(h)
+	handles, err := getProcessHandleCount(windows.GetCurrentProcess())
 	if err != nil {
 		c.reportError(ch, nil, err)
 		return
