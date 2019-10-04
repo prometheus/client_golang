@@ -827,6 +827,7 @@ func errorTypeAndMsgFor(resp *http.Response) (ErrorType, string) {
 
 func (c apiClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
 	resp, body, warnings, err := c.Client.Do(ctx, req)
+	append(warnings, body.warnings)
 	if err != nil {
 		return resp, body, warnings, err
 	}
