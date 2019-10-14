@@ -266,7 +266,7 @@ func (r *Registry) Register(c Collector) error {
 		descChan           = make(chan *Desc, capDescChan)
 		newDescIDs         = map[uint64]struct{}{}
 		newDimHashesByName = map[string]uint64{}
-		collectorID        uint64 // Just a sum of all desc IDs.
+		collectorID        uint64 // All desc IDs XOR'd together.
 		duplicateDescErr   error
 	)
 	go func() {
@@ -293,12 +293,12 @@ func (r *Registry) Register(c Collector) error {
 		if _, exists := r.descIDs[desc.id]; exists {
 			duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
 		}
-		// If it is not a duplicate desc in this collector, add it to
+		// If it is not a duplicate desc in this collector, XOR it to
 		// the collectorID.  (We allow duplicate descs within the same
 		// collector, but their existence must be a no-op.)
 		if _, exists := newDescIDs[desc.id]; !exists {
 			newDescIDs[desc.id] = struct{}{}
-			collectorID += desc.id
+			collectorID ^= desc.id
 		}
 
 		// Are all the label names and the help string consistent with
