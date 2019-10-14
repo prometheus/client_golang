@@ -25,6 +25,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
 
@@ -875,9 +876,9 @@ func checkMetricConsistency(
 	}
 
 	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
-	h := hashNew()
-	h = hashAdd(h, name)
-	h = hashAddByte(h, separatorByte)
+	h := xxhash.New()
+	h.WriteString(name)
+	h.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
 	if !sort.IsSorted(labelPairSorter(dtoMetric.Label)) {
@@ -888,18 +889,19 @@ func checkMetricConsistency(
 		dtoMetric.Label = copiedLabels
 	}
 	for _, lp := range dtoMetric.Label {
-		h = hashAdd(h, lp.GetName())
-		h = hashAddByte(h, separatorByte)
-		h = hashAdd(h, lp.GetValue())
-		h = hashAddByte(h, separatorByte)
+		h.WriteString(lp.GetName())
+		h.Write(separatorByteSlice)
+		h.WriteString(lp.GetValue())
+		h.Write(separatorByteSlice)
 	}
-	if _, exists := metricHashes[h]; exists {
+	hSum := h.Sum64()
+	if _, exists := metricHashes[hSum]; exists {
 		return fmt.Errorf(
 			"collected metric %q { %s} was collected before with the same name and label values",
 			name, dtoMetric,
 		)
 	}
-	metricHashes[h] = struct{}{}
+	metricHashes[hSum] = struct{}{}
 	return nil
 }
 
