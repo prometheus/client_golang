@@ -1070,3 +1070,90 @@ test_summary_count{name="foo"} 2
 		)
 	}
 }
+
+// collidingCollector is a collection of prometheus.Collectors,
+// and is itself a prometheus.Collector.
+type collidingCollector struct {
+	i    int
+	name string
+
+	a, b, c, d prometheus.Collector
+}
+
+// Describe satisifies part of the prometheus.Collector interface.
+func (m *collidingCollector) Describe(desc chan<- *prometheus.Desc) {
+	m.a.Describe(desc)
+	m.b.Describe(desc)
+	m.c.Describe(desc)
+	m.d.Describe(desc)
+}
+
+// Collect satisifies part of the prometheus.Collector interface.
+func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
+	m.a.Collect(metric)
+	m.b.Collect(metric)
+	m.c.Collect(metric)
+	m.d.Collect(metric)
+}
+
+// TestAlreadyRegistered will fail with the old, weaker hash function.  It is
+// taken from https://play.golang.org/p/HpV7YE6LI_4 , authored by @awilliams.
+func TestAlreadyRegisteredCollision(t *testing.T) {
+
+	reg := prometheus.NewRegistry()
+
+	for i := 0; i < 10000; i++ {
+		// A collector should be considered unique if its name and const
+		// label values are unique.
+
+		name := fmt.Sprintf("test-collector-%010d", i)
+
+		collector := collidingCollector{
+			i:    i,
+			name: name,
+
+			a: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my_collector_a",
+				ConstLabels: prometheus.Labels{
+					"name": name,
+					"type": "test",
+				},
+			}),
+			b: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my_collector_b",
+				ConstLabels: prometheus.Labels{
+					"name": name,
+					"type": "test",
+				},
+			}),
+			c: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my_collector_c",
+				ConstLabels: prometheus.Labels{
+					"name": name,
+					"type": "test",
+				},
+			}),
+			d: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my_collector_d",
+				ConstLabels: prometheus.Labels{
+					"name": name,
+					"type": "test",
+				},
+			}),
+		}
+
+		// Register should not fail, since each collector has a unique
+		// set of sub-collectors, determined by their names and const label values.
+		if err := reg.Register(&collector); err != nil {
+			alreadyRegErr, ok := err.(prometheus.AlreadyRegisteredError)
+			if !ok {
+				t.Fatal(err)
+			}
+
+			previous := alreadyRegErr.ExistingCollector.(*collidingCollector)
+			current := alreadyRegErr.NewCollector.(*collidingCollector)
+
+			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", alreadyRegErr, previous.name, previous.i, current.name, current.i)
+		}
+	}
+}
