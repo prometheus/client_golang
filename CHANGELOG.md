@@ -1,3 +1,10 @@
+## 1.2.0 / 2019-10-15
+
+* [FEATURE] Support pushing to Pushgateway v0.10+. #652
+* [ENHANCEMENT] Improve hashing to make a spurious `AlreadyRegisteredError` less likely to occur. #657
+* [ENHANCEMENT] API client: Add godoc examples. #630
+* [BUGFIX] promhttp: Correctly call WriteHeader in HTTP middleware. #634
+
 ## 1.1.0 / 2019-08-01
 
 * [CHANGE] API client: Format time as UTC rather than RFC3339Nano. #617
