@@ -25,7 +25,7 @@ import (
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 )
 
-func ExampleAPI_Query() {
+func ExampleAPI_query() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 	})
@@ -48,7 +48,7 @@ func ExampleAPI_Query() {
 	fmt.Printf("Result:\n%v\n", result)
 }
 
-func ExampleAPI_QueryRange() {
+func ExampleAPI_queryRange() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 	})
@@ -76,7 +76,7 @@ func ExampleAPI_QueryRange() {
 	fmt.Printf("Result:\n%v\n", result)
 }
 
-func ExampleAPI_Series() {
+func ExampleAPI_series() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 	})
