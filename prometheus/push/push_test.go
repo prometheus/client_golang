@@ -33,7 +33,8 @@ func TestPush(t *testing.T) {
 		lastPath   string
 	)
 
-	// Fake a Pushgateway that always responds with 202.
+	// Fake a Pushgateway that responds with 202 to DELETE and with 200 in
+	// all other cases.
 	pgwOK := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lastMethod = r.Method
@@ -44,7 +45,11 @@ func TestPush(t *testing.T) {
 			}
 			lastPath = r.URL.EscapedPath()
 			w.Header().Set("Content-Type", `text/plain; charset=utf-8`)
-			w.WriteHeader(http.StatusAccepted)
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		}),
 	)
 	defer pgwOK.Close()
