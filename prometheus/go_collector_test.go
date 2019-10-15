@@ -44,9 +44,14 @@ func TestGoCollectorGoroutines(t *testing.T) {
 
 	go func() {
 		c.Collect(metricCh)
-		go func(c <-chan struct{}) {
-			<-c
-		}(endGoroutineCh)
+		for i := 1; i <= 10; i++ {
+			// Start 10 goroutines to be sure we'll detect an
+			// increase even if unrelated goroutines happen to
+			// terminate during this test.
+			go func(c <-chan struct{}) {
+				<-c
+			}(endGoroutineCh)
+		}
 		<-waitCh
 		c.Collect(metricCh)
 		close(endCollectionCh)
@@ -73,9 +78,8 @@ func TestGoCollectorGoroutines(t *testing.T) {
 				continue
 			}
 
-			if diff := int(pb.GetGauge().GetValue()) - old; diff != 1 {
-				// TODO: This is flaky in highly concurrent situations.
-				t.Errorf("want 1 new goroutine, got %d", diff)
+			if diff := old - int(pb.GetGauge().GetValue()); diff > -1 {
+				t.Errorf("want at least one new goroutine, got %d fewer", diff)
 			}
 		case <-time.After(1 * time.Second):
 			t.Fatalf("expected collect timed out")
