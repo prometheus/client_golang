@@ -863,6 +863,23 @@ func TestAlreadyRegistered(t *testing.T) {
 	}
 }
 
+// TestRegisterUnregisterCollector ensures registering and unregistering a
+// collector doesn't leave any dangling metrics.
+// We use NewGoCollector as a nice concrete example of a collector with
+// multiple metrics.
+func TestRegisterUnregisterCollector(t *testing.T) {
+	col := prometheus.NewGoCollector()
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(col)
+	reg.Unregister(col)
+	if metrics, err := reg.Gather(); err != nil {
+		t.Error("error gathering sample metric")
+	} else if len(metrics) != 0 {
+		t.Error("should have unregistered metric")
+	}
+}
+
 // TestHistogramVecRegisterGatherConcurrency is an end-to-end test that
 // concurrently calls Observe on random elements of a HistogramVec while the
 // same HistogramVec is registered concurrently and the Gather method of the
