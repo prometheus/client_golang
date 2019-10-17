@@ -1,3 +1,7 @@
+## 1.2.1 / 2019-10-17
+
+* [BUGFIX] Fix regression in the implementation of `Registerer.Unregister`. #663
+
 ## 1.2.0 / 2019-10-15
 
 * [FEATURE] Support pushing to Pushgateway v0.10+. #652
