@@ -113,7 +113,7 @@ func testWriteSummary(t *testing.T, useTags bool) {
 %s.name.constname.constvalue.labelname.val2.quantile.0_9 40 1477043
 %s.name.constname.constvalue.labelname.val2.quantile.0_99 40 1477043
 %s.name_sum.constname.constvalue.labelname.val2 90 1477043
-%s.name_count.constname.constvaluelabelname.val2 3 1477043
+%s.name_count.constname.constvalue.labelname.val2 3 1477043
 `
 		wantTagged = `%s.name;constname=constvalue;labelname=val1;quantile=0.5 20 1477043
 %s.name;constname=constvalue;labelname=val1;quantile=0.9 30 1477043
