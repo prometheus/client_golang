@@ -16,6 +16,7 @@ package prometheus
 import (
 	"errors"
 	"math"
+	"sync"
 	"sync/atomic"
 
 	dto "github.com/prometheus/client_model/go"
@@ -40,6 +41,8 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
+
+	WithTraceID(traceID *string) Counter
 }
 
 // CounterOpts is an alias for Opts. See there for doc comments.
@@ -67,6 +70,8 @@ func NewCounter(opts CounterOpts) Counter {
 }
 
 type counter struct {
+	sync.RWMutex
+
 	// valBits contains the bits of the represented float64 value, while
 	// valInt stores values that are exact integers. Both have to go first
 	// in the struct to guarantee alignment for atomic operations.
@@ -75,7 +80,8 @@ type counter struct {
 	valInt  uint64
 
 	selfCollector
-	desc *Desc
+	desc    *Desc
+	traceID *string
 
 	labelPairs []*dto.LabelPair
 }
@@ -107,10 +113,21 @@ func (c *counter) Inc() {
 	atomic.AddUint64(&c.valInt, 1)
 }
 
+func (c *counter) WithTraceID(traceID *string) Counter {
+	c.Lock()
+	c.traceID = traceID
+	c.Unlock()
+	return c
+}
+
 func (c *counter) Write(out *dto.Metric) error {
 	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	ival := atomic.LoadUint64(&c.valInt)
 	val := fval + float64(ival)
+	c.Lock()
+	out.TraceId = c.traceID
+	c.traceID = nil
+	c.Unlock()
 
 	return populateMetric(CounterValue, val, c.labelPairs, out)
 }
