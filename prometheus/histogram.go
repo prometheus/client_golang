@@ -138,7 +138,7 @@ type HistogramOpts struct {
 	// better covered by target labels set by the scraping Prometheus
 	// server, or by one specific metric (e.g. a build_info or a
 	// machine_role metric). See also
-	// https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels,-not-static-scraped-labels
+	// https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels-not-static-scraped-labels
 	ConstLabels Labels
 
 	// Buckets defines the buckets into which observations are counted. Each
