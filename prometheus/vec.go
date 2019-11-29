@@ -35,6 +35,11 @@ type metricVec struct {
 	hashAddByte func(h uint64, b byte) uint64
 }
 
+type resetter interface {
+	// Reset deletes all metrics.
+	Reset()
+}
+
 // newMetricVec returns an initialized metricVec.
 func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
 	return &metricVec{
@@ -234,7 +239,7 @@ func (m *metricMap) Collect(ch chan<- Metric) {
 	}
 }
 
-// Reset deletes all metrics in this vector.
+// Reset implements resetter.
 func (m *metricMap) Reset() {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()

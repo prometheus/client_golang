@@ -1174,3 +1174,35 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 		}
 	}
 }
+
+// TestResetMetrics tests resetting metrics.
+func TestResetMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	metricVec := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "name",
+		},
+		[]string{},
+	)
+
+	reg.MustRegister(metricVec)
+
+	metricVec.WithLabelValues().Add(1)
+
+	if metrics, err := reg.Gather(); err != nil {
+		t.Error("error gathering sample metric")
+	} else if len(metrics) != 1 {
+		t.Errorf("unexpected metrics length: %d", len(metrics))
+	} else if *metrics[0].Metric[0].Counter.Value != float64(1) {
+		t.Errorf("unexpected initial counter value: %f", *metrics[0].Metric[0].Counter.Value)
+	}
+
+	reg.ResetMetrics()
+
+	if metrics, err := reg.Gather(); err != nil {
+		t.Error("error gathering sample metric")
+	} else if len(metrics) != 0 {
+		t.Errorf("unexpected metrics length: %d", len(metrics))
+	}
+}

@@ -158,6 +158,10 @@ type Gatherer interface {
 	// expose an incomplete result and instead disregard the returned
 	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
+
+	// ResetMetrics restores all registered metric Collectors to their initial
+	// state.
+	ResetMetrics()
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -192,6 +196,12 @@ type GathererFunc func() ([]*dto.MetricFamily, error)
 // Gather implements Gatherer.
 func (gf GathererFunc) Gather() ([]*dto.MetricFamily, error) {
 	return gf()
+}
+
+// ResetMetrics implements Gatherer.
+func (gf GathererFunc) ResetMetrics() {
+	// GathererFunc's state is determined by its value, so resetting its
+	// metrics has no effect.
 }
 
 // AlreadyRegisteredError is returned by the Register method if the Collector to
@@ -546,6 +556,22 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
+// ResetMetrics implements Gatherer.
+func (r *Registry) ResetMetrics() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	for _, collector := range r.collectorsByID {
+		if c, ok := collector.(resetter); ok {
+			c.Reset()
+		}
+	}
+	for _, collector := range r.uncheckedCollectors {
+		if c, ok := collector.(resetter); ok {
+			c.Reset()
+		}
+	}
+}
+
 // WriteToTextfile calls Gather on the provided Gatherer, encodes the result in the
 // Prometheus text format, and writes it to a temporary file. Upon success, the
 // temporary file is renamed to the provided filename.
@@ -761,6 +787,13 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
+}
+
+// ResetMetrics implements Gatherer.
+func (gs Gatherers) ResetMetrics() {
+	for _, g := range gs {
+		g.ResetMetrics()
+	}
 }
 
 // checkSuffixCollisions checks for collisions with the “magic” suffixes the
