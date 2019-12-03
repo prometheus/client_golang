@@ -52,14 +52,16 @@ const (
 // consequences. Users who want to avoid global state altogether should not use
 // the convenience functions and act on custom instances instead.
 var (
-	defaultRegistry              = NewRegistry()
-	DefaultRegisterer Registerer = defaultRegistry
-	DefaultGatherer   Gatherer   = defaultRegistry
+	defaultRegistry                    = NewRegistry()
+	DefaultRegisterer       Registerer = defaultRegistry
+	DefaultGatherer         Gatherer   = defaultRegistry
+	DefaultGoCollector                 = NewGoCollector()
+	DefaultProcessCollector            = NewProcessCollector(ProcessCollectorOpts{})
 )
 
 func init() {
-	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
-	MustRegister(NewGoCollector())
+	MustRegister(DefaultProcessCollector)
+	MustRegister(DefaultGoCollector)
 }
 
 // NewRegistry creates a new vanilla Registry without any Collectors
