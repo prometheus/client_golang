@@ -353,7 +353,7 @@ func ExampleInstrumentHandlerDuration() {
 			Help:    "A histogram of latencies for requests.",
 			Buckets: []float64{.25, .5, 1, 2.5, 5, 10},
 		},
-		[]string{"handler", "method"},
+		[]string{"code", "method"},
 	)
 
 	// responseSize has no labels, making it a zero-dimensional
