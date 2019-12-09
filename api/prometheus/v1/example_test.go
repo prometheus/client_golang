@@ -34,10 +34,10 @@ func ExampleAPI_query() {
 		os.Exit(1)
 	}
 
-	api := v1.NewAPI(client)
+	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result, warnings, err := api.Query(ctx, "up", time.Now())
+	result, warnings, err := v1api.Query(ctx, "up", time.Now())
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
@@ -57,7 +57,7 @@ func ExampleAPI_queryRange() {
 		os.Exit(1)
 	}
 
-	api := v1.NewAPI(client)
+	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	r := v1.Range{
@@ -65,7 +65,7 @@ func ExampleAPI_queryRange() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
@@ -85,10 +85,10 @@ func ExampleAPI_series() {
 		os.Exit(1)
 	}
 
-	api := v1.NewAPI(client)
+	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	lbls, warnings, err := api.Series(ctx, []string{
+	lbls, warnings, err := v1api.Series(ctx, []string{
 		"{__name__=~\"scrape_.+\",job=\"node\"}",
 		"{__name__=~\"scrape_.+\",job=\"prometheus\"}",
 	}, time.Now().Add(-time.Hour), time.Now())
