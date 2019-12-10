@@ -17,8 +17,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
@@ -92,14 +94,23 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	return resp, b, test.inWarnings, test.inErr
 }
 
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, api.Warnings, error) {
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return c.Do(ctx, req)
+}
+
 func TestAPIs(t *testing.T) {
 
 	testTime := time.Now()
 
-	client := &apiTestClient{T: t}
-
+	tc := &apiTestClient{
+		T: t,
+	}
 	promAPI := &httpAPI{
-		client: client,
+		client: tc,
 	}
 
 	doAlertManagers := func() func() (interface{}, api.Warnings, error) {
@@ -855,7 +866,7 @@ func TestAPIs(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			client.curTest = test
+			tc.curTest = test
 
 			res, warnings, err := test.do()
 
@@ -907,7 +918,7 @@ func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -934,7 +945,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		StatusCode: test.code,
 	}
 
-	return resp, b, test.expectedWarnings, nil
+	return resp, b, nil
 }
 
 func TestAPIClientDo(t *testing.T) {
@@ -1065,7 +1076,9 @@ func TestAPIClientDo(t *testing.T) {
 		ch:  make(chan apiClientTest, 1),
 		req: &http.Request{},
 	}
-	client := &apiClient{tc}
+	client := &apiClientImpl{
+		client: tc,
+	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
@@ -1207,5 +1220,111 @@ func TestSamplesJsonSerialization(t *testing.T) {
 				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 			}
 		})
+	}
+}
+
+type httpTestClient struct {
+	client http.Client
+}
+
+func (c *httpTestClient) URL(ep string, args map[string]string) *url.URL {
+	return nil
+}
+
+func (c *httpTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var body []byte
+	done := make(chan struct{})
+	go func() {
+		body, err = ioutil.ReadAll(resp.Body)
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		<-done
+		err = resp.Body.Close()
+		if err == nil {
+			err = ctx.Err()
+		}
+	case <-done:
+	}
+
+	return resp, body, err
+}
+
+func TestDoGetFallback(t *testing.T) {
+	v := url.Values{"a": []string{"1", "2"}}
+
+	type testResponse struct {
+		Values string
+		Method string
+	}
+
+	// Start a local HTTP server.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req.ParseForm()
+		r := &testResponse{
+			Values: req.Form.Encode(),
+			Method: req.Method,
+		}
+
+		body, _ := json.Marshal(r)
+
+		if req.Method == http.MethodPost {
+			if req.URL.Path == "/blockPost" {
+				http.Error(w, string(body), http.StatusMethodNotAllowed)
+				return
+			}
+		}
+
+		w.Write(body)
+	}))
+	// Close the server when test finishes.
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &httpTestClient{client: *(server.Client())}
+	api := &apiClientImpl{
+		client: client,
+	}
+
+	// Do a post, and ensure that the post succeeds.
+	_, b, _, err := api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	resp := &testResponse{}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodPost {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
+	}
+
+	// Do a fallbcak to a get.
+	u.Path = "/blockPost"
+	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodGet {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
 	}
 }
