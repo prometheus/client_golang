@@ -25,7 +25,7 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/cespare/xxhash"
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
 
