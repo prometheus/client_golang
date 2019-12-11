@@ -230,15 +230,15 @@ type API interface {
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns all the unique label names present in the block in sorted order.
-	LabelNames(ctx context.Context) ([]string, api.Warnings, error)
+	LabelNames(ctx context.Context) ([]string, Warnings, error)
 	// LabelValues performs a query for the values of the given label.
-	LabelValues(ctx context.Context, label string) (model.LabelValues, api.Warnings, error)
+	LabelValues(ctx context.Context, label string) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
-	Query(ctx context.Context, query string, ts time.Time) (model.Value, api.Warnings, error)
+	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
-	QueryRange(ctx context.Context, query string, r Range) (model.Value, api.Warnings, error)
+	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
 	// Series finds series by label matchers.
-	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, api.Warnings, error)
+	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, Warnings, error)
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
@@ -630,7 +630,7 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context) ([]string, api.Warnings, error) {
+func (h *httpAPI) LabelNames(ctx context.Context) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -644,7 +644,7 @@ func (h *httpAPI) LabelNames(ctx context.Context) ([]string, api.Warnings, error
 	return labelNames, w, json.Unmarshal(body, &labelNames)
 }
 
-func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, api.Warnings, error) {
+func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelValues, Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -658,7 +658,7 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string) (model.LabelVal
 	return labelValues, w, json.Unmarshal(body, &labelValues)
 }
 
-func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, api.Warnings, error) {
+func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error) {
 	u := h.client.URL(epQuery, nil)
 	q := u.Query()
 
@@ -676,7 +676,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.Value, api.Warnings, error) {
+func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error) {
 	u := h.client.URL(epQueryRange, nil)
 	q := u.Query()
 
@@ -695,7 +695,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, api.Warnings, error) {
+func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, Warnings, error) {
 	u := h.client.URL(epSeries, nil)
 	q := u.Query()
 
@@ -802,12 +802,15 @@ func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget string, metri
 	return res, json.Unmarshal(body, &res)
 }
 
+// Warnings is an array of non critical errors
+type Warnings []string
+
 // apiClient wraps a regular client and processes successful API responses.
 // Successful also includes responses that errored at the API level.
 type apiClient interface {
 	URL(ep string, args map[string]string) *url.URL
-	Do(context.Context, *http.Request) (*http.Response, []byte, api.Warnings, error)
-	DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, api.Warnings, error)
+	Do(context.Context, *http.Request) (*http.Response, []byte, Warnings, error)
+	DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error)
 }
 
 type apiClientImpl struct {
@@ -841,7 +844,7 @@ func (h *apiClientImpl) URL(ep string, args map[string]string) *url.URL {
 	return h.client.URL(ep, args)
 }
 
-func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
 	resp, body, err := h.client.Do(ctx, req)
 	if err != nil {
 		return resp, body, nil, err
@@ -888,7 +891,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 405 it will fallback to a GET request.
-func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, api.Warnings, error) {
+func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
 	if err != nil {
 		return nil, nil, nil, err

@@ -25,8 +25,6 @@ import (
 	"time"
 )
 
-type Warnings []string
-
 // DefaultRoundTripper is used if no RoundTripper is set in Config.
 var DefaultRoundTripper http.RoundTripper = &http.Transport{
 	Proxy: http.ProxyFromEnvironment,
