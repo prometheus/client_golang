@@ -1268,12 +1268,16 @@ func TestDoGetFallback(t *testing.T) {
 	// Start a local HTTP server.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		req.ParseForm()
-		r := &testResponse{
+		testResp, _ := json.Marshal(&testResponse{
 			Values: req.Form.Encode(),
 			Method: req.Method,
+		})
+
+		apiResp := &apiResponse{
+			Data: testResp,
 		}
 
-		body, _ := json.Marshal(r)
+		body, _ := json.Marshal(apiResp)
 
 		if req.Method == http.MethodPost {
 			if req.URL.Path == "/blockPost" {
