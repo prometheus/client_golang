@@ -19,7 +19,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/cespare/xxhash"
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/model"
 
