@@ -17,8 +17,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"strings"
@@ -28,12 +30,10 @@ import (
 	json "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
-
-	"github.com/prometheus/client_golang/api"
 )
 
 type apiTest struct {
-	do           func() (interface{}, api.Warnings, error)
+	do           func() (interface{}, Warnings, error)
 	inWarnings   []string
 	inErr        error
 	inStatusCode int
@@ -43,7 +43,7 @@ type apiTest struct {
 	reqParam  url.Values
 	reqMethod string
 	res       interface{}
-	warnings  api.Warnings
+	warnings  Warnings
 	err       error
 }
 
@@ -64,7 +64,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
 
 	test := c.curTest
 
@@ -92,102 +92,111 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	return resp, b, test.inWarnings, test.inErr
 }
 
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return c.Do(ctx, req)
+}
+
 func TestAPIs(t *testing.T) {
 
 	testTime := time.Now()
 
-	client := &apiTestClient{T: t}
-
+	tc := &apiTestClient{
+		T: t,
+	}
 	promAPI := &httpAPI{
-		client: client,
+		client: tc,
 	}
 
-	doAlertManagers := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doAlertManagers := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.AlertManagers(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doCleanTombstones := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return nil, nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doConfig := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Config(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doFlags := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Flags(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doLabelNames := func(label string) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doLabelNames := func(label string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return promAPI.LabelNames(context.Background())
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doLabelValues := func(label string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return promAPI.LabelValues(context.Background(), label)
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doQuery := func(q string, ts time.Time) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return promAPI.Query(context.Background(), q, ts)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doQueryRange := func(q string, rng Range) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return promAPI.QueryRange(context.Background(), q, rng)
 		}
 	}
 
-	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doSnapshot := func(skipHead bool) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Snapshot(context.Background(), skipHead)
 			return v, nil, err
 		}
 	}
 
-	doRules := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doRules := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Rules(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doTargets := func() func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doTargets := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Targets(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, api.Warnings, error) {
-		return func() (interface{}, api.Warnings, error) {
+	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
 			return v, nil, err
 		}
@@ -855,7 +864,7 @@ func TestAPIs(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			client.curTest = test
+			tc.curTest = test
 
 			res, warnings, err := test.do()
 
@@ -900,14 +909,14 @@ type apiClientTest struct {
 	response         interface{}
 	expectedBody     string
 	expectedErr      *Error
-	expectedWarnings api.Warnings
+	expectedWarnings Warnings
 }
 
 func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, api.Warnings, error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -934,7 +943,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		StatusCode: test.code,
 	}
 
-	return resp, b, test.expectedWarnings, nil
+	return resp, b, nil
 }
 
 func TestAPIClientDo(t *testing.T) {
@@ -1065,7 +1074,9 @@ func TestAPIClientDo(t *testing.T) {
 		ch:  make(chan apiClientTest, 1),
 		req: &http.Request{},
 	}
-	client := &apiClient{tc}
+	client := &apiClientImpl{
+		client: tc,
+	}
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
@@ -1207,5 +1218,115 @@ func TestSamplesJsonSerialization(t *testing.T) {
 				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 			}
 		})
+	}
+}
+
+type httpTestClient struct {
+	client http.Client
+}
+
+func (c *httpTestClient) URL(ep string, args map[string]string) *url.URL {
+	return nil
+}
+
+func (c *httpTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var body []byte
+	done := make(chan struct{})
+	go func() {
+		body, err = ioutil.ReadAll(resp.Body)
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		<-done
+		err = resp.Body.Close()
+		if err == nil {
+			err = ctx.Err()
+		}
+	case <-done:
+	}
+
+	return resp, body, err
+}
+
+func TestDoGetFallback(t *testing.T) {
+	v := url.Values{"a": []string{"1", "2"}}
+
+	type testResponse struct {
+		Values string
+		Method string
+	}
+
+	// Start a local HTTP server.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req.ParseForm()
+		testResp, _ := json.Marshal(&testResponse{
+			Values: req.Form.Encode(),
+			Method: req.Method,
+		})
+
+		apiResp := &apiResponse{
+			Data: testResp,
+		}
+
+		body, _ := json.Marshal(apiResp)
+
+		if req.Method == http.MethodPost {
+			if req.URL.Path == "/blockPost" {
+				http.Error(w, string(body), http.StatusMethodNotAllowed)
+				return
+			}
+		}
+
+		w.Write(body)
+	}))
+	// Close the server when test finishes.
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &httpTestClient{client: *(server.Client())}
+	api := &apiClientImpl{
+		client: client,
+	}
+
+	// Do a post, and ensure that the post succeeds.
+	_, b, _, err := api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	resp := &testResponse{}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodPost {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
+	}
+
+	// Do a fallbcak to a get.
+	u.Path = "/blockPost"
+	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodGet {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
 	}
 }
