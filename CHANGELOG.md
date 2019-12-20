@@ -1,3 +1,8 @@
+## 1.3.0 / 2019-12-21
+
+* [FEATURE] Support tags in Graphite bridge. #668
+* [BUGFIX] API client: Actually return Prometheus warnings. #699
+
 ## 1.2.1 / 2019-10-17
 
 * [BUGFIX] Fix regression in the implementation of `Registerer.Unregister`. #663
