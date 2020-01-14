@@ -17,6 +17,7 @@ import (
 	"errors"
 	"math"
 	"sync/atomic"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -40,6 +41,14 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
+	// AddWithExemplar works like Add but also replaces the currently saved
+	// exemplar (if any) with a new one, created from the provided value,
+	// the current time as timestamp, and the provided labels. Empty Labels
+	// will lead to a valid (label-less) exemplar. But if Labels is nil, the
+	// current exemplar is left in place. This method panics if the value is
+	// < 0, if any of the provided labels are invalid, or if the provided
+	// labels contain more than 64 runes in total.
+	AddWithExemplar(value float64, exemplar Labels)
 }
 
 // CounterOpts is an alias for Opts. See there for doc comments.
@@ -78,6 +87,7 @@ type counter struct {
 	desc *Desc
 
 	labelPairs []*dto.LabelPair
+	exemplar   atomic.Value // Containing nil or a *dto.Exemplar.
 }
 
 func (c *counter) Desc() *Desc {
@@ -88,6 +98,7 @@ func (c *counter) Add(v float64) {
 	if v < 0 {
 		panic(errors.New("counter cannot decrease in value"))
 	}
+
 	ival := uint64(v)
 	if float64(ival) == v {
 		atomic.AddUint64(&c.valInt, ival)
@@ -103,6 +114,11 @@ func (c *counter) Add(v float64) {
 	}
 }
 
+func (c *counter) AddWithExemplar(v float64, e Labels) {
+	c.Add(v)
+	c.updateExemplar(v, e)
+}
+
 func (c *counter) Inc() {
 	atomic.AddUint64(&c.valInt, 1)
 }
@@ -112,7 +128,23 @@ func (c *counter) Write(out *dto.Metric) error {
 	ival := atomic.LoadUint64(&c.valInt)
 	val := fval + float64(ival)
 
-	return populateMetric(CounterValue, val, c.labelPairs, out)
+	var exemplar *dto.Exemplar
+	if e := c.exemplar.Load(); e != nil {
+		exemplar = e.(*dto.Exemplar)
+	}
+
+	return populateMetric(CounterValue, val, c.labelPairs, exemplar, out)
+}
+
+func (c *counter) updateExemplar(v float64, l Labels) {
+	if l == nil {
+		return
+	}
+	e, err := newExemplar(v, time.Now(), l)
+	if err != nil {
+		panic(err)
+	}
+	c.exemplar.Store(e)
 }
 
 // CounterVec is a Collector that bundles a set of Counters that all share the

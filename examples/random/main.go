@@ -18,6 +18,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"math"
 	"math/rand"
@@ -89,7 +90,11 @@ func main() {
 		for {
 			v := (rand.NormFloat64() * *normDomain) + *normMean
 			rpcDurations.WithLabelValues("normal").Observe(v)
-			rpcDurationsHistogram.Observe(v)
+			rpcDurationsHistogram.ObserveWithExemplar(
+				// Demonstrate exemplar support with a dummy ID. This would be
+				// something like a trace ID in a real application.
+				v, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+			)
 			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
 		}
 	}()
@@ -103,6 +108,12 @@ func main() {
 	}()
 
 	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("/metrics", promhttp.HandlerFor(
+		prometheus.DefaultGatherer,
+		promhttp.HandlerOpts{
+			// Opt into OpenMetrics to support exemplars.
+			EnableOpenMetrics: true,
+		},
+	))
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
