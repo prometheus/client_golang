@@ -17,6 +17,10 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -208,5 +212,63 @@ func TestCounterAddSmall(t *testing.T) {
 
 	if expected, got := fmt.Sprintf("counter:<value:%0.0e > ", small), m.String(); expected != got {
 		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
+func TestCounterExemplar(t *testing.T) {
+	now := time.Now()
+
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+	counter.now = func() time.Time { return now }
+
+	ts, err := ptypes.TimestampProto(now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedExemplar := &dto.Exemplar{
+		Label: []*dto.LabelPair{
+			&dto.LabelPair{Name: proto.String("foo"), Value: proto.String("bar")},
+		},
+		Value:     proto.Float64(42),
+		Timestamp: ts,
+	}
+
+	counter.AddWithExemplar(42, Labels{"foo": "bar"})
+	if expected, got := expectedExemplar.String(), counter.exemplar.Load().(*dto.Exemplar).String(); expected != got {
+		t.Errorf("expected exemplar %s, got %s.", expected, got)
+	}
+
+	addExemplarWithInvalidLabel := func() (err error) {
+		defer func() {
+			if e := recover(); e != nil {
+				err = e.(error)
+			}
+		}()
+		// Should panic because of invalid label name.
+		counter.AddWithExemplar(42, Labels{":o)": "smile"})
+		return nil
+	}
+	if addExemplarWithInvalidLabel() == nil {
+		t.Error("adding exemplar with invalid label succeeded")
+	}
+
+	addExemplarWithOversizedLabels := func() (err error) {
+		defer func() {
+			if e := recover(); e != nil {
+				err = e.(error)
+			}
+		}()
+		// Should panic because of 65 runes.
+		counter.AddWithExemplar(42, Labels{
+			"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
+			"x1234567":                   "8+15 characters",
+		})
+		return nil
+	}
+	if addExemplarWithOversizedLabels() == nil {
+		t.Error("adding exemplar with oversized labels succeeded")
 	}
 }
