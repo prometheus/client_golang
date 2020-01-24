@@ -70,7 +70,7 @@ func NewCounter(opts CounterOpts) Counter {
 		nil,
 		opts.ConstLabels,
 	)
-	result := &counter{desc: desc, labelPairs: desc.constLabelPairs}
+	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: time.Now}
 	result.init(result) // Init self-collection.
 	return result
 }
@@ -88,6 +88,8 @@ type counter struct {
 
 	labelPairs []*dto.LabelPair
 	exemplar   atomic.Value // Containing nil or a *dto.Exemplar.
+
+	now func() time.Time // To mock out time.Now() for testing.
 }
 
 func (c *counter) Desc() *Desc {
@@ -140,7 +142,7 @@ func (c *counter) updateExemplar(v float64, l Labels) {
 	if l == nil {
 		return
 	}
-	e, err := newExemplar(v, time.Now(), l)
+	e, err := newExemplar(v, c.now(), l)
 	if err != nil {
 		panic(err)
 	}

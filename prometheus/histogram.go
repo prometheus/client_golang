@@ -198,6 +198,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		upperBounds: opts.Buckets,
 		labelPairs:  makeLabelPairs(desc, labelValues),
 		counts:      [2]*histogramCounts{{}, {}},
+		now:         time.Now,
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -266,6 +267,8 @@ type histogram struct {
 	upperBounds []float64
 	labelPairs  []*dto.LabelPair
 	exemplars   []atomic.Value // One more than buckets (to include +Inf), each a *dto.Exemplar.
+
+	now func() time.Time // To mock out time.Now() for testing.
 }
 
 func (h *histogram) Desc() *Desc {
@@ -397,7 +400,7 @@ func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 	if l == nil {
 		return
 	}
-	e, err := newExemplar(v, time.Now(), l)
+	e, err := newExemplar(v, h.now(), l)
 	if err != nil {
 		panic(err)
 	}

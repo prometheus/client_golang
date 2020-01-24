@@ -22,6 +22,10 @@ import (
 	"sync"
 	"testing"
 	"testing/quick"
+	"time"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -182,7 +186,11 @@ func TestHistogramConcurrency(t *testing.T) {
 			go func(vals []float64) {
 				start.Wait()
 				for _, v := range vals {
-					sum.Observe(v)
+					if n%2 == 0 {
+						sum.Observe(v)
+					} else {
+						sum.ObserveWithExemplar(v, Labels{"foo": "bar"})
+					}
 				}
 				end.Done()
 			}(vals)
@@ -201,9 +209,13 @@ func TestHistogramConcurrency(t *testing.T) {
 		}
 
 		wantCounts := getCumulativeCounts(allVars)
+		wantBuckets := len(testBuckets)
+		if !math.IsInf(m.Histogram.Bucket[len(m.Histogram.Bucket)-1].GetUpperBound(), +1) {
+			wantBuckets--
+		}
 
-		if got, want := len(m.Histogram.Bucket), len(testBuckets)-1; got != want {
-			t.Errorf("got %d buckets in protobuf, want %d", got, want)
+		if got := len(m.Histogram.Bucket); got != wantBuckets {
+			t.Errorf("got %d buckets in protobuf, want %d", got, wantBuckets)
 		}
 		for i, wantBound := range testBuckets {
 			if i == len(testBuckets)-1 {
@@ -382,5 +394,64 @@ func TestHistogramAtomicObserve(t *testing.T) {
 			)
 		}
 		runtime.Gosched()
+	}
+}
+
+func TestHistogramExemplar(t *testing.T) {
+	now := time.Now()
+
+	histogram := NewHistogram(HistogramOpts{
+		Name:    "test",
+		Help:    "test help",
+		Buckets: []float64{1, 2, 3, 4},
+	}).(*histogram)
+	histogram.now = func() time.Time { return now }
+
+	ts, err := ptypes.TimestampProto(now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedExemplars := []*dto.Exemplar{
+		nil,
+		&dto.Exemplar{
+			Label: []*dto.LabelPair{
+				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("2")},
+			},
+			Value:     proto.Float64(1.6),
+			Timestamp: ts,
+		},
+		nil,
+		&dto.Exemplar{
+			Label: []*dto.LabelPair{
+				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("3")},
+			},
+			Value:     proto.Float64(4),
+			Timestamp: ts,
+		},
+		&dto.Exemplar{
+			Label: []*dto.LabelPair{
+				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("4")},
+			},
+			Value:     proto.Float64(4.5),
+			Timestamp: ts,
+		},
+	}
+
+	histogram.ObserveWithExemplar(1.5, Labels{"id": "1"})
+	histogram.ObserveWithExemplar(1.6, Labels{"id": "2"}) // To replace exemplar in bucket 0.
+	histogram.ObserveWithExemplar(4, Labels{"id": "3"})
+	histogram.ObserveWithExemplar(4.5, Labels{"id": "4"}) // Should go to +Inf bucket.
+
+	for i, ex := range histogram.exemplars {
+		var got, expected string
+		if val := ex.Load(); val != nil {
+			got = val.(*dto.Exemplar).String()
+		}
+		if expectedExemplars[i] != nil {
+			expected = expectedExemplars[i].String()
+		}
+		if got != expected {
+			t.Errorf("expected exemplar %s, got %s.", expected, got)
+		}
 	}
 }
