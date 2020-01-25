@@ -48,15 +48,6 @@ type Histogram interface {
 
 	// Observe adds a single observation to the histogram.
 	Observe(float64)
-	// ObserveWithExemplar works like Observe but also replaces the
-	// currently saved exemplar for the relevant bucket (possibly none) with
-	// a new one, created from the provided value, the current time as
-	// timestamp, and the provided Labels. Empty Labels will lead to a valid
-	// (label-less) exemplar. But if Labels is nil, the current exemplar in
-	// the relevant bucket is left in place. This method panics if any of
-	// the provided labels are invalid or if the provided labels contain
-	// more than 64 runes in total.
-	ObserveWithExemplar(value float64, exemplar Labels)
 }
 
 // bucketLabel is used for the label that defines the upper bound of a
@@ -161,6 +152,10 @@ type HistogramOpts struct {
 
 // NewHistogram creates a new Histogram based on the provided HistogramOpts. It
 // panics if the buckets in HistogramOpts are not in strictly increasing order.
+//
+// The returned implementation also implements ExemplarObserver. It is safe to
+// perform the corresponding type assertion. Exemplars are tracked separately
+// for each bucket.
 func NewHistogram(opts HistogramOpts) Histogram {
 	return newHistogram(
 		NewDesc(
