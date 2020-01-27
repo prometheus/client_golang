@@ -95,7 +95,7 @@ func main() {
 			// application.  Note the necessary type assertion. We
 			// already know that rpcDurationsHistogram implements
 			// the ExemplarObserver interface and thus don't need to
-			// check the outcome of the tipe assertion.
+			// check the outcome of the type assertion.
 			rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
 				v, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
 			)
