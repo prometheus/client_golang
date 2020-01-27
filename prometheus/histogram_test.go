@@ -189,7 +189,7 @@ func TestHistogramConcurrency(t *testing.T) {
 					if n%2 == 0 {
 						sum.Observe(v)
 					} else {
-						sum.ObserveWithExemplar(v, Labels{"foo": "bar"})
+						sum.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
 					}
 				}
 				end.Done()
