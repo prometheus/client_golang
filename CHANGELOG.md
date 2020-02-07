@@ -1,3 +1,7 @@
+## 1.4.1 / 2020-02-07
+
+* [BUGFIX] Fix timestamp of exemplars in `CounterVec`. #710
+
 ## 1.4.0 / 2020-01-27
 
 * [CHANGE] Go collector: Improve doc string for `go_gc_duration_seconds`. #702
