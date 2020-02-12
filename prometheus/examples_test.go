@@ -265,6 +265,121 @@ func ExampleRegister() {
 	// taskCounterForWorker2001 registered.
 }
 
+func ExampleMustRegisterFields() {
+	s := struct {
+		PublicNumber int
+		secretNumber int
+		Cnt          prometheus.Counter
+		Gge          prometheus.GaugeFunc
+		CntVec       *prometheus.CounterVec
+		secretCnt    prometheus.Counter
+	}{
+		PublicNumber: 42,
+		secretNumber: 1971,
+		Cnt: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "public_number_changes_total",
+			Help: "Total number of changes of the public number.",
+		}),
+		CntVec: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "ultimate_answers_total",
+				Help: "Total number of answers to ultimate questions.",
+			},
+			[]string{"category"},
+		),
+		// An unexported metric will not be registered.
+		secretCnt: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "secret_number_changes_total",
+			Help: "Total number of changes of the secret number.",
+		}),
+	}
+	s.Gge = prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "public_number_value",
+			Help: "Current value of the public number.",
+		},
+		func() float64 { return float64(s.PublicNumber) },
+	)
+	s.CntVec.WithLabelValues("life").Inc()
+	s.CntVec.WithLabelValues("the universe").Add(2)
+	s.CntVec.WithLabelValues("everything")
+
+	anotherGge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "example",
+		Help: "Just another gauge to be registered along with the struct.",
+	})
+
+	reg := prometheus.NewRegistry()
+	prometheus.MustRegisterFieldsWith(reg, s, anotherGge)
+
+	metricFamilies, err := reg.Gather()
+	if err != nil {
+		panic("unexpected error during gathering")
+	}
+	for _, mf := range metricFamilies {
+		fmt.Println(proto.MarshalTextString(mf))
+	}
+
+	// Output:
+	// name: "example"
+	// help: "Just another gauge to be registered along with the struct."
+	// type: GAUGE
+	// metric: <
+	//   gauge: <
+	//     value: 0
+	//   >
+	// >
+	//
+	// name: "public_number_changes_total"
+	// help: "Total number of changes of the public number."
+	// type: COUNTER
+	// metric: <
+	//   counter: <
+	//     value: 0
+	//   >
+	// >
+	//
+	// name: "public_number_value"
+	// help: "Current value of the public number."
+	// type: GAUGE
+	// metric: <
+	//   gauge: <
+	//     value: 42
+	//   >
+	// >
+	//
+	// name: "ultimate_answers_total"
+	// help: "Total number of answers to ultimate questions."
+	// type: COUNTER
+	// metric: <
+	//   label: <
+	//     name: "category"
+	//     value: "everything"
+	//   >
+	//   counter: <
+	//     value: 0
+	//   >
+	// >
+	// metric: <
+	//   label: <
+	//     name: "category"
+	//     value: "life"
+	//   >
+	//   counter: <
+	//     value: 1
+	//   >
+	// >
+	// metric: <
+	//   label: <
+	//     name: "category"
+	//     value: "the universe"
+	//   >
+	//   counter: <
+	//     value: 2
+	//   >
+	// >
+}
+
 func ExampleSummary() {
 	temps := prometheus.NewSummary(prometheus.SummaryOpts{
 		Name:       "pond_temperature_celsius",

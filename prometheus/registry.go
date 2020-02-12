@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strings"
@@ -55,6 +56,7 @@ var (
 	defaultRegistry              = NewRegistry()
 	DefaultRegisterer Registerer = defaultRegistry
 	DefaultGatherer   Gatherer   = defaultRegistry
+	collectorType                = reflect.TypeOf((*Collector)(nil)).Elem()
 )
 
 func init() {
@@ -175,6 +177,54 @@ func Register(c Collector) error {
 // there for more details.
 func MustRegister(cs ...Collector) {
 	DefaultRegisterer.MustRegister(cs...)
+}
+
+// MustRegisterFields is a shortcut for
+// MustRegisterFieldsWith(DefaultRegisterer, is...).
+func MustRegisterFields(is ...interface{}) {
+	MustRegisterFieldsWith(DefaultRegisterer, is...)
+}
+
+// MustRegisterFieldsWith goes through the provided variadic arguments. Each
+// argument that is implementing the Collector interface is registered with the
+// provided Registerer. Each other argument must be a struct or a pointer to a
+// struct and is checked for exported fields whose value implements the
+// Collector interface. The value of each of those fields is registered with the
+// provided Registerer.
+//
+// This function panics if one of the variadic arguments is neither a struct nor
+// a pointer to a struct nor an implementation of the Collector interface. It
+// also panics if any of the registrations fail.
+//
+// If Collectors are organized in a struct, this function allows to register
+// them all in one call. Even in situations where only a subset of the fields of
+// a struct are Collectors, this function might help, but remember that only
+// exported fields will be registered.
+func MustRegisterFieldsWith(r Registerer, is ...interface{}) {
+	for _, i := range is {
+		if maybeRegister(r, i) {
+			continue
+		}
+		v := reflect.Indirect(reflect.ValueOf(i))
+		if v.Kind() != reflect.Struct {
+			panic(fmt.Errorf("not a struct: %#v", i))
+		}
+
+		for n := 0; n < v.NumField(); n++ {
+			f := v.Field(n)
+			if f.CanInterface() && f.Type().Implements(collectorType) {
+				maybeRegister(r, f.Interface().(Collector))
+			}
+		}
+	}
+}
+
+func maybeRegister(r Registerer, i interface{}) bool {
+	if c, ok := i.(Collector); ok {
+		r.MustRegister(c)
+		return true
+	}
+	return false
 }
 
 // Unregister removes the registration of the provided Collector from the
