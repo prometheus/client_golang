@@ -234,6 +234,14 @@ func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *promet
 	return With(prometheus.DefaultRegisterer).NewHistogramVec(opts, labelNames)
 }
 
+// NewUntypedFunc works like the function of the same name in the prometheus
+// package but it automatically registers the UntypedFunc with the
+// prometheus.DefaultRegisterer. If the registration fails, NewUntypedFunc
+// panics.
+func NewUntypedFunc(opts prometheus.UntypedOpts, function func() float64) prometheus.UntypedFunc {
+	return With(prometheus.DefaultRegisterer).NewUntypedFunc(opts, function)
+}
+
 // Factory provides factory methods to create Collectors that are automatically
 // registered with a Registerer. Create a Factory with the With function,
 // providing a Registerer to auto-register created Collectors with. The zero
@@ -352,4 +360,15 @@ func (f Factory) NewHistogramVec(opts prometheus.HistogramOpts, labelNames []str
 		f.r.MustRegister(h)
 	}
 	return h
+}
+
+// NewUntypedFunc works like the function of the same name in the prometheus
+// package but it automatically registers the UntypedFunc with the Factory's
+// Registerer.
+func (f Factory) NewUntypedFunc(opts prometheus.UntypedOpts, function func() float64) prometheus.UntypedFunc {
+	u := prometheus.NewUntypedFunc(opts, function)
+	if f.r != nil {
+		f.r.MustRegister(u)
+	}
+	return u
 }
