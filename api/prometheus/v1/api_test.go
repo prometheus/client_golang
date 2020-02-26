@@ -202,6 +202,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doMetricsMetadata := func(metring string, limit string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.MetricsMetadata(context.Background(), metring, limit)
+			return v, nil, err
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime),
@@ -854,6 +861,46 @@ func TestAPIs(t *testing.T) {
 				"match_target": []string{"{job=\"prometheus\"}"},
 				"metric":       []string{"go_goroutines"},
 				"limit":        []string{"1"},
+			},
+			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do: doMetricsMetadata("go_goroutines", "1"),
+			inRes: map[string]interface{}{
+				"go_goroutines": []map[string]interface{}{
+					{
+						"type": "gauge",
+						"help": "Number of goroutines that currently exist.",
+						"unit": "",
+					},
+				},
+			},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/metadata",
+			reqParam: url.Values{
+				"metric": []string{"go_goroutines"},
+				"limit":  []string{"1"},
+			},
+			res: map[string][]Metadata{
+				"go_goroutines": []Metadata{
+					{
+						Type: "gauge",
+						Help: "Number of goroutines that currently exist.",
+						Unit: "",
+					},
+				},
+			},
+		},
+
+		{
+			do:        doMetricsMetadata("", "1"),
+			inErr:     fmt.Errorf("some error"),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/metadata",
+			reqParam: url.Values{
+				"metric": []string{""},
+				"limit":  []string{"1"},
 			},
 			err: fmt.Errorf("some error"),
 		},
