@@ -204,7 +204,7 @@ func TestAPIs(t *testing.T) {
 
 	doMetricsMetadata := func(metric string, limit string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			v, err := promAPI.MetricsMetadata(context.Background(), metring, limit)
+			v, err := promAPI.MetricsMetadata(context.Background(), metric, limit)
 			return v, nil, err
 		}
 	}
