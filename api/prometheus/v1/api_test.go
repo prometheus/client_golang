@@ -202,9 +202,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doMetricsMetadata := func(metric string, limit string) func() (interface{}, Warnings, error) {
+	doMetadata := func(metric string, limit string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			v, err := promAPI.MetricsMetadata(context.Background(), metric, limit)
+			v, err := promAPI.Metadata(context.Background(), metric, limit)
 			return v, nil, err
 		}
 	}
@@ -866,7 +866,7 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do: doMetricsMetadata("go_goroutines", "1"),
+			do: doMetadata("go_goroutines", "1"),
 			inRes: map[string]interface{}{
 				"go_goroutines": []map[string]interface{}{
 					{
@@ -894,7 +894,7 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doMetricsMetadata("", "1"),
+			do:        doMetadata("", "1"),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/metadata",
