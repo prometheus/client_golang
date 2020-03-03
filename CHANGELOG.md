@@ -1,3 +1,9 @@
+## 1.5.0 / 2020-03-03
+
+* [FEATURE] promauto: Add a factory to allow automatic registration with a local registry. #713
+* [FEATURE] promauto: Add `NewUntypedFunc`. #713
+* [FEATURE] API client: Support new metadata endpoint. #718
+
 ## 1.4.1 / 2020-02-07
 
 * [BUGFIX] Fix timestamp of exemplars in `CounterVec`. #710
