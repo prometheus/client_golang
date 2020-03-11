@@ -53,6 +53,10 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
+	// Avoid superfluous response.WriteHeader call
+	if r.wroteHeader {
+		return
+	}
 	r.status = code
 	r.wroteHeader = true
 	r.ResponseWriter.WriteHeader(code)
@@ -64,9 +68,7 @@ func (r *responseWriterDelegator) WriteHeader(code int) {
 func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 	// If applicable, call WriteHeader here so that observeWriteHeader is
 	// handled appropriately.
-	if !r.wroteHeader {
-		r.WriteHeader(http.StatusOK)
-	}
+	r.WriteHeader(http.StatusOK)
 	n, err := r.ResponseWriter.Write(b)
 	r.written += int64(n)
 	return n, err
@@ -86,9 +88,7 @@ func (d closeNotifierDelegator) CloseNotify() <-chan bool {
 func (d flusherDelegator) Flush() {
 	// If applicable, call WriteHeader here so that observeWriteHeader is
 	// handled appropriately.
-	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
-	}
+	d.WriteHeader(http.StatusOK)
 	d.ResponseWriter.(http.Flusher).Flush()
 }
 func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
@@ -97,9 +97,7 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	// If applicable, call WriteHeader here so that observeWriteHeader is
 	// handled appropriately.
-	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
-	}
+	d.WriteHeader(http.StatusOK)
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
 	return n, err
