@@ -298,6 +298,16 @@ func (p *Pusher) fullURL() string {
 	return fmt.Sprintf("%s/metrics/%s", p.url, strings.Join(urlComponents, "/"))
 }
 
+// Registerer returns registerer object of pusher
+func (p *Pusher) Registerer() prometheus.Registerer {
+	return p.registerer
+}
+
+// Gatherers returns gatherers object of pusher
+func (p *Pusher) Gatherers() prometheus.Gatherers {
+	return p.gatherers
+}
+
 // encodeComponent encodes the provided string with base64.RawURLEncoding in
 // case it contains '/'. If not, it uses url.QueryEscape instead. It returns
 // true in the former case.
