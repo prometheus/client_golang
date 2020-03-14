@@ -1,3 +1,7 @@
+## 1.5.1 / 2020-03-14
+
+* [BUGFIX] promhttp: Remove another superfluous `WriteHeader` call.
+
 ## 1.5.0 / 2020-03-03
 
 * [FEATURE] promauto: Add a factory to allow automatic registration with a local registry. #713
