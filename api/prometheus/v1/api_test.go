@@ -1095,8 +1095,8 @@ func TestAPIClientDo(t *testing.T) {
 				Error:     "timed out",
 			},
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "inconsistent body for response code",
+				Type: ErrTimeout,
+				Msg:  "timed out",
 			},
 		},
 		{
@@ -1109,8 +1109,8 @@ func TestAPIClientDo(t *testing.T) {
 				Warnings:  []string{"a"},
 			},
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "inconsistent body for response code",
+				Type: ErrTimeout,
+				Msg:  "timed out",
 			},
 			expectedWarnings: []string{"a"},
 		},
