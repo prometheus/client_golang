@@ -276,10 +276,10 @@ func (v *CounterVec) With(labels Labels) Counter {
 // method deletes all metrics, even if called on a curried vector.
 func (v *CounterVec) CurryWith(labels Labels) (*CounterVec, error) {
 	vec, err := v.curryWith(labels)
-	if vec != nil {
-		return &CounterVec{vec}, err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return &CounterVec{vec}, nil
 }
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have

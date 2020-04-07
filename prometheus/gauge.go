@@ -245,10 +245,10 @@ func (v *GaugeVec) With(labels Labels) Gauge {
 // method deletes all metrics, even if called on a curried vector.
 func (v *GaugeVec) CurryWith(labels Labels) (*GaugeVec, error) {
 	vec, err := v.curryWith(labels)
-	if vec != nil {
-		return &GaugeVec{vec}, err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return &GaugeVec{vec}, nil
 }
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have

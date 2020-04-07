@@ -630,10 +630,10 @@ func (v *SummaryVec) With(labels Labels) Observer {
 // method deletes all metrics, even if called on a curried vector.
 func (v *SummaryVec) CurryWith(labels Labels) (ObserverVec, error) {
 	vec, err := v.curryWith(labels)
-	if vec != nil {
-		return &SummaryVec{vec}, err
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return &SummaryVec{vec}, nil
 }
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have
