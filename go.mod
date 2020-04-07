@@ -7,7 +7,7 @@ require (
 	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.9
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/client_model v0.2.1-0.20200406191659-4b803f3550a4
 	github.com/prometheus/common v0.9.1
 	github.com/prometheus/procfs v0.0.8
 	github.com/stretchr/testify v1.4.0 // indirect
