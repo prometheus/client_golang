@@ -36,15 +36,15 @@ type processMemoryCounters struct {
 	// https://docs.microsoft.com/en-us/windows/desktop/api/psapi/ns-psapi-_process_memory_counters_ex
 	_                          uint32
 	PageFaultCount             uint32
-	PeakWorkingSetSize         uint64
-	WorkingSetSize             uint64
-	QuotaPeakPagedPoolUsage    uint64
-	QuotaPagedPoolUsage        uint64
-	QuotaPeakNonPagedPoolUsage uint64
-	QuotaNonPagedPoolUsage     uint64
-	PagefileUsage              uint64
-	PeakPagefileUsage          uint64
-	PrivateUsage               uint64
+	PeakWorkingSetSize         uint
+	WorkingSetSize             uint
+	QuotaPeakPagedPoolUsage    uint
+	QuotaPagedPoolUsage        uint
+	QuotaPeakNonPagedPoolUsage uint
+	QuotaNonPagedPoolUsage     uint
+	PagefileUsage              uint
+	PeakPagefileUsage          uint
+	PrivateUsage               uint
 }
 
 func getProcessMemoryInfo(handle windows.Handle) (processMemoryCounters, error) {
