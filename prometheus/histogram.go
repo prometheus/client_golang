@@ -473,20 +473,20 @@ func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
 
 	sbs := dto.SparseBuckets{}
 	var prevCount uint64
-	var prevI int
+	var nextI int
 	for n, i := range ii {
 		v, _ := buckets.Load(i)
 		count := atomic.LoadUint64(v.(*uint64))
-		if n == 0 || i-prevI != 1 {
+		if n == 0 || i-nextI != 0 {
 			sbs.Span = append(sbs.Span, &dto.SparseBuckets_Span{
-				Offset: proto.Int(i - prevI),
+				Offset: proto.Int(i - nextI),
 				Length: proto.Uint32(1),
 			})
 		} else {
 			*sbs.Span[len(sbs.Span)-1].Length++
 		}
 		sbs.Delta = append(sbs.Delta, int64(count)-int64(prevCount)) // TODO(beorn7): Do proper overflow handling.
-		prevI, prevCount = i, count
+		nextI, prevCount = i+1, count
 	}
 	return &sbs
 }
