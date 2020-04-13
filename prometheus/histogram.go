@@ -531,6 +531,11 @@ func (h *histogram) observe(v float64, bucket int) {
 		case v < -h.sparseThreshold:
 			whichSparse = -1
 		}
+		// TODO(beorn7): This sometimes gives inaccurate results for
+		// floats that are actual powers of 10, e.g. math.Log10(0.1) is
+		// calculated as -0.9999999999999999 rather than -1 and thus
+		// yields a key unexpectedly one off. Maybe special-case precise
+		// powers of 10.
 		sparseKey = int(math.Ceil(math.Log10(math.Abs(v)) * float64(h.sparseResolution)))
 	}
 	// We increment h.countAndHotIdx so that the counter in the lower
