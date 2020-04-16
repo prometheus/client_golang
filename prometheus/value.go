@@ -57,12 +57,12 @@ type valueFunc struct {
 // happen concurrently. If that results in concurrent calls to Write, like in
 // the case where a valueFunc is directly registered with Prometheus, the
 // provided function must be concurrency-safe.
-func newValueFunc(desc *Desc, valueType ValueType, function func() float64) *valueFunc {
+func newValueFunc(desc *Desc, valueType ValueType, lvs []string, function func() float64) *valueFunc {
 	result := &valueFunc{
 		desc:       desc,
 		valType:    valueType,
 		function:   function,
-		labelPairs: makeLabelPairs(desc, nil),
+		labelPairs: makeLabelPairs(desc, lvs),
 	}
 	result.init(result)
 	return result

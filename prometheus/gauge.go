@@ -285,5 +285,118 @@ func NewGaugeFunc(opts GaugeOpts, function func() float64) GaugeFunc {
 		opts.Help,
 		nil,
 		opts.ConstLabels,
-	), GaugeValue, function)
+	), GaugeValue, nil, function)
+}
+
+// GaugeFuncVec is a Collector that bundles a set of GaugeFuncs that all share the same
+// Desc, but expose different funcs on different labels.
+// This is used, for example, if you want to report the number of open SQL connections for each of the sql.DB instance
+// you have by setting a gauge as func() float64 { return float64(db.Stats().OpenConnections) }
+type GaugeFuncVec struct {
+	*metricVec
+}
+
+// NewGaugeFuncVec creates a new GaugeFuncVec based on the provided GaugeOpts and
+// partitioned by the given label names.
+// GaugeFuncs can be added using the Add* methods
+func NewGaugeFuncVec(opts GaugeOpts, variableLabelNames []string) *GaugeFuncVec {
+	desc := NewDesc(
+		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
+		opts.Help,
+		variableLabelNames,
+		opts.ConstLabels,
+	)
+	return &GaugeFuncVec{
+		metricVec: newMetricVec(desc, nil),
+	}
+}
+
+// Add registers a GaugeFunc for the given Labels map (the label names
+// must match those of the VariableLabels in Desc). If that combination of
+//// label values already exists, an error is returned.
+//
+// An error is returned if the number and names of the Labels are inconsistent
+// with those of the VariableLabels in Desc (minus any curried labels).
+//
+// This method is used for the same purpose as
+// GetMetricWithLabelValues(...string). See there for pros and cons of the two
+// methods.
+func (g *GaugeFuncVec) Add(function func() float64, labels Labels) error {
+
+	h, err := g.hashLabels(labels)
+	if err != nil {
+		return err
+	}
+
+	metric := newValueFunc(g.desc, GaugeValue, extractLabelValues(g.desc, labels, g.curry), function)
+	return g.metricMap.addMetricWithLabels(h, labels, g.curry, metric)
+}
+
+// MustAdd works as Add but panics where Add would have returned an error.
+func (g *GaugeFuncVec) MustAdd(function func() float64, labels Labels) {
+	if err := g.Add(function, labels); err != nil {
+		panic(err)
+	}
+}
+
+// AddWithLabels registers a GaugeFunc for the given slice of label
+// values (same order as the VariableLabels in Desc). If that combination of
+// label values already exists, an error is returned.
+//
+// An error is returned if the number of label values is not the same as the
+// number of VariableLabels in Desc (minus any curried labels).
+//
+// Note that for more than one label value, this method is prone to mistakes
+// caused by an incorrect order of arguments. Consider Add(Labels, Metric) as
+// an alternative to avoid that type of mistake. For higher label numbers, the
+// latter has a much more readable (albeit more verbose) syntax, but it comes
+// with a performance overhead (for creating and processing the Labels map).
+func (g *GaugeFuncVec) AddWithLabels(function func() float64, lvs ...string) error {
+	h, err := g.hashLabelValues(lvs)
+	if err != nil {
+		return err
+	}
+
+	metric := newValueFunc(g.desc, GaugeValue, inlineLabelValues(lvs, g.curry), function)
+	return g.metricMap.addMetricWithLabelValues(h, lvs, g.curry, metric)
+}
+
+// MustAddWithLabels works as AddWithLabels but panics where AddWithLabels
+// would have returned an error.
+func (g *GaugeFuncVec) MustAddWithLabels(function func() float64, lvs ...string) {
+	if err := g.AddWithLabels(function, lvs...); err != nil {
+		panic(err)
+	}
+}
+
+// CurryWith returns a vector curried with the provided labels, i.e. the
+// returned vector has those labels pre-set for all labeled operations performed
+// on it. The cardinality of the curried vector is reduced accordingly. The
+// order of the remaining labels stays the same (just with the curried labels
+// taken out of the sequence – which is relevant for the
+// AddWithLabelValues and DeleteLabelValues methods).
+// It is possible to curry a curried vector, but only with labels not yet used
+// for currying before.
+//
+// The metrics contained in the GaugeFuncVec are shared between the curried and
+// uncurried vectors. They are just accessed differently. Curried and uncurried
+// vectors behave identically in terms of collection. Only one must be
+// registered with a given registry (usually the uncurried version). The Reset
+// method deletes all metrics, even if called on a curried vector.
+func (g *GaugeFuncVec) CurryWith(labels Labels) (*GaugeFuncVec, error) {
+	vec, err := g.curryWith(labels)
+	if vec != nil {
+		return &GaugeFuncVec{vec}, err
+	}
+	return nil, err
+}
+
+// MustCurryWith works as CurryWith but panics where CurryWith would have
+// returned an error.
+func (g *GaugeFuncVec) MustCurryWith(labels Labels) *GaugeFuncVec {
+	vec, err := g.CurryWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return vec
 }

@@ -359,6 +359,46 @@ func (m *metricMap) getOrCreateMetricWithLabels(
 	return metric
 }
 
+// addMetricWithLabelValues checks that the metric with provided hash and label value
+// doesn't exist yet, and adds it if it doesn't.
+// Returns an error if it exists
+//
+// This function holds the mutex.
+func (m *metricMap) addMetricWithLabelValues(
+	hash uint64, lvs []string, curry []curriedLabelValue, metric Metric,
+) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if _, ok := m.getMetricWithHashAndLabelValues(hash, lvs, curry); ok {
+		return fmt.Errorf("metric with this label values already exists")
+	}
+
+	inlinedLVs := inlineLabelValues(lvs, curry)
+	m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
+	return nil
+}
+
+// addMetricWithLabels checks that the metric with provided hash and labels
+// doesn't exist yet, and adds it if it doesn't.
+// Returns an error if it exists
+//
+// This function holds the mutex.
+func (m *metricMap) addMetricWithLabels(
+	hash uint64, labels Labels, curry []curriedLabelValue, metric Metric,
+) error {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if _, ok := m.getMetricWithHashAndLabels(hash, labels, curry); ok {
+		return fmt.Errorf("metric with this label values already exists")
+	}
+
+	lvs := extractLabelValues(m.desc, labels, curry)
+	m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
+	return nil
+}
+
 // getMetricWithHashAndLabelValues gets a metric while handling possible
 // collisions in the hash space. Must be called while holding the read mutex.
 func (m *metricMap) getMetricWithHashAndLabelValues(

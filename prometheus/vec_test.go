@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -460,6 +461,70 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 			t.Error("currying returned unexpected error:", err)
 		}
 	})
+}
+
+func TestGaugeFuncVecAddWithCollision(t *testing.T) {
+	f1 := func() float64 { return 1 }
+	f2 := func() float64 { return 2 }
+	vec := NewGaugeFuncVec(
+		GaugeOpts{
+			Name: "test_name",
+			Help: "test help",
+		},
+		[]string{"labelname"},
+	)
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+
+	// as label values
+	vec.MustAddWithLabels(f1, "first_label_values")
+	vec.MustAddWithLabels(f2, "second_label_values")
+	err := vec.AddWithLabels(f2, "second_label_values")
+	if err == nil {
+		t.Fatalf("expected to tail after adding same labels on a collision")
+	}
+
+	// as labels
+	vec.MustAdd(f1, Labels{"labelname": "first_labels"})
+	vec.MustAdd(f2, Labels{"labelname": "second_labels"})
+
+	err = vec.Add(f2, Labels{"labelname": "second_labels"})
+	if err == nil {
+		t.Fatalf("expected to tail after adding same labels on a collision")
+	}
+
+	metricChan := make(chan Metric)
+	go func() {
+		vec.Collect(metricChan)
+		close(metricChan)
+	}()
+
+	expected := map[string]bool{
+		`label:<name:"labelname" value:"first_label_values" > gauge:<value:1 >`:  true,
+		`label:<name:"labelname" value:"second_label_values" > gauge:<value:2 >`: true,
+		`label:<name:"labelname" value:"first_labels" > gauge:<value:1 >`:        true,
+		`label:<name:"labelname" value:"second_labels" > gauge:<value:2 >`:       true,
+	}
+
+	got := map[string]bool{}
+	for metric := range metricChan {
+		m := &dto.Metric{}
+		if err := metric.Write(m); err != nil {
+			t.Fatalf("can't read metric: %s", err)
+		}
+		got[strings.TrimSpace(m.String())] = true
+	}
+
+	for m := range expected {
+		if !got[m] {
+			t.Errorf("Expected `%s` but didn't get", m)
+		}
+	}
+	for m := range got {
+		if !expected[m] {
+			t.Errorf("Got unexpected `%s`", m)
+		}
+	}
 }
 
 func BenchmarkMetricVecWithLabelValuesBasic(b *testing.B) {

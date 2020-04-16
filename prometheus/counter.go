@@ -315,5 +315,5 @@ func NewCounterFunc(opts CounterOpts, function func() float64) CounterFunc {
 		opts.Help,
 		nil,
 		opts.ConstLabels,
-	), CounterValue, function)
+	), CounterValue, nil, function)
 }
