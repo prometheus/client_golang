@@ -1,4 +1,4 @@
-// Copyright 2017 The Prometheus Authors
+// Copyright 2020 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,8 +21,9 @@ import (
 	"sort"
 	"strings"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 // A Linter is a Prometheus metrics linter.  It identifies issues with metric
@@ -40,21 +41,16 @@ type Problem struct {
 	Text string
 }
 
-// problems is a slice of Problems with a helper method to easily append
-// additional Problems to the slice.
-type problems []Problem
-
-// Add appends a new Problem to the slice for the specified metric, with
-// the specified issue text.
-func (p *problems) Add(mf dto.MetricFamily, text string) {
-	*p = append(*p, Problem{
+// newProblem is helper function to create a Problem.
+func newProblem(mf dto.MetricFamily, text string) Problem {
+	return Problem{
 		Metric: mf.GetName(),
 		Text:   text,
-	})
+	}
 }
 
 // New creates a new Linter that reads an input stream of Prometheus metrics.
-// Only the text exposition format is supported.
+// Only the Prometheus text exposition format is supported.
 func New(r io.Reader) *Linter {
 	return &Linter{
 		r: r,
@@ -118,11 +114,11 @@ func lint(mf dto.MetricFamily) []Problem {
 
 // lintHelp detects issues related to the help text for a metric.
 func lintHelp(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 
 	// Expect all metrics to have help text available.
 	if mf.Help == nil {
-		problems.Add(mf, "no help text")
+		problems = append(problems, newProblem(mf, "no help text"))
 	}
 
 	return problems
@@ -130,7 +126,7 @@ func lintHelp(mf dto.MetricFamily) []Problem {
 
 // lintMetricUnits detects issues with metric unit names.
 func lintMetricUnits(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 
 	unit, base, ok := metricUnits(*mf.Name)
 	if !ok {
@@ -143,7 +139,7 @@ func lintMetricUnits(mf dto.MetricFamily) []Problem {
 		return nil
 	}
 
-	problems.Add(mf, fmt.Sprintf("use base unit %q instead of %q", base, unit))
+	problems = append(problems, newProblem(mf, fmt.Sprintf("use base unit %q instead of %q", base, unit)))
 
 	return problems
 }
@@ -151,7 +147,7 @@ func lintMetricUnits(mf dto.MetricFamily) []Problem {
 // lintCounter detects issues specific to counters, as well as patterns that should
 // only be used with counters.
 func lintCounter(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 
 	isCounter := mf.GetType() == dto.MetricType_COUNTER
 	isUntyped := mf.GetType() == dto.MetricType_UNTYPED
@@ -159,9 +155,9 @@ func lintCounter(mf dto.MetricFamily) []Problem {
 
 	switch {
 	case isCounter && !hasTotalSuffix:
-		problems.Add(mf, `counter metrics should have "_total" suffix`)
+		problems = append(problems, newProblem(mf, `counter metrics should have "_total" suffix`))
 	case !isUntyped && !isCounter && hasTotalSuffix:
-		problems.Add(mf, `non-counter metrics should not have "_total" suffix`)
+		problems = append(problems, newProblem(mf, `non-counter metrics should not have "_total" suffix`))
 	}
 
 	return problems
@@ -176,7 +172,7 @@ func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
 		return nil
 	}
 
-	var problems problems
+	var problems []Problem
 
 	isHistogram := t == dto.MetricType_HISTOGRAM
 	isSummary := t == dto.MetricType_SUMMARY
@@ -184,13 +180,13 @@ func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
 	n := mf.GetName()
 
 	if !isHistogram && strings.HasSuffix(n, "_bucket") {
-		problems.Add(mf, `non-histogram metrics should not have "_bucket" suffix`)
+		problems = append(problems, newProblem(mf, `non-histogram metrics should not have "_bucket" suffix`))
 	}
 	if !isHistogram && !isSummary && strings.HasSuffix(n, "_count") {
-		problems.Add(mf, `non-histogram and non-summary metrics should not have "_count" suffix`)
+		problems = append(problems, newProblem(mf, `non-histogram and non-summary metrics should not have "_count" suffix`))
 	}
 	if !isHistogram && !isSummary && strings.HasSuffix(n, "_sum") {
-		problems.Add(mf, `non-histogram and non-summary metrics should not have "_sum" suffix`)
+		problems = append(problems, newProblem(mf, `non-histogram and non-summary metrics should not have "_sum" suffix`))
 	}
 
 	for _, m := range mf.GetMetric() {
@@ -198,10 +194,10 @@ func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
 			ln := l.GetName()
 
 			if !isHistogram && ln == "le" {
-				problems.Add(mf, `non-histogram metrics should not have "le" label`)
+				problems = append(problems, newProblem(mf, `non-histogram metrics should not have "le" label`))
 			}
 			if !isSummary && ln == "quantile" {
-				problems.Add(mf, `non-summary metrics should not have "quantile" label`)
+				problems = append(problems, newProblem(mf, `non-summary metrics should not have "quantile" label`))
 			}
 		}
 	}
@@ -211,7 +207,7 @@ func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
 
 // lintMetricTypeInName detects when metric types are included in the metric name.
 func lintMetricTypeInName(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 	n := strings.ToLower(mf.GetName())
 
 	for i, t := range dto.MetricType_name {
@@ -221,7 +217,7 @@ func lintMetricTypeInName(mf dto.MetricFamily) []Problem {
 
 		typename := strings.ToLower(t)
 		if strings.Contains(n, "_"+typename+"_") || strings.HasSuffix(n, "_"+typename) {
-			problems.Add(mf, fmt.Sprintf(`metric name should not include type '%s'`, typename))
+			problems = append(problems, newProblem(mf, fmt.Sprintf(`metric name should not include type '%s'`, typename)))
 		}
 	}
 	return problems
@@ -229,9 +225,9 @@ func lintMetricTypeInName(mf dto.MetricFamily) []Problem {
 
 // lintReservedChars detects colons in metric names.
 func lintReservedChars(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 	if strings.Contains(mf.GetName(), ":") {
-		problems.Add(mf, "metric names should not contain ':'")
+		problems = append(problems, newProblem(mf, "metric names should not contain ':'"))
 	}
 	return problems
 }
@@ -240,15 +236,15 @@ var camelCase = regexp.MustCompile(`[a-z][A-Z]`)
 
 // lintCamelCase detects metric names and label names written in camelCase.
 func lintCamelCase(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 	if camelCase.FindString(mf.GetName()) != "" {
-		problems.Add(mf, "metric names should be written in 'snake_case' not 'camelCase'")
+		problems = append(problems, newProblem(mf, "metric names should be written in 'snake_case' not 'camelCase'"))
 	}
 
 	for _, m := range mf.GetMetric() {
 		for _, l := range m.GetLabel() {
 			if camelCase.FindString(l.GetName()) != "" {
-				problems.Add(mf, "label names should be written in 'snake_case' not 'camelCase'")
+				problems = append(problems, newProblem(mf, "label names should be written in 'snake_case' not 'camelCase'"))
 			}
 		}
 	}
@@ -257,11 +253,11 @@ func lintCamelCase(mf dto.MetricFamily) []Problem {
 
 // lintUnitAbbreviations detects abbreviated units in the metric name.
 func lintUnitAbbreviations(mf dto.MetricFamily) []Problem {
-	var problems problems
+	var problems []Problem
 	n := strings.ToLower(mf.GetName())
 	for _, s := range unitAbbreviations {
 		if strings.Contains(n, "_"+s+"_") || strings.HasSuffix(n, "_"+s) {
-			problems.Add(mf, "metric names should not contain abbreviated units")
+			problems = append(problems, newProblem(mf, "metric names should not contain abbreviated units"))
 		}
 	}
 	return problems
