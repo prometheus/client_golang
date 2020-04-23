@@ -15,10 +15,10 @@ package promhttp
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -186,8 +186,9 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("did not get timeout error")
 	}
-	if want, got := fmt.Sprintf("Get %s: context deadline exceeded", backend.URL), err.Error(); want != got {
-		t.Fatalf("want error %q, got %q", want, got)
+	expectedMsg := "context deadline exceeded"
+	if !strings.Contains(err.Error(), expectedMsg) {
+		t.Fatalf("unexpected error: %q, expect error: %q", err.Error(), expectedMsg)
 	}
 }
 
