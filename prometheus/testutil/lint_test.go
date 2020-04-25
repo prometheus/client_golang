@@ -63,8 +63,9 @@ func TestCollectAndLintBad(t *testing.T) {
 	if len(problems) < 5 {
 		// The exact nature of the lint problems found is tested within
 		// the promlint package itself. Here we only want to make sure
-		// that the collector successfully hit the linter and got enough
-		// problems flagged.
+		// that the collector successfully hits the linter and that at
+		// least the five problems that the linter could recognize at
+		// the time of writing this test are flagged.
 		t.Error("Not enough lint problems found.")
 	}
 }

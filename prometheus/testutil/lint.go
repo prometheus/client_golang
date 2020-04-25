@@ -20,9 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
 )
 
-// CollectAndLint registers the provided Collector with a newly created
-// pedantic Registry. It then does the same as GatherAndLint, gathering the
-// metrics from the pedantic Registry.
+// CollectAndLint registers the provided Collector with a newly created pedantic
+// Registry. It then calls GatherAndLint with that Registry and with the
+// provided metricNames.
 func CollectAndLint(c prometheus.Collector, metricNames ...string) ([]promlint.Problem, error) {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {

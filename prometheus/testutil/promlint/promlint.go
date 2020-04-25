@@ -29,6 +29,11 @@ import (
 // A Linter is a Prometheus metrics linter.  It identifies issues with metric
 // names, types, and metadata, and reports them to the caller.
 type Linter struct {
+	// The linter will read metrics in the Prometheus text format from r and
+	// then lint it, _and_ it will lint the metrics provided directly as
+	// MetricFamily proto messages in mfs. Note, however, that the current
+	// constructor functions New and NewWithMetricFamilies only ever set one
+	// of them.
 	r   io.Reader
 	mfs []*dto.MetricFamily
 }

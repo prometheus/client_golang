@@ -140,8 +140,8 @@ func CollectAndCount(c prometheus.Collector) int {
 }
 
 // CollectAndCompare registers the provided Collector with a newly created
-// pedantic Registry. It then does the same as GatherAndCompare, gathering the
-// metrics from the pedantic Registry.
+// pedantic Registry. It then calls GatherAndCompare with that Registry and with
+// the provided metricNames.
 func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
