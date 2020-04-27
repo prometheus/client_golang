@@ -29,7 +29,13 @@ import (
 // A Linter is a Prometheus metrics linter.  It identifies issues with metric
 // names, types, and metadata, and reports them to the caller.
 type Linter struct {
-	r io.Reader
+	// The linter will read metrics in the Prometheus text format from r and
+	// then lint it, _and_ it will lint the metrics provided directly as
+	// MetricFamily proto messages in mfs. Note, however, that the current
+	// constructor functions New and NewWithMetricFamilies only ever set one
+	// of them.
+	r   io.Reader
+	mfs []*dto.MetricFamily
 }
 
 // A Problem is an issue detected by a Linter.
@@ -42,40 +48,52 @@ type Problem struct {
 }
 
 // newProblem is helper function to create a Problem.
-func newProblem(mf dto.MetricFamily, text string) Problem {
+func newProblem(mf *dto.MetricFamily, text string) Problem {
 	return Problem{
 		Metric: mf.GetName(),
 		Text:   text,
 	}
 }
 
-// New creates a new Linter that reads an input stream of Prometheus metrics.
-// Only the Prometheus text exposition format is supported.
+// New creates a new Linter that reads an input stream of Prometheus metrics in
+// the Prometheus text exposition format.
 func New(r io.Reader) *Linter {
 	return &Linter{
 		r: r,
 	}
 }
 
+// NewWithMetricFamilies creates a new Linter that reads from a slice of
+// MetricFamily protobuf messages.
+func NewWithMetricFamilies(mfs []*dto.MetricFamily) *Linter {
+	return &Linter{
+		mfs: mfs,
+	}
+}
+
 // Lint performs a linting pass, returning a slice of Problems indicating any
-// issues found in the metrics stream.  The slice is sorted by metric name
+// issues found in the metrics stream. The slice is sorted by metric name
 // and issue description.
 func (l *Linter) Lint() ([]Problem, error) {
-	// TODO(mdlayher): support for protobuf exposition format?
-	d := expfmt.NewDecoder(l.r, expfmt.FmtText)
-
 	var problems []Problem
 
-	var mf dto.MetricFamily
-	for {
-		if err := d.Decode(&mf); err != nil {
-			if err == io.EOF {
-				break
+	if l.r != nil {
+		d := expfmt.NewDecoder(l.r, expfmt.FmtText)
+
+		mf := &dto.MetricFamily{}
+		for {
+			if err := d.Decode(mf); err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				return nil, err
 			}
 
-			return nil, err
+			problems = append(problems, lint(mf)...)
 		}
-
+	}
+	for _, mf := range l.mfs {
 		problems = append(problems, lint(mf)...)
 	}
 
@@ -91,8 +109,8 @@ func (l *Linter) Lint() ([]Problem, error) {
 }
 
 // lint is the entry point for linting a single metric.
-func lint(mf dto.MetricFamily) []Problem {
-	fns := []func(mf dto.MetricFamily) []Problem{
+func lint(mf *dto.MetricFamily) []Problem {
+	fns := []func(mf *dto.MetricFamily) []Problem{
 		lintHelp,
 		lintMetricUnits,
 		lintCounter,
@@ -113,7 +131,7 @@ func lint(mf dto.MetricFamily) []Problem {
 }
 
 // lintHelp detects issues related to the help text for a metric.
-func lintHelp(mf dto.MetricFamily) []Problem {
+func lintHelp(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 
 	// Expect all metrics to have help text available.
@@ -125,7 +143,7 @@ func lintHelp(mf dto.MetricFamily) []Problem {
 }
 
 // lintMetricUnits detects issues with metric unit names.
-func lintMetricUnits(mf dto.MetricFamily) []Problem {
+func lintMetricUnits(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 
 	unit, base, ok := metricUnits(*mf.Name)
@@ -146,7 +164,7 @@ func lintMetricUnits(mf dto.MetricFamily) []Problem {
 
 // lintCounter detects issues specific to counters, as well as patterns that should
 // only be used with counters.
-func lintCounter(mf dto.MetricFamily) []Problem {
+func lintCounter(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 
 	isCounter := mf.GetType() == dto.MetricType_COUNTER
@@ -165,7 +183,7 @@ func lintCounter(mf dto.MetricFamily) []Problem {
 
 // lintHistogramSummaryReserved detects when other types of metrics use names or labels
 // reserved for use by histograms and/or summaries.
-func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
+func lintHistogramSummaryReserved(mf *dto.MetricFamily) []Problem {
 	// These rules do not apply to untyped metrics.
 	t := mf.GetType()
 	if t == dto.MetricType_UNTYPED {
@@ -206,7 +224,7 @@ func lintHistogramSummaryReserved(mf dto.MetricFamily) []Problem {
 }
 
 // lintMetricTypeInName detects when metric types are included in the metric name.
-func lintMetricTypeInName(mf dto.MetricFamily) []Problem {
+func lintMetricTypeInName(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 	n := strings.ToLower(mf.GetName())
 
@@ -224,7 +242,7 @@ func lintMetricTypeInName(mf dto.MetricFamily) []Problem {
 }
 
 // lintReservedChars detects colons in metric names.
-func lintReservedChars(mf dto.MetricFamily) []Problem {
+func lintReservedChars(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 	if strings.Contains(mf.GetName(), ":") {
 		problems = append(problems, newProblem(mf, "metric names should not contain ':'"))
@@ -235,7 +253,7 @@ func lintReservedChars(mf dto.MetricFamily) []Problem {
 var camelCase = regexp.MustCompile(`[a-z][A-Z]`)
 
 // lintCamelCase detects metric names and label names written in camelCase.
-func lintCamelCase(mf dto.MetricFamily) []Problem {
+func lintCamelCase(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 	if camelCase.FindString(mf.GetName()) != "" {
 		problems = append(problems, newProblem(mf, "metric names should be written in 'snake_case' not 'camelCase'"))
@@ -252,7 +270,7 @@ func lintCamelCase(mf dto.MetricFamily) []Problem {
 }
 
 // lintUnitAbbreviations detects abbreviated units in the metric name.
-func lintUnitAbbreviations(mf dto.MetricFamily) []Problem {
+func lintUnitAbbreviations(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 	n := strings.ToLower(mf.GetName())
 	for _, s := range unitAbbreviations {
