@@ -1,6 +1,12 @@
+## 1.6.0 / 2020-04-28
+
+* [FEATURE] testutil: Add lint checks for metrics, including a sub-package `promlint` to expose the linter engine for external usage. #739 #743
+* [ENHANCEMENT] API client: Improve error messages. #731
+* [BUGFIX] process collector: Fix `process_resident_memory_bytes` on 32bit MS Windows. #734
+
 ## 1.5.1 / 2020-03-14
 
-* [BUGFIX] promhttp: Remove another superfluous `WriteHeader` call.
+* [BUGFIX] promhttp: Remove another superfluous `WriteHeader` call. #726
 
 ## 1.5.0 / 2020-03-03
 
