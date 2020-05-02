@@ -98,7 +98,7 @@
 //        	requestCount = promauto.With(reg).NewCounterVec(
 //        		prometheus.CounterOpts{
 //        			Name: "http_requests_total",
-//        			Help: "Total number of HTTP requests by status code end method.",
+//        			Help: "Total number of HTTP requests by status code and method.",
 //        		},
 //        		[]string{"code", "method"},
 //        	)
@@ -117,7 +117,7 @@
 //        	requestCount = factory.NewCounterVec(
 //        		prometheus.CounterOpts{
 //        			Name: "http_requests_total",
-//        			Help: "Total number of HTTP requests by status code end method.",
+//        			Help: "Total number of HTTP requests by status code and method.",
 //        		},
 //        		[]string{"code", "method"},
 //        	)
