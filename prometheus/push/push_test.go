@@ -176,6 +176,36 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
+	// Empty label value triggers special base64 encoding.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("empty", "").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/empty@base64/=" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Empty job name results in error.
+	if err := New(pgwErr.URL, "").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
+		t.Error("push with empty job succeded")
+	} else {
+		if got, want := err, errJobEmpty; got != want {
+			t.Errorf("got error %q, want %q", got, want)
+		}
+	}
+
 	// Push some Collectors with a broken PGW.
 	if err := New(pgwErr.URL, "testjob").
 		Collector(metric1).
@@ -251,5 +281,4 @@ func TestPush(t *testing.T) {
 	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
 		t.Error("unexpected path:", lastPath)
 	}
-
 }
