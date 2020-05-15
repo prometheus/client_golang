@@ -306,3 +306,30 @@ some_total{label1="value1"} 1
 		t.Errorf("Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
 	}
 }
+
+func TestCollectAndCount(t *testing.T) {
+	c := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "some_total",
+			Help: "A value that represents a counter.",
+		},
+		[]string{"foo"},
+	)
+	if got, want := CollectAndCount(c), 0; got != want {
+		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+	c.WithLabelValues("bar")
+	if got, want := CollectAndCount(c), 1; got != want {
+		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+	c.WithLabelValues("baz")
+	if got, want := CollectAndCount(c), 2; got != want {
+		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+	if got, want := CollectAndCount(c, "some_total"), 2; got != want {
+		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+	if got, want := CollectAndCount(c, "some_other_total"), 0; got != want {
+		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+}
