@@ -166,6 +166,14 @@ x_seconds 10
 x_joules 10
 `,
 		},
+		{
+			name: "kelvin",
+			in: `
+# HELP x_kelvin Test metric.
+# TYPE x_kelvin untyped
+x_kelvin 10
+`,
+		},
 		// bad cases.
 		{
 			name: "milliamperes",
@@ -288,18 +296,6 @@ x_days 10
 			}},
 		},
 		{
-			name: "kelvin",
-			in: `
-# HELP x_kelvin Test metric.
-# TYPE x_kelvin untyped
-x_kelvin 10
-`,
-			problems: []promlint.Problem{{
-				Metric: "x_kelvin",
-				Text:   `use base unit "celsius" instead of "kelvin"`,
-			}},
-		},
-		{
 			name: "kelvins",
 			in: `
 # HELP x_kelvins Test metric.
@@ -308,7 +304,7 @@ x_kelvins 10
 `,
 			problems: []promlint.Problem{{
 				Metric: "x_kelvins",
-				Text:   `use base unit "celsius" instead of "kelvins"`,
+				Text:   `use base unit "kelvin" instead of "kelvins"`,
 			}},
 		},
 		{
