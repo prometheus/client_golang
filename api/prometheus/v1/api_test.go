@@ -144,6 +144,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doRuntimeinfo := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.Runtimeinfo(context.Background())
+			return v, nil, err
+		}
+	}
+
 	doLabelNames := func(label string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			return promAPI.LabelNames(context.Background())
@@ -603,6 +610,48 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/status/flags",
 			inErr:     fmt.Errorf("some error"),
 			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doRuntimeinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/runtimeinfo",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doRuntimeinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/runtimeinfo",
+			inRes: map[string]interface{}{
+				"startTime":           "2020-05-18T15:52:53.4503113Z",
+				"CWD":                 "/prometheus",
+				"reloadConfigSuccess": true,
+				"lastConfigTime":      "2020-05-18T15:52:56Z",
+				"chunkCount":          72692,
+				"timeSeriesCount":     18476,
+				"corruptionCount":     0,
+				"goroutineCount":      217,
+				"GOMAXPROCS":          2,
+				"GOGC":                "100",
+				"GODEBUG":             "allocfreetrace",
+				"storageRetention":    "1d",
+			},
+			res: RuntimeinfoResult{
+				StartTime:           "2020-05-18T15:52:53.4503113Z",
+				CWD:                 "/prometheus",
+				ReloadConfigSuccess: true,
+				LastConfigTime:      "2020-05-18T15:52:56Z",
+				ChunkCount:          72692,
+				TimeSeriesCount:     18476,
+				CorruptionCount:     0,
+				GoroutineCount:      217,
+				GOMAXPROCS:          2,
+				GOGC:                "100",
+				GODEBUG:             "allocfreetrace",
+				StorageRetention:    "1d",
+			},
 		},
 
 		{
