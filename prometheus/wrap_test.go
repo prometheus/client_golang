@@ -321,3 +321,12 @@ func TestWrap(t *testing.T) {
 	}
 
 }
+
+func TestNil(t *testing.T) {
+	// A wrapped nil registerer should be treated as a no-op, and not panic.
+	c := NewCounter(CounterOpts{Name: "test"})
+	err := WrapRegistererWith(Labels{"foo": "bar"}, nil).Register(c)
+	if err != nil {
+		t.Fatal("registering failed:", err)
+	}
+}
