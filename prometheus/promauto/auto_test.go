@@ -19,9 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestWrapNil(t *testing.T) {
-	// A nil registerer should be treated as a no-op by promauto, even when wrapped.
-	registerer := prometheus.WrapRegistererWith(prometheus.Labels{"foo": "bar"}, nil)
-	c := With(registerer).NewCounter(prometheus.CounterOpts{Name: "test"})
-	c.Inc()
+func TestNil(t *testing.T) {
+	// A nil registerer should be treated as a no-op by promauto.
+	With(nil).NewCounter(prometheus.CounterOpts{Name: "test"}).Inc()
 }

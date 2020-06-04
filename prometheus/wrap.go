@@ -28,7 +28,8 @@ import (
 // registered with the wrapped Registerer in a modified way. The modified
 // Collector adds the provided Labels to all Metrics it collects (as
 // ConstLabels). The Metrics collected by the unmodified Collector must not
-// duplicate any of those labels.
+// duplicate any of those labels. Wrapping a nil value is valid, resulting
+// in a no-op Registerer.
 //
 // WrapRegistererWith provides a way to add fixed labels to a subset of
 // Collectors. It should not be used to add fixed labels to all metrics exposed.
@@ -51,6 +52,7 @@ func WrapRegistererWith(labels Labels, reg Registerer) Registerer {
 // Registerer. Collectors registered with the returned Registerer will be
 // registered with the wrapped Registerer in a modified way. The modified
 // Collector adds the provided prefix to the name of all Metrics it collects.
+// Wrapping a nil value is valid, resulting in a no-op Registerer.
 //
 // WrapRegistererWithPrefix is useful to have one place to prefix all metrics of
 // a sub-system. To make this work, register metrics of the sub-system with the
