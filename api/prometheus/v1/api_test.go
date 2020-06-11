@@ -159,7 +159,7 @@ func TestAPIs(t *testing.T) {
 
 	doLabelValues := func(label string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelValues(context.Background(), label)
+			return promAPI.LabelValues(context.Background(), label, time.Now().Add(-100*time.Hour), time.Now())
 		}
 	}
 
