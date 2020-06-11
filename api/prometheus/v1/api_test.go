@@ -153,7 +153,7 @@ func TestAPIs(t *testing.T) {
 
 	doLabelNames := func(label string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelNames(context.Background())
+			return promAPI.LabelNames(context.Background(), time.Now().Add(-100*time.Hour), time.Now())
 		}
 	}
 

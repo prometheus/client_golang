@@ -232,7 +232,7 @@ type API interface {
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns all the unique label names present in the block in sorted order.
-	LabelNames(ctx context.Context) ([]string, Warnings, error)
+	LabelNames(ctx context.Context, startTime time.Time, endTime time.Time) ([]string, Warnings, error)
 	// LabelValues performs a query for the values of the given label.
 	LabelValues(ctx context.Context, label string) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
@@ -676,8 +676,12 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context) ([]string, Warnings, error) {
+func (h *httpAPI) LabelNames(ctx context.Context, startTime time.Time, endTime time.Time) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
+	q := u.Query()
+	q.Set("start", formatTime(startTime))
+	q.Set("end", formatTime(endTime))
+
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, err
