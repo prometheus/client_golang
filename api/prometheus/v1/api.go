@@ -682,6 +682,8 @@ func (h *httpAPI) LabelNames(ctx context.Context, startTime time.Time, endTime t
 	q.Set("start", formatTime(startTime))
 	q.Set("end", formatTime(endTime))
 
+	u.RawQuery = q.Encode()
+
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, err
@@ -699,6 +701,8 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, startTime time.
 	q := u.Query()
 	q.Set("start", formatTime(startTime))
 	q.Set("end", formatTime(endTime))
+
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
