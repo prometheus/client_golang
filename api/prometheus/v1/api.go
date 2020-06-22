@@ -138,6 +138,7 @@ const (
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
 	epRuntimeinfo     = apiPrefix + "/status/runtimeinfo"
+	epTSDB            = apiPrefix + "/status/tsdb"
 )
 
 // AlertState models the state of an alert.
@@ -254,6 +255,8 @@ type API interface {
 	TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) ([]MetricMetadata, error)
 	// Metadata returns metadata about metrics currently scraped by the metric name.
 	Metadata(ctx context.Context, metric string, limit string) (map[string][]Metadata, error)
+	// TSDB returns the cardinality statistics.
+	TSDB(ctx context.Context) (TSDBResult, error)
 }
 
 // AlertsResult contains the result from querying the alerts endpoint.
@@ -402,6 +405,20 @@ type queryResult struct {
 
 	// The decoded value.
 	v model.Value
+}
+
+// TSDBResult contains the result from querying the tsdb endpoint.
+type TSDBResult struct {
+	SeriesCountByMetricName     []Stat `json:"seriesCountByMetricName"`
+	LabelValueCountByLabelName  []Stat `json:"labelValueCountByLabelName"`
+	MemoryInBytesByLabelName    []Stat `json:"memoryInBytesByLabelName"`
+	SeriesCountByLabelValuePair []Stat `json:"seriesCountByLabelValuePair"`
+}
+
+// Stat models information about statistic value.
+type Stat struct {
+	Name  string `json:"name"`
+	Value uint64 `json:"value"`
 }
 
 func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
@@ -881,6 +898,24 @@ func (h *httpAPI) Metadata(ctx context.Context, metric string, limit string) (ma
 
 	var res map[string][]Metadata
 	return res, json.Unmarshal(body, &res)
+}
+
+func (h *httpAPI) TSDB(ctx context.Context) (TSDBResult, error) {
+	u := h.client.URL(epTSDB, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return TSDBResult{}, err
+	}
+
+	_, body, _, err := h.client.Do(ctx, req)
+	if err != nil {
+		return TSDBResult{}, err
+	}
+
+	var res TSDBResult
+	return res, json.Unmarshal(body, &res)
+
 }
 
 // Warnings is an array of non critical errors

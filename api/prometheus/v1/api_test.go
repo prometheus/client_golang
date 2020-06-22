@@ -216,6 +216,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doTSDB := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.TSDB(context.Background())
+			return v, nil, err
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime),
@@ -952,6 +959,72 @@ func TestAPIs(t *testing.T) {
 				"limit":  []string{"1"},
 			},
 			err: fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doTSDB(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doTSDB(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb",
+			inRes: map[string]interface{}{
+				"seriesCountByMetricName": []interface{}{
+					map[string]interface{}{
+						"name":  "kubelet_http_requests_duration_seconds_bucket",
+						"value": 1000,
+					},
+				},
+				"labelValueCountByLabelName": []interface{}{
+					map[string]interface{}{
+						"name":  "__name__",
+						"value": 200,
+					},
+				},
+				"memoryInBytesByLabelName": []interface{}{
+					map[string]interface{}{
+						"name":  "id",
+						"value": 4096,
+					},
+				},
+				"seriesCountByLabelValuePair": []interface{}{
+					map[string]interface{}{
+						"name":  "job=kubelet",
+						"value": 30000,
+					},
+				},
+			},
+			res: TSDBResult{
+				SeriesCountByMetricName: []Stat{
+					{
+						Name:  "kubelet_http_requests_duration_seconds_bucket",
+						Value: 1000,
+					},
+				},
+				LabelValueCountByLabelName: []Stat{
+					{
+						Name:  "__name__",
+						Value: 200,
+					},
+				},
+				MemoryInBytesByLabelName: []Stat{
+					{
+						Name:  "id",
+						Value: 4096,
+					},
+				},
+				SeriesCountByLabelValuePair: []Stat{
+					{
+						Name:  "job=kubelet",
+						Value: 30000,
+					},
+				},
+			},
 		},
 	}
 
