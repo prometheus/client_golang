@@ -1,3 +1,7 @@
+## 1.7.1 / 2020-06-23
+
+* [BUGFIX] API client: Actually propagate start/end parameters of `LabelNames` and `LabelValues`. #771
+
 ## 1.7.0 / 2020-06-17
 
 * [CHANGE] API client: Add start/end parameters to `LabelNames` and `LabelValues`. #767
