@@ -285,18 +285,18 @@ type FlagsResult map[string]string
 
 // RuntimeinfoResult contains the result from querying the runtimeinfo endpoint.
 type RuntimeinfoResult struct {
-	StartTime           string `json:"startTime"`
-	CWD                 string `json:"CWD"`
-	ReloadConfigSuccess bool   `json:"reloadConfigSuccess"`
-	LastConfigTime      string `json:"lastConfigTime"`
-	ChunkCount          int    `json:"chunkCount"`
-	TimeSeriesCount     int    `json:"timeSeriesCount"`
-	CorruptionCount     int    `json:"corruptionCount"`
-	GoroutineCount      int    `json:"goroutineCount"`
-	GOMAXPROCS          int    `json:"GOMAXPROCS"`
-	GOGC                string `json:"GOGC"`
-	GODEBUG             string `json:"GODEBUG"`
-	StorageRetention    string `json:"storageRetention"`
+	StartTime           time.Time `json:"startTime"`
+	CWD                 string    `json:"CWD"`
+	ReloadConfigSuccess bool      `json:"reloadConfigSuccess"`
+	LastConfigTime      time.Time `json:"lastConfigTime"`
+	ChunkCount          int       `json:"chunkCount"`
+	TimeSeriesCount     int       `json:"timeSeriesCount"`
+	CorruptionCount     int       `json:"corruptionCount"`
+	GoroutineCount      int       `json:"goroutineCount"`
+	GOMAXPROCS          int       `json:"GOMAXPROCS"`
+	GOGC                string    `json:"GOGC"`
+	GODEBUG             string    `json:"GODEBUG"`
+	StorageRetention    string    `json:"storageRetention"`
 }
 
 // SnapshotResult contains the result from querying the snapshot endpoint.
