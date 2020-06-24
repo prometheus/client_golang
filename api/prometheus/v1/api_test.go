@@ -646,10 +646,10 @@ func TestAPIs(t *testing.T) {
 				"storageRetention":    "1d",
 			},
 			res: RuntimeinfoResult{
-				StartTime:           "2020-05-18T15:52:53.4503113Z",
+				StartTime:           time.Date(2020, 5, 18, 15, 52, 53, 450311300, time.UTC),
 				CWD:                 "/prometheus",
 				ReloadConfigSuccess: true,
-				LastConfigTime:      "2020-05-18T15:52:56Z",
+				LastConfigTime:      time.Date(2020, 5, 18, 15, 52, 56, 0, time.UTC),
 				ChunkCount:          72692,
 				TimeSeriesCount:     18476,
 				CorruptionCount:     0,
