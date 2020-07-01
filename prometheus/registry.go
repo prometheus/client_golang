@@ -134,6 +134,16 @@ type Registerer interface {
 	Unregister(Collector) bool
 }
 
+// GatherFilter is filter function for the FilterGather method in the
+// Gatherer interface. If it returns false the metric should be discarded.
+// If very tight security is required (in the http package for example)
+// than a constant time comparison function should be used
+// (e.g. subtle.ConstantTimeCompare(x, y []byte) int).
+//
+// Note that this method should be very fast, ideally measured in 10s or
+// 100s of clock cycles. Any IO or locking should be avoided.
+type GatherFilter func(*dto.Metric) bool
+
 // Gatherer is the interface for the part of a registry in charge of gathering
 // the collected metrics into a number of MetricFamilies. The Gatherer interface
 // comes with the same general implication as described for the Registerer
@@ -159,6 +169,11 @@ type Gatherer interface {
 	// expose an incomplete result and instead disregard the returned
 	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
+
+	// FilterGather is the same as Gather, except that it filters metrics
+	// out based on the return of the filter method. A return of "true"
+	// keeps the metric, "false" discards.
+	FilterGather(filter GatherFilter) ([]*dto.MetricFamily, error)
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -188,11 +203,16 @@ func Unregister(c Collector) bool {
 }
 
 // GathererFunc turns a function into a Gatherer.
-type GathererFunc func() ([]*dto.MetricFamily, error)
+type GathererFunc func(filter GatherFilter) ([]*dto.MetricFamily, error)
 
 // Gather implements Gatherer.
 func (gf GathererFunc) Gather() ([]*dto.MetricFamily, error) {
-	return gf()
+	return gf(nil)
+}
+
+// Gather implements Gatherer.
+func (gf GathererFunc) FilterGather(filter GatherFilter) ([]*dto.MetricFamily, error) {
+	return gf(filter)
 }
 
 // AlreadyRegisteredError is returned by the Register method if the Collector to
@@ -405,6 +425,11 @@ func (r *Registry) MustRegister(cs ...Collector) {
 
 // Gather implements Gatherer.
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
+	return r.FilterGather(nil)
+}
+
+// FilterGather implements Gatherer.
+func (r *Registry) FilterGather(filter GatherFilter) ([]*dto.MetricFamily, error) {
 	var (
 		checkedMetricChan   = make(chan Metric, capMetricChan)
 		uncheckedMetricChan = make(chan Metric, capMetricChan)
@@ -491,6 +516,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				registeredDescIDs,
+				filter,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -501,6 +527,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				nil,
+				filter,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -518,6 +545,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						registeredDescIDs,
+						filter,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -528,6 +556,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						nil,
+						filter,
 					))
 				}
 				break
@@ -585,6 +614,7 @@ func processMetric(
 	metricFamiliesByName map[string]*dto.MetricFamily,
 	metricHashes map[uint64]struct{},
 	registeredDescIDs map[uint64]struct{},
+	filter GatherFilter,
 ) error {
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
@@ -595,6 +625,9 @@ func processMetric(
 	dtoMetric := &dto.Metric{}
 	if err := metric.Write(dtoMetric); err != nil {
 		return fmt.Errorf("error collecting metric %v: %s", desc, err)
+	}
+	if filter != nil && !filter(dtoMetric) {
+		return nil
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
@@ -707,6 +740,11 @@ type Gatherers []Gatherer
 
 // Gather implements Gatherer.
 func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
+	return gs.FilterGather(nil)
+}
+
+// FilterGather implements Gatherer.
+func (gs Gatherers) FilterGather(filter GatherFilter) ([]*dto.MetricFamily, error) {
 	var (
 		metricFamiliesByName = map[string]*dto.MetricFamily{}
 		metricHashes         = map[uint64]struct{}{}
@@ -714,7 +752,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	)
 
 	for i, g := range gs {
-		mfs, err := g.Gather()
+		mfs, err := g.FilterGather(filter)
 		if err != nil {
 			if multiErr, ok := err.(MultiError); ok {
 				for _, err := range multiErr {

@@ -701,7 +701,7 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 		if scenario.externalMF != nil {
 			gatherer = prometheus.Gatherers{
 				registry,
-				prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+				prometheus.GathererFunc(func(filter prometheus.GatherFilter) ([]*dto.MetricFamily, error) {
 					return scenario.externalMF, nil
 				}),
 			}

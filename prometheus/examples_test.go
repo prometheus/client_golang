@@ -642,7 +642,7 @@ humidity_percent{location="inside"} 33.2
 temperature_kelvin{location="somewhere else"} 4.5
 `
 
-	parseText := func() ([]*dto.MetricFamily, error) {
+	parseText := func(filter prometheus.GatherFilter) ([]*dto.MetricFamily, error) {
 		parsed, err := parser.TextToMetricFamilies(strings.NewReader(text))
 		if err != nil {
 			return nil, err

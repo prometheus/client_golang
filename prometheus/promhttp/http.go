@@ -123,7 +123,12 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 				return
 			}
 		}
-		mfs, err := reg.Gather()
+
+		var filter prometheus.GatherFilter
+		if opts.FilterGenerator != nil {
+			filter = opts.FilterGenerator(req)
+		}
+		mfs, err := reg.FilterGather(filter)
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error gathering metrics:", err)
@@ -300,6 +305,8 @@ type Logger interface {
 	Println(v ...interface{})
 }
 
+type FilterGenerator func(*http.Request) prometheus.GatherFilter
+
 // HandlerOpts specifies options how to serve metrics via an http.Handler. The
 // zero value of HandlerOpts is a reasonable default.
 type HandlerOpts struct {
@@ -350,6 +357,9 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
+	// FilterGenerator generates a GatherFilter function based on the http
+	// request received in the handler
+	FilterGenerator FilterGenerator
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
