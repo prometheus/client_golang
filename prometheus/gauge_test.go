@@ -139,7 +139,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 				start.Wait()
 				for i, v := range vals {
 					sStreams[pick[i]] <- v
-					gge.WithLabelValues(string('A' + pick[i])).Add(v)
+					gge.WithLabelValues(string('A' + rune(pick[i]))).Add(v)
 				}
 				end.Done()
 			}(vals)
@@ -147,7 +147,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 		start.Done()
 
 		for i := range sStreams {
-			if expected, got := <-results[i], math.Float64frombits(gge.WithLabelValues(string('A'+i)).(*gauge).valBits); math.Abs(expected-got) > 0.000001 {
+			if expected, got := <-results[i], math.Float64frombits(gge.WithLabelValues(string('A'+rune(i))).(*gauge).valBits); math.Abs(expected-got) > 0.000001 {
 				t.Fatalf("expected approx. %f, got %f", expected, got)
 				return false
 			}
