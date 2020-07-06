@@ -321,7 +321,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			go func(vals []float64) {
 				start.Wait()
 				for i, v := range vals {
-					sum.WithLabelValues(string('A' + picks[i])).Observe(v)
+					sum.WithLabelValues(string('A' + rune(picks[i]))).Observe(v)
 				}
 				end.Done()
 			}(vals)
@@ -334,7 +334,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
-			s := sum.WithLabelValues(string('A' + i))
+			s := sum.WithLabelValues(string('A' + rune(i)))
 			s.(Summary).Write(m)
 			if got, want := int(*m.Summary.SampleCount), len(allVars[i]); got != want {
 				t.Errorf("got sample count %d for label %c, want %d", got, 'A'+i, want)
