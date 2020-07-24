@@ -276,7 +276,9 @@ func (m *metricMap) deleteByHashWithLabelValues(
 	}
 
 	if len(metrics) > 1 {
+		old := metrics
 		m.metrics[h] = append(metrics[:i], metrics[i+1:]...)
+		old[len(old)-1] = metricWithLabelValues{}
 	} else {
 		delete(m.metrics, h)
 	}
@@ -302,7 +304,9 @@ func (m *metricMap) deleteByHashWithLabels(
 	}
 
 	if len(metrics) > 1 {
+		old := metrics
 		m.metrics[h] = append(metrics[:i], metrics[i+1:]...)
+		old[len(old)-1] = metricWithLabelValues{}
 	} else {
 		delete(m.metrics, h)
 	}
