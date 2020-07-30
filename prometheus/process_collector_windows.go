@@ -91,8 +91,11 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		c.reportError(ch, nil, err)
 		return
 	}
+	kernelTimeSecs, userTimeSecs := fileTimeToSeconds(kernelTime), fileTimeToSeconds(userTime)
 	ch <- MustNewConstMetric(c.startTime, GaugeValue, float64(startTime.Nanoseconds()/1e9))
-	ch <- MustNewConstMetric(c.cpuTotal, CounterValue, fileTimeToSeconds(kernelTime)+fileTimeToSeconds(userTime))
+	ch <- MustNewConstMetric(c.cpuTotal, CounterValue, kernelTimeSecs+userTimeSecs)
+	ch <- MustNewConstMetric(c.cpuUser, CounterValue, userTimeSecs)
+	ch <- MustNewConstMetric(c.cpuSys, CounterValue, kernelTimeSecs)
 
 	mem, err := getProcessMemoryInfo(h)
 	if err != nil {

@@ -23,6 +23,8 @@ type processCollector struct {
 	pidFn           func() (int, error)
 	reportErrors    bool
 	cpuTotal        *Desc
+	cpuUser         *Desc
+	cpuSys          *Desc
 	openFDs, maxFDs *Desc
 	vsize, maxVsize *Desc
 	rss             *Desc
@@ -71,6 +73,16 @@ func NewProcessCollector(opts ProcessCollectorOpts) Collector {
 		cpuTotal: NewDesc(
 			ns+"process_cpu_seconds_total",
 			"Total user and system CPU time spent in seconds.",
+			nil, nil,
+		),
+		cpuUser: NewDesc(
+			ns+"process_cpu_user_seconds_total",
+			"Total user CPU time spent in seconds.",
+			nil, nil,
+		),
+		cpuSys: NewDesc(
+			ns+"process_cpu_system_seconds_total",
+			"Total system CPU time spent in seconds.",
 			nil, nil,
 		),
 		openFDs: NewDesc(

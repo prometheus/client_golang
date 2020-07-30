@@ -24,6 +24,9 @@ func canCollectProcess() bool {
 	return err == nil
 }
 
+// See https://github.com/prometheus/procfs/blob/869cfc74c3b4eea1f80f29819f1dab68ed3c780e/proc_stat.go#L40
+const userHZ = 100
+
 func (c *processCollector) processCollect(ch chan<- Metric) {
 	pid, err := c.pidFn()
 	if err != nil {
@@ -39,6 +42,8 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 
 	if stat, err := p.Stat(); err == nil {
 		ch <- MustNewConstMetric(c.cpuTotal, CounterValue, stat.CPUTime())
+		ch <- MustNewConstMetric(c.cpuUser, CounterValue, float64(stat.UTime)/userHZ)
+		ch <- MustNewConstMetric(c.cpuSys, CounterValue, float64(stat.STime)/userHZ)
 		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(stat.VirtualMemory()))
 		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(stat.ResidentMemory()))
 		if startTime, err := stat.StartTime(); err == nil {
