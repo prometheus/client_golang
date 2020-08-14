@@ -74,5 +74,9 @@ workflows:
         name: go-1-14
         go_version: "1.14"
         run_lint: true
+    - test:
+        name: go-1-15
+        go_version: "1.15"
+        run_lint: true
         # Style is only checked against the latest supported Go version.
         run_style: true
