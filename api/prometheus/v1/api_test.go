@@ -84,7 +84,7 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	if test.inStatusCode != 0 {
 		resp.StatusCode = test.inStatusCode
 	} else if test.inErr != nil {
-		resp.StatusCode = statusAPIError
+		resp.StatusCode = http.StatusUnprocessableEntity
 	} else {
 		resp.StatusCode = http.StatusOK
 	}
@@ -1118,7 +1118,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 func TestAPIClientDo(t *testing.T) {
 	tests := []apiClientTest{
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`null`),
@@ -1132,7 +1132,7 @@ func TestAPIClientDo(t *testing.T) {
 			expectedBody: `null`,
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`"test"`),
@@ -1177,7 +1177,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code:     statusAPIError,
+			code:     http.StatusUnprocessableEntity,
 			response: "bad json",
 			expectedErr: &Error{
 				Type: ErrBadResponse,
@@ -1185,7 +1185,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status: "success",
 				Data:   json.RawMessage(`"test"`),
@@ -1196,7 +1196,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "success",
 				Data:      json.RawMessage(`"test"`),

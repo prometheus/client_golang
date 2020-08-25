@@ -117,8 +117,6 @@ func marshalPointJSONIsEmpty(ptr unsafe.Pointer) bool {
 }
 
 const (
-	statusAPIError = 422
-
 	apiPrefix = "/api/v1"
 
 	epAlerts          = apiPrefix + "/alerts"
@@ -943,7 +941,7 @@ type apiResponse struct {
 
 func apiError(code int) bool {
 	// These are the codes that Prometheus sends when it returns an error.
-	return code == statusAPIError || code == http.StatusBadRequest
+	return code == http.StatusUnprocessableEntity || code == http.StatusBadRequest
 }
 
 func errorTypeAndMsgFor(resp *http.Response) (ErrorType, string) {
