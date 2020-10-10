@@ -18,8 +18,11 @@ package prometheus
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
@@ -99,5 +102,66 @@ func TestProcessCollector(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("%d metrics collected, want 1", n)
+	}
+}
+
+func TestNewPidFileFn(t *testing.T) {
+	folderPath, err := os.Getwd()
+	if err != nil {
+		t.Error("failed to get current path")
+	}
+	mockPidFilePath := filepath.Join(folderPath, "mockPidFile")
+	defer os.Remove(mockPidFilePath)
+
+	testCases := []struct {
+		mockPidFile       func()
+		expectedErrPrefix string
+		expectedPid       int
+		desc              string
+	}{
+		{
+			mockPidFile: func() {
+				os.Remove(mockPidFilePath)
+			},
+			expectedErrPrefix: "can't read pid file",
+			expectedPid:       0,
+			desc:              "no existed pid file",
+		},
+		{
+			mockPidFile: func() {
+				os.Remove(mockPidFilePath)
+				f, _ := os.Create(mockPidFilePath)
+				f.Write([]byte("abc"))
+				f.Close()
+			},
+			expectedErrPrefix: "can't parse pid file",
+			expectedPid:       0,
+			desc:              "existed pid file, error pid number",
+		},
+		{
+			mockPidFile: func() {
+				os.Remove(mockPidFilePath)
+				f, _ := os.Create(mockPidFilePath)
+				f.Write([]byte("123"))
+				f.Close()
+			},
+			expectedErrPrefix: "",
+			expectedPid:       123,
+			desc:              "existed pid file, correct pid number",
+		},
+	}
+
+	for _, tc := range testCases {
+		fn := NewPidFileFn(mockPidFilePath)
+		if fn == nil {
+			t.Error("Should not get nil PidFileFn")
+		}
+
+		tc.mockPidFile()
+
+		if pid, err := fn(); pid != tc.expectedPid || (err != nil && !strings.HasPrefix(err.Error(), tc.expectedErrPrefix)) {
+			fmt.Println(err.Error())
+			t.Error(tc.desc)
+		}
 	}
 }
