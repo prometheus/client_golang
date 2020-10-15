@@ -9,7 +9,7 @@ jobs:
     parameters:
       go_version:
         type: string
-      run_style:
+      run_style_and_unused:
         type: boolean
         default: false
       run_lint:
@@ -28,15 +28,15 @@ jobs:
         steps:
         - go/load-cache:
             key: v1-go<< parameters.go_version >>
-    - run: make check_license unused test
+    - run: make check_license test
     - when:
         condition: << parameters.run_lint >>
         steps:
         - run: make lint
     - when:
-        condition: << parameters.run_style >>
+        condition: << parameters.run_style_and_unused >>
         steps:
-        - run: make style
+        - run: make style unused
     - when:
         condition: << parameters.use_gomod_cache >>
         steps:
@@ -78,5 +78,6 @@ workflows:
         name: go-1-15
         go_version: "1.15"
         run_lint: true
-        # Style is only checked against the latest supported Go version.
-        run_style: true
+        # Style and unused/missing packages are only checked against
+        # the latest supported Go version.
+        run_style_and_unused: true
