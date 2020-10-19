@@ -45,6 +45,15 @@ jobs:
     - store_test_results:
         path: test-results
 
+    mixin:
+      executor: golang
+  
+      steps:
+      - checkout
+      - run: cd mysqld-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
+      - run: cd mysqld-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
+      - run: cd mysqld-mixin; make lint build
+
 workflows:
   version: 2
   client_golang:
@@ -81,3 +90,7 @@ workflows:
         # Style and unused/missing packages are only checked against
         # the latest supported Go version.
         run_style_and_unused: true
+    - mixin:
+      filters:
+        tags:
+          only: /.*/
