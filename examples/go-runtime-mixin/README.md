@@ -5,10 +5,10 @@ dashboards eventually, but it's not there yet._
 
 Mixins are a collection of configurable, reusable Prometheus rules, alerts
 and/or Grafana dashboards for a particular system, usually created by experts
-in that system. By [applying them]() to Prometheus and Grafana, you can quickly
+in that system. By applying them to Prometheus and Grafana, you can quickly
 set up appropriate monitoring for your systems.
 
-This mixin is for Go applications, and contains a dashboard for visualzing the
+This mixin is for Go applications, and contains a dashboard for visualizing the
 runtime metrics produced by client_golang's default [Go
 collector](https://github.com/prometheus/client_golang/blob/master/prometheus/go_collector.go).
 

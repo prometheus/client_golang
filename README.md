@@ -41,9 +41,7 @@ website to learn more about instrumenting applications.
 
 The
 [`examples` directory](https://github.com/prometheus/client_golang/tree/master/examples)
-contains simple examples of instrumented code.
-
-The [`mixin` directory](https://github.com/prometheus/client_golang/tree/master/mixin) contains a monitoring mixin - a basic dashboard for visualizing Go runtime metrics emitted by processes that use this library.
+contains simple examples of instrumented code. Its [`go-runtime-mixin` subdirectory](https://github.com/prometheus/client_golang/tree/master/examples/go-runtime-mixin) contains a [monitoring mixin](https://monitoring.mixins.dev/) - a basic dashboard for visualizing Go runtime metrics emitted by processes that use this library.
 
 ## Client for the Prometheus HTTP API
 

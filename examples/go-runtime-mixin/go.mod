@@ -1,4 +1,4 @@
-module github.com/prometheus/client_golang/mixin
+module github.com/prometheus/client_golang/examples/go-runtime-mixin
 
 go 1.14
 
