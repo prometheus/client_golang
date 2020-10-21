@@ -51,9 +51,9 @@ jobs:
 
     steps:
     - checkout
-    - run: cd mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
-    - run: cd mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
-    - run: cd mixin; make lint build
+    - run: cd examples/go-runtime-mixin; go install github.com/monitoring-mixins/mixtool/cmd/mixtool
+    - run: cd examples/go-runtime-mixin; go install github.com/google/go-jsonnet/cmd/jsonnetfmt
+    - run: cd examples/go-runtime-mixin; make lint build
 
 workflows:
   version: 2
