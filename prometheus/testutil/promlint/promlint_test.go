@@ -764,6 +764,26 @@ func TestLintUnitAbbreviations(t *testing.T) {
 	runTests(t, tests)
 }
 
+func TestUniqueLabels(t *testing.T) {
+	tests := []test{
+		{
+			name: "x_duplicate",
+			in: `
+# HELP x_duplicate Test metric.
+# TYPE x_duplicate gauge
+x_duplicate{group_id="1",group_id="2"} 10
+`,
+			problems: []promlint.Problem{
+				{
+					Metric: "x_duplicate",
+					Text:   "label names should be unique",
+				},
+			},
+		},
+	}
+	runTests(t, tests)
+}
+
 func runTests(t *testing.T, tests []test) {
 	t.Helper()
 	for _, tt := range tests {

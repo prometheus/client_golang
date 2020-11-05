@@ -119,6 +119,7 @@ func lint(mf *dto.MetricFamily) []Problem {
 		lintReservedChars,
 		lintCamelCase,
 		lintUnitAbbreviations,
+		lintUniqueLabels,
 	}
 
 	var problems []Problem
@@ -276,6 +277,30 @@ func lintUnitAbbreviations(mf *dto.MetricFamily) []Problem {
 	for _, s := range unitAbbreviations {
 		if strings.Contains(n, "_"+s+"_") || strings.HasSuffix(n, "_"+s) {
 			problems = append(problems, newProblem(mf, "metric names should not contain abbreviated units"))
+		}
+	}
+	return problems
+}
+
+// lintUniqueLabels detects metrics with duplicate labels.
+func lintUniqueLabels(mf *dto.MetricFamily) []Problem {
+	var problems []Problem
+
+	for _, m := range mf.GetMetric() {
+		labelCount := make(map[string]int)
+		for _, l := range m.GetLabel() {
+			lName := l.GetName()
+			_, exist := labelCount[lName]
+			if !exist {
+				labelCount[lName] = 1
+			} else {
+				labelCount[lName] += 1
+			}
+		}
+		for _, count := range labelCount {
+			if count > 1 {
+				problems = append(problems, newProblem(mf, "label names should be unique"))
+			}
 		}
 	}
 	return problems
