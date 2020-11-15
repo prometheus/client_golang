@@ -222,7 +222,7 @@ func (errs MultiError) Error() string {
 	buf := &bytes.Buffer{}
 	fmt.Fprintf(buf, "%d error(s) occurred:", len(errs))
 	for _, err := range errs {
-		fmt.Fprintf(buf, "\n* %s", err)
+		fmt.Fprintf(buf, "; %s", err)
 	}
 	return buf.String()
 }

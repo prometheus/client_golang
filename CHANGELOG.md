@@ -1,8 +1,12 @@
+## unreleased / unreleased
+
+* [BUGFIX] Don't use newlines in error messages
+
 ## 1.8.0 / 2020-10-15
 
 * [CHANGE] API client: Use `time.Time` rather than `string` for timestamps in `RuntimeinfoResult`. #777
 * [FEATURE] Export `MetricVec` to facilitate implementation of vectors of custom `Metric` types. #803
-* [FEATURE API client: Support `/status/tsdb` endpoint. #773
+* [FEATURE] API client: Support `/status/tsdb` endpoint. #773
 * [ENHANCEMENT] API client: Enable GET fallback on status code 501. #802
 * [ENHANCEMENT] Remove `Metric` references after reslicing to free up more memory. #784
 
