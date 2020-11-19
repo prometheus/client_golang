@@ -75,19 +75,19 @@ func NewClient(cfg Config) (Client, error) {
 	if cfg.Headers != nil {
 		h = cfg.Headers
 	} else {
-		h = map[string]string {}
+		h = map[string]string{}
 	}
 
 	return &httpClient{
 		endpoint: u,
-		headers: h,
+		headers:  h,
 		client:   http.Client{Transport: cfg.roundTripper()},
 	}, nil
 }
 
 type httpClient struct {
 	endpoint *url.URL
-	headers map[string]string
+	headers  map[string]string
 	client   http.Client
 }
 
