@@ -34,7 +34,7 @@ func TestHeaders(t *testing.T) {
 
 	// Initialize mock http server so we don't have to depend on external things for unit tests
 	// This mock responds with a json payload containing all request headers
-	requestMock := func (w http.ResponseWriter, r *http.Request) {
+	requestMock := func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("request: %v", r)
 		j, _ := json.Marshal(map[string]http.Header{"headers": r.Header})
 		_, _ = w.Write(j)
@@ -52,13 +52,13 @@ func TestHeaders(t *testing.T) {
 	// Any headers added to the client will be automatically added to all requests
 	hclient := &httpClient{
 		endpoint: ep,
-		headers: map[string]string {"Authorization": headerContents},
+		headers:  map[string]string{"Authorization": headerContents},
 		client:   http.Client{Transport: DefaultRoundTripper},
 	}
 
 	// Query the mock server
 	reqUrl := hclient.URL("/headers", nil)
-	req, err := http.NewRequest(http.MethodGet, reqUrl.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, reqUrl.String(), nil)
 	ctx := context.Background()
 	_, bytes, err := hclient.Do(ctx, req)
 	if err != nil {
@@ -161,4 +161,3 @@ func TestClientURL(t *testing.T) {
 		}
 	}
 }
-
