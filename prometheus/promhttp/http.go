@@ -99,7 +99,7 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 		inFlightSem = make(chan struct{}, opts.MaxRequestsInFlight)
 	}
 	if opts.Registry != nil {
-		// Initialize all possibilites that can occur below.
+		// Initialize all possibilities that can occur below.
 		errCnt.WithLabelValues("gathering")
 		errCnt.WithLabelValues("encoding")
 		if err := opts.Registry.Register(errCnt); err != nil {
