@@ -25,6 +25,7 @@ import (
 
 func TestLabelCheck(t *testing.T) {
 	scenarios := map[string]struct {
+		metricName    string // Defaults to "c".
 		varLabels     []string
 		constLabels   []string
 		curriedLabels []string
@@ -48,7 +49,7 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{},
 			ok:            true,
 		},
-		"cade and method as var labels": {
+		"code and method as var labels": {
 			varLabels:     []string{"method", "code"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
@@ -59,6 +60,12 @@ func TestLabelCheck(t *testing.T) {
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
 			ok:            true,
+		},
+		"all labels used with an invalid const label name": {
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"in-valid", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			ok:            false,
 		},
 		"unsupported var label": {
 			varLabels:     []string{"foo"},
@@ -96,17 +103,35 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{"method"},
 			ok:            false,
 		},
+		"invalid name and otherwise empty": {
+			metricName:    "in-valid",
+			varLabels:     []string{},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            false,
+		},
+		"invalid name with all the otherwise valid labels": {
+			metricName:    "in-valid",
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"foo", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			ok:            false,
+		},
 	}
 
 	for name, sc := range scenarios {
 		t.Run(name, func(t *testing.T) {
+			metricName := sc.metricName
+			if metricName == "" {
+				metricName = "c"
+			}
 			constLabels := prometheus.Labels{}
 			for _, l := range sc.constLabels {
 				constLabels[l] = "dummy"
 			}
 			c := prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name:        "c",
+					Name:        metricName,
 					Help:        "c help",
 					ConstLabels: constLabels,
 				},
@@ -114,7 +139,7 @@ func TestLabelCheck(t *testing.T) {
 			)
 			o := prometheus.ObserverVec(prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
-					Name:        "c",
+					Name:        metricName,
 					Help:        "c help",
 					ConstLabels: constLabels,
 				},
