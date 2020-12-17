@@ -1,3 +1,8 @@
+## 1.9.0 / 2020-12-17
+
+* [FEATURE] `NewPidFileFn` helper to create process collectors for processes whose PID is read from a file. #804
+* [BUGFIX] promhttp: Prevent endless loop in `InstrumentHandler...` middlewares with invalid metric or label names. #823
+
 ## 1.8.0 / 2020-10-15
 
 * [CHANGE] API client: Use `time.Time` rather than `string` for timestamps in `RuntimeinfoResult`. #777
