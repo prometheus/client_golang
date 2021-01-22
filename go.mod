@@ -7,7 +7,7 @@ require (
 	github.com/json-iterator/go v1.1.10
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.15.0
-	github.com/prometheus/procfs v0.2.0
+	github.com/prometheus/procfs v0.3.0
 	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e
 )
 
