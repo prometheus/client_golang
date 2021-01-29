@@ -170,7 +170,7 @@ type HistogramOpts struct {
 	// All observations with an absolute value of less or equal
 	// SparseBucketsZeroThreshold are accumulated into a “zero” bucket. For
 	// best results, this should be close to a bucket boundary. This is
-	// moste easily accomplished by picking a power of ten. If
+	// most easily accomplished by picking a power of ten. If
 	// SparseBucketsZeroThreshold is left at zero (or set to a negative
 	// value), DefSparseBucketsZeroThreshold is used as the threshold.
 	SparseBucketsZeroThreshold float64
@@ -536,6 +536,7 @@ func (h *histogram) observe(v float64, bucket int) {
 		// calculated as -0.9999999999999999 rather than -1 and thus
 		// yields a key unexpectedly one off. Maybe special-case precise
 		// powers of 10.
+		// TODO(beorn7): This needs special-casing for ±Inf and NaN.
 		sparseKey = int(math.Ceil(math.Log10(math.Abs(v)) * float64(h.sparseResolution)))
 	}
 	// We increment h.countAndHotIdx so that the counter in the lower
