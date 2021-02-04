@@ -230,9 +230,9 @@ type API interface {
 	DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
-	// LabelNames returns all the unique label names present in the block in sorted order.
+	// LabelNames returns the unique label names present in the block in sorted order by given time range and matchers.
 	LabelNames(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]string, Warnings, error)
-	// LabelValues performs a query for the values of the given label.
+	// LabelValues performs a query for the values of the given label, time range and matchers.
 	LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
