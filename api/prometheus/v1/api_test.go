@@ -151,15 +151,15 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doLabelNames := func(label string) func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelNames(context.Background(), time.Now().Add(-100*time.Hour), time.Now())
+			return promAPI.LabelNames(context.Background(), matches, time.Now().Add(-100*time.Hour), time.Now())
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelValues(context.Background(), label, time.Now().Add(-100*time.Hour), time.Now())
+			return promAPI.LabelValues(context.Background(), label, matches, time.Now().Add(-100*time.Hour), time.Now())
 		}
 	}
 
@@ -359,14 +359,14 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelNames("mylabel"),
+			do:        doLabelNames(nil),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
 			res:       []string{"val1", "val2"},
 		},
 		{
-			do:         doLabelNames("mylabel"),
+			do:         doLabelNames(nil),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -376,14 +376,14 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelNames("mylabel"),
+			do:        doLabelNames(nil),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
 			err:       fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelNames("mylabel"),
+			do:         doLabelNames(nil),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -391,16 +391,24 @@ func TestAPIs(t *testing.T) {
 			err:        fmt.Errorf("some error"),
 			warnings:   []string{"a"},
 		},
+		{
+			do:        doLabelNames([]string{"up"}),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			reqParam:  url.Values{"match[]": {"up"}},
+			res:       []string{"val1", "val2"},
+		},
 
 		{
-			do:        doLabelValues("mylabel"),
+			do:        doLabelValues(nil, "mylabel"),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			res:       model.LabelValues{"val1", "val2"},
 		},
 		{
-			do:         doLabelValues("mylabel"),
+			do:         doLabelValues(nil, "mylabel"),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -410,20 +418,28 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelValues("mylabel"),
+			do:        doLabelValues(nil, "mylabel"),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			err:       fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelValues("mylabel"),
+			do:         doLabelValues(nil, "mylabel"),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
 			err:        fmt.Errorf("some error"),
 			warnings:   []string{"a"},
+		},
+		{
+			do:        doLabelValues([]string{"up"}, "mylabel"),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/mylabel/values",
+			reqParam:  url.Values{"match[]": {"up"}},
+			res:       model.LabelValues{"val1", "val2"},
 		},
 
 		{
