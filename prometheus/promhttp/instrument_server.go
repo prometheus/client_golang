@@ -92,7 +92,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler) ht
 // If the wrapped Handler panics, the Counter is not incremented.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
+func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.Handler {
 	code, method := checkLabels(counter)
 
 	if code {
