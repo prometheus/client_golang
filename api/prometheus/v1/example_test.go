@@ -164,7 +164,7 @@ func ExampleAPI_queryRangeWithAuthBearerToken() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 		// We can use amazing github.com/prometheus/common/config helper!
-		RoundTripper: config.NewBearerAuthRoundTripper("secret_token", api.DefaultRoundTripper),
+		RoundTripper: config.NewAuthorizationCredentialsRoundTripper("Bearer", "secret_token", api.DefaultRoundTripper),
 	})
 	if err != nil {
 		fmt.Printf("Error creating client: %v\n", err)

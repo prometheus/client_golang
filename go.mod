@@ -6,9 +6,9 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/json-iterator/go v1.1.10
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.15.0
-	github.com/prometheus/procfs v0.3.0
-	golang.org/x/sys v0.0.0-20201214210602-f9fddec55a1e
+	github.com/prometheus/common v0.18.0
+	github.com/prometheus/procfs v0.6.0
+	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2
 )
 
 go 1.11
