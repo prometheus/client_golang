@@ -144,6 +144,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doBuildinfo := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.Buildinfo(context.Background())
+			return v, nil, err
+		}
+	}
+
 	doRuntimeinfo := func() func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Runtimeinfo(context.Background())
@@ -633,6 +640,36 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/status/flags",
 			inErr:     fmt.Errorf("some error"),
 			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doBuildinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/buildinfo",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doBuildinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/buildinfo",
+			inRes: map[string]interface{}{
+				"version":   "2.23.0",
+				"revision":  "26d89b4b0776fe4cd5a3656dfa520f119a375273",
+				"branch":    "HEAD",
+				"buildUser": "root@37609b3a0a21",
+				"buildDate": "20201126-10:56:17",
+				"goVersion": "go1.15.5",
+			},
+			res: BuildinfoResult{
+				Version:   "2.23.0",
+				Revision:  "26d89b4b0776fe4cd5a3656dfa520f119a375273",
+				Branch:    "HEAD",
+				BuildUser: "root@37609b3a0a21",
+				BuildDate: "20201126-10:56:17",
+				GoVersion: "go1.15.5",
+			},
 		},
 
 		{

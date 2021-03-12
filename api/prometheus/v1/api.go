@@ -135,6 +135,7 @@ const (
 	epCleanTombstones = apiPrefix + "/admin/tsdb/clean_tombstones"
 	epConfig          = apiPrefix + "/status/config"
 	epFlags           = apiPrefix + "/status/flags"
+	epBuildinfo       = apiPrefix + "/status/buildinfo"
 	epRuntimeinfo     = apiPrefix + "/status/runtimeinfo"
 	epTSDB            = apiPrefix + "/status/tsdb"
 )
@@ -238,6 +239,8 @@ type API interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
+	// Buildinfo returns various build information properties about the Prometheus server
+	Buildinfo(ctx context.Context) (BuildinfoResult, error)
 	// Runtimeinfo returns the various runtime information properties about the Prometheus server.
 	Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error)
 	// Series finds series by label matchers.
@@ -280,6 +283,16 @@ type ConfigResult struct {
 
 // FlagsResult contains the result from querying the flag endpoint.
 type FlagsResult map[string]string
+
+// BuildinfoResult contains the results from querying the buildinfo endpoint.
+type BuildinfoResult struct {
+	Version   string `json:"version"`
+	Revision  string `json:"revision"`
+	Branch    string `json:"branch"`
+	BuildUser string `json:"buildUser"`
+	BuildDate string `json:"buildDate"`
+	GoVersion string `json:"goVersion"`
+}
 
 // RuntimeinfoResult contains the result from querying the runtimeinfo endpoint.
 type RuntimeinfoResult struct {
@@ -671,6 +684,23 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 	}
 
 	var res FlagsResult
+	return res, json.Unmarshal(body, &res)
+}
+
+func (h *httpAPI) Buildinfo(ctx context.Context) (BuildinfoResult, error) {
+	u := h.client.URL(epBuildinfo, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return BuildinfoResult{}, err
+	}
+
+	_, body, _, err := h.client.Do(ctx, req)
+	if err != nil {
+		return BuildinfoResult{}, err
+	}
+
+	var res BuildinfoResult
 	return res, json.Unmarshal(body, &res)
 }
 
