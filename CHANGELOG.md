@@ -1,3 +1,10 @@
+## 1.10.0 / 2021-03-18
+
+* [CHANGE] Minimum required Go version is now 1.13.
+* [CHANGE] API client: Add matchers to `LabelNames` and `LabesValues`. #828
+* [FEATURE] API client: Add buildinfo call. #841
+* [BUGFIX] Fix build on riscv64. #833
+
 ## 1.9.0 / 2020-12-17
 
 * [FEATURE] `NewPidFileFn` helper to create process collectors for processes whose PID is read from a file. #804
