@@ -1,3 +1,46 @@
+## 1.10.0 / 2021-03-18
+
+* [CHANGE] Minimum required Go version is now 1.13.
+* [CHANGE] API client: Add matchers to `LabelNames` and `LabesValues`. #828
+* [FEATURE] API client: Add buildinfo call. #841
+* [BUGFIX] Fix build on riscv64. #833
+
+## 1.9.0 / 2020-12-17
+
+* [FEATURE] `NewPidFileFn` helper to create process collectors for processes whose PID is read from a file. #804
+* [BUGFIX] promhttp: Prevent endless loop in `InstrumentHandler...` middlewares with invalid metric or label names. #823
+
+## 1.8.0 / 2020-10-15
+
+* [CHANGE] API client: Use `time.Time` rather than `string` for timestamps in `RuntimeinfoResult`. #777
+* [FEATURE] Export `MetricVec` to facilitate implementation of vectors of custom `Metric` types. #803
+* [FEATURE API client: Support `/status/tsdb` endpoint. #773
+* [ENHANCEMENT] API client: Enable GET fallback on status code 501. #802
+* [ENHANCEMENT] Remove `Metric` references after reslicing to free up more memory. #784
+
+## 1.7.1 / 2020-06-23
+
+* [BUGFIX] API client: Actually propagate start/end parameters of `LabelNames` and `LabelValues`. #771
+
+## 1.7.0 / 2020-06-17
+
+* [CHANGE] API client: Add start/end parameters to `LabelNames` and `LabelValues`. #767
+* [FEATURE] testutil: Add `GatherAndCount` and enable filtering in `CollectAndCount` #753
+* [FEATURE] API client: Add support for `status` and `runtimeinfo` endpoints. #755
+* [ENHANCEMENT] Wrapping `nil` with a `WrapRegistererWith...` function creates a no-op `Registerer`.  #764
+* [ENHANCEMENT] promlint: Allow Kelvin as a base unit for cases like color temperature. #761
+* [BUGFIX] push: Properly handle empty job and label values. #752
+
+## 1.6.0 / 2020-04-28
+
+* [FEATURE] testutil: Add lint checks for metrics, including a sub-package `promlint` to expose the linter engine for external usage. #739 #743
+* [ENHANCEMENT] API client: Improve error messages. #731
+* [BUGFIX] process collector: Fix `process_resident_memory_bytes` on 32bit MS Windows. #734
+
+## 1.5.1 / 2020-03-14
+
+* [BUGFIX] promhttp: Remove another superfluous `WriteHeader` call. #726
+
 ## 1.5.0 / 2020-03-03
 
 * [FEATURE] promauto: Add a factory to allow automatic registration with a local registry. #713

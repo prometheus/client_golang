@@ -19,6 +19,7 @@ import (
 	"strings"
 	"testing"
 
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
@@ -319,4 +320,13 @@ func TestWrap(t *testing.T) {
 		})
 	}
 
+}
+
+func TestNil(t *testing.T) {
+	// A wrapped nil registerer should be treated as a no-op, and not panic.
+	c := NewCounter(CounterOpts{Name: "test"})
+	err := WrapRegistererWith(Labels{"foo": "bar"}, nil).Register(c)
+	if err != nil {
+		t.Fatal("registering failed:", err)
+	}
 }

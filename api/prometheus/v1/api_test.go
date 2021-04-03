@@ -84,7 +84,7 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	if test.inStatusCode != 0 {
 		resp.StatusCode = test.inStatusCode
 	} else if test.inErr != nil {
-		resp.StatusCode = statusAPIError
+		resp.StatusCode = http.StatusUnprocessableEntity
 	} else {
 		resp.StatusCode = http.StatusOK
 	}
@@ -144,15 +144,29 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doLabelNames := func(label string) func() (interface{}, Warnings, error) {
+	doBuildinfo := func() func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelNames(context.Background())
+			v, err := promAPI.Buildinfo(context.Background())
+			return v, nil, err
 		}
 	}
 
-	doLabelValues := func(label string) func() (interface{}, Warnings, error) {
+	doRuntimeinfo := func() func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelValues(context.Background(), label)
+			v, err := promAPI.Runtimeinfo(context.Background())
+			return v, nil, err
+		}
+	}
+
+	doLabelNames := func(matches []string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			return promAPI.LabelNames(context.Background(), matches, time.Now().Add(-100*time.Hour), time.Now())
+		}
+	}
+
+	doLabelValues := func(matches []string, label string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			return promAPI.LabelValues(context.Background(), label, matches, time.Now().Add(-100*time.Hour), time.Now())
 		}
 	}
 
@@ -205,6 +219,13 @@ func TestAPIs(t *testing.T) {
 	doMetadata := func(metric string, limit string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Metadata(context.Background(), metric, limit)
+			return v, nil, err
+		}
+	}
+
+	doTSDB := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.TSDB(context.Background())
 			return v, nil, err
 		}
 	}
@@ -345,14 +366,14 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelNames("mylabel"),
+			do:        doLabelNames(nil),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
 			res:       []string{"val1", "val2"},
 		},
 		{
-			do:         doLabelNames("mylabel"),
+			do:         doLabelNames(nil),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -362,14 +383,14 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelNames("mylabel"),
+			do:        doLabelNames(nil),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
 			err:       fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelNames("mylabel"),
+			do:         doLabelNames(nil),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -377,16 +398,24 @@ func TestAPIs(t *testing.T) {
 			err:        fmt.Errorf("some error"),
 			warnings:   []string{"a"},
 		},
+		{
+			do:        doLabelNames([]string{"up"}),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/labels",
+			reqParam:  url.Values{"match[]": {"up"}},
+			res:       []string{"val1", "val2"},
+		},
 
 		{
-			do:        doLabelValues("mylabel"),
+			do:        doLabelValues(nil, "mylabel"),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			res:       model.LabelValues{"val1", "val2"},
 		},
 		{
-			do:         doLabelValues("mylabel"),
+			do:         doLabelValues(nil, "mylabel"),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -396,20 +425,28 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doLabelValues("mylabel"),
+			do:        doLabelValues(nil, "mylabel"),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			err:       fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelValues("mylabel"),
+			do:         doLabelValues(nil, "mylabel"),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
 			err:        fmt.Errorf("some error"),
 			warnings:   []string{"a"},
+		},
+		{
+			do:        doLabelValues([]string{"up"}, "mylabel"),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/mylabel/values",
+			reqParam:  url.Values{"match[]": {"up"}},
+			res:       model.LabelValues{"val1", "val2"},
 		},
 
 		{
@@ -603,6 +640,78 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/status/flags",
 			inErr:     fmt.Errorf("some error"),
 			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doBuildinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/buildinfo",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doBuildinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/buildinfo",
+			inRes: map[string]interface{}{
+				"version":   "2.23.0",
+				"revision":  "26d89b4b0776fe4cd5a3656dfa520f119a375273",
+				"branch":    "HEAD",
+				"buildUser": "root@37609b3a0a21",
+				"buildDate": "20201126-10:56:17",
+				"goVersion": "go1.15.5",
+			},
+			res: BuildinfoResult{
+				Version:   "2.23.0",
+				Revision:  "26d89b4b0776fe4cd5a3656dfa520f119a375273",
+				Branch:    "HEAD",
+				BuildUser: "root@37609b3a0a21",
+				BuildDate: "20201126-10:56:17",
+				GoVersion: "go1.15.5",
+			},
+		},
+
+		{
+			do:        doRuntimeinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/runtimeinfo",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doRuntimeinfo(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/runtimeinfo",
+			inRes: map[string]interface{}{
+				"startTime":           "2020-05-18T15:52:53.4503113Z",
+				"CWD":                 "/prometheus",
+				"reloadConfigSuccess": true,
+				"lastConfigTime":      "2020-05-18T15:52:56Z",
+				"chunkCount":          72692,
+				"timeSeriesCount":     18476,
+				"corruptionCount":     0,
+				"goroutineCount":      217,
+				"GOMAXPROCS":          2,
+				"GOGC":                "100",
+				"GODEBUG":             "allocfreetrace",
+				"storageRetention":    "1d",
+			},
+			res: RuntimeinfoResult{
+				StartTime:           time.Date(2020, 5, 18, 15, 52, 53, 450311300, time.UTC),
+				CWD:                 "/prometheus",
+				ReloadConfigSuccess: true,
+				LastConfigTime:      time.Date(2020, 5, 18, 15, 52, 56, 0, time.UTC),
+				ChunkCount:          72692,
+				TimeSeriesCount:     18476,
+				CorruptionCount:     0,
+				GoroutineCount:      217,
+				GOMAXPROCS:          2,
+				GOGC:                "100",
+				GODEBUG:             "allocfreetrace",
+				StorageRetention:    "1d",
+			},
 		},
 
 		{
@@ -904,6 +1013,72 @@ func TestAPIs(t *testing.T) {
 			},
 			err: fmt.Errorf("some error"),
 		},
+
+		{
+			do:        doTSDB(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doTSDB(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb",
+			inRes: map[string]interface{}{
+				"seriesCountByMetricName": []interface{}{
+					map[string]interface{}{
+						"name":  "kubelet_http_requests_duration_seconds_bucket",
+						"value": 1000,
+					},
+				},
+				"labelValueCountByLabelName": []interface{}{
+					map[string]interface{}{
+						"name":  "__name__",
+						"value": 200,
+					},
+				},
+				"memoryInBytesByLabelName": []interface{}{
+					map[string]interface{}{
+						"name":  "id",
+						"value": 4096,
+					},
+				},
+				"seriesCountByLabelValuePair": []interface{}{
+					map[string]interface{}{
+						"name":  "job=kubelet",
+						"value": 30000,
+					},
+				},
+			},
+			res: TSDBResult{
+				SeriesCountByMetricName: []Stat{
+					{
+						Name:  "kubelet_http_requests_duration_seconds_bucket",
+						Value: 1000,
+					},
+				},
+				LabelValueCountByLabelName: []Stat{
+					{
+						Name:  "__name__",
+						Value: 200,
+					},
+				},
+				MemoryInBytesByLabelName: []Stat{
+					{
+						Name:  "id",
+						Value: 4096,
+					},
+				},
+				SeriesCountByLabelValuePair: []Stat{
+					{
+						Name:  "job=kubelet",
+						Value: 30000,
+					},
+				},
+			},
+		},
 	}
 
 	var tests []apiTest
@@ -996,7 +1171,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 func TestAPIClientDo(t *testing.T) {
 	tests := []apiClientTest{
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`null`),
@@ -1010,7 +1185,7 @@ func TestAPIClientDo(t *testing.T) {
 			expectedBody: `null`,
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
 				Data:      json.RawMessage(`"test"`),
@@ -1055,7 +1230,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code:     statusAPIError,
+			code:     http.StatusUnprocessableEntity,
 			response: "bad json",
 			expectedErr: &Error{
 				Type: ErrBadResponse,
@@ -1063,7 +1238,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status: "success",
 				Data:   json.RawMessage(`"test"`),
@@ -1074,7 +1249,7 @@ func TestAPIClientDo(t *testing.T) {
 			},
 		},
 		{
-			code: statusAPIError,
+			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "success",
 				Data:      json.RawMessage(`"test"`),
@@ -1095,8 +1270,8 @@ func TestAPIClientDo(t *testing.T) {
 				Error:     "timed out",
 			},
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "inconsistent body for response code",
+				Type: ErrTimeout,
+				Msg:  "timed out",
 			},
 		},
 		{
@@ -1109,8 +1284,8 @@ func TestAPIClientDo(t *testing.T) {
 				Warnings:  []string{"a"},
 			},
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "inconsistent body for response code",
+				Type: ErrTimeout,
+				Msg:  "timed out",
 			},
 			expectedWarnings: []string{"a"},
 		},
@@ -1325,8 +1500,15 @@ func TestDoGetFallback(t *testing.T) {
 		body, _ := json.Marshal(apiResp)
 
 		if req.Method == http.MethodPost {
-			if req.URL.Path == "/blockPost" {
+			if req.URL.Path == "/blockPost405" {
 				http.Error(w, string(body), http.StatusMethodNotAllowed)
+				return
+			}
+		}
+
+		if req.Method == http.MethodPost {
+			if req.URL.Path == "/blockPost501" {
+				http.Error(w, string(body), http.StatusNotImplemented)
 				return
 			}
 		}
@@ -1361,8 +1543,24 @@ func TestDoGetFallback(t *testing.T) {
 		t.Fatalf("Mismatch in values")
 	}
 
-	// Do a fallbcak to a get.
-	u.Path = "/blockPost"
+	// Do a fallback to a get on 405.
+	u.Path = "/blockPost405"
+	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodGet {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
+	}
+
+	// Do a fallback to a get on 501.
+	u.Path = "/blockPost501"
 	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)

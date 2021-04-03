@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/expfmt"
 
@@ -72,7 +73,7 @@ func ExampleGaugeVec() {
 	opsQueued.With(prometheus.Labels{"type": "delete", "user": "alice"}).Inc()
 }
 
-func ExampleGaugeFunc() {
+func ExampleGaugeFunc_simple() {
 	if err := prometheus.Register(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Subsystem: "runtime",
@@ -88,6 +89,44 @@ func ExampleGaugeFunc() {
 
 	// Output:
 	// GaugeFunc 'goroutines_count' registered.
+}
+
+func ExampleGaugeFunc_constLabels() {
+	// primaryDB and secondaryDB represent two example *sql.DB connections we want to instrument.
+	var primaryDB, secondaryDB interface {
+		Stats() struct{ OpenConnections int }
+	}
+
+	if err := prometheus.Register(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace:   "mysql",
+			Name:        "connections_open",
+			Help:        "Number of mysql connections open.",
+			ConstLabels: prometheus.Labels{"destination": "primary"},
+		},
+		func() float64 { return float64(primaryDB.Stats().OpenConnections) },
+	)); err == nil {
+		fmt.Println(`GaugeFunc 'connections_open' for primary DB connection registered with labels {destination="primary"}`)
+	}
+
+	if err := prometheus.Register(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace:   "mysql",
+			Name:        "connections_open",
+			Help:        "Number of mysql connections open.",
+			ConstLabels: prometheus.Labels{"destination": "secondary"},
+		},
+		func() float64 { return float64(secondaryDB.Stats().OpenConnections) },
+	)); err == nil {
+		fmt.Println(`GaugeFunc 'connections_open' for secondary DB connection registered with labels {destination="secondary"}`)
+	}
+
+	// Note that we can register more than once GaugeFunc with same metric name
+	// as long as their const labels are consistent.
+
+	// Output:
+	// GaugeFunc 'connections_open' for primary DB connection registered with labels {destination="primary"}
+	// GaugeFunc 'connections_open' for secondary DB connection registered with labels {destination="secondary"}
 }
 
 func ExampleCounterVec() {

@@ -24,6 +24,7 @@ import (
 	"testing/quick"
 	"time"
 
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes"
 
@@ -278,7 +279,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 			go func(vals []float64) {
 				start.Wait()
 				for i, v := range vals {
-					his.WithLabelValues(string('A' + picks[i])).Observe(v)
+					his.WithLabelValues(string('A' + rune(picks[i]))).Observe(v)
 				}
 				end.Done()
 			}(vals)
@@ -291,7 +292,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
-			s := his.WithLabelValues(string('A' + i))
+			s := his.WithLabelValues(string('A' + rune(i)))
 			s.(Histogram).Write(m)
 
 			if got, want := len(m.Histogram.Bucket), len(testBuckets)-1; got != want {
