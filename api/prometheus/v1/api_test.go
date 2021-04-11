@@ -846,6 +846,111 @@ func TestAPIs(t *testing.T) {
 			},
 		},
 
+		// This has the newer API elements like lastEvaluation, evaluationTime, etc.
+		{
+			do:        doRules(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/rules",
+			inRes: map[string]interface{}{
+				"groups": []map[string]interface{}{
+					{
+						"file":     "/rules.yaml",
+						"interval": 60,
+						"name":     "example",
+						"rules": []map[string]interface{}{
+							{
+								"alerts": []map[string]interface{}{
+									{
+										"activeAt": testTime.UTC().Format(time.RFC3339Nano),
+										"annotations": map[string]interface{}{
+											"summary": "High request latency",
+										},
+										"labels": map[string]interface{}{
+											"alertname": "HighRequestLatency",
+											"severity":  "page",
+										},
+										"state": "firing",
+										"value": "1e+00",
+									},
+								},
+								"annotations": map[string]interface{}{
+									"summary": "High request latency",
+								},
+								"duration": 600,
+								"health":   "ok",
+								"labels": map[string]interface{}{
+									"severity": "page",
+								},
+								"name":           "HighRequestLatency",
+								"query":          "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								"type":           "alerting",
+								"evaluationTime": 0.5,
+								"lastEvaluation": "2020-05-18T15:52:53.4503113Z",
+								"state":          "firing",
+							},
+							{
+								"health":         "ok",
+								"name":           "job:http_inprogress_requests:sum",
+								"query":          "sum(http_inprogress_requests) by (job)",
+								"type":           "recording",
+								"evaluationTime": 0.3,
+								"lastEvaluation": "2020-05-18T15:52:53.4503113Z",
+							},
+						},
+					},
+				},
+			},
+			res: RulesResult{
+				Groups: []RuleGroup{
+					{
+						Name:     "example",
+						File:     "/rules.yaml",
+						Interval: 60,
+						Rules: []interface{}{
+							AlertingRule{
+								Alerts: []*Alert{
+									{
+										ActiveAt: testTime.UTC(),
+										Annotations: model.LabelSet{
+											"summary": "High request latency",
+										},
+										Labels: model.LabelSet{
+											"alertname": "HighRequestLatency",
+											"severity":  "page",
+										},
+										State: AlertStateFiring,
+										Value: "1e+00",
+									},
+								},
+								Annotations: model.LabelSet{
+									"summary": "High request latency",
+								},
+								Labels: model.LabelSet{
+									"severity": "page",
+								},
+								Duration:       600,
+								Health:         RuleHealthGood,
+								Name:           "HighRequestLatency",
+								Query:          "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								LastError:      "",
+								EvaluationTime: 0.5,
+								LastEvaluation: time.Date(2020, 5, 18, 15, 52, 53, 450311300, time.UTC),
+								State:          "firing",
+							},
+							RecordingRule{
+								Health:         RuleHealthGood,
+								Name:           "job:http_inprogress_requests:sum",
+								Query:          "sum(http_inprogress_requests) by (job)",
+								LastError:      "",
+								EvaluationTime: 0.3,
+								LastEvaluation: time.Date(2020, 5, 18, 15, 52, 53, 450311300, time.UTC),
+							},
+						},
+					},
+				},
+			},
+		},
+
 		{
 			do:        doRules(),
 			reqMethod: "GET",

@@ -344,23 +344,28 @@ type Rules []interface{}
 
 // AlertingRule models a alerting rule.
 type AlertingRule struct {
-	Name        string         `json:"name"`
-	Query       string         `json:"query"`
-	Duration    float64        `json:"duration"`
-	Labels      model.LabelSet `json:"labels"`
-	Annotations model.LabelSet `json:"annotations"`
-	Alerts      []*Alert       `json:"alerts"`
-	Health      RuleHealth     `json:"health"`
-	LastError   string         `json:"lastError,omitempty"`
+	Name           string         `json:"name"`
+	Query          string         `json:"query"`
+	Duration       float64        `json:"duration"`
+	Labels         model.LabelSet `json:"labels"`
+	Annotations    model.LabelSet `json:"annotations"`
+	Alerts         []*Alert       `json:"alerts"`
+	Health         RuleHealth     `json:"health"`
+	LastError      string         `json:"lastError,omitempty"`
+	EvaluationTime float64        `json:"evaluationTime"`
+	LastEvaluation time.Time      `json:"lastEvaluation"`
+	State          string         `json:"state"`
 }
 
 // RecordingRule models a recording rule.
 type RecordingRule struct {
-	Name      string         `json:"name"`
-	Query     string         `json:"query"`
-	Labels    model.LabelSet `json:"labels,omitempty"`
-	Health    RuleHealth     `json:"health"`
-	LastError string         `json:"lastError,omitempty"`
+	Name           string         `json:"name"`
+	Query          string         `json:"query"`
+	Labels         model.LabelSet `json:"labels,omitempty"`
+	Health         RuleHealth     `json:"health"`
+	LastError      string         `json:"lastError,omitempty"`
+	EvaluationTime float64        `json:"evaluationTime"`
+	LastEvaluation time.Time      `json:"lastEvaluation"`
 }
 
 // Alert models an active alert.
@@ -480,14 +485,17 @@ func (r *AlertingRule) UnmarshalJSON(b []byte) error {
 	}
 
 	rule := struct {
-		Name        string         `json:"name"`
-		Query       string         `json:"query"`
-		Duration    float64        `json:"duration"`
-		Labels      model.LabelSet `json:"labels"`
-		Annotations model.LabelSet `json:"annotations"`
-		Alerts      []*Alert       `json:"alerts"`
-		Health      RuleHealth     `json:"health"`
-		LastError   string         `json:"lastError,omitempty"`
+		Name           string         `json:"name"`
+		Query          string         `json:"query"`
+		Duration       float64        `json:"duration"`
+		Labels         model.LabelSet `json:"labels"`
+		Annotations    model.LabelSet `json:"annotations"`
+		Alerts         []*Alert       `json:"alerts"`
+		Health         RuleHealth     `json:"health"`
+		LastError      string         `json:"lastError,omitempty"`
+		EvaluationTime float64        `json:"evaluationTime"`
+		LastEvaluation time.Time      `json:"lastEvaluation"`
+		State          string         `json:"state"`
 	}{}
 	if err := json.Unmarshal(b, &rule); err != nil {
 		return err
@@ -500,6 +508,9 @@ func (r *AlertingRule) UnmarshalJSON(b []byte) error {
 	r.Duration = rule.Duration
 	r.Labels = rule.Labels
 	r.LastError = rule.LastError
+	r.EvaluationTime = rule.EvaluationTime
+	r.LastEvaluation = rule.LastEvaluation
+	r.State = rule.State
 
 	return nil
 }
@@ -519,11 +530,13 @@ func (r *RecordingRule) UnmarshalJSON(b []byte) error {
 	}
 
 	rule := struct {
-		Name      string         `json:"name"`
-		Query     string         `json:"query"`
-		Labels    model.LabelSet `json:"labels,omitempty"`
-		Health    RuleHealth     `json:"health"`
-		LastError string         `json:"lastError,omitempty"`
+		Name           string         `json:"name"`
+		Query          string         `json:"query"`
+		Labels         model.LabelSet `json:"labels,omitempty"`
+		Health         RuleHealth     `json:"health"`
+		LastError      string         `json:"lastError,omitempty"`
+		EvaluationTime float64        `json:"evaluationTime"`
+		LastEvaluation time.Time      `json:"lastEvaluation"`
 	}{}
 	if err := json.Unmarshal(b, &rule); err != nil {
 		return err
@@ -533,6 +546,8 @@ func (r *RecordingRule) UnmarshalJSON(b []byte) error {
 	r.Name = rule.Name
 	r.LastError = rule.LastError
 	r.Query = rule.Query
+	r.EvaluationTime = rule.EvaluationTime
+	r.LastEvaluation = rule.LastEvaluation
 
 	return nil
 }
