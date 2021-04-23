@@ -28,7 +28,7 @@ func checkFloat64(t *testing.T, x, v, tol float64) {
 func TestQEMAObserve(t *testing.T) {
 	// Deliberately start with an estimate outside of tolerance.
 	tr := NewQEMATracker(0.5, 0.01, 0.001, 0.1)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 20000; i++ {
 		v := rand.NormFloat64()
 		tr.Observe(v)
 	}
@@ -38,7 +38,7 @@ func TestQEMAObserve(t *testing.T) {
 func TestQEMAObserve2(t *testing.T) {
 	// Deliberately start with an estimate outside of tolerance.
 	tr := NewQEMATracker(0.5, 0.01, 0.001, 0.0)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 20000; i++ {
 		v := rand.NormFloat64() + 3.0
 		tr.Observe(v)
 	}
@@ -98,7 +98,7 @@ func BenchmarkMQEMAObserve3(b *testing.B) {
 func TestMSPIObserve(t *testing.T) {
 	// Deliberately start with an estimate outside of tolerance.
 	tr := NewMSPITracker(0.5, 0.001, 1e-6, 0.1)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 20000; i++ {
 		v := rand.NormFloat64()
 		tr.Observe(v)
 	}
@@ -108,7 +108,7 @@ func TestMSPIObserve(t *testing.T) {
 func TestMSPIObserve2(t *testing.T) {
 	// Deliberately start with an estimate outside of tolerance.
 	tr := NewMSPITracker(0.5, 0.01, 1e-6, 0.0)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 20000; i++ {
 		v := rand.NormFloat64() + 3.0
 		tr.Observe(v)
 	}
@@ -126,7 +126,7 @@ func BenchmarkMSPIObserve(b *testing.B) {
 
 func TestMMSPIObserve(t *testing.T) {
 	tr := NewMMSPITracker([]float64{0.25, 0.5, 0.75, 0.9, 0.95, 0.99}, 0.005, 0.01, 1e-6)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100000; i++ {
 		v := rand.NormFloat64()
 		tr.Observe(v)
 	}
