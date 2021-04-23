@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"sort"
@@ -264,7 +265,7 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 			go func(vals []float64) {
 				start.Wait()
 				for i, v := range vals {
-					sum.WithLabelValues(string('A' + picks[i])).Observe(v)
+					sum.WithLabelValues(fmt.Sprintf("%d", picks[i])).Observe(v)
 				}
 				end.Done()
 			}(vals)
@@ -277,13 +278,13 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
-			s := sum.WithLabelValues(string('A' + i))
+			s := sum.WithLabelValues(fmt.Sprintf("%d", i))
 			s.(Summary).Write(m)
 			if got, want := int(*m.Summary.SampleCount), len(allVars[i]); got != want {
-				t.Errorf("got sample count %d for label %c, want %d", got, 'A'+i, want)
+				t.Errorf("got sample count %d for label %c, want %d", got, i, want)
 			}
 			if got, want := *m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
-				t.Errorf("got sample sum %f for label %c, want %f", got, 'A'+i, want)
+				t.Errorf("got sample sum %f for label %c, want %f", got, i, want)
 			}
 			for j, wantQ := range objSlice {
 				ε := objMap[wantQ]
@@ -291,10 +292,10 @@ func TestApproxSummaryVecConcurrency(t *testing.T) {
 				gotV := *m.Summary.Quantile[j].Value
 				min, max := getBounds(allVars[i], wantQ, ε)
 				if gotQ != wantQ {
-					t.Errorf("got quantile %f for label %c, want %f", gotQ, 'A'+i, wantQ)
+					t.Errorf("got quantile %f for label %c, want %f", gotQ, i, wantQ)
 				}
 				if gotV < min || gotV > max {
-					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, min, max)
+					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, i, min, max)
 				}
 			}
 		}

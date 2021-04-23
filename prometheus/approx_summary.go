@@ -128,7 +128,7 @@ func newApproxSummary(desc *Desc, opts ApproxSummaryOpts, labelValues ...string)
 		objectives:       opts.Objectives,
 		sortedObjectives: make([]float64, 0, len(opts.Objectives)),
 
-		labelPairs: makeLabelPairs(desc, labelValues),
+		labelPairs: MakeLabelPairs(desc, labelValues),
 	}
 
 	for qu := range s.objectives {
@@ -212,7 +212,7 @@ func (s *approxSummary) Write(out *dto.Metric) error {
 // (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewApproxSummaryVec.
 type ApproxSummaryVec struct {
-	*metricVec
+	*MetricVec
 }
 
 // NewApproxSummaryVec creates a new ApproxSummaryVec based on the provided ApproxSummaryOpts and
@@ -234,7 +234,7 @@ func NewApproxSummaryVec(opts ApproxSummaryOpts, labelNames []string) *ApproxSum
 		opts.ConstLabels,
 	)
 	return &ApproxSummaryVec{
-		metricVec: newMetricVec(desc, func(lvs ...string) Metric {
+		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
 			return newApproxSummary(desc, opts, lvs...)
 		}),
 	}
@@ -265,7 +265,7 @@ func NewApproxSummaryVec(opts ApproxSummaryOpts, labelNames []string) *ApproxSum
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
 func (v *ApproxSummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
-	metric, err := v.metricVec.getMetricWithLabelValues(lvs...)
+	metric, err := v.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -285,7 +285,7 @@ func (v *ApproxSummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, er
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
 func (v *ApproxSummaryVec) GetMetricWith(labels Labels) (Observer, error) {
-	metric, err := v.metricVec.getMetricWith(labels)
+	metric, err := v.MetricVec.GetMetricWith(labels)
 	if metric != nil {
 		return metric.(Observer), err
 	}
@@ -329,7 +329,7 @@ func (v *ApproxSummaryVec) With(labels Labels) Observer {
 // registered with a given registry (usually the uncurried version). The Reset
 // method deletes all metrics, even if called on a curried vector.
 func (v *ApproxSummaryVec) CurryWith(labels Labels) (ObserverVec, error) {
-	vec, err := v.curryWith(labels)
+	vec, err := v.MetricVec.CurryWith(labels)
 	if vec != nil {
 		return &ApproxSummaryVec{vec}, err
 	}
