@@ -56,7 +56,7 @@ func BenchmarkQEMAObserve(b *testing.B) {
 
 func TestMQEMAObserve(t *testing.T) {
 	tr := NewMQEMATracker([]float64{0.25, 0.5, 0.75, 0.9, 0.95, 0.99}, 0.005, 0.01, 0.01)
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100000; i++ {
 		v := rand.NormFloat64()
 		tr.Observe(v)
 	}
