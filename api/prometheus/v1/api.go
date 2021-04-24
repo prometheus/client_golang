@@ -123,6 +123,7 @@ const (
 	epAlertManagers   = apiPrefix + "/alertmanagers"
 	epQuery           = apiPrefix + "/query"
 	epQueryRange      = apiPrefix + "/query_range"
+	epQueryExemplars  = apiPrefix + "/query_exemplars"
 	epLabels          = apiPrefix + "/labels"
 	epLabelValues     = apiPrefix + "/label/:name/values"
 	epSeries          = apiPrefix + "/series"
@@ -239,6 +240,8 @@ type API interface {
 	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
+	// QueryExemplars performs a query for exemplars by the given query and time range.
+	QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error)
 	// Buildinfo returns various build information properties about the Prometheus server
 	Buildinfo(ctx context.Context) (BuildinfoResult, error)
 	// Runtimeinfo returns the various runtime information properties about the Prometheus server.
@@ -586,6 +589,18 @@ func (qr *queryResult) UnmarshalJSON(b []byte) error {
 		err = fmt.Errorf("unexpected value type %q", v.Type)
 	}
 	return err
+}
+
+// Exemplar is additional information associated with a time series.
+type Exemplar struct {
+	Labels    model.LabelSet    `json:"labels"`
+	Value     model.SampleValue `json:"value"`
+	Timestamp model.Time        `json:"timestamp"`
+}
+
+type ExemplarQueryResult struct {
+	SeriesLabels model.LabelSet `json:"seriesLabels"`
+	Exemplars    []Exemplar     `json:"exemplars"`
 }
 
 // NewAPI returns a new API for the client.
@@ -967,7 +982,29 @@ func (h *httpAPI) TSDB(ctx context.Context) (TSDBResult, error) {
 
 	var res TSDBResult
 	return res, json.Unmarshal(body, &res)
+}
 
+func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error) {
+	u := h.client.URL(epQueryExemplars, nil)
+	q := u.Query()
+
+	q.Set("query", query)
+	q.Set("start", formatTime(startTime))
+	q.Set("end", formatTime(endTime))
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	_, body, _, err := h.client.Do(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	var res []ExemplarQueryResult
+	return res, json.Unmarshal(body, &res)
 }
 
 // Warnings is an array of non critical errors

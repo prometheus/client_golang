@@ -230,6 +230,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doQueryExemplars := func(query string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.QueryExemplars(context.Background(), query, startTime, endTime)
+			return v, nil, err
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime),
@@ -1186,6 +1193,66 @@ func TestAPIs(t *testing.T) {
 					{
 						Name:  "job=kubelet",
 						Value: 30000,
+					},
+				},
+			},
+		},
+
+		{
+			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/query_exemplars",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/query_exemplars",
+			inRes: []interface{}{
+				map[string]interface{}{
+					"seriesLabels": map[string]interface{}{
+						"__name__": "tns_request_duration_seconds_bucket",
+						"instance": "app:80",
+						"job":      "tns/app",
+					},
+					"exemplars": []interface{}{
+						map[string]interface{}{
+							"labels": map[string]interface{}{
+								"traceID": "19fd8c8a33975a23",
+							},
+							"value":     "0.003863295",
+							"timestamp": model.TimeFromUnixNano(testTime.UnixNano()),
+						},
+						map[string]interface{}{
+							"labels": map[string]interface{}{
+								"traceID": "67f743f07cc786b0",
+							},
+							"value":     "0.001535405",
+							"timestamp": model.TimeFromUnixNano(testTime.UnixNano()),
+						},
+					},
+				},
+			},
+			res: []ExemplarQueryResult{
+				{
+					SeriesLabels: model.LabelSet{
+						"__name__": "tns_request_duration_seconds_bucket",
+						"instance": "app:80",
+						"job":      "tns/app",
+					},
+					Exemplars: []Exemplar{
+						{
+							Labels:    model.LabelSet{"traceID": "19fd8c8a33975a23"},
+							Value:     0.003863295,
+							Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
+						},
+						{
+							Labels:    model.LabelSet{"traceID": "67f743f07cc786b0"},
+							Value:     0.001535405,
+							Timestamp: model.TimeFromUnixNano(testTime.UnixNano()),
+						},
 					},
 				},
 			},
