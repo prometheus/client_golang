@@ -33,6 +33,8 @@ type delegator interface {
 
 	Status() int
 	Written() int64
+
+	addObserveWriteHeaderFunc(func(int))
 }
 
 type responseWriterDelegator struct {
@@ -74,6 +76,21 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 	n, err := r.ResponseWriter.Write(b)
 	r.written += int64(n)
 	return n, err
+}
+
+func (r *responseWriterDelegator) addObserveWriteHeaderFunc(fn func(int)) {
+	switch {
+	case fn == nil:
+		// ignore
+	case r.observeWriteHeader == nil:
+		r.observeWriteHeader = fn
+	default:
+		prev := r.observeWriteHeader
+		r.observeWriteHeader = func(code int) {
+			fn(code)
+			prev(code)
+		}
+	}
 }
 
 type closeNotifierDelegator struct{ *responseWriterDelegator }
@@ -341,6 +358,10 @@ func init() {
 }
 
 func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) delegator {
+	if d, ok := w.(delegator); ok {
+		d.addObserveWriteHeaderFunc(observeWriteHeaderFunc)
+		return d
+	}
 	d := &responseWriterDelegator{
 		ResponseWriter:     w,
 		observeWriteHeader: observeWriteHeaderFunc,
