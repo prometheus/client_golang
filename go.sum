@@ -223,6 +223,8 @@ github.com/prometheus/client_model v0.1.0/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6T
 github.com/prometheus/client_model v0.2.0/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/prometheus/client_model v0.2.1-0.20200406191659-4b803f3550a4 h1:7Ws+6l4/5eJPHAxe0Axwo4XJwSAA4i0ipEjuoLXWFyo=
 github.com/prometheus/client_model v0.2.1-0.20200406191659-4b803f3550a4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
+github.com/prometheus/client_model v0.2.1-0.20210403151606-24db95a3d5d6 h1:wlZYx9ITBsvMO/wVoi30A36fAdRlBC130JksGGfaYl8=
+github.com/prometheus/client_model v0.2.1-0.20210403151606-24db95a3d5d6/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/prometheus/common v0.2.0/go.mod h1:TNfzLD0ON7rHzMJeJkieUDPYmFC7Snx/y86RQel1bk4=
 github.com/prometheus/common v0.4.1/go.mod h1:TNfzLD0ON7rHzMJeJkieUDPYmFC7Snx/y86RQel1bk4=
 github.com/prometheus/common v0.7.0/go.mod h1:DjGbpBbp5NYNiECxcL/VnbXCCaQpKd3tt26CguLLsqA=
