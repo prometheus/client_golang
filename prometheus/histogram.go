@@ -480,7 +480,7 @@ func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
 		count := atomic.LoadUint64(v.(*uint64))
 		if n == 0 || i-nextI != 0 {
 			sbs.Span = append(sbs.Span, &dto.SparseBuckets_Span{
-				Offset: proto.Int(i - nextI),
+				Offset: proto.Int32(int32(i - nextI)),
 				Length: proto.Uint32(1),
 			})
 		} else {
