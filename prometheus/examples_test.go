@@ -538,6 +538,8 @@ func ExampleHistogram() {
 	//     cumulative_count: 816
 	//     upper_bound: 40
 	//   >
+	//   sb_resolution: 0
+	//   sb_zero_threshold: 1e-128
 	// >
 }
 
