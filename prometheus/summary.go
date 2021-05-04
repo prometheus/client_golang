@@ -121,7 +121,9 @@ type SummaryOpts struct {
 	Objectives map[float64]float64
 
 	// MaxAge defines the duration for which an observation stays relevant
-	// for the summary. Must be positive. The default value is DefMaxAge.
+	// for the summary. Only applies to pre-calculated quantiles, does not
+	// apply to _sum and _count. Must be positive. The default value is 
+	// DefMaxAge.
 	MaxAge time.Duration
 
 	// AgeBuckets is the number of buckets used to exclude observations that
