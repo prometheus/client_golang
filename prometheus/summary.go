@@ -122,7 +122,7 @@ type SummaryOpts struct {
 
 	// MaxAge defines the duration for which an observation stays relevant
 	// for the summary. Only applies to pre-calculated quantiles, does not
-	// apply to _sum and _count. Must be positive. The default value is 
+	// apply to _sum and _count. Must be positive. The default value is
 	// DefMaxAge.
 	MaxAge time.Duration
 
