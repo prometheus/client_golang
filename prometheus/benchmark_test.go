@@ -14,7 +14,9 @@
 package prometheus
 
 import (
-	"sync"
+	"fmt"
+	"math"
+	"math/rand"
 	"testing"
 )
 
@@ -33,7 +35,7 @@ func BenchmarkCounterWithLabelValues(b *testing.B) {
 	}
 }
 
-func BenchmarkCounterWithLabelValuesConcurrent(b *testing.B) {
+func BenchmarkCounterWithLabelValuesParallel(b *testing.B) {
 	m := NewCounterVec(
 		CounterOpts{
 			Name: "benchmark_counter",
@@ -43,17 +45,39 @@ func BenchmarkCounterWithLabelValuesConcurrent(b *testing.B) {
 	)
 	b.ReportAllocs()
 	b.ResetTimer()
-	wg := sync.WaitGroup{}
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			for j := 0; j < b.N/10; j++ {
-				m.WithLabelValues("eins", "zwei", "drei").Inc()
-			}
-			wg.Done()
-		}()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			m.WithLabelValues("eins", "zwei", "drei").Inc()
+		}
+	})
+}
+
+func BenchmarkCounterWithLabelValuesWithVaryingCardinalityParallel(b *testing.B) {
+	labels := []string{"one", "two", "three", "four", "five", "six", "seven"}
+	values := []string{"eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben"}
+	for i := 1; i <= len(labels); i++ {
+		b.Run(fmt.Sprintf("%d labels %d elements", i, int(math.Pow(float64(i), float64(i)))), func(b *testing.B) {
+			m := NewCounterVec(
+				CounterOpts{
+					Name: "benchmark_counter",
+					Help: "A counter to benchmark it.",
+				},
+				labels[:i],
+			)
+			b.ReportAllocs()
+			b.ResetTimer()
+			b.RunParallel(func(pb *testing.PB) {
+				r := rand.New(rand.NewSource(42))
+				for pb.Next() {
+					vs := make([]string, i)
+					for j := 0; j < i; j++ {
+						vs[j] = values[r.Intn(i)]
+					}
+					m.WithLabelValues(vs...).Inc()
+				}
+			})
+		})
 	}
-	wg.Wait()
 }
 
 func BenchmarkCounterWithMappedLabels(b *testing.B) {
