@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build go1.15
+// +build !go1.15
 
 package collectors
 
@@ -25,7 +25,6 @@ func (c *dbStatsCollector) describe(ch chan<- *prometheus.Desc) {
 	ch <- c.waitCount
 	ch <- c.waitDuration
 	ch <- c.maxIdleClosed
-	ch <- c.maxIdleTimeClosed
 	ch <- c.maxLifetimeClosed
 }
 
@@ -38,6 +37,5 @@ func (c *dbStatsCollector) collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.waitCount, prometheus.CounterValue, float64(stats.WaitCount))
 	ch <- prometheus.MustNewConstMetric(c.waitDuration, prometheus.CounterValue, stats.WaitDuration.Seconds())
 	ch <- prometheus.MustNewConstMetric(c.maxIdleClosed, prometheus.CounterValue, float64(stats.MaxIdleClosed))
-	ch <- prometheus.MustNewConstMetric(c.maxIdleTimeClosed, prometheus.CounterValue, float64(stats.MaxIdleTimeClosed))
 	ch <- prometheus.MustNewConstMetric(c.maxLifetimeClosed, prometheus.CounterValue, float64(stats.MaxLifetimeClosed))
 }

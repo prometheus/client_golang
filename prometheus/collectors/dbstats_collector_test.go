@@ -23,10 +23,17 @@ import (
 
 func TestDBStatsCollector(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	db := new(sql.DB)
-	opts := DBStatsCollectorOpts{DriverName: "test"}
-	if err := reg.Register(NewDBStatsCollector(db, opts)); err != nil {
-		t.Fatal(err)
+	{
+		db := new(sql.DB)
+		if err := reg.Register(NewDBStatsCollector(db, "db_A")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	{
+		db := new(sql.DB)
+		if err := reg.Register(NewDBStatsCollector(db, "db_B")); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	mfs, err := reg.Gather()
@@ -35,17 +42,17 @@ func TestDBStatsCollector(t *testing.T) {
 	}
 
 	names := []string{
-		"go_test_db_stats_max_open_connections",
-		"go_test_db_stats_open_connections",
-		"go_test_db_stats_in_use_connections",
-		"go_test_db_stats_idle_connections",
-		"go_test_db_stats_wait_count_total",
-		"go_test_db_stats_wait_duration_seconds_total",
-		"go_test_db_stats_max_idle_closed_total",
-		"go_test_db_stats_max_lifetime_closed_total",
+		"go_sql_max_open_connections",
+		"go_sql_open_connections",
+		"go_sql_in_use_connections",
+		"go_sql_idle_connections",
+		"go_sql_wait_count_total",
+		"go_sql_wait_duration_seconds_total",
+		"go_sql_max_idle_closed_total",
+		"go_sql_max_lifetime_closed_total",
 	}
 	if runtime.Version() >= "go1.15" {
-		names = append(names, "go_test_db_stats_max_idle_time_closed_total")
+		names = append(names, "go_sql_max_idle_time_closed_total")
 	}
 	type result struct {
 		found bool
@@ -55,6 +62,25 @@ func TestDBStatsCollector(t *testing.T) {
 		results[name] = result{found: false}
 	}
 	for _, mf := range mfs {
+		m := mf.GetMetric()
+		if len(m) != 2 {
+			t.Errorf("expected 2 metrics bug got %d", len(m))
+		}
+		labelA := m[0].GetLabel()[0]
+		if name := labelA.GetName(); name != "db_name" {
+			t.Errorf("expected to get label \"db_name\" but got %s", name)
+		}
+		if value := labelA.GetValue(); value != "db_A" {
+			t.Errorf("expected to get value \"db_A\" but got %s", value)
+		}
+		labelB := m[1].GetLabel()[0]
+		if name := labelB.GetName(); name != "db_name" {
+			t.Errorf("expected to get label \"db_name\" but got %s", name)
+		}
+		if value := labelB.GetValue(); value != "db_B" {
+			t.Errorf("expected to get value \"db_B\" but got %s", value)
+		}
+
 		for _, name := range names {
 			if name == mf.GetName() {
 				results[name] = result{found: true}
