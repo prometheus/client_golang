@@ -15,27 +15,12 @@
 
 package collectors
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"database/sql"
 
-func (c *dbStatsCollector) describe(ch chan<- *prometheus.Desc) {
-	ch <- c.maxOpenConnections
-	ch <- c.openConnections
-	ch <- c.inUseConnections
-	ch <- c.idleConnections
-	ch <- c.waitCount
-	ch <- c.waitDuration
-	ch <- c.maxIdleClosed
-	ch <- c.maxLifetimeClosed
-}
+	"github.com/prometheus/client_golang/prometheus"
+)
 
-func (c *dbStatsCollector) collect(ch chan<- prometheus.Metric) {
-	stats := c.db.Stats()
-	ch <- prometheus.MustNewConstMetric(c.maxOpenConnections, prometheus.GaugeValue, float64(stats.MaxOpenConnections))
-	ch <- prometheus.MustNewConstMetric(c.openConnections, prometheus.GaugeValue, float64(stats.OpenConnections))
-	ch <- prometheus.MustNewConstMetric(c.inUseConnections, prometheus.GaugeValue, float64(stats.InUse))
-	ch <- prometheus.MustNewConstMetric(c.idleConnections, prometheus.GaugeValue, float64(stats.Idle))
-	ch <- prometheus.MustNewConstMetric(c.waitCount, prometheus.CounterValue, float64(stats.WaitCount))
-	ch <- prometheus.MustNewConstMetric(c.waitDuration, prometheus.CounterValue, stats.WaitDuration.Seconds())
-	ch <- prometheus.MustNewConstMetric(c.maxIdleClosed, prometheus.CounterValue, float64(stats.MaxIdleClosed))
-	ch <- prometheus.MustNewConstMetric(c.maxLifetimeClosed, prometheus.CounterValue, float64(stats.MaxLifetimeClosed))
-}
+func (c *dbStatsCollector) describeNewInGo115(ch chan<- *prometheus.Desc) {}
+
+func (c *dbStatsCollector) collectNewInGo115(ch chan<- prometheus.Metric, stats sql.DBStats) {}
