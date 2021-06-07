@@ -1,3 +1,10 @@
+## 1.11.0 / 2021-06-07
+
+* [ENHANCEMENT] API client: Add newer fields to Rules API #855
+* [ENHANCEMENT] API client: Add missing fields to Targets API #856
+* [FEATURE] API client: Add exemplars API support #861
+* [CHANGE] Add new collectors package #862
+
 ## 1.10.0 / 2021-03-18
 
 * [CHANGE] Minimum required Go version is now 1.13.
@@ -126,7 +133,7 @@ _This release removes all previously deprecated features, resulting in the break
 ## 0.9.2 / 2018-12-06
 * [FEATURE] Support for Go modules. #501
 * [FEATURE] `Timer.ObserveDuration` returns observed duration. #509
-* [ENHANCEMENT] Improved doc comments and error messages. #504 
+* [ENHANCEMENT] Improved doc comments and error messages. #504
 * [BUGFIX] Fix race condition during metrics gathering. #512
 * [BUGFIX] Fix testutil metric comparison for Histograms and empty labels. #494
   #498
