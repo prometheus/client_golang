@@ -54,10 +54,10 @@ var (
 	// normal distribution, with 20 buckets centered on the mean, each
 	// half-sigma wide.
 	rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:                    "rpc_durations_histogram_seconds",
-		Help:                    "RPC latency distributions.",
-		Buckets:                 prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
-		SparseBucketsResolution: 20,
+		Name:                "rpc_durations_histogram_seconds",
+		Help:                "RPC latency distributions.",
+		Buckets:             prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
+		SparseBucketsFactor: 1.1,
 	})
 )
 
