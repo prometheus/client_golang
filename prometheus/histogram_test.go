@@ -456,3 +456,93 @@ func TestHistogramExemplar(t *testing.T) {
 		}
 	}
 }
+
+func TestSparseHistogram(t *testing.T) {
+
+	scenarios := []struct {
+		name          string
+		observations  []float64
+		factor        float64
+		zeroThreshold float64
+		want          string // String representation of protobuf.
+	}{
+		{
+			name:         "no sparse buckets",
+			observations: []float64{1, 2, 3},
+			factor:       1,
+			want:         `sample_count:3 sample_sum:6 bucket:<cumulative_count:0 upper_bound:0.005 > bucket:<cumulative_count:0 upper_bound:0.01 > bucket:<cumulative_count:0 upper_bound:0.025 > bucket:<cumulative_count:0 upper_bound:0.05 > bucket:<cumulative_count:0 upper_bound:0.1 > bucket:<cumulative_count:0 upper_bound:0.25 > bucket:<cumulative_count:0 upper_bound:0.5 > bucket:<cumulative_count:1 upper_bound:1 > bucket:<cumulative_count:2 upper_bound:2.5 > bucket:<cumulative_count:3 upper_bound:5 > bucket:<cumulative_count:3 upper_bound:10 > sb_schema:0 sb_zero_threshold:0 `, // Has conventional buckets because there are no sparse buckets.
+		},
+		{
+			name:         "factor 1.1 results in schema 3",
+			observations: []float64{0, 1, 2, 3},
+			factor:       1.1,
+			want:         `sample_count:4 sample_sum:6 sb_schema:3 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:1 > span:<offset:7 length:1 > span:<offset:4 length:1 > delta:1 delta:0 delta:0 > `,
+		},
+		{
+			name:         "factor 1.2 results in schema 2",
+			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2},
+			factor:       1.2,
+			want:         `sample_count:6 sample_sum:7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:         "negative buckets",
+			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2},
+			factor:       1.2,
+			want:         `sample_count:6 sample_sum:-7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:         "negative and positive buckets",
+			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2, 1, 1.2, 1.4, 1.8, 2},
+			factor:       1.2,
+			want:         `sample_count:11 sample_sum:0 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:          "wide zero bucket",
+			observations:  []float64{0, -1, -1.2, -1.4, -1.8, -2, 1, 1.2, 1.4, 1.8, 2},
+			factor:        1.2,
+			zeroThreshold: 1.4,
+			want:          `sample_count:11 sample_sum:0 sb_schema:2 sb_zero_threshold:1.4 sb_zero_count:7 sb_negative:<span:<offset:4 length:1 > delta:2 > sb_positive:<span:<offset:4 length:1 > delta:2 > `,
+		},
+		{
+			name:         "NaN observation",
+			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.NaN()},
+			factor:       1.2,
+			want:         `sample_count:7 sample_sum:nan sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:         "+Inf observation",
+			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(+1)},
+			factor:       1.2,
+			want:         `sample_count:7 sample_sum:inf sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > span:<offset:2147483642 length:1 > delta:1 delta:-1 delta:2 delta:-2 delta:2 delta:-1 > `,
+		},
+		{
+			name:         "-Inf observation",
+			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(-1)},
+			factor:       1.2,
+			want:         `sample_count:7 sample_sum:-inf sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:2147483647 length:1 > delta:1 > sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+	}
+
+	for _, s := range scenarios {
+		t.Run(s.name, func(t *testing.T) {
+			his := NewHistogram(HistogramOpts{
+				Name:                       "name",
+				Help:                       "help",
+				SparseBucketsFactor:        s.factor,
+				SparseBucketsZeroThreshold: s.zeroThreshold,
+			})
+			for _, o := range s.observations {
+				his.Observe(o)
+			}
+			m := &dto.Metric{}
+			if err := his.Write(m); err != nil {
+				t.Fatal("unexpected error writing metric", err)
+			}
+			got := m.Histogram.String()
+			if s.want != got {
+				t.Errorf("want histogram %q, got %q", s.want, got)
+			}
+		})
+	}
+
+}

@@ -238,10 +238,10 @@ var DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 
 // DefSparseBucketsZeroThreshold is the default value for
 // SparseBucketsZeroThreshold in the HistogramOpts.
+//
+// The value is 2^-128 (or 0.5*2^-127 in the actual IEEE 754 representation),
+// which is a bucket boundary at all possible resolutions.
 const DefSparseBucketsZeroThreshold = 2.938735877055719e-39
-
-// This is 2^-128 (or 0.5*2^-127 in the actual IEEE 754 representation), which
-// is a bucket boundary at all possible resolutions.
 
 var errBucketLabelNotAllowed = fmt.Errorf(
 	"%q is not allowed as label name in histograms", bucketLabel,
