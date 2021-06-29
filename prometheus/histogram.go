@@ -31,6 +31,12 @@ import (
 // sparseBounds for the frac of observed values. Only relevant for schema > 0.
 // Position in the slice is the schema. (0 is never used, just here for
 // convenience of using the schema directly as the index.)
+//
+// TODO(beorn7): Currently, we do a binary search into these slices. There are
+// ways to turn it into a small number of simple array lookups. It probably only
+// matters for schema 5 and beyond, but should be investigated. See this comment
+// as a starting point:
+// https://github.com/open-telemetry/opentelemetry-specification/issues/1776#issuecomment-870164310
 var sparseBounds = [][]float64{
 	// Schema "0":
 	[]float64{0.5},
