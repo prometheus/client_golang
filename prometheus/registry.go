@@ -586,7 +586,7 @@ func WriteToTextfile(filename string, g Gatherer) error {
 	return os.Rename(tmp.Name(), filename)
 }
 
-// WriteMetricsDoc writes all of the registered metrics along with their
+// WriteMetricsMarkdown writes all of the registered metrics along with their
 // help text and labels as a markdown file. It first writes it to a temp file and
 // on success the temporary file is renamed to the provided filename.
 //
