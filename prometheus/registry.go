@@ -70,6 +70,7 @@ func NewRegistry() *Registry {
 		collectorsByID:  map[uint64]Collector{},
 		descIDs:         map[uint64]struct{}{},
 		dimHashesByName: map[string]uint64{},
+		metricMdByName:  map[string]string{},
 	}
 }
 
@@ -259,6 +260,7 @@ type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
 	descIDs               map[uint64]struct{}
+	metricMdByName        map[string]string
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
@@ -270,6 +272,7 @@ func (r *Registry) Register(c Collector) error {
 		descChan           = make(chan *Desc, capDescChan)
 		newDescIDs         = map[uint64]struct{}{}
 		newDimHashesByName = map[string]uint64{}
+		newMarkdownByName  = map[string]string{}
 		collectorID        uint64 // All desc IDs XOR'd together.
 		duplicateDescErr   error
 	)
@@ -322,6 +325,7 @@ func (r *Registry) Register(c Collector) error {
 				newDimHashesByName[desc.fqName] = desc.dimHash
 			}
 		}
+		newMarkdownByName[desc.fqName] = getMarkdownString(desc)
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
@@ -355,6 +359,7 @@ func (r *Registry) Register(c Collector) error {
 	}
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
+		r.metricMdByName[name] = newMarkdownByName[name]
 	}
 	return nil
 }
@@ -579,6 +584,122 @@ func WriteToTextfile(filename string, g Gatherer) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), filename)
+}
+
+// WriteMetricsDoc writes all of the registered metrics along with their
+// help text and labels as a markdown file. It first writes it to a temp file and
+// on success the temporary file is renamed to the provided filename.
+//
+// This method will collect all of the metrics registered to both the default registry
+// and the registry provided. If the provided registry is null, only the default registry is used.
+//
+// The markdown file excludes any metrics that begin with <string>_ if <string> is included
+// in provided metricsToExclude array. For example, if ["go"] is provided, then all metrics that start
+// with go_ will be excluded.
+//
+// This is intended for use to create an up-to-date METRICS.md file automatically within your repository.
+func WriteMetricsMarkdown(registry *Registry, filename string, metricsToExclude []string) error {
+	// first create the temp file
+	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename))
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	title := "# Metrics\n"
+	subsystemHeader := "\n## `%s` Metrics\n| *Metric* | *Description* | *Labels* |\n|--|--|--|\n"
+
+	// add the title for the markdown
+	_, err = tmp.WriteString(title)
+	if err != nil {
+		return err
+	}
+
+	// get a list of all the metrics registered in both the default registry
+	// as well as the provided registry (if not nil)
+	var keys []string
+	for metric := range defaultRegistry.dimHashesByName {
+		keys = append(keys, metric)
+	}
+	if registry != nil {
+		for metric := range registry.dimHashesByName {
+			keys = append(keys, metric)
+		}
+	}
+	// sort it alphabetically so the subsystems stay together
+	sort.Strings(keys)
+
+	// create a map of subsystems to be excluded
+	excludeMap := make(map[string]bool)
+	for _, subExclude := range metricsToExclude {
+		excludeMap[subExclude] = true
+	}
+
+	// loop through all of the metrics and every time a new
+	// subsystem is discovered, add a header
+	currentSubsystem := ""
+	for _, name := range keys {
+		// skip if we are supposed to exclude this subsystem
+		subsystem := getSubsystem(name)
+		if _, ok := excludeMap[subsystem]; ok {
+			continue
+		}
+
+		s := ""
+		// write headers for each subsystem
+		if subsystem != currentSubsystem {
+			s += fmt.Sprintf(subsystemHeader, subsystem)
+			currentSubsystem = subsystem
+		}
+
+		// get the description for this metric
+		row, ok := defaultRegistry.metricMdByName[name]
+		if !ok && registry != nil {
+			row = registry.metricMdByName[name]
+		}
+		s += row
+
+		// finally, write the string to the temp file
+		_, err = tmp.WriteString(s)
+		if err != nil {
+			return err
+		}
+	}
+
+	// clean up temp file and rename to permanent file
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), filename)
+}
+
+// getSystem is an internal helper method used only by the WriteMetricsDoc method
+// to get the subsystem the metric is a part of. For example, go_threads would
+// return "go" as the subsystem
+func getSubsystem(metric string) string {
+	s := strings.Split(metric, "_")
+	if len(s) == 0 {
+		return ""
+	}
+
+	return s[0]
+}
+
+// getMarkdownString is an internal helper method used when a metric is registered
+// to create a markdown style row with the metric's name, help text, and labels
+func getMarkdownString(desc *Desc) string {
+	row := "| `" + desc.fqName + "` | " + desc.help + " | "
+	for i, label := range desc.variableLabels {
+		row += "`" + label + "`"
+		if i+1 < len(desc.variableLabels) {
+			row += ", "
+		}
+	}
+	return row + "|\n"
 }
 
 // processMetric is an internal helper method only used by the Gather method.
