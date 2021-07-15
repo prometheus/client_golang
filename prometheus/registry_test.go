@@ -1089,6 +1089,153 @@ test_summary_count{name="foo"} 2
 	}
 }
 
+func TestWriteMarkdown(t *testing.T) {
+	expectedOutStart := "# Metrics\n" +
+		"\n" +
+		"## `a` Metrics\n" +
+		"| *Metric* | *Description* | *Labels* |\n" +
+		"|--|--|--|\n" +
+		"| `a_test_counter` | test counter | `name`|\n" +
+		"| `a_test_gauge` | test gauge | `name`|\n" +
+		"| `a_test_hist` | test histogram | `name`|\n" +
+		"| `a_test_summary` | test summary | `name`|\n"
+	expectedEnd := "\n## `go` Metrics\n" +
+		"| *Metric* | *Description* | *Labels* |\n" +
+		"|--|--|--|\n" +
+		"| `go_gc_duration_seconds` | A summary of the pause duration of garbage collection cycles. | |\n" +
+		"| `go_goroutines` | Number of goroutines that currently exist. | |\n" +
+		"| `go_info` | Information about the Go environment. | |\n" +
+		"| `go_memstats_alloc_bytes` | Number of bytes allocated and still in use. | |\n" +
+		"| `go_memstats_alloc_bytes_total` | Total number of bytes allocated, even if freed. | |\n" +
+		"| `go_memstats_buck_hash_sys_bytes` | Number of bytes used by the profiling bucket hash table. | |\n" +
+		"| `go_memstats_frees_total` | Total number of frees. | |\n" +
+		"| `go_memstats_gc_cpu_fraction` | The fraction of this program's available CPU time used by the GC since the program started. | |\n" +
+		"| `go_memstats_gc_sys_bytes` | Number of bytes used for garbage collection system metadata. | |\n" +
+		"| `go_memstats_heap_alloc_bytes` | Number of heap bytes allocated and still in use. | |\n" +
+		"| `go_memstats_heap_idle_bytes` | Number of heap bytes waiting to be used. | |\n" +
+		"| `go_memstats_heap_inuse_bytes` | Number of heap bytes that are in use. | |\n" +
+		"| `go_memstats_heap_objects` | Number of allocated objects. | |\n" +
+		"| `go_memstats_heap_released_bytes` | Number of heap bytes released to OS. | |\n" +
+		"| `go_memstats_heap_sys_bytes` | Number of heap bytes obtained from system. | |\n" +
+		"| `go_memstats_last_gc_time_seconds` | Number of seconds since 1970 of last garbage collection. | |\n" +
+		"| `go_memstats_lookups_total` | Total number of pointer lookups. | |\n" +
+		"| `go_memstats_mallocs_total` | Total number of mallocs. | |\n" +
+		"| `go_memstats_mcache_inuse_bytes` | Number of bytes in use by mcache structures. | |\n" +
+		"| `go_memstats_mcache_sys_bytes` | Number of bytes used for mcache structures obtained from system. | |\n" +
+		"| `go_memstats_mspan_inuse_bytes` | Number of bytes in use by mspan structures. | |\n" +
+		"| `go_memstats_mspan_sys_bytes` | Number of bytes used for mspan structures obtained from system. | |\n" +
+		"| `go_memstats_next_gc_bytes` | Number of heap bytes when next garbage collection will take place. | |\n" +
+		"| `go_memstats_other_sys_bytes` | Number of bytes used for other system allocations. | |\n" +
+		"| `go_memstats_stack_inuse_bytes` | Number of bytes in use by the stack allocator. | |\n" +
+		"| `go_memstats_stack_sys_bytes` | Number of bytes obtained from system for stack allocator. | |\n" +
+		"| `go_memstats_sys_bytes` | Number of bytes obtained from system. | |\n" +
+		"| `go_threads` | Number of OS threads created. | |\n" +
+		"\n" +
+		"## `process` Metrics\n" +
+		"| *Metric* | *Description* | *Labels* |\n" +
+		"|--|--|--|\n" +
+		"| `process_cpu_seconds_total` | Total user and system CPU time spent in seconds. | |\n" +
+		"| `process_max_fds` | Maximum number of open file descriptors. | |\n" +
+		"| `process_open_fds` | Number of open file descriptors. | |\n" +
+		"| `process_resident_memory_bytes` | Resident memory size in bytes. | |\n" +
+		"| `process_start_time_seconds` | Start time of the process since unix epoch in seconds. | |\n" +
+		"| `process_virtual_memory_bytes` | Virtual memory size in bytes. | |\n" +
+		"| `process_virtual_memory_max_bytes` | Maximum amount of virtual memory available in bytes. | |\n"
+
+	registry := prometheus.NewRegistry()
+
+	summary := prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name: "a_test_summary",
+			Help: "test summary",
+			Objectives: map[float64]float64{
+				0.5:  0.05,
+				0.9:  0.01,
+				0.99: 0.001,
+			},
+		},
+		[]string{"name"},
+	)
+
+	histogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "a_test_hist",
+			Help: "test histogram",
+		},
+		[]string{"name"},
+	)
+
+	gauge := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "a_test_gauge",
+			Help: "test gauge",
+		},
+		[]string{"name"},
+	)
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "a_test_counter",
+			Help: "test counter",
+		},
+		[]string{"name"},
+	)
+
+	registry.MustRegister(summary)
+	registry.MustRegister(histogram)
+	registry.MustRegister(gauge)
+	registry.MustRegister(counter)
+
+	scenarios := []struct {
+		filename string
+		registry *prometheus.Registry
+		excludes []string
+		expected string
+	}{
+		{
+			// test one: use a custom registry and exclude nothing, should get all the metrics
+			filename: "markdown_test_1.md",
+			registry: registry,
+			excludes: []string{},
+			expected: expectedOutStart + expectedEnd,
+		},
+		{
+			// test two: use a custom registry and exclude go and process metrics, should only get custom metrics
+			filename: "markdown_test_2.md",
+			registry: registry,
+			excludes: []string{"go", "process"},
+			expected: expectedOutStart,
+		},
+		{
+			// test three: only collect from default, should only get go and process metrics
+			filename: "markdown_test_3.md",
+			registry: nil,
+			excludes: []string{},
+			expected: "# Metrics\n" + expectedEnd,
+		},
+	}
+
+	for _, scenario := range scenarios {
+		if err := prometheus.WriteMetricsMarkdown(scenario.registry, scenario.filename, scenario.excludes); err != nil {
+			t.Fatal(err)
+		}
+		fileBytes, err := ioutil.ReadFile(scenario.filename)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fileContents := string(fileBytes)
+
+		if fileContents != scenario.expected {
+			t.Errorf(
+				"files don't match, got:\n%s\nwant:\n%s",
+				fileContents, scenario.expected,
+			)
+		}
+		// cleanup
+		os.Remove(scenario.filename)
+	}
+}
+
 // collidingCollector is a collection of prometheus.Collectors,
 // and is itself a prometheus.Collector.
 type collidingCollector struct {
