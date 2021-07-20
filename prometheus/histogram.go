@@ -369,8 +369,13 @@ type HistogramOpts struct {
 	// SparseBucketsZeroThreshold are accumulated into a “zero” bucket. For
 	// best results, this should be close to a bucket boundary. This is
 	// usually the case if picking a power of two. If
-	// SparseBucketsZeroThreshold is left at zero (or set to a negative
-	// value), DefSparseBucketsZeroThreshold is used as the threshold.
+	// SparseBucketsZeroThreshold is left at zero,
+	// DefSparseBucketsZeroThreshold is used as the threshold. If it is set
+	// to a negative value, a threshold of zero is used, i.e. only
+	// observations of precisely zero will go into the zero
+	// bucket. (TODO(beorn7): That's obviously weird and just a consequence
+	// of making the zero value of HistogramOpts meaningful. Has to be
+	// solved more elegantly in the final version.)
 	SparseBucketsZeroThreshold float64
 	// TODO(beorn7): Need a setting to limit total bucket count and to
 	// configure a strategy to enforce the limit, e.g. if minimum duration
@@ -413,22 +418,24 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	}
 
 	h := &histogram{
-		desc:            desc,
-		upperBounds:     opts.Buckets,
-		sparseThreshold: opts.SparseBucketsZeroThreshold,
-		labelPairs:      MakeLabelPairs(desc, labelValues),
-		counts:          [2]*histogramCounts{{}, {}},
-		now:             time.Now,
+		desc:        desc,
+		upperBounds: opts.Buckets,
+		labelPairs:  MakeLabelPairs(desc, labelValues),
+		counts:      [2]*histogramCounts{{}, {}},
+		now:         time.Now,
 	}
 	if len(h.upperBounds) == 0 && opts.SparseBucketsFactor <= 1 {
 		h.upperBounds = DefBuckets
 	}
-	if h.sparseThreshold <= 0 {
-		h.sparseThreshold = DefSparseBucketsZeroThreshold
-	}
 	if opts.SparseBucketsFactor <= 1 {
-		h.sparseThreshold = 0 // To mark that there are no sparse buckets.
+		h.sparseSchema = math.MinInt32 // To mark that there are no sparse buckets.
 	} else {
+		switch {
+		case opts.SparseBucketsZeroThreshold > 0:
+			h.sparseThreshold = opts.SparseBucketsZeroThreshold
+		case opts.SparseBucketsZeroThreshold == 0:
+			h.sparseThreshold = DefSparseBucketsZeroThreshold
+		} // Leave h.sparseThreshold at 0 otherwise.
 		h.sparseSchema = pickSparseSchema(opts.SparseBucketsFactor)
 	}
 	for i, upperBound := range h.upperBounds {
@@ -559,8 +566,8 @@ type histogram struct {
 	upperBounds     []float64
 	labelPairs      []*dto.LabelPair
 	exemplars       []atomic.Value // One more than buckets (to include +Inf), each a *dto.Exemplar.
-	sparseSchema    int32
-	sparseThreshold float64 // This is zero iff no sparse buckets are used.
+	sparseSchema    int32          // Set to math.MinInt32 if no sparse buckets are used.
+	sparseThreshold float64
 
 	now func() time.Time // To mock out time.Now() for testing.
 }
@@ -604,11 +611,9 @@ func (h *histogram) Write(out *dto.Metric) error {
 	}
 
 	his := &dto.Histogram{
-		Bucket:          make([]*dto.Bucket, len(h.upperBounds)),
-		SampleCount:     proto.Uint64(count),
-		SampleSum:       proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
-		SbSchema:        &h.sparseSchema,
-		SbZeroThreshold: &h.sparseThreshold,
+		Bucket:      make([]*dto.Bucket, len(h.upperBounds)),
+		SampleCount: proto.Uint64(count),
+		SampleSum:   proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
 	}
 	out.Histogram = his
 	out.Label = h.labelPairs
@@ -648,7 +653,9 @@ func (h *histogram) Write(out *dto.Metric) error {
 		atomic.AddUint64(&hotCounts.buckets[i], atomic.LoadUint64(&coldCounts.buckets[i]))
 		atomic.StoreUint64(&coldCounts.buckets[i], 0)
 	}
-	if h.sparseThreshold != 0 {
+	if h.sparseSchema > math.MinInt32 {
+		his.SbZeroThreshold = &h.sparseThreshold
+		his.SbSchema = &h.sparseSchema
 		zeroBucket := atomic.LoadUint64(&coldCounts.sparseZeroBucket)
 
 		defer func() {
@@ -749,7 +756,7 @@ func (h *histogram) findBucket(v float64) int {
 // observe is the implementation for Observe without the findBucket part.
 func (h *histogram) observe(v float64, bucket int) {
 	// Do not add to sparse buckets for NaN observations.
-	doSparse := h.sparseThreshold != 0 && !math.IsNaN(v)
+	doSparse := h.sparseSchema > math.MinInt32 && !math.IsNaN(v)
 	var whichSparse, sparseKey int
 	if doSparse {
 		switch {
