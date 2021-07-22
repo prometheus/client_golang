@@ -118,6 +118,91 @@ func TestToFloat64(t *testing.T) {
 	}
 }
 
+func TestToInt(t *testing.T) {
+	gaugeWithAValueSet := prometheus.NewGauge(prometheus.GaugeOpts{})
+	gaugeWithAValueSet.Set(3.99)
+
+	counterVecWithOneElement := prometheus.NewCounterVec(prometheus.CounterOpts{}, []string{"foo"})
+	counterVecWithOneElement.WithLabelValues("bar").Inc()
+
+	counterVecWithTwoElements := prometheus.NewCounterVec(prometheus.CounterOpts{}, []string{"foo"})
+	counterVecWithTwoElements.WithLabelValues("bar").Add(42)
+	counterVecWithTwoElements.WithLabelValues("baz").Inc()
+
+	histogramVecWithOneElement := prometheus.NewHistogramVec(prometheus.HistogramOpts{}, []string{"foo"})
+	histogramVecWithOneElement.WithLabelValues("bar").Observe(2.7)
+
+	scenarios := map[string]struct {
+		collector prometheus.Collector
+		panics    bool
+		want      int
+	}{
+		"simple counter": {
+			collector: prometheus.NewCounter(prometheus.CounterOpts{}),
+			panics:    false,
+			want:      0,
+		},
+		"simple gauge": {
+			collector: prometheus.NewGauge(prometheus.GaugeOpts{}),
+			panics:    false,
+			want:      0,
+		},
+		"simple untyped": {
+			collector: untypedCollector{},
+			panics:    false,
+			want:      2001,
+		},
+		"simple histogram": {
+			collector: prometheus.NewHistogram(prometheus.HistogramOpts{}),
+			panics:    true,
+		},
+		"simple summary": {
+			collector: prometheus.NewSummary(prometheus.SummaryOpts{}),
+			panics:    true,
+		},
+		"simple gauge with an actual value set": {
+			collector: gaugeWithAValueSet,
+			panics:    false,
+			want:      3,
+		},
+		"counter vec with zero elements": {
+			collector: prometheus.NewCounterVec(prometheus.CounterOpts{}, nil),
+			panics:    true,
+		},
+		"counter vec with one element": {
+			collector: counterVecWithOneElement,
+			panics:    false,
+			want:      1,
+		},
+		"counter vec with two elements": {
+			collector: counterVecWithTwoElements,
+			panics:    true,
+		},
+		"histogram vec with one element": {
+			collector: histogramVecWithOneElement,
+			panics:    true,
+		},
+	}
+
+	for n, s := range scenarios {
+		t.Run(n, func(t *testing.T) {
+			defer func() {
+				r := recover()
+				if r == nil && s.panics {
+					t.Error("expected panic")
+				} else if r != nil && !s.panics {
+					t.Error("unexpected panic: ", r)
+				}
+				// Any other combination is the expected outcome.
+			}()
+			if got := ToInt(s.collector); got != s.want {
+				t.Errorf("want %v, got %v", s.want, got)
+			}
+		})
+	}
+}
+
+
 func TestCollectAndCompare(t *testing.T) {
 	const metadata = `
 		# HELP some_total A value that represents a counter.

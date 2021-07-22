@@ -112,6 +112,11 @@ func ToFloat64(c prometheus.Collector) float64 {
 	panic(fmt.Errorf("collected a non-gauge/counter/untyped metric: %s", pb))
 }
 
+// ToInt returns the integer value of the collected Metric. For more information see ToFloat64.
+func ToInt(c prometheus.Collector) int {
+	return int(ToFloat64(c))
+}
+
 // CollectAndCount registers the provided Collector with a newly created
 // pedantic Registry. It then calls GatherAndCount with that Registry and with
 // the provided metricNames. In the unlikely case that the registration or the
