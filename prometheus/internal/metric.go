@@ -63,10 +63,10 @@ func (s metricSorter) Less(i, j int) bool {
 	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
 }
 
-// NormalizeMetricFamilies returns a MetricFamily slice with empty
+// BeautifyMetricFamilies returns a MetricFamily slice with empty
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
-func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
+func BeautifyMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
 	for _, mf := range metricFamiliesByName {
 		sort.Sort(metricSorter(mf.Metric))
 	}
@@ -80,6 +80,16 @@ func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) 
 	result := make([]*dto.MetricFamily, 0, len(names))
 	for _, name := range names {
 		result = append(result, metricFamiliesByName[name])
+	}
+	return result
+}
+
+func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
+	result := make([]*dto.MetricFamily, 0, len(metricFamiliesByName))
+	for name, mf := range metricFamiliesByName {
+		if len(mf.Metric) > 0 {
+			result = append(result, metricFamiliesByName[name])
+		}
 	}
 	return result
 }

@@ -179,7 +179,7 @@ func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...
 	if err != nil {
 		return fmt.Errorf("parsing expected metrics failed: %s", err)
 	}
-	want := internal.NormalizeMetricFamilies(wantRaw)
+	want := internal.BeautifyMetricFamilies(wantRaw)
 
 	return compare(got, want)
 }
