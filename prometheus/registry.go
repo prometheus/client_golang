@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -25,12 +26,11 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/minio/highwayhash"
 	//lint:ignore SA1019 Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/expfmt"
-
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
 )
@@ -875,10 +875,16 @@ func checkMetricConsistency(
 		}
 		previousLabelName = labelName
 	}
-
 	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
-	h := xxhash.New()
-	h.WriteString(name)
+	key, err := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	if err != nil {
+		return fmt.Errorf("failed to decode key: %v", err)
+	}
+	h, err := highwayhash.New64(key)
+	if err != nil {
+		return fmt.Errorf("init highway hash failed: %v", err)
+	}
+	h.Write([]byte(name))
 	h.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
@@ -890,9 +896,9 @@ func checkMetricConsistency(
 		dtoMetric.Label = copiedLabels
 	}
 	for _, lp := range dtoMetric.Label {
-		h.WriteString(lp.GetName())
+		h.Write([]byte(lp.GetName()))
 		h.Write(separatorByteSlice)
-		h.WriteString(lp.GetValue())
+		h.Write([]byte(lp.GetValue()))
 		h.Write(separatorByteSlice)
 	}
 	hSum := h.Sum64()

@@ -14,17 +14,18 @@
 package prometheus
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
+	"github.com/minio/highwayhash"
 	//lint:ignore SA1019 Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/model"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 )
 
 // Desc is the descriptor used by every Prometheus Metric. It is essentially
@@ -128,24 +129,34 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 		return d
 	}
 
-	xxh := xxhash.New()
-	for _, val := range labelValues {
-		xxh.WriteString(val)
-		xxh.Write(separatorByteSlice)
+	key, err := hex.DecodeString("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	if err != nil {
+		d.err = fmt.Errorf("failed to decode key: %v", err)
+		return d
 	}
-	d.id = xxh.Sum64()
+	h, err := highwayhash.New64(key)
+	if err != nil {
+		d.err = fmt.Errorf("init highway hash failed: %v", err)
+		return d
+	}
+
+	for _, val := range labelValues {
+		h.Write([]byte(val))
+		h.Write(separatorByteSlice)
+	}
+	d.id = h.Sum64()
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
 	// Now hash together (in this order) the help string and the sorted
 	// label names.
-	xxh.Reset()
-	xxh.WriteString(help)
-	xxh.Write(separatorByteSlice)
+	h.Reset()
+	h.Write([]byte(help))
+	h.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
-		xxh.WriteString(labelName)
-		xxh.Write(separatorByteSlice)
+		h.Write([]byte(labelName))
+		h.Write(separatorByteSlice)
 	}
-	d.dimHash = xxh.Sum64()
+	d.dimHash = h.Sum64()
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
