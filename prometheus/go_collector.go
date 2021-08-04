@@ -246,7 +246,8 @@ func (c *baseGoCollector) Describe(ch chan<- *Desc) {
 // Collect returns the current state of all metrics of the collector.
 func (c *baseGoCollector) Collect(ch chan<- Metric) {
 	ch <- MustNewConstMetric(c.goroutinesDesc, GaugeValue, float64(runtime.NumGoroutine()))
-	n, _ := runtime.ThreadCreateProfile(nil)
+
+	n := getRuntimeNumThreads()
 	ch <- MustNewConstMetric(c.threadsDesc, GaugeValue, float64(n))
 
 	var stats debug.GCStats
