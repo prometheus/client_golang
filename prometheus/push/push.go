@@ -16,10 +16,10 @@
 // by using its methods, finally calling Add or Push, like this:
 //
 //    // Easy case:
-//    push.New("http://example.org/metrics", "my_job").Gatherer(myRegistry).Push()
+//    push.New("http://example.org", "my_job").Gatherer(myRegistry).Push()
 //
 //    // Complex case:
-//    push.New("http://example.org/metrics", "my_job").
+//    push.New("http://example.org", "my_job").
 //        Collector(myCollector1).
 //        Collector(myCollector2).
 //        Grouping("zone", "xy").
