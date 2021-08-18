@@ -1,8 +1,8 @@
 # Prometheus Go client library
 
-[![Build Status](https://travis-ci.org/prometheus/client_golang.svg?branch=master)](https://travis-ci.org/prometheus/client_golang)
+[![CircleCI](https://circleci.com/gh/prometheus/client_golang/tree/master.svg?style=svg)](https://circleci.com/gh/prometheus/client_golang/tree/master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
-[![go-doc](https://godoc.org/github.com/prometheus/client_golang?status.svg)](https://godoc.org/github.com/prometheus/client_golang)
+[![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang.svg)](https://pkg.go.dev/github.com/prometheus/client_golang)
 
 This is the [Go](http://golang.org) client library for
 [Prometheus](http://prometheus.io). It has two separate parts, one for
@@ -31,7 +31,7 @@ coexist for a while to enable a convenient transition.
 
 ## Instrumenting applications
 
-[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/prometheus)
+[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/prometheus.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus)
 
 The
 [`prometheus` directory](https://github.com/prometheus/client_golang/tree/master/prometheus)
@@ -45,7 +45,7 @@ contains simple examples of instrumented code.
 
 ## Client for the Prometheus HTTP API
 
-[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus/v1)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus/v1) [![go-doc](https://godoc.org/github.com/prometheus/client_golang/api/prometheus?status.svg)](https://godoc.org/github.com/prometheus/client_golang/api)
+[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus/v1)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus/v1) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
 
 The
 [`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/master/api/prometheus)
