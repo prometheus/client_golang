@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/quick"
 	"time"
@@ -167,7 +168,7 @@ func TestHistogramConcurrency(t *testing.T) {
 		start.Add(1)
 		end.Add(concLevel)
 
-		sum := NewHistogram(HistogramOpts{
+		his := NewHistogram(HistogramOpts{
 			Name:    "test_histogram",
 			Help:    "helpless",
 			Buckets: testBuckets,
@@ -188,9 +189,9 @@ func TestHistogramConcurrency(t *testing.T) {
 				start.Wait()
 				for _, v := range vals {
 					if n%2 == 0 {
-						sum.Observe(v)
+						his.Observe(v)
 					} else {
-						sum.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
+						his.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
 					}
 				}
 				end.Done()
@@ -201,7 +202,7 @@ func TestHistogramConcurrency(t *testing.T) {
 		end.Wait()
 
 		m := &dto.Metric{}
-		sum.Write(m)
+		his.Write(m)
 		if got, want := int(*m.Histogram.SampleCount), total; got != want {
 			t.Errorf("got sample count %d, want %d", got, want)
 		}
@@ -424,24 +425,24 @@ func TestHistogramExemplar(t *testing.T) {
 	}
 	expectedExemplars := []*dto.Exemplar{
 		nil,
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("2")},
+				{Name: proto.String("id"), Value: proto.String("2")},
 			},
 			Value:     proto.Float64(1.6),
 			Timestamp: ts,
 		},
 		nil,
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("3")},
+				{Name: proto.String("id"), Value: proto.String("3")},
 			},
 			Value:     proto.Float64(4),
 			Timestamp: ts,
 		},
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("4")},
+				{Name: proto.String("id"), Value: proto.String("4")},
 			},
 			Value:     proto.Float64(4.5),
 			Timestamp: ts,
@@ -470,11 +471,14 @@ func TestHistogramExemplar(t *testing.T) {
 func TestSparseHistogram(t *testing.T) {
 
 	scenarios := []struct {
-		name          string
-		observations  []float64
-		factor        float64
-		zeroThreshold float64
-		want          string // String representation of protobuf.
+		name             string
+		observations     []float64 // With simulated interval of 1m.
+		factor           float64
+		zeroThreshold    float64
+		maxBuckets       uint32
+		minResetDuration time.Duration
+		maxZeroThreshold float64
+		want             string // String representation of protobuf.
 	}{
 		{
 			name:         "no sparse buckets",
@@ -531,18 +535,122 @@ func TestSparseHistogram(t *testing.T) {
 			factor:       1.2,
 			want:         `sample_count:7 sample_sum:-inf sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:2147483647 length:1 > delta:1 > sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
 		},
+		{
+			name:         "limited buckets but nothing triggered",
+			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2},
+			factor:       1.2,
+			maxBuckets:   4,
+			want:         `sample_count:6 sample_sum:7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:         "buckets limited by halving resolution",
+			observations: []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 3},
+			factor:       1.2,
+			maxBuckets:   4,
+			want:         `sample_count:8 sample_sum:11.5 sb_schema:1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:2 delta:-1 delta:-2 delta:1 > `,
+		},
+		{
+			name:             "buckets limited by widening the zero bucket",
+			observations:     []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 3},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			want:             `sample_count:8 sample_sum:11.5 sb_schema:2 sb_zero_threshold:1 sb_zero_count:2 sb_positive:<span:<offset:1 length:7 > delta:1 delta:1 delta:-2 delta:2 delta:-2 delta:0 delta:1 > `,
+		},
+		{
+			name:             "buckets limited by widening the zero bucket twice",
+			observations:     []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 3, 4},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			want:             `sample_count:9 sample_sum:15.5 sb_schema:2 sb_zero_threshold:1.189207115002721 sb_zero_count:3 sb_positive:<span:<offset:2 length:7 > delta:2 delta:-2 delta:2 delta:-2 delta:0 delta:1 delta:0 > `,
+		},
+		{
+			name:             "buckets limited by reset",
+			observations:     []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 3, 4},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			minResetDuration: 5 * time.Minute,
+			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+		},
+		{
+			name:         "limited buckets but nothing triggered, negative observations",
+			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2},
+			factor:       1.2,
+			maxBuckets:   4,
+			want:         `sample_count:6 sample_sum:-7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name:         "buckets limited by halving resolution, negative observations",
+			observations: []float64{0, -1, -1.1, -1.2, -1.4, -1.8, -2, -3},
+			factor:       1.2,
+			maxBuckets:   4,
+			want:         `sample_count:8 sample_sum:-11.5 sb_schema:1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:2 delta:-1 delta:-2 delta:1 > `,
+		},
+		{
+			name:             "buckets limited by widening the zero bucket, negative observations",
+			observations:     []float64{0, -1, -1.1, -1.2, -1.4, -1.8, -2, -3},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			want:             `sample_count:8 sample_sum:-11.5 sb_schema:2 sb_zero_threshold:1 sb_zero_count:2 sb_negative:<span:<offset:1 length:7 > delta:1 delta:1 delta:-2 delta:2 delta:-2 delta:0 delta:1 > `,
+		},
+		{
+			name:             "buckets limited by widening the zero bucket twice, negative observations",
+			observations:     []float64{0, -1, -1.1, -1.2, -1.4, -1.8, -2, -3, -4},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			want:             `sample_count:9 sample_sum:-15.5 sb_schema:2 sb_zero_threshold:1.189207115002721 sb_zero_count:3 sb_negative:<span:<offset:2 length:7 > delta:2 delta:-2 delta:2 delta:-2 delta:0 delta:1 delta:0 > `,
+		},
+		{
+			name:             "buckets limited by reset, negative observations",
+			observations:     []float64{0, -1, -1.1, -1.2, -1.4, -1.8, -2, -3, -4},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			minResetDuration: 5 * time.Minute,
+			want:             `sample_count:2 sample_sum:-7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_negative:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+		},
+		{
+			name:             "buckets limited by halving resolution, then reset",
+			observations:     []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 5, 5.1, 3, 4},
+			factor:           1.2,
+			maxBuckets:       4,
+			minResetDuration: 9 * time.Minute,
+			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+		},
+		{
+			name:             "buckets limited by widening the zero bucket, then reset",
+			observations:     []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 5, 5.1, 3, 4},
+			factor:           1.2,
+			maxBuckets:       4,
+			maxZeroThreshold: 1.2,
+			minResetDuration: 9 * time.Minute,
+			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+		},
 	}
 
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			his := NewHistogram(HistogramOpts{
-				Name:                       "name",
-				Help:                       "help",
-				SparseBucketsFactor:        s.factor,
-				SparseBucketsZeroThreshold: s.zeroThreshold,
+				Name:                          "name",
+				Help:                          "help",
+				SparseBucketsFactor:           s.factor,
+				SparseBucketsZeroThreshold:    s.zeroThreshold,
+				SparseBucketsMaxNumber:        s.maxBuckets,
+				SparseBucketsMinResetDuration: s.minResetDuration,
+				SparseBucketsMaxZeroThreshold: s.maxZeroThreshold,
 			})
+			ts := time.Now().Add(30 * time.Second)
+			now := func() time.Time {
+				return ts
+			}
+			his.(*histogram).now = now
 			for _, o := range s.observations {
 				his.Observe(o)
+				ts = ts.Add(time.Minute)
 			}
 			m := &dto.Metric{}
 			if err := his.Write(m); err != nil {
@@ -555,4 +663,102 @@ func TestSparseHistogram(t *testing.T) {
 		})
 	}
 
+}
+
+func TestSparseHistogramConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode.")
+	}
+
+	rand.Seed(42)
+
+	it := func(n uint32) bool {
+		mutations := int(n%1e4 + 1e4)
+		concLevel := int(n%5 + 1)
+		total := mutations * concLevel
+
+		var start, end sync.WaitGroup
+		start.Add(1)
+		end.Add(concLevel)
+
+		his := NewHistogram(HistogramOpts{
+			Name:                          "test_sparse_histogram",
+			Help:                          "This help is sparse.",
+			SparseBucketsFactor:           1.05,
+			SparseBucketsZeroThreshold:    0.0000001,
+			SparseBucketsMaxNumber:        50,
+			SparseBucketsMinResetDuration: time.Hour, // Comment out to test for totals below.
+			SparseBucketsMaxZeroThreshold: 0.001,
+		})
+
+		ts := time.Now().Add(30 * time.Second).Unix()
+		now := func() time.Time {
+			return time.Unix(atomic.LoadInt64(&ts), 0)
+		}
+		his.(*histogram).now = now
+
+		allVars := make([]float64, total)
+		var sampleSum float64
+		for i := 0; i < concLevel; i++ {
+			vals := make([]float64, mutations)
+			for j := 0; j < mutations; j++ {
+				v := rand.NormFloat64()
+				vals[j] = v
+				allVars[i*mutations+j] = v
+				sampleSum += v
+			}
+
+			go func(vals []float64) {
+				start.Wait()
+				for _, v := range vals {
+					// An observation every 1 to 10 seconds.
+					atomic.AddInt64(&ts, rand.Int63n(10)+1)
+					his.Observe(v)
+				}
+				end.Done()
+			}(vals)
+		}
+		sort.Float64s(allVars)
+		start.Done()
+		end.Wait()
+
+		m := &dto.Metric{}
+		his.Write(m)
+
+		// Uncomment these tests for totals only if you have disabled histogram resets above.
+		//
+		// if got, want := int(*m.Histogram.SampleCount), total; got != want {
+		// 	t.Errorf("got sample count %d, want %d", got, want)
+		// }
+		// if got, want := *m.Histogram.SampleSum, sampleSum; math.Abs((got-want)/want) > 0.001 {
+		// 	t.Errorf("got sample sum %f, want %f", got, want)
+		// }
+
+		sumBuckets := int(m.Histogram.GetSbZeroCount())
+		current := 0
+		for _, delta := range m.Histogram.GetSbNegative().GetDelta() {
+			current += int(delta)
+			if current < 0 {
+				t.Fatalf("negative bucket population negative: %d", current)
+			}
+			sumBuckets += current
+		}
+		current = 0
+		for _, delta := range m.Histogram.GetSbPositive().GetDelta() {
+			current += int(delta)
+			if current < 0 {
+				t.Fatalf("positive bucket population negative: %d", current)
+			}
+			sumBuckets += current
+		}
+		if got, want := sumBuckets, int(*m.Histogram.SampleCount); got != want {
+			t.Errorf("got bucket population sum %d, want %d", got, want)
+		}
+
+		return true
+	}
+
+	if err := quick.Check(it, nil); err != nil {
+		t.Error(err)
+	}
 }
