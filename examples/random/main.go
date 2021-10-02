@@ -27,6 +27,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 var (
@@ -65,7 +66,7 @@ func init() {
 	prometheus.MustRegister(rpcDurations)
 	prometheus.MustRegister(rpcDurationsHistogram)
 	// Add Go module build info.
-	prometheus.MustRegister(prometheus.NewBuildInfoCollector())
+	prometheus.MustRegister(collectors.NewBuildInfoCollector())
 }
 
 func main() {
