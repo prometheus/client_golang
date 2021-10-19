@@ -696,8 +696,6 @@ func TestAPIs(t *testing.T) {
 				"CWD":                 "/prometheus",
 				"reloadConfigSuccess": true,
 				"lastConfigTime":      "2020-05-18T15:52:56Z",
-				"chunkCount":          72692,
-				"timeSeriesCount":     18476,
 				"corruptionCount":     0,
 				"goroutineCount":      217,
 				"GOMAXPROCS":          2,
@@ -710,8 +708,6 @@ func TestAPIs(t *testing.T) {
 				CWD:                 "/prometheus",
 				ReloadConfigSuccess: true,
 				LastConfigTime:      time.Date(2020, 5, 18, 15, 52, 56, 0, time.UTC),
-				ChunkCount:          72692,
-				TimeSeriesCount:     18476,
 				CorruptionCount:     0,
 				GoroutineCount:      217,
 				GOMAXPROCS:          2,
@@ -1145,6 +1141,13 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb",
 			inRes: map[string]interface{}{
+				"headStats": map[string]interface{}{
+					"numSeries":     18476,
+					"numLabelPairs": 4301,
+					"chunkCount":    72692,
+					"minTime":       1634644800304,
+					"maxTime":       1634650590304,
+				},
 				"seriesCountByMetricName": []interface{}{
 					map[string]interface{}{
 						"name":  "kubelet_http_requests_duration_seconds_bucket",
@@ -1171,6 +1174,13 @@ func TestAPIs(t *testing.T) {
 				},
 			},
 			res: TSDBResult{
+				HeadStats: TSDBHeadStats{
+					NumSeries:     18476,
+					NumLabelPairs: 4301,
+					ChunkCount:    72692,
+					MinTime:       1634644800304,
+					MaxTime:       1634650590304,
+				},
 				SeriesCountByMetricName: []Stat{
 					{
 						Name:  "kubelet_http_requests_duration_seconds_bucket",

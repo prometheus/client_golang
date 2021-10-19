@@ -303,8 +303,6 @@ type RuntimeinfoResult struct {
 	CWD                 string    `json:"CWD"`
 	ReloadConfigSuccess bool      `json:"reloadConfigSuccess"`
 	LastConfigTime      time.Time `json:"lastConfigTime"`
-	ChunkCount          int       `json:"chunkCount"`
-	TimeSeriesCount     int       `json:"timeSeriesCount"`
 	CorruptionCount     int       `json:"corruptionCount"`
 	GoroutineCount      int       `json:"goroutineCount"`
 	GOMAXPROCS          int       `json:"GOMAXPROCS"`
@@ -431,10 +429,20 @@ type queryResult struct {
 
 // TSDBResult contains the result from querying the tsdb endpoint.
 type TSDBResult struct {
-	SeriesCountByMetricName     []Stat `json:"seriesCountByMetricName"`
-	LabelValueCountByLabelName  []Stat `json:"labelValueCountByLabelName"`
-	MemoryInBytesByLabelName    []Stat `json:"memoryInBytesByLabelName"`
-	SeriesCountByLabelValuePair []Stat `json:"seriesCountByLabelValuePair"`
+	HeadStats                   TSDBHeadStats `json:"headStats"`
+	SeriesCountByMetricName     []Stat        `json:"seriesCountByMetricName"`
+	LabelValueCountByLabelName  []Stat        `json:"labelValueCountByLabelName"`
+	MemoryInBytesByLabelName    []Stat        `json:"memoryInBytesByLabelName"`
+	SeriesCountByLabelValuePair []Stat        `json:"seriesCountByLabelValuePair"`
+}
+
+// TSDBHeadStats contains TSDB stats
+type TSDBHeadStats struct {
+	NumSeries     int `json:"numSeries"`
+	NumLabelPairs int `json:"numLabelPairs"`
+	ChunkCount    int `json:"chunkCount"`
+	MinTime       int `json:"minTime"`
+	MaxTime       int `json:"maxTime"`
 }
 
 // Stat models information about statistic value.
