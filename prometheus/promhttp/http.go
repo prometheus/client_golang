@@ -84,6 +84,16 @@ func Handler() http.Handler {
 // instrumentation. Use the InstrumentMetricHandler function to apply the same
 // kind of instrumentation as it is used by the Handler function.
 func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
+	return HandlerForIteratable(prometheus.ToIteratableGatherer(reg), opts)
+}
+
+// HandlerForIteratable returns an uninstrumented http.Handler for the provided
+// IteratableGatherer. The behavior of the Handler is defined by the provided
+// HandlerOpts. Thus, HandlerFor is useful to create http.Handlers for custom
+// Gatherers, with non-default HandlerOpts, and/or with custom (or no)
+// instrumentation. Use the InstrumentMetricHandler function to apply the same
+// kind of instrumentation as it is used by the Handler function.
+func HandlerForIteratable(reg prometheus.IteratableGatherer, opts HandlerOpts) http.Handler {
 	var (
 		inFlightSem chan struct{}
 		errCnt      = prometheus.NewCounterVec(
@@ -123,7 +133,8 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 				return
 			}
 		}
-		mfs, err := reg.Gather()
+
+		iter, err := reg.GatherIterate()
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error gathering metrics:", err)
@@ -133,7 +144,7 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 			case PanicOnError:
 				panic(err)
 			case ContinueOnError:
-				if len(mfs) == 0 {
+				if iter == nil {
 					// Still report the error if no metrics have been gathered.
 					httpError(rsp, err)
 					return
@@ -169,14 +180,22 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 
 		// handleError handles the error according to opts.ErrorHandling
 		// and returns true if we have to abort after the handling.
-		handleError := func(err error) bool {
+		handleError := func(encoding bool, err error) bool {
 			if err == nil {
 				return false
 			}
-			if opts.ErrorLog != nil {
-				opts.ErrorLog.Println("error encoding and sending metric family:", err)
+			if encoding {
+				if opts.ErrorLog != nil {
+					opts.ErrorLog.Println("error encoding and sending metric family:", err)
+				}
+				errCnt.WithLabelValues("encoding").Inc()
+			} else {
+				if opts.ErrorLog != nil {
+					opts.ErrorLog.Println("error gathering metrics:", err)
+				}
+				errCnt.WithLabelValues("gathering").Inc()
 			}
-			errCnt.WithLabelValues("encoding").Inc()
+
 			switch opts.ErrorHandling {
 			case PanicOnError:
 				panic(err)
@@ -191,14 +210,17 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 			return false
 		}
 
-		for _, mf := range mfs {
-			if handleError(enc.Encode(mf)) {
+		for iter.Next() {
+			if handleError(true, enc.Encode(iter.At())) {
+				for iter.Next() {} // Exhaust iterator.
 				return
 			}
 		}
+		handleError(false, iter.Err())
+
 		if closer, ok := enc.(expfmt.Closer); ok {
 			// This in particular takes care of the final "# EOF\n" line for OpenMetrics.
-			if handleError(closer.Close()) {
+			if handleError(true, closer.Close()) {
 				return
 			}
 		}

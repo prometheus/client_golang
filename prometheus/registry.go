@@ -161,6 +161,78 @@ type Gatherer interface {
 	Gather() ([]*dto.MetricFamily, error)
 }
 
+// IteratableGatherer is the interface for the part of a registry in charge of gathering
+// the collected metrics into a number of MetricFamilies. The IteratableGatherer interface
+// comes with the same general implication as described for the Registerer
+// interface.
+type IteratableGatherer interface {
+	// GatherIterate allows iterating over a lexicographically sorted, uniquely named
+	// dto.MetricFamily that are obtained through calls the Collect method
+	// of the registered Collectors. GatherIterate ensures that the
+	// iterator is valid until exhausting (until Next is false).
+	// As an exception to the strict consistency requirements described for
+	// metric.Desc, GatherIterate will tolerate different sets of label names for
+	// metrics of the same metric family.
+	//
+	// Even if an error occurs, GatherIterate allows to iterate over as many metrics as
+	// possible. Hence, if a non-nil error is returned, the returned
+	// MetricFamilyIterator could be nil (in case of a fatal error that
+	// prevented any meaningful metric collection) or iteratable over a number of
+	// MetricFamily protobufs, some of which might be incomplete, and some
+	// might be missing altogether. The returned error (which might be a
+	// MultiError) explains the details. Note that this is mostly useful for
+	// debugging purposes. If the gathered protobufs are to be used for
+	// exposition in actual monitoring, it is almost always better to not
+	// expose an incomplete result and instead disregard the returned
+	// MetricFamily protobufs in case the returned error is non-nil.
+	//
+	// GatherIterate allows implementations to use zero-alloc caching and
+	// other efficiency techniques.
+	//
+	// Iterated dto.MetricFamily is read only and valid only until you invoke another
+	// Next(). Note that consumer is *always* required to exhaust iterator to release all resources.
+	GatherIterate() (MetricFamilyIterator, error)
+}
+
+// MetricFamilyIterator ...
+type MetricFamilyIterator interface {
+	Next() bool
+	At() *dto.MetricFamily
+	Err() error
+}
+
+func ToIteratableGatherer(g Gatherer) IteratableGatherer {
+	return &iteratableGathererAdapter{g:g}
+}
+
+type iteratableGathererAdapter struct {
+	g Gatherer
+}
+
+func(a *iteratableGathererAdapter) GatherIterate() (MetricFamilyIterator, error) {
+	mfs, err := a.g.Gather()
+	return &mfIterator{mfs: mfs, i: -1}, err
+}
+
+type mfIterator struct {
+	mfs []*dto.MetricFamily
+	i int
+}
+
+func (m *mfIterator) Next() bool {
+	if m.i+1 >= len(m.mfs) {
+		return false
+	}
+	m.i++
+	return true
+}
+
+func (m *mfIterator) At() *dto.MetricFamily {
+	return m.mfs[m.i]
+}
+
+func (m *mfIterator) Err() error { return nil }
+
 // Register registers the provided Collector with the DefaultRegisterer.
 //
 // Register is a shortcut for DefaultRegisterer.Register(c). See there for more
