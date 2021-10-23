@@ -21,6 +21,7 @@ package prometheus_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
@@ -1174,4 +1175,83 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", alreadyRegErr, previous.name, previous.i, current.name, current.i)
 		}
 	}
+}
+
+type tGatherer struct {
+	done bool
+	err  error
+}
+
+func (g *tGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
+	name := "g1"
+	val := 1.0
+	return []*dto.MetricFamily{
+		{Name: &name, Metric: []*dto.Metric{{Gauge: &dto.Gauge{Value: &val}}}},
+	}, func() { g.done = true }, g.err
+}
+
+func TestNewMultiTRegistry(t *testing.T) {
+	treg := &tGatherer{}
+
+	t.Run("one registry", func(t *testing.T) {
+		m := prometheus.NewMultiTRegistry(treg)
+		ret, done, err := m.Gather()
+		if err != nil {
+			t.Error("gather failed:", err)
+		}
+		done()
+		if len(ret) != 1 {
+			t.Error("unexpected number of metric families, expected 1, got", ret)
+		}
+		if !treg.done {
+			t.Error("inner transactional registry not marked as done")
+		}
+	})
+
+	reg := prometheus.NewRegistry()
+	if err := reg.Register(prometheus.NewCounter(prometheus.CounterOpts{Name: "c1", Help: "help c1"})); err != nil {
+		t.Error("registration failed:", err)
+	}
+
+	// Note on purpose two registries will have exactly same metric family name (but with different string).
+	// This behaviour is undefined at the moment.
+	if err := reg.Register(prometheus.NewGauge(prometheus.GaugeOpts{Name: "g1", Help: "help g1"})); err != nil {
+		t.Error("registration failed:", err)
+	}
+	treg.done = false
+
+	t.Run("two registries", func(t *testing.T) {
+		m := prometheus.NewMultiTRegistry(prometheus.ToTransactionalGatherer(reg), treg)
+		ret, done, err := m.Gather()
+		if err != nil {
+			t.Error("gather failed:", err)
+		}
+		done()
+		if len(ret) != 3 {
+			t.Error("unexpected number of metric families, expected 3, got", ret)
+		}
+		if !treg.done {
+			t.Error("inner transactional registry not marked as done")
+		}
+	})
+
+	treg.done = false
+	// Inject error.
+	treg.err = errors.New("test err")
+
+	t.Run("two registries, one with error", func(t *testing.T) {
+		m := prometheus.NewMultiTRegistry(prometheus.ToTransactionalGatherer(reg), treg)
+		ret, done, err := m.Gather()
+		if err != treg.err {
+			t.Error("unexpected error:", err)
+		}
+		done()
+		if len(ret) != 3 {
+			t.Error("unexpected number of metric families, expected 3, got", ret)
+		}
+		// Still on error, we expect done to be triggered.
+		if !treg.done {
+			t.Error("inner transactional registry not marked as done")
+		}
+	})
 }

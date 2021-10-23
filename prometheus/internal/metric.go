@@ -19,6 +19,22 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+// LabelPairSorter implements sort.Interface. It is used to sort a slice of
+// dto.LabelPair pointers.
+type LabelPairSorter []*dto.LabelPair
+
+func (s LabelPairSorter) Len() int {
+	return len(s)
+}
+
+func (s LabelPairSorter) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s LabelPairSorter) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
 // metricSorter is a sortable slice of *dto.Metric.
 type metricSorter []*dto.Metric
 
