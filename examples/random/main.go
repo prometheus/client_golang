@@ -29,47 +29,45 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var (
-	addr              = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-	uniformDomain     = flag.Float64("uniform.domain", 0.0002, "The domain for the uniform distribution.")
-	normDomain        = flag.Float64("normal.domain", 0.0002, "The domain for the normal distribution.")
-	normMean          = flag.Float64("normal.mean", 0.00001, "The mean for the normal distribution.")
-	oscillationPeriod = flag.Duration("oscillation-period", 10*time.Minute, "The duration of the rate oscillation period.")
-)
-
-var (
-	// Create a summary to track fictional interservice RPC latencies for three
-	// distinct services with different latency distributions. These services are
-	// differentiated via a "service" label.
-	rpcDurations = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name:       "rpc_durations_seconds",
-			Help:       "RPC latency distributions.",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		},
-		[]string{"service"},
+func main() {
+	var (
+		addr              = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
+		uniformDomain     = flag.Float64("uniform.domain", 0.0002, "The domain for the uniform distribution.")
+		normDomain        = flag.Float64("normal.domain", 0.0002, "The domain for the normal distribution.")
+		normMean          = flag.Float64("normal.mean", 0.00001, "The mean for the normal distribution.")
+		oscillationPeriod = flag.Duration("oscillation-period", 10*time.Minute, "The duration of the rate oscillation period.")
 	)
-	// The same as above, but now as a histogram, and only for the normal
-	// distribution. The buckets are targeted to the parameters of the
-	// normal distribution, with 20 buckets centered on the mean, each
-	// half-sigma wide.
-	rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "rpc_durations_histogram_seconds",
-		Help:    "RPC latency distributions.",
-		Buckets: prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
-	})
-)
 
-func init() {
+	flag.Parse()
+
+	var (
+		// Create a summary to track fictional interservice RPC latencies for three
+		// distinct services with different latency distributions. These services are
+		// differentiated via a "service" label.
+		rpcDurations = prometheus.NewSummaryVec(
+			prometheus.SummaryOpts{
+				Name:       "rpc_durations_seconds",
+				Help:       "RPC latency distributions.",
+				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+			},
+			[]string{"service"},
+		)
+		// The same as above, but now as a histogram, and only for the normal
+		// distribution. The buckets are targeted to the parameters of the
+		// normal distribution, with 20 buckets centered on the mean, each
+		// half-sigma wide.
+		rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:    "rpc_durations_histogram_seconds",
+			Help:    "RPC latency distributions.",
+			Buckets: prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
+		})
+	)
+
 	// Register the summary and the histogram with Prometheus's default registry.
 	prometheus.MustRegister(rpcDurations)
 	prometheus.MustRegister(rpcDurationsHistogram)
 	// Add Go module build info.
 	prometheus.MustRegister(prometheus.NewBuildInfoCollector())
-}
-
-func main() {
-	flag.Parse()
 
 	start := time.Now()
 
