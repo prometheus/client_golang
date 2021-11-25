@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -897,6 +898,14 @@ func checkMetricConsistency(
 		h.WriteString(lp.GetValue())
 		h.Write(separatorByteSlice)
 	}
+
+	// If a timestamp if being associated to the metric, use it as part of the checksum.
+	// This will permit the multiple collection of a single metric with different timestamps.
+	// Useful when attempting to generate a dump.
+	if dtoMetric.TimestampMs != nil {
+		h.WriteString(strconv.FormatInt(*dtoMetric.TimestampMs, 10))
+	}
+
 	hSum := h.Sum64()
 	if _, exists := metricHashes[hSum]; exists {
 		return fmt.Errorf(
