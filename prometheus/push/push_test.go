@@ -199,7 +199,7 @@ func TestPush(t *testing.T) {
 		Collector(metric1).
 		Collector(metric2).
 		Push(); err == nil {
-		t.Error("push with empty job succeded")
+		t.Error("push with empty job succeeded")
 	} else {
 		if got, want := err, errJobEmpty; got != want {
 			t.Errorf("got error %q, want %q", got, want)
