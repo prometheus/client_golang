@@ -32,6 +32,26 @@ func (rt RoundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 	return rt(r)
 }
 
+// labelsForError obtains the values of the "code" and "method" labels
+// for the case where a HTTP request failed without getting a server
+// response. The "code" label is left empty to distinguish from cases
+// where a server response was obtained.
+func labelsForError(code, method bool, reqMethod string) prometheus.Labels {
+	if !(code || method) {
+		return emptyLabels
+	}
+	labels := prometheus.Labels{}
+
+	if code {
+		labels["code"] = ""
+	}
+	if method {
+		labels["method"] = sanitizeMethod(reqMethod)
+	}
+
+	return labels
+}
+
 // InstrumentRoundTripperInFlight is a middleware that wraps the provided
 // http.RoundTripper. It sets the provided prometheus.Gauge to the number of
 // requests currently handled by the wrapped http.RoundTripper.
@@ -53,8 +73,8 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // and/or HTTP method if the respective instance label names are present in the
 // CounterVec. For unpartitioned counting, use a CounterVec with zero labels.
 //
-// If the wrapped RoundTripper panics or returns a non-nil error, the Counter
-// is not incremented.
+// If the wrapped RoundTripper returns a non-nil error, the "code" label is
+// empty. If it panics, the Counter is not incremented.
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper) RoundTripperFunc {
@@ -64,6 +84,8 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			counter.With(labels(code, method, r.Method, resp.StatusCode)).Inc()
+		} else {
+			counter.With(labelsForError(code, method, r.Method)).Inc()
 		}
 		return resp, err
 	})
@@ -80,8 +102,8 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // unpartitioned observations, use an ObserverVec with zero labels. Note that
 // partitioning of Histograms is expensive and should be used judiciously.
 //
-// If the wrapped RoundTripper panics or returns a non-nil error, no values are
-// reported.
+// If the wrapped RoundTripper returns a non-nil error, the "code" label is
+// empty. If it panics, no values are reported.
 //
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
@@ -93,6 +115,8 @@ func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundT
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			obs.With(labels(code, method, r.Method, resp.StatusCode)).Observe(time.Since(start).Seconds())
+		} else {
+			obs.With(labelsForError(code, method, r.Method)).Observe(time.Since(start).Seconds())
 		}
 		return resp, err
 	})
