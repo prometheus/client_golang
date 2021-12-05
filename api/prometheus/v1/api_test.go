@@ -230,6 +230,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doWalReply := func() func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.WalReplay(context.Background())
+			return v, nil, err
+		}
+	}
+
 	doQueryExemplars := func(query string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.QueryExemplars(context.Background(), query, startTime, endTime)
@@ -1195,6 +1202,30 @@ func TestAPIs(t *testing.T) {
 						Value: 30000,
 					},
 				},
+			},
+		},
+
+		{
+			do:        doWalReply(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/walreplay",
+			inErr:     fmt.Errorf("some error"),
+			err:       fmt.Errorf("some error"),
+		},
+
+		{
+			do:        doWalReply(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/walreplay",
+			inRes: map[string]interface{}{
+				"min":     2,
+				"max":     5,
+				"current": 40,
+			},
+			res: WalReplayStatus{
+				Min:     2,
+				Max:     5,
+				Current: 40,
 			},
 		},
 
