@@ -2,7 +2,7 @@ module github.com/prometheus/client_golang
 
 require (
 	github.com/beorn7/perks v1.0.1
-	github.com/cespare/xxhash/v2 v2.1.1
+	github.com/cespare/xxhash/v2 v2.1.2
 	github.com/golang/protobuf v1.4.3
 	github.com/json-iterator/go v1.1.11
 	github.com/prometheus/client_model v0.2.1-0.20210624201024-61b6c1aac064
