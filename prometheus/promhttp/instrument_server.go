@@ -47,7 +47,8 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // one, or two non-const non-curried labels. For those, the only allowed label
 // names are "code" and "method". The function panics otherwise. For the "method"
 // label a predefined default label value set is used to filter given values.
-//`additionalMethods` can be used to add more methods to the set. The Observe
+// Values besides predefined values will count as `unknown` method.
+//`WithExtraMethods` can be used to add more methods to the set. The Observe
 // method of the Observer in the ObserverVec is called with the request duration
 // in seconds. Partitioning happens by HTTP status code and/or HTTP method if
 // the respective instance label names are present in the ObserverVec. For
@@ -91,7 +92,8 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 // non-const non-curried labels. For those, the only allowed label names are
 // "code" and "method". The function panics otherwise. For the "method"
 // label a predefined default label value set is used to filter given values.
-//`additionalMethods` can be used to add more methods to the set. Partitioning of the
+// Values besides predefined values will count as `unknown` method.
+// `WithExtraMethods` can be used to add more methods to the set. Partitioning of the
 // CounterVec happens by HTTP status code and/or HTTP method if the respective
 // instance label names are present in the CounterVec. For unpartitioned
 // counting, use a CounterVec with zero labels.
@@ -129,8 +131,9 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 // metric and label names and must have zero, one, or two non-const non-curried
 // labels. For those, the only allowed label names are "code" and "method". The
 // function panics otherwise. For the "method" label a predefined default label
-// value set is used to filter given values. `additionalMethods` can be used to
-// add more methods to the set. The Observe method of the Observer in the
+// value set is used to filter given values. Values besides predefined values
+// will count as `unknown` method.`WithExtraMethods` can be used to add more
+// methods to the set. The Observe method of the Observer in the
 // ObserverVec is called with the request duration in seconds. Partitioning
 // happens by HTTP status code and/or HTTP method if the respective instance
 // label names are present in the ObserverVec. For unpartitioned observations,
@@ -167,7 +170,8 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 // or two non-const non-curried labels. For those, the only allowed label names
 // are "code" and "method". The function panics otherwise. For the "method"
 // label a predefined default label value set is used to filter given values.
-//`additionalMethods` can be used to add more methods to the set. The Observe
+// Values besides predefined values will count as `unknown` method.
+// `WithExtraMethods` can be used to add more methods to the set. The Observe
 // method of the Observer in the ObserverVec is called with the request size in
 // bytes. Partitioning happens by HTTP status code and/or HTTP method if the
 // respective instance label names are present in the ObserverVec. For
@@ -209,7 +213,8 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 // or two non-const non-curried labels. For those, the only allowed label names
 // are "code" and "method". The function panics otherwise. For the "method"
 // label a predefined default label value set is used to filter given values.
-//`additionalMethods` can be used to add more methods to the set. The Observe
+// Values besides predefined values will count as `unknown` method.
+// `WithExtraMethods` can be used to add more methods to the set. The Observe
 // method of the Observer in the ObserverVec is called with the response size in
 // bytes. Partitioning happens by HTTP status code and/or HTTP method if the
 // respective instance label names are present in the ObserverVec. For

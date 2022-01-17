@@ -50,7 +50,8 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // The CounterVec must have zero, one, or two non-const non-curried labels. For
 // those, the only allowed label names are "code" and "method". The function
 // panics otherwise. For the "method" label a predefined default label value set
-// is used to filter given values. `additionalMethods` can be used to add more
+// is used to filter given values. Values besides predefined values will count
+// as `unknown` method.`WithExtraMethods` can be used to add more
 // methods to the set. Partitioning of the CounterVec happens by HTTP status code
 // and/or HTTP method if the respective instance label names are present in the
 // CounterVec. For unpartitioned counting, use a CounterVec with zero labels.
@@ -81,7 +82,8 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // ObserverVec.  The ObserverVec must have zero, one, or two non-const
 // non-curried labels. For those, the only allowed label names are "code" and
 // "method". The function panics otherwise. For the "method" label a predefined
-// default label value set is used to filter given values. `additionalMethods`
+// default label value set is used to filter given values. Values besides
+// predefined values will count as `unknown` method. `WithExtraMethods`
 // can be used to add more methods to the set. The Observe method of the Observer
 // in the ObserverVec is called with the request duration in
 // seconds. Partitioning happens by HTTP status code and/or HTTP method if the
