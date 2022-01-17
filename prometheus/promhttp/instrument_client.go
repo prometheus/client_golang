@@ -59,13 +59,18 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // is not incremented.
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
-func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper, additionalMethods ...string) RoundTripperFunc {
+func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
+	rtOpts := &option{}
+	for _, o := range opts {
+		o(rtOpts)
+	}
+
 	code, method := checkLabels(counter)
 
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		resp, err := next.RoundTrip(r)
 		if err == nil {
-			counter.With(labels(code, method, r.Method, resp.StatusCode, additionalMethods...)).Inc()
+			counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.additionalMethods...)).Inc()
 		}
 		return resp, err
 	})
@@ -89,14 +94,19 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 //
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
-func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper, additionalMethods ...string) RoundTripperFunc {
+func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
+	rtOpts := &option{}
+	for _, o := range opts {
+		o(rtOpts)
+	}
+
 	code, method := checkLabels(obs)
 
 	return RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
 		start := time.Now()
 		resp, err := next.RoundTrip(r)
 		if err == nil {
-			obs.With(labels(code, method, r.Method, resp.StatusCode, additionalMethods...)).Observe(time.Since(start).Seconds())
+			obs.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.additionalMethods...)).Observe(time.Since(start).Seconds())
 		}
 		return resp, err
 	})

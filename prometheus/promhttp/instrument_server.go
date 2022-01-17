@@ -60,7 +60,12 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 //
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
-func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, additionalMethods ...string) http.HandlerFunc {
+func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
+	mwOpts := &option{}
+	for _, o := range opts {
+		o(mwOpts)
+	}
+
 	code, method := checkLabels(obs)
 
 	if code {
@@ -69,14 +74,14 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, ad
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 
-			obs.With(labels(code, method, r.Method, d.Status(), additionalMethods...)).Observe(time.Since(now).Seconds())
+			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		next.ServeHTTP(w, r)
-		obs.With(labels(code, method, r.Method, 0, additionalMethods...)).Observe(time.Since(now).Seconds())
+		obs.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
 	})
 }
 
@@ -96,20 +101,25 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, ad
 // If the wrapped Handler panics, the Counter is not incremented.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler, additionalMethods ...string) http.HandlerFunc {
+func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler, opts ...Option) http.HandlerFunc {
+	mwOpts := &option{}
+	for _, o := range opts {
+		o(mwOpts)
+	}
+
 	code, method := checkLabels(counter)
 
 	if code {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
-			counter.With(labels(code, method, r.Method, d.Status(), additionalMethods...)).Inc()
+			counter.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Inc()
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
-		counter.With(labels(code, method, r.Method, 0, additionalMethods...)).Inc()
+		counter.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Inc()
 	})
 }
 
@@ -134,13 +144,18 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 // if used with Go1.9+.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler, additionalMethods ...string) http.HandlerFunc {
+func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
+	mwOpts := &option{}
+	for _, o := range opts {
+		o(mwOpts)
+	}
+
 	code, method := checkLabels(obs)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
-			obs.With(labels(code, method, r.Method, status, additionalMethods...)).Observe(time.Since(now).Seconds())
+			obs.With(labels(code, method, r.Method, status, mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
 		})
 		next.ServeHTTP(d, r)
 	})
@@ -164,7 +179,12 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 // If the wrapped Handler panics, no values are reported.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler, additionalMethods ...string) http.HandlerFunc {
+func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
+	mwOpts := &option{}
+	for _, o := range opts {
+		o(mwOpts)
+	}
+
 	code, method := checkLabels(obs)
 
 	if code {
@@ -172,14 +192,14 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			size := computeApproximateRequestSize(r)
-			obs.With(labels(code, method, r.Method, d.Status(), additionalMethods...)).Observe(float64(size))
+			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(float64(size))
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		size := computeApproximateRequestSize(r)
-		obs.With(labels(code, method, r.Method, 0, additionalMethods...)).Observe(float64(size))
+		obs.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Observe(float64(size))
 	})
 }
 
@@ -201,12 +221,18 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 // If the wrapped Handler panics, no values are reported.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler, additionalMethods ...string) http.Handler {
+func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.Handler {
+	mwOpts := &option{}
+	for _, o := range opts {
+		o(mwOpts)
+	}
+
 	code, method := checkLabels(obs)
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d := newDelegator(w, nil)
 		next.ServeHTTP(d, r)
-		obs.With(labels(code, method, r.Method, d.Status(), additionalMethods...)).Observe(float64(d.Written()))
+		obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(float64(d.Written()))
 	})
 }
 
