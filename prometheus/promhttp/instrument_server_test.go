@@ -204,6 +204,122 @@ func TestLabelCheck(t *testing.T) {
 	}
 }
 
+func TestLabels(t *testing.T) {
+	scenarios := map[string]struct {
+		varLabels    []string
+		reqMethod    string
+		respStatus   int
+		extraMethods []string
+		wantLabels   prometheus.Labels
+		ok           bool
+	}{
+		"empty": {
+			varLabels:  []string{},
+			wantLabels: emptyLabels,
+			reqMethod:  "GET",
+			respStatus: 200,
+			ok:         true,
+		},
+		"code as single var label": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"code": "200"},
+			ok:         true,
+		},
+		"code as single var label and out-of-range code": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 99,
+			wantLabels: prometheus.Labels{"code": "unknown"},
+			ok:         true,
+		},
+		"code as single var label and in-range but unrecognized code": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 308,
+			wantLabels: prometheus.Labels{"code": "308"},
+			ok:         true,
+		},
+		"method as single var label": {
+			varLabels:  []string{"method"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "get"},
+			ok:         true,
+		},
+		"method as single var label and unknown method": {
+			varLabels:  []string{"method"},
+			reqMethod:  "CUSTOM_METHOD",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "unknown"},
+			ok:         true,
+		},
+		"code and method as var labels": {
+			varLabels:  []string{"method", "code"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "get", "code": "200"},
+			ok:         true,
+		},
+		"method as single var label with extra methods specified": {
+			varLabels:    []string{"method"},
+			reqMethod:    "CUSTOM_METHOD",
+			respStatus:   200,
+			extraMethods: []string{"CUSTOM_METHOD", "CUSTOM_METHOD_1"},
+			wantLabels:   prometheus.Labels{"method": "custom_method"},
+			ok:           true,
+		},
+		"all labels used with an unknown method and out-of-range code": {
+			varLabels:  []string{"code", "method"},
+			reqMethod:  "CUSTOM_METHOD",
+			respStatus: 99,
+			wantLabels: prometheus.Labels{"method": "unknown", "code": "unknown"},
+			ok:         false,
+		},
+	}
+	checkLabels := func(labels []string) (gotCode bool, gotMethod bool) {
+		for _, label := range labels {
+			switch label {
+			case "code":
+				gotCode = true
+			case "method":
+				gotMethod = true
+			default:
+				panic("metric partitioned with non-supported labels for this test")
+			}
+		}
+		return
+	}
+	equalLabels := func(gotLabels, wantLabels prometheus.Labels) bool {
+		if len(gotLabels) != len(wantLabels) {
+			return false
+		}
+		for ln, lv := range gotLabels {
+			olv, ok := wantLabels[ln]
+			if !ok {
+				return false
+			}
+			if olv != lv {
+				return false
+			}
+		}
+		return true
+	}
+
+	for name, sc := range scenarios {
+		t.Run(name, func(t *testing.T) {
+			if sc.ok {
+				gotCode, gotMethod := checkLabels(sc.varLabels)
+				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
+				if !equalLabels(gotLabels, sc.wantLabels) {
+					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
+				}
+			}
+		})
+	}
+}
+
 func TestMiddlewareAPI(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
