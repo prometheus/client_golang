@@ -1,3 +1,11 @@
+## 1.12.0 / 2022-01-18
+
+* [CHANGE] example/random: Move flags and metrics into main() #935
+* [FEATURE] API client: Support wal replay status api #944
+* [FEATURE] Use the runtime/metrics package for the Go collector for 1.17+ #955
+* [ENHANCEMENT] API client: Update /api/v1/status/tsdb to include headStats #925
+* [ENHANCEMENT] promhttp: Check validity of method and code label values #962
+
 ## 1.11.0 / 2021-06-07
 
 * [CHANGE] Add new collectors package. #862
