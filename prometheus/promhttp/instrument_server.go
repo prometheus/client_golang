@@ -399,11 +399,9 @@ func sanitizeMethod(m string, additionalMethods ...string) string {
 	case "PATCH", "patch":
 		return "patch"
 	default:
-		if len(additionalMethods) > 0 {
-			for _, method := range additionalMethods {
-				if strings.EqualFold(m, method) {
-					return strings.ToLower(m)
-				}
+		for _, method := range additionalMethods {
+			if strings.EqualFold(m, method) {
+				return strings.ToLower(m)
 			}
 		}
 		return "unknown"
