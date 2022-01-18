@@ -21,7 +21,7 @@ import (
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -225,8 +225,8 @@ func TestCounterExemplar(t *testing.T) {
 	}).(*counter)
 	counter.now = func() time.Time { return now }
 
-	ts, err := ptypes.TimestampProto(now)
-	if err != nil {
+	ts := timestamppb.New(now)
+	if err := ts.CheckValid(); err != nil {
 		t.Fatal(err)
 	}
 	expectedExemplar := &dto.Exemplar{
