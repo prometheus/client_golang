@@ -20,7 +20,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func ExampleInstrumentHandlerWithAdditionalMethods() {
+func ExampleInstrumentHandlerWithExtraMethods() {
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "api_requests_total",
@@ -46,7 +46,7 @@ func ExampleInstrumentHandlerWithAdditionalMethods() {
 	})
 
 	// Specify additional HTTP methods to be added to the label allow list.
-	opts := WithAdditionalMethods("CUSTOM_METHOD")
+	opts := WithExtraMethods("CUSTOM_METHOD")
 
 	// Instrument the handlers with all the metrics, injecting the "handler"
 	// label by currying.

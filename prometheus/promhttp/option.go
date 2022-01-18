@@ -17,15 +17,15 @@ package promhttp
 type Option func(*option)
 
 type option struct {
-	additionalMethods []string
+	extraMethods []string
 }
 
-// WithAdditionalMethods adds additional HTTP methods to the list of allowed methods.
+// WithExtraMethods adds additional HTTP methods to the list of allowed methods.
 // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods for the default list.
 //
-// See the example for ExampleInstrumentHandlerWithAdditionalMethods for example usage.
-func WithAdditionalMethods(methods ...string) Option {
+// See the example for ExampleInstrumentHandlerWithExtraMethods for example usage.
+func WithExtraMethods(methods ...string) Option {
 	return func(o *option) {
-		o.additionalMethods = methods
+		o.extraMethods = methods
 	}
 }

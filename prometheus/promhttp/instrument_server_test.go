@@ -206,12 +206,12 @@ func TestLabelCheck(t *testing.T) {
 
 func TestLabels(t *testing.T) {
 	scenarios := map[string]struct {
-		varLabels       []string
-		reqMethod       string
-		respStatus      int
-		additionMethods []string
-		wantLabels      prometheus.Labels
-		ok              bool
+		varLabels    []string
+		reqMethod    string
+		respStatus   int
+		extraMethods []string
+		wantLabels   prometheus.Labels
+		ok           bool
 	}{
 		"empty": {
 			varLabels:  []string{},
@@ -262,13 +262,13 @@ func TestLabels(t *testing.T) {
 			wantLabels: prometheus.Labels{"method": "get", "code": "200"},
 			ok:         true,
 		},
-		"method as single var label with additional labels": {
-			varLabels:       []string{"method"},
-			reqMethod:       "CUSTOM_METHOD",
-			respStatus:      200,
-			additionMethods: []string{"CUSTOM_METHOD", "CUSTOM_METHOD_1"},
-			wantLabels:      prometheus.Labels{"method": "custom_method"},
-			ok:              true,
+		"method as single var label with extra methods specified": {
+			varLabels:    []string{"method"},
+			reqMethod:    "CUSTOM_METHOD",
+			respStatus:   200,
+			extraMethods: []string{"CUSTOM_METHOD", "CUSTOM_METHOD_1"},
+			wantLabels:   prometheus.Labels{"method": "custom_method"},
+			ok:           true,
 		},
 		"all labels used with an unknown method and out-of-range code": {
 			varLabels:  []string{"code", "method"},
@@ -311,7 +311,7 @@ func TestLabels(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if sc.ok {
 				gotCode, gotMethod := checkLabels(sc.varLabels)
-				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.additionMethods...)
+				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
 				if !equalLabels(gotLabels, sc.wantLabels) {
 					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
 				}

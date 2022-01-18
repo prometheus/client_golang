@@ -75,14 +75,14 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 
-			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
+			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		next.ServeHTTP(w, r)
-		obs.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
+		obs.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
 	})
 }
 
@@ -115,13 +115,13 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
-			counter.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Inc()
+			counter.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Inc()
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
-		counter.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Inc()
+		counter.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Inc()
 	})
 }
 
@@ -158,7 +158,7 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
-			obs.With(labels(code, method, r.Method, status, mwOpts.additionalMethods...)).Observe(time.Since(now).Seconds())
+			obs.With(labels(code, method, r.Method, status, mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
 		})
 		next.ServeHTTP(d, r)
 	})
@@ -196,14 +196,14 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			size := computeApproximateRequestSize(r)
-			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(float64(size))
+			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Observe(float64(size))
 		})
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		size := computeApproximateRequestSize(r)
-		obs.With(labels(code, method, r.Method, 0, mwOpts.additionalMethods...)).Observe(float64(size))
+		obs.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Observe(float64(size))
 	})
 }
 
@@ -237,7 +237,7 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d := newDelegator(w, nil)
 		next.ServeHTTP(d, r)
-		obs.With(labels(code, method, r.Method, d.Status(), mwOpts.additionalMethods...)).Observe(float64(d.Written()))
+		obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Observe(float64(d.Written()))
 	})
 }
 
@@ -331,7 +331,7 @@ func isLabelCurried(c prometheus.Collector, label string) bool {
 // unnecessary allocations on each request.
 var emptyLabels = prometheus.Labels{}
 
-func labels(code, method bool, reqMethod string, status int, additionalMethods ...string) prometheus.Labels {
+func labels(code, method bool, reqMethod string, status int, extraMethods ...string) prometheus.Labels {
 	if !(code || method) {
 		return emptyLabels
 	}
@@ -341,7 +341,7 @@ func labels(code, method bool, reqMethod string, status int, additionalMethods .
 		labels["code"] = sanitizeCode(status)
 	}
 	if method {
-		labels["method"] = sanitizeMethod(reqMethod, additionalMethods...)
+		labels["method"] = sanitizeMethod(reqMethod, extraMethods...)
 	}
 
 	return labels
@@ -373,8 +373,8 @@ func computeApproximateRequestSize(r *http.Request) int {
 
 // If the wrapped http.Handler has a known method, it will be sanitized and returned.
 // Otherwise, "unknown" will be returned. The known method list can be extended
-// as needed bym using additionalMethods parameter.
-func sanitizeMethod(m string, additionalMethods ...string) string {
+// as needed by using extraMethods parameter.
+func sanitizeMethod(m string, extraMethods ...string) string {
 	// See https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods for
 	// the methods chosen as default.
 	switch m {
@@ -399,7 +399,7 @@ func sanitizeMethod(m string, additionalMethods ...string) string {
 	case "PATCH", "patch":
 		return "patch"
 	default:
-		for _, method := range additionalMethods {
+		for _, method := range extraMethods {
 			if strings.EqualFold(m, method) {
 				return strings.ToLower(m)
 			}
