@@ -1,4 +1,4 @@
-## 1.12.0 / 2022-01-18
+## 1.12.0 / 2022-01-19
 
 * [CHANGE] example/random: Move flags and metrics into main() #935
 * [FEATURE] API client: Support wal replay status api #944
