@@ -280,3 +280,25 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 		t.Log("where X is the Go version you are currently using")
 	}
 }
+
+func TestGoCollectorConcurrency(t *testing.T) {
+	c := NewGoCollector().(*goCollector)
+
+	// Set up multiple goroutines to Collect from the
+	// same GoCollector. In race mode with GOMAXPROCS > 1,
+	// this test should fail often if Collect is not
+	// concurrent-safe.
+	for i := 0; i < 4; i++ {
+		go func() {
+			ch := make(chan Metric)
+			go func() {
+				// Drain all metrics recieved until the
+				// channel is closed.
+				for range ch {
+				}
+			}()
+			c.Collect(ch)
+			close(ch)
+		}()
+	}
+}
