@@ -140,9 +140,13 @@ func TestBatchHistogram(t *testing.T) {
 	}
 	metrics.Read(s)
 	rmHist := s[0].Value.Float64Histogram()
-	// runtime/metrics histograms always have -Inf and +Inf buckets.
-	// We never handle -Inf and +Inf is implicit.
-	wantBuckets := len(rmHist.Buckets) - 2
+	wantBuckets := internal.RuntimeMetricsBucketsForUnit(rmHist.Buckets, "bytes")
+	// runtime/metrics histograms always have a +Inf bucket and are lower
+	// bound inclusive. In contrast, we have an implicit +Inf bucket and
+	// are upper bound inclusive, so we can chop off the first bucket
+	// (since the conversion to upper bound inclusive will shift all buckets
+	// down one index) and the +Inf for the last bucket.
+	wantBuckets = wantBuckets[1 : len(wantBuckets)-1]
 
 	// Check to make sure the output proto makes sense.
 	pb := &dto.Metric{}
@@ -151,14 +155,14 @@ func TestBatchHistogram(t *testing.T) {
 	if math.IsInf(pb.Histogram.Bucket[len(pb.Histogram.Bucket)-1].GetUpperBound(), +1) {
 		t.Errorf("found +Inf bucket")
 	}
-	if got := len(pb.Histogram.Bucket); got != wantBuckets {
-		t.Errorf("got %d buckets in protobuf, want %d", got, wantBuckets)
+	if got := len(pb.Histogram.Bucket); got != len(wantBuckets) {
+		t.Errorf("got %d buckets in protobuf, want %d", got, len(wantBuckets))
 	}
 	for i, bucket := range pb.Histogram.Bucket {
 		// runtime/metrics histograms are lower-bound inclusive, but we're
 		// upper-bound inclusive. So just make sure the new inclusive upper
 		// bound is somewhere close by (in some cases it's equal).
-		wantBound := rmHist.Buckets[i+1]
+		wantBound := wantBuckets[i]
 		if gotBound := *bucket.UpperBound; (wantBound-gotBound)/wantBound > 0.001 {
 			t.Errorf("got bound %f, want within 0.1%% of %f", gotBound, wantBound)
 		}
@@ -244,6 +248,7 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 
 	descs := metrics.All()
 	rmSet := make(map[string]struct{})
+	// Iterate over runtime-reported descriptions to find new metrics.
 	for i := range descs {
 		rmName := descs[i].Name
 		rmSet[rmName] = struct{}{}
@@ -263,6 +268,8 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 			continue
 		}
 	}
+	// Now iterate over the expected metrics and look for removals.
+	cardinality := 0
 	for rmName, fqName := range expectedRuntimeMetrics {
 		if _, ok := rmSet[rmName]; !ok {
 			t.Errorf("runtime/metrics metric %s removed", rmName)
@@ -272,12 +279,41 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 			t.Errorf("runtime/metrics metric %s not appearing under expected name %s", rmName, fqName)
 			continue
 		}
+
+		// While we're at it, check to make sure expected cardinality lines
+		// up, but at the point of the protobuf write to get as close to the
+		// real deal as possible.
+		//
+		// Note that we filter out non-runtime/metrics metrics here, because
+		// those are manually managed.
+		var m dto.Metric
+		if err := goMetricSet[fqName].Write(&m); err != nil {
+			t.Errorf("writing metric %s: %v", fqName, err)
+			continue
+		}
+		// N.B. These are the only fields populated by runtime/metrics metrics specifically.
+		// Other fields are populated by e.g. GCStats metrics.
+		switch {
+		case m.Counter != nil:
+			fallthrough
+		case m.Gauge != nil:
+			cardinality++
+		case m.Histogram != nil:
+			cardinality += len(m.Histogram.Bucket) + 3 // + sum, count, and +inf
+		default:
+			t.Errorf("unexpected protobuf structure for metric %s", fqName)
+		}
 	}
 
 	if t.Failed() {
 		t.Log("a new Go version may have been detected, please run")
 		t.Log("\tgo run gen_go_collector_metrics_set.go go1.X")
 		t.Log("where X is the Go version you are currently using")
+	}
+
+	expectCardinality := expectedRuntimeMetricsCardinality
+	if cardinality != expectCardinality {
+		t.Errorf("unexpected cardinality for runtime/metrics metrics: got %d, want %d", cardinality, expectCardinality)
 	}
 }
 
