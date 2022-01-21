@@ -16,6 +16,7 @@ package prometheus_test
 import (
 	"bytes"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"net/http"
 	"runtime"
@@ -549,11 +550,27 @@ func ExampleNewConstHistogram() {
 		prometheus.Labels{"owner": "example"},
 	)
 
+	var exemplars []*dto.Exemplar
+	n := "testName"
+	v := "testVal"
+	lp := dto.LabelPair{Name: &n, Value: &v}
+	var labelPairs []*dto.LabelPair
+	labelPairs = append(labelPairs, &lp)
+	val := float64(42)
+	t, _ := time.Parse("unix", "Mon Jan _2 15:04:05 MST 2006")
+	ts := timestamppb.New(t)
+
+	for i := 0; i < 4; i++ {
+		e := dto.Exemplar{Label: labelPairs, Value: &val, Timestamp: ts}
+		exemplars = append(exemplars, &e)
+	}
+
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
-	h := prometheus.MustNewConstHistogram(
+	h := prometheus.MustNewConstHistogramWithExemplar(
 		desc,
 		4711, 403.34,
 		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		exemplars,
 		"200", "get",
 	)
 
@@ -583,18 +600,58 @@ func ExampleNewConstHistogram() {
 	//   bucket: <
 	//     cumulative_count: 121
 	//     upper_bound: 25
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 42
+	//       timestamp: <
+	//         seconds: -62135596800
+	//       >
+	//     >
 	//   >
 	//   bucket: <
 	//     cumulative_count: 2403
 	//     upper_bound: 50
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 42
+	//       timestamp: <
+	//         seconds: -62135596800
+	//       >
+	//     >
 	//   >
 	//   bucket: <
 	//     cumulative_count: 3221
 	//     upper_bound: 100
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 42
+	//       timestamp: <
+	//         seconds: -62135596800
+	//       >
+	//     >
 	//   >
 	//   bucket: <
 	//     cumulative_count: 4233
 	//     upper_bound: 200
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 42
+	//       timestamp: <
+	//         seconds: -62135596800
+	//       >
+	//     >
 	//   >
 	// >
 }
