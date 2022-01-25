@@ -126,7 +126,7 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 	currMetrics := c.metrics
 	currMetricFamilies := c.metricFamilyByName
 	if reset {
-		currMetrics = make(map[uint64]*dto.Metric, len(c.metrics))
+		currMetrics = make(map[uint64]*dto.Metric, len(inserts))
 		currMetricFamilies = make(map[string]*dto.MetricFamily, len(c.metricFamilyByName))
 	}
 
