@@ -31,8 +31,11 @@ import (
 type goCollector struct {
 	base baseGoCollector
 
+	// mu protects updates to all fields ensuring a consistent
+	// snapshot is always produced by Collect.
+	mu sync.Mutex
+
 	// rm... fields all pertain to the runtime/metrics package.
-	rmSampleMu  sync.Mutex
 	rmSampleBuf []metrics.Sample
 	rmSampleMap map[string]*metrics.Sample
 	rmMetrics   []collectorMetric
@@ -135,10 +138,16 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	// rmSampleBuf. Just read into rmSampleBuf but write all the data
 	// we get into our Metrics or MemStats.
 	//
-	// Note that we cannot simply read and then clone rmSampleBuf
-	// because we'd need to perform a deep clone of it, which is likely
-	// not worth it.
-	c.rmSampleMu.Lock()
+	// This lock also ensures that the Metrics we send out are all from
+	// the same updates, ensuring their mutual consistency insofar as
+	// is guaranteed by the runtime/metrics package.
+	//
+	// N.B. This locking is heavy-handed, but Collect is expected to be called
+	// relatively infrequently. Also the core operation here, metrics.Read,
+	// is fast (O(tens of microseconds)) so contention should certainly be
+	// low, though channel operations and any allocations may add to that.
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	// Populate runtime/metrics sample buffer.
 	metrics.Read(c.rmSampleBuf)
@@ -157,10 +166,13 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 			if v1 > v0 {
 				m.Add(unwrapScalarRMValue(sample.Value) - m.get())
 			}
+			m.Collect(ch)
 		case *gauge:
 			m.Set(unwrapScalarRMValue(sample.Value))
+			m.Collect(ch)
 		case *batchHistogram:
 			m.update(sample.Value.Float64Histogram(), c.exactSumFor(sample.Name))
+			m.Collect(ch)
 		default:
 			panic("unexpected metric type")
 		}
@@ -169,17 +181,6 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	// populate the old metrics from it.
 	var ms runtime.MemStats
 	memStatsFromRM(&ms, c.rmSampleMap)
-
-	c.rmSampleMu.Unlock()
-
-	// Export all the metrics to ch.
-	// At this point we must not access rmSampleBuf or rmSampleMap, because
-	// a concurrent caller could use it. It's safe to Collect all our Metrics,
-	// however, because they're updated in a thread-safe way while MemStats
-	// is local to this call of Collect.
-	for _, m := range c.rmMetrics {
-		m.Collect(ch)
-	}
 	for _, i := range c.msMetrics {
 		ch <- MustNewConstMetric(i.desc, i.valType, i.eval(&ms))
 	}
