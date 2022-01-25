@@ -220,7 +220,7 @@ func BenchmarkCachedTGatherer_Update(b *testing.B) {
 		b.Error("update:", err)
 	}
 
-	if len(c.metricFamilyByName) != 1e3 || len(c.metrics) != 1e6 {
+	if len(c.metricFamilyByName) != 1e3 || len(c.metricFamilyByName["realistic_longer_name_123"].metricsByHash) != 1e3 {
 		// Ensure we did not generate duplicates.
 		panic("generated data set gave wrong numbers")
 	}
