@@ -292,7 +292,7 @@ func TestGoCollectorConcurrency(t *testing.T) {
 		go func() {
 			ch := make(chan Metric)
 			go func() {
-				// Drain all metrics recieved until the
+				// Drain all metrics received until the
 				// channel is closed.
 				for range ch {
 				}
