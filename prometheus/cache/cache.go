@@ -43,13 +43,13 @@ var separatorByteSlice = []byte{model.SeparatorByte} // For convenient use with 
 // Use CachedTGatherer with classic Registry using NewMultiTRegistry and ToTransactionalGatherer helpers.
 // NOTE(bwplotka): Experimental, API and behaviour can change.
 type CachedTGatherer struct {
-	metricFamilyByName map[string]*family
-	mMu                sync.RWMutex
+	metricFamiliesByName map[string]*family
+	mMu                  sync.RWMutex
 }
 
 func NewCachedTGatherer() *CachedTGatherer {
 	return &CachedTGatherer{
-		metricFamilyByName: map[string]*family{},
+		metricFamiliesByName: map[string]*family{},
 	}
 }
 
@@ -69,6 +69,7 @@ type metric struct {
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func normalizeMetricFamilies(metricFamiliesByName map[string]*family) []*dto.MetricFamily {
+	// TODO(bwplotka): We could optimize this further by bookkeeping this slice in place.
 	for _, mf := range metricFamiliesByName {
 		if cap(mf.Metric) < len(mf.metricsByHash) {
 			mf.Metric = make([]*dto.Metric, 0, len(mf.metricsByHash))
@@ -80,9 +81,6 @@ func normalizeMetricFamilies(metricFamiliesByName map[string]*family) []*dto.Met
 		sort.Sort(internal.MetricSorter(mf.Metric))
 	}
 
-	for _, mf := range metricFamiliesByName {
-		sort.Sort(internal.MetricSorter(mf.Metric))
-	}
 	names := make([]string, 0, len(metricFamiliesByName))
 	for name, mf := range metricFamiliesByName {
 		if len(mf.Metric) > 0 {
@@ -102,8 +100,8 @@ func (c *CachedTGatherer) Gather() (_ []*dto.MetricFamily, done func(), err erro
 	c.mMu.RLock()
 
 	// BenchmarkCachedTGatherer_Update shows, even for 1 million metrics among 1000 families
-	// this is efficient enough (~300µs and ~50 kB per op), no need to cache it for now.
-	return normalizeMetricFamilies(c.metricFamilyByName), c.mMu.RUnlock, nil
+	// this is efficient enough (~400ms and ~50 kB per op), no need to cache it for now.
+	return normalizeMetricFamilies(c.metricFamiliesByName), c.mMu.RUnlock, nil
 }
 
 type Key struct {
@@ -174,7 +172,7 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 		}
 
 		// Update metric family.
-		mf, ok := c.metricFamilyByName[inserts[i].FQName]
+		mf, ok := c.metricFamiliesByName[inserts[i].FQName]
 		if !ok {
 			mf = &family{
 				MetricFamily:  &dto.MetricFamily{},
@@ -186,7 +184,7 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 		mf.Type = inserts[i].ValueType.ToDTO()
 		mf.Help = &inserts[i].Help
 
-		c.metricFamilyByName[inserts[i].FQName] = mf
+		c.metricFamiliesByName[inserts[i].FQName] = mf
 
 		// Update metric pointer.
 		hSum := inserts[i].hash()
@@ -250,7 +248,7 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 			continue
 		}
 
-		mf, ok := c.metricFamilyByName[del.FQName]
+		mf, ok := c.metricFamiliesByName[del.FQName]
 		if !ok {
 			continue
 		}
@@ -261,7 +259,7 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 		}
 
 		if len(mf.metricsByHash) == 1 {
-			delete(c.metricFamilyByName, del.FQName)
+			delete(c.metricFamiliesByName, del.FQName)
 			continue
 		}
 
@@ -269,9 +267,10 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 	}
 
 	if reset {
-		for name, mf := range c.metricFamilyByName {
+		// Trading off-time instead of memory allocated for otherwise needed replacement map.
+		for name, mf := range c.metricFamiliesByName {
 			if !mf.touched {
-				delete(c.metricFamilyByName, name)
+				delete(c.metricFamiliesByName, name)
 				continue
 			}
 			for hash, m := range mf.metricsByHash {
@@ -281,12 +280,14 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 				}
 			}
 			if len(mf.metricsByHash) == 0 {
-				delete(c.metricFamilyByName, name)
+				delete(c.metricFamiliesByName, name)
 			}
 		}
 	}
 
-	for _, mf := range c.metricFamilyByName {
+	// TODO(bwplotka): Potentially move this only for reset, but then code would assume
+	// you either only update or only reset update. For now we can live with small overhead.
+	for _, mf := range c.metricFamiliesByName {
 		mf.touched = false
 		for _, m := range mf.metricsByHash {
 			m.touched = false
