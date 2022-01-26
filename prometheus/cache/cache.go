@@ -45,10 +45,13 @@ var separatorByteSlice = []byte{model.SeparatorByte} // For convenient use with 
 type CachedTGatherer struct {
 	metricFamiliesByName map[string]*family
 	mMu                  sync.RWMutex
+
+	desiredTouchState bool
 }
 
 func NewCachedTGatherer() *CachedTGatherer {
 	return &CachedTGatherer{
+		desiredTouchState:    true,
 		metricFamiliesByName: map[string]*family{},
 	}
 }
@@ -57,30 +60,19 @@ type family struct {
 	*dto.MetricFamily
 
 	metricsByHash map[uint64]*metric
-	touched       bool
+	touchState    bool
+	needsRebuild  bool
 }
 
 type metric struct {
 	*dto.Metric
-	touched bool
+	touchState bool
 }
 
 // normalizeMetricFamilies returns a MetricFamily slice with empty
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func normalizeMetricFamilies(metricFamiliesByName map[string]*family) []*dto.MetricFamily {
-	// TODO(bwplotka): We could optimize this further by bookkeeping this slice in place.
-	for _, mf := range metricFamiliesByName {
-		if cap(mf.Metric) < len(mf.metricsByHash) {
-			mf.Metric = make([]*dto.Metric, 0, len(mf.metricsByHash))
-		}
-		mf.Metric = mf.Metric[:0]
-		for _, m := range mf.metricsByHash {
-			mf.Metric = append(mf.Metric, m.Metric)
-		}
-		sort.Sort(internal.MetricSorter(mf.Metric))
-	}
-
 	names := make([]string, 0, len(metricFamiliesByName))
 	for name, mf := range metricFamiliesByName {
 		if len(mf.Metric) > 0 {
@@ -98,9 +90,6 @@ func normalizeMetricFamilies(metricFamiliesByName map[string]*family) []*dto.Met
 // Gather implements TransactionalGatherer interface.
 func (c *CachedTGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
 	c.mMu.RLock()
-
-	// BenchmarkCachedTGatherer_Update shows, even for 1 million metrics among 1000 families
-	// this is efficient enough (~400ms and ~50 kB per op), no need to cache it for now.
 	return normalizeMetricFamilies(c.metricFamiliesByName), c.mMu.RUnlock, nil
 }
 
@@ -180,7 +169,10 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 			}
 			mf.Name = &inserts[i].FQName
 		}
-		mf.touched = true
+		if reset {
+			mf.touchState = c.desiredTouchState
+		}
+
 		mf.Type = inserts[i].ValueType.ToDTO()
 		mf.Help = &inserts[i].Help
 
@@ -200,8 +192,11 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 				})
 			}
 			sort.Sort(internal.LabelPairSorter(m.Label))
+			mf.needsRebuild = true
 		}
-		m.touched = true
+		if reset {
+			m.touchState = c.desiredTouchState
+		}
 
 		switch inserts[i].ValueType {
 		case prometheus.CounterValue:
@@ -263,18 +258,19 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 			continue
 		}
 
+		mf.needsRebuild = true
 		delete(mf.metricsByHash, hSum)
 	}
 
 	if reset {
 		// Trading off-time instead of memory allocated for otherwise needed replacement map.
 		for name, mf := range c.metricFamiliesByName {
-			if !mf.touched {
+			if mf.touchState != c.desiredTouchState {
 				delete(c.metricFamiliesByName, name)
 				continue
 			}
 			for hash, m := range mf.metricsByHash {
-				if !m.touched {
+				if m.touchState != c.desiredTouchState {
 					delete(mf.metricsByHash, hash)
 					continue
 				}
@@ -283,15 +279,23 @@ func (c *CachedTGatherer) Update(reset bool, inserts []Insert, deletions []Key) 
 				delete(c.metricFamiliesByName, name)
 			}
 		}
+
+		// Avoid resetting state by flipping what we will expect in the next update.
+		c.desiredTouchState = !c.desiredTouchState
 	}
 
-	// TODO(bwplotka): Potentially move this only for reset, but then code would assume
-	// you either only update or only reset update. For now we can live with small overhead.
 	for _, mf := range c.metricFamiliesByName {
-		mf.touched = false
-		for _, m := range mf.metricsByHash {
-			m.touched = false
+		if !mf.needsRebuild {
+			continue
 		}
+
+		mf.Metric = mf.Metric[:0]
+		for _, m := range mf.metricsByHash {
+			mf.Metric = append(mf.Metric, m.Metric)
+		}
+		sort.Sort(internal.MetricSorter(mf.Metric))
+
+		mf.needsRebuild = false
 	}
 
 	return errs.MaybeUnwrap()
