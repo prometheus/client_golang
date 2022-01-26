@@ -35,18 +35,18 @@ func (s LabelPairSorter) Less(i, j int) bool {
 	return s[i].GetName() < s[j].GetName()
 }
 
-// metricSorter is a sortable slice of *dto.Metric.
-type metricSorter []*dto.Metric
+// MetricSorter is a sortable slice of *dto.Metric.
+type MetricSorter []*dto.Metric
 
-func (s metricSorter) Len() int {
+func (s MetricSorter) Len() int {
 	return len(s)
 }
 
-func (s metricSorter) Swap(i, j int) {
+func (s MetricSorter) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func (s metricSorter) Less(i, j int) bool {
+func (s MetricSorter) Less(i, j int) bool {
 	if len(s[i].Label) != len(s[j].Label) {
 		// This should not happen. The metrics are
 		// inconsistent. However, we have to deal with the fact, as
@@ -84,7 +84,7 @@ func (s metricSorter) Less(i, j int) bool {
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
 	for _, mf := range metricFamiliesByName {
-		sort.Sort(metricSorter(mf.Metric))
+		sort.Sort(MetricSorter(mf.Metric))
 	}
 	names := make([]string, 0, len(metricFamiliesByName))
 	for name, mf := range metricFamiliesByName {
