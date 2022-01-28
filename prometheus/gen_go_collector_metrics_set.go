@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"go/format"
 	"log"
+	"math"
 	"os"
+	"runtime"
 	"runtime/metrics"
 	"strconv"
 	"strings"
@@ -35,6 +37,10 @@ func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("requires Go version (e.g. go1.17) as an argument")
 	}
+	toolVersion := runtime.Version()
+	if majorVersion := toolVersion[:strings.LastIndexByte(toolVersion, '.')]; majorVersion != os.Args[1] {
+		log.Fatalf("using Go version %q but expected Go version %q", majorVersion, os.Args[1])
+	}
 	version, err := parseVersion(os.Args[1])
 	if err != nil {
 		log.Fatalf("parsing Go version: %v", err)
@@ -45,9 +51,11 @@ func main() {
 	err = testFile.Execute(&buf, struct {
 		Descriptions []metrics.Description
 		GoVersion    goVersion
+		Cardinality  int
 	}{
 		Descriptions: metrics.All(),
 		GoVersion:    version,
+		Cardinality:  rmCardinality(),
 	})
 	if err != nil {
 		log.Fatalf("executing template: %v", err)
@@ -85,6 +93,46 @@ func parseVersion(s string) (goVersion, error) {
 	return goVersion(i), err
 }
 
+func rmCardinality() int {
+	cardinality := 0
+
+	// Collect all histogram samples so that we can get their buckets.
+	// The API guarantees that the buckets are always fixed for the lifetime
+	// of the process.
+	var histograms []metrics.Sample
+	for _, d := range metrics.All() {
+		if d.Kind == metrics.KindFloat64Histogram {
+			histograms = append(histograms, metrics.Sample{Name: d.Name})
+		} else {
+			cardinality++
+		}
+	}
+
+	// Handle histograms.
+	metrics.Read(histograms)
+	for i := range histograms {
+		name := histograms[i].Name
+		buckets := internal.RuntimeMetricsBucketsForUnit(
+			histograms[i].Value.Float64Histogram().Buckets,
+			name[strings.IndexRune(name, ':')+1:],
+		)
+		cardinality += len(buckets) + 3 // Plus total count, sum, and the implicit infinity bucket.
+		// runtime/metrics bucket boundaries are lower-bound-inclusive, but
+		// always represents each actual *boundary* so Buckets is always
+		// 1 longer than Counts, while in Prometheus the mapping is one-to-one,
+		// as the bottom bucket extends to -Inf, and the top infinity bucket is
+		// implicit. Therefore, we should have one fewer bucket than is listed
+		// above.
+		cardinality--
+		if buckets[len(buckets)-1] == math.Inf(1) {
+			// We already counted the infinity bucket separately.
+			cardinality--
+		}
+	}
+
+	return cardinality
+}
+
 var testFile = template.Must(template.New("testFile").Funcs(map[string]interface{}{
 	"rm2prom": func(d metrics.Description) string {
 		ns, ss, n, ok := internal.RuntimeMetricsToProm(&d)
@@ -112,4 +160,6 @@ var expectedRuntimeMetrics = map[string]string{
 	{{- end -}}
 {{end}}
 }
+
+const expectedRuntimeMetricsCardinality = {{.Cardinality}}
 `))
