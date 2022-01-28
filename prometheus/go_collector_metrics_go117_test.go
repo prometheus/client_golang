@@ -37,3 +37,5 @@ var expectedRuntimeMetrics = map[string]string{
 	"/sched/goroutines:goroutines":                "go_sched_goroutines_goroutines",
 	"/sched/latencies:seconds":                    "go_sched_latencies_seconds",
 }
+
+const expectedRuntimeMetricsCardinality = 79
