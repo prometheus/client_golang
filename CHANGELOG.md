@@ -1,3 +1,10 @@
+## 1.12.1 / 2022-01-29
+
+* [BUGFIX] Make the Go 1.17 collector thread-safe #969
+  * Use simpler locking in the Go 1.17 collector #975
+* [BUGFIX] Reduce granularity of histogram buckets for Go 1.17 collector #974
+* [CHANGE] API client: make http reads more efficient #976
+
 ## 1.12.0 / 2022-01-19
 
 * [CHANGE] example/random: Move flags and metrics into main() #935
