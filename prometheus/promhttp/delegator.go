@@ -61,8 +61,10 @@ func (r *responseWriterDelegator) WriteHeader(code int) {
 		r.observeWriteHeader(code)
 	}
 	r.status = code
-	r.wroteHeader = true
-	r.ResponseWriter.WriteHeader(code)
+	if !r.wroteHeader {
+		r.ResponseWriter.WriteHeader(code)
+		r.wroteHeader = true
+	}
 }
 
 func (r *responseWriterDelegator) Write(b []byte) (int, error) {
