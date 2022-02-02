@@ -14,7 +14,11 @@
 package api
 
 import (
+	"bytes"
+	"context"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
 )
@@ -109,5 +113,52 @@ func TestClientURL(t *testing.T) {
 			t.Errorf("unexpected result: got %s, want %s", u, test.expected)
 			continue
 		}
+	}
+}
+
+// Serve any http request with a response of N KB of spaces.
+type serveSpaces struct {
+	sizeKB int
+}
+
+func (t serveSpaces) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	kb := bytes.Repeat([]byte{' '}, 1024)
+	for i := 0; i < t.sizeKB; i++ {
+		w.Write(kb)
+	}
+}
+
+func BenchmarkClient(b *testing.B) {
+	b.ReportAllocs()
+	ctx := context.Background()
+
+	for _, sizeKB := range []int{4, 50, 1000, 2000} {
+		b.Run(fmt.Sprintf("%dKB", sizeKB), func(b *testing.B) {
+
+			testServer := httptest.NewServer(serveSpaces{sizeKB})
+			defer testServer.Close()
+
+			client, err := NewClient(Config{
+				Address: testServer.URL,
+			})
+			if err != nil {
+				b.Fatalf("Failed to initialize client: %v", err)
+			}
+			url, err := url.Parse(testServer.URL + "/prometheus/api/v1/query?query=up")
+			if err != nil {
+				b.Fatalf("Failed to parse url: %v", err)
+			}
+			req := &http.Request{
+				URL: url,
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _, err := client.Do(ctx, req)
+				if err != nil {
+					b.Fatalf("Query failed: %v", err)
+				}
+			}
+			b.StopTimer()
+		})
 	}
 }

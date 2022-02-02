@@ -1,3 +1,18 @@
+## 1.12.1 / 2022-01-29
+
+* [BUGFIX] Make the Go 1.17 collector concurrency-safe #969
+  * Use simpler locking in the Go 1.17 collector #975
+* [BUGFIX] Reduce granularity of histogram buckets for Go 1.17 collector #974
+* [ENHANCEMENT] API client: make HTTP reads more efficient #976
+
+## 1.12.0 / 2022-01-19
+
+* [CHANGE] example/random: Move flags and metrics into main() #935
+* [FEATURE] API client: Support wal replay status api #944
+* [FEATURE] Use the runtime/metrics package for the Go collector for 1.17+ #955
+* [ENHANCEMENT] API client: Update /api/v1/status/tsdb to include headStats #925
+* [ENHANCEMENT] promhttp: Check validity of method and code label values #962
+
 ## 1.11.0 / 2021-06-07
 
 * [CHANGE] Add new collectors package. #862
