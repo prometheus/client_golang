@@ -424,24 +424,24 @@ func TestHistogramExemplar(t *testing.T) {
 	}
 	expectedExemplars := []*dto.Exemplar{
 		nil,
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("2")},
+				{Name: proto.String("id"), Value: proto.String("2")},
 			},
 			Value:     proto.Float64(1.6),
 			Timestamp: ts,
 		},
 		nil,
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("3")},
+				{Name: proto.String("id"), Value: proto.String("3")},
 			},
 			Value:     proto.Float64(4),
 			Timestamp: ts,
 		},
-		&dto.Exemplar{
+		{
 			Label: []*dto.LabelPair{
-				&dto.LabelPair{Name: proto.String("id"), Value: proto.String("4")},
+				{Name: proto.String("id"), Value: proto.String("4")},
 			},
 			Value:     proto.Float64(4.5),
 			Timestamp: ts,

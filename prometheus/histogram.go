@@ -678,14 +678,15 @@ func NewConstHistogramWithExemplar(
 	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
 		return nil, err
 	}
-	return &constHistogram{
-		desc:       desc,
-		count:      count,
-		sum:        sum,
-		buckets:    buckets,
-		exemplars:  exemplars,
-		labelPairs: MakeLabelPairs(desc, labelValues),
-	}, nil
+
+	h, err := NewConstHistogram(desc, count, sum, buckets, labelValues...)
+	if err != nil {
+		return nil, err
+	}
+
+	h.(*constHistogram).exemplars = exemplars
+
+	return h, nil
 }
 
 // MustNewConstHistogram is a version of NewConstHistogram that panics where
@@ -698,11 +699,9 @@ func MustNewConstHistogramWithExemplar(
 	exemplars []*dto.Exemplar,
 	labelValues ...string,
 ) Metric {
-	m, err := NewConstHistogramWithExemplar(desc, count, sum, buckets, exemplars, labelValues...)
-	if err != nil {
-		panic(err)
-	}
-	return m
+	h := MustNewConstHistogram(desc, count, sum, buckets, labelValues...)
+	h.(*constHistogram).exemplars = exemplars
+	return h
 }
 
 type buckSort []*dto.Bucket
