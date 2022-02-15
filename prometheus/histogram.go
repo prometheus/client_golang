@@ -611,13 +611,6 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 	return nil
 }
 
-func (h *constHistogram) GetExemplars() []*dto.Exemplar {
-	if h != nil {
-		return h.exemplars
-	}
-	return nil
-}
-
 // NewConstHistogram returns a metric representing a Prometheus histogram with
 // fixed values for the count, sum, and bucket counts. As those parameters
 // cannot be changed, the returned value does not implement the Histogram
