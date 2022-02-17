@@ -117,7 +117,6 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
 		if inFlightSem != nil {
-			// TODO(bwplotka): Implement single-flight which is essential for blocking TransactionalGatherer.
 			select {
 			case inFlightSem <- struct{}{}: // All good, carry on.
 				defer func() { <-inFlightSem }()
