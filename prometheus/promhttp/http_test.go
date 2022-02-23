@@ -16,6 +16,7 @@ package promhttp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 type errorCollector struct{}
@@ -56,8 +58,19 @@ func (b blockingCollector) Collect(ch chan<- prometheus.Metric) {
 	<-b.Block
 }
 
-func TestHandlerErrorHandling(t *testing.T) {
+type mockTransactionGatherer struct {
+	g             prometheus.Gatherer
+	gatherInvoked int
+	doneInvoked   int
+}
 
+func (g *mockTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
+	g.gatherInvoked++
+	mfs, err := g.g.Gather()
+	return mfs, func() { g.doneInvoked++ }, err
+}
+
+func TestHandlerErrorHandling(t *testing.T) {
 	// Create a registry that collects a MetricFamily with two elements,
 	// another with one, and reports an error. Further down, we'll use the
 	// same registry in the HandlerOpts.
@@ -90,21 +103,30 @@ func TestHandlerErrorHandling(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
-	errorHandler := HandlerFor(reg, HandlerOpts{
+	mReg := &mockTransactionGatherer{g: reg}
+	errorHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: HTTPErrorOnError,
 		Registry:      reg,
 	})
-	continueHandler := HandlerFor(reg, HandlerOpts{
+	continueHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: ContinueOnError,
 		Registry:      reg,
 	})
-	panicHandler := HandlerFor(reg, HandlerOpts{
+	panicHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: PanicOnError,
 		Registry:      reg,
 	})
+	// Expect gatherer not touched.
+	if got := mReg.gatherInvoked; got != 0 {
+		t.Fatalf("unexpected number of gather invokes, want 0, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 0 {
+		t.Fatalf("unexpected number of done invokes, want 0, got %d", got)
+	}
+
 	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
 	wantErrorBody := `An error has occurred while serving metrics:
@@ -140,25 +162,39 @@ the_count 0
 `
 
 	errorHandler.ServeHTTP(writer, request)
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
 	if got, want := writer.Code, http.StatusInternalServerError; got != want {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
-	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message:\n%s\nwant log message:\n%s\n", got, wantMsg)
+	if got, want := logBuf.String(), wantMsg; got != want {
+		t.Errorf("got log buf %q, want %q", got, want)
 	}
-	if got := writer.Body.String(); got != wantErrorBody {
-		t.Errorf("got body:\n%s\nwant body:\n%s\n", got, wantErrorBody)
+	if got, want := writer.Body.String(), wantErrorBody; got != want {
+		t.Errorf("got body %q, want %q", got, want)
 	}
+
 	logBuf.Reset()
 	writer.Body.Reset()
 	writer.Code = http.StatusOK
 
 	continueHandler.ServeHTTP(writer, request)
+
+	if got := mReg.gatherInvoked; got != 2 {
+		t.Fatalf("unexpected number of gather invokes, want 2, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 2 {
+		t.Fatalf("unexpected number of done invokes, want 2, got %d", got)
+	}
 	if got, want := writer.Code, http.StatusOK; got != want {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
-	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message %q, want %q", got, wantMsg)
+	if got, want := logBuf.String(), wantMsg; got != want {
+		t.Errorf("got log buf %q, want %q", got, want)
 	}
 	if got := writer.Body.String(); got != wantOKBody1 && got != wantOKBody2 {
 		t.Errorf("got body %q, want either %q or %q", got, wantOKBody1, wantOKBody2)
@@ -168,20 +204,34 @@ the_count 0
 		if err := recover(); err == nil {
 			t.Error("expected panic from panicHandler")
 		}
+		if got := mReg.gatherInvoked; got != 3 {
+			t.Fatalf("unexpected number of gather invokes, want 3, got %d", got)
+		}
+		if got := mReg.doneInvoked; got != 3 {
+			t.Fatalf("unexpected number of done invokes, want 3, got %d", got)
+		}
 	}()
 	panicHandler.ServeHTTP(writer, request)
 }
 
 func TestInstrumentMetricHandler(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	handler := InstrumentMetricHandler(reg, HandlerFor(reg, HandlerOpts{}))
+	mReg := &mockTransactionGatherer{g: reg}
+	handler := InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	// Do it again to test idempotency.
-	InstrumentMetricHandler(reg, HandlerFor(reg, HandlerOpts{}))
+	InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
 	handler.ServeHTTP(writer, request)
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
+
 	if got, want := writer.Code, http.StatusOK; got != want {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
@@ -195,19 +245,28 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
 
-	writer.Body.Reset()
-	handler.ServeHTTP(writer, request)
-	if got, want := writer.Code, http.StatusOK; got != want {
-		t.Errorf("got HTTP status code %d, want %d", got, want)
-	}
+	for i := 0; i < 100; i++ {
+		writer.Body.Reset()
+		handler.ServeHTTP(writer, request)
 
-	want = "promhttp_metric_handler_requests_in_flight 1\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
-	}
-	want = "promhttp_metric_handler_requests_total{code=\"200\"} 1\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
+		if got, want := mReg.gatherInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of gather invokes, want %d, got %d", want, got)
+		}
+		if got, want := mReg.doneInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of done invokes, want %d, got %d", want, got)
+		}
+		if got, want := writer.Code, http.StatusOK; got != want {
+			t.Errorf("got HTTP status code %d, want %d", got, want)
+		}
+
+		want := "promhttp_metric_handler_requests_in_flight 1\n"
+		if got := writer.Body.String(); !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q", got, want)
+		}
+		want = fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1)
+		if got := writer.Body.String(); !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q", got, want)
+		}
 	}
 }
 
