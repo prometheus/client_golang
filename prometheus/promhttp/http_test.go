@@ -20,12 +20,12 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/stretchr/testify/require"
 )
 
 type errorCollector struct{}
@@ -120,8 +120,12 @@ func TestHandlerErrorHandling(t *testing.T) {
 		Registry:      reg,
 	})
 	// Expect gatherer not touched.
-	require.Equal(t, 0, mReg.gatherInvoked)
-	require.Equal(t, 0, mReg.doneInvoked)
+	if got := mReg.gatherInvoked; got != 0 {
+		t.Fatalf("unexpected number of gather invokes, want 0, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 0 {
+		t.Fatalf("unexpected number of done invokes, want 0, got %d", got)
+	}
 
 	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
@@ -158,12 +162,21 @@ the_count 0
 `
 
 	errorHandler.ServeHTTP(writer, request)
-	require.Equal(t, 1, mReg.gatherInvoked)
-	require.Equal(t, 1, mReg.doneInvoked)
-
-	require.Equal(t, http.StatusInternalServerError, writer.Code)
-	require.Equal(t, wantMsg, logBuf.String())
-	require.Equal(t, wantErrorBody, writer.Body.String())
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
+	if got, want := writer.Code, http.StatusInternalServerError; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+	if got, want := logBuf.String(), wantMsg; got != want {
+		t.Errorf("got log buf %q, want %q", got, want)
+	}
+	if got, want := writer.Body.String(), wantErrorBody; got != want {
+		t.Errorf("got body %q, want %q", got, want)
+	}
 
 	logBuf.Reset()
 	writer.Body.Reset()
@@ -171,10 +184,18 @@ the_count 0
 
 	continueHandler.ServeHTTP(writer, request)
 
-	require.Equal(t, 2, mReg.gatherInvoked)
-	require.Equal(t, 2, mReg.doneInvoked)
-	require.Equal(t, http.StatusOK, writer.Code)
-	require.Equal(t, wantMsg, logBuf.String())
+	if got := mReg.gatherInvoked; got != 2 {
+		t.Fatalf("unexpected number of gather invokes, want 2, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 2 {
+		t.Fatalf("unexpected number of done invokes, want 2, got %d", got)
+	}
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+	if got, want := logBuf.String(), wantMsg; got != want {
+		t.Errorf("got log buf %q, want %q", got, want)
+	}
 	if got := writer.Body.String(); got != wantOKBody1 && got != wantOKBody2 {
 		t.Errorf("got body %q, want either %q or %q", got, wantOKBody1, wantOKBody2)
 	}
@@ -183,8 +204,12 @@ the_count 0
 		if err := recover(); err == nil {
 			t.Error("expected panic from panicHandler")
 		}
-		require.Equal(t, 3, mReg.gatherInvoked)
-		require.Equal(t, 3, mReg.doneInvoked)
+		if got := mReg.gatherInvoked; got != 3 {
+			t.Fatalf("unexpected number of gather invokes, want 3, got %d", got)
+		}
+		if got := mReg.doneInvoked; got != 3 {
+			t.Fatalf("unexpected number of done invokes, want 3, got %d", got)
+		}
 	}()
 	panicHandler.ServeHTTP(writer, request)
 }
@@ -200,23 +225,48 @@ func TestInstrumentMetricHandler(t *testing.T) {
 	request.Header.Add("Accept", "test/plain")
 
 	handler.ServeHTTP(writer, request)
-	require.Equal(t, 1, mReg.gatherInvoked)
-	require.Equal(t, 1, mReg.doneInvoked)
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
 
-	require.Equal(t, http.StatusOK, writer.Code)
-	require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_in_flight 1\n")
-	require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_total{code=\"200\"} 0\n")
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	want := "promhttp_metric_handler_requests_in_flight 1\n"
+	if got := writer.Body.String(); !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q", got, want)
+	}
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0\n"
+	if got := writer.Body.String(); !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q", got, want)
+	}
 
 	for i := 0; i < 100; i++ {
 		writer.Body.Reset()
 		handler.ServeHTTP(writer, request)
 
-		require.Equal(t, i+2, mReg.gatherInvoked)
-		require.Equal(t, i+2, mReg.doneInvoked)
+		if got, want := mReg.gatherInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of gather invokes, want %d, got %d", want, got)
+		}
+		if got, want := mReg.doneInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of done invokes, want %d, got %d", want, got)
+		}
+		if got, want := writer.Code, http.StatusOK; got != want {
+			t.Errorf("got HTTP status code %d, want %d", got, want)
+		}
 
-		require.Equal(t, http.StatusOK, writer.Code)
-		require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_in_flight 1\n")
-		require.Contains(t, writer.Body.String(), fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1))
+		want := "promhttp_metric_handler_requests_in_flight 1\n"
+		if got := writer.Body.String(); !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q", got, want)
+		}
+		want = fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1)
+		if got := writer.Body.String(); !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q", got, want)
+		}
 	}
 }
 
