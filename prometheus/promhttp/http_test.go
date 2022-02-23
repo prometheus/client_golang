@@ -16,14 +16,16 @@ package promhttp
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 )
 
 type errorCollector struct{}
@@ -56,8 +58,19 @@ func (b blockingCollector) Collect(ch chan<- prometheus.Metric) {
 	<-b.Block
 }
 
-func TestHandlerErrorHandling(t *testing.T) {
+type mockTransactionGatherer struct {
+	g             prometheus.Gatherer
+	gatherInvoked int
+	doneInvoked   int
+}
 
+func (g *mockTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
+	g.gatherInvoked++
+	mfs, err := g.g.Gather()
+	return mfs, func() { g.doneInvoked++ }, err
+}
+
+func TestHandlerErrorHandling(t *testing.T) {
 	// Create a registry that collects a MetricFamily with two elements,
 	// another with one, and reports an error. Further down, we'll use the
 	// same registry in the HandlerOpts.
@@ -90,21 +103,26 @@ func TestHandlerErrorHandling(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
-	errorHandler := HandlerFor(reg, HandlerOpts{
+	mReg := &mockTransactionGatherer{g: reg}
+	errorHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: HTTPErrorOnError,
 		Registry:      reg,
 	})
-	continueHandler := HandlerFor(reg, HandlerOpts{
+	continueHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: ContinueOnError,
 		Registry:      reg,
 	})
-	panicHandler := HandlerFor(reg, HandlerOpts{
+	panicHandler := HandlerForTransactional(mReg, HandlerOpts{
 		ErrorLog:      logger,
 		ErrorHandling: PanicOnError,
 		Registry:      reg,
 	})
+	// Expect gatherer not touched.
+	require.Equal(t, 0, mReg.gatherInvoked)
+	require.Equal(t, 0, mReg.doneInvoked)
+
 	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
 `
 	wantErrorBody := `An error has occurred while serving metrics:
@@ -140,26 +158,23 @@ the_count 0
 `
 
 	errorHandler.ServeHTTP(writer, request)
-	if got, want := writer.Code, http.StatusInternalServerError; got != want {
-		t.Errorf("got HTTP status code %d, want %d", got, want)
-	}
-	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message:\n%s\nwant log message:\n%s\n", got, wantMsg)
-	}
-	if got := writer.Body.String(); got != wantErrorBody {
-		t.Errorf("got body:\n%s\nwant body:\n%s\n", got, wantErrorBody)
-	}
+	require.Equal(t, 1, mReg.gatherInvoked)
+	require.Equal(t, 1, mReg.doneInvoked)
+
+	require.Equal(t, http.StatusInternalServerError, writer.Code)
+	require.Equal(t, wantMsg, logBuf.String())
+	require.Equal(t, wantErrorBody, writer.Body.String())
+
 	logBuf.Reset()
 	writer.Body.Reset()
 	writer.Code = http.StatusOK
 
 	continueHandler.ServeHTTP(writer, request)
-	if got, want := writer.Code, http.StatusOK; got != want {
-		t.Errorf("got HTTP status code %d, want %d", got, want)
-	}
-	if got := logBuf.String(); got != wantMsg {
-		t.Errorf("got log message %q, want %q", got, wantMsg)
-	}
+
+	require.Equal(t, 2, mReg.gatherInvoked)
+	require.Equal(t, 2, mReg.doneInvoked)
+	require.Equal(t, http.StatusOK, writer.Code)
+	require.Equal(t, wantMsg, logBuf.String())
 	if got := writer.Body.String(); got != wantOKBody1 && got != wantOKBody2 {
 		t.Errorf("got body %q, want either %q or %q", got, wantOKBody1, wantOKBody2)
 	}
@@ -168,46 +183,40 @@ the_count 0
 		if err := recover(); err == nil {
 			t.Error("expected panic from panicHandler")
 		}
+		require.Equal(t, 3, mReg.gatherInvoked)
+		require.Equal(t, 3, mReg.doneInvoked)
 	}()
 	panicHandler.ServeHTTP(writer, request)
 }
 
 func TestInstrumentMetricHandler(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	handler := InstrumentMetricHandler(reg, HandlerFor(reg, HandlerOpts{}))
+	mReg := &mockTransactionGatherer{g: reg}
+	handler := InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	// Do it again to test idempotency.
-	InstrumentMetricHandler(reg, HandlerFor(reg, HandlerOpts{}))
+	InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
 	handler.ServeHTTP(writer, request)
-	if got, want := writer.Code, http.StatusOK; got != want {
-		t.Errorf("got HTTP status code %d, want %d", got, want)
-	}
+	require.Equal(t, 1, mReg.gatherInvoked)
+	require.Equal(t, 1, mReg.doneInvoked)
 
-	want := "promhttp_metric_handler_requests_in_flight 1\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
-	}
-	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
-	}
+	require.Equal(t, http.StatusOK, writer.Code)
+	require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_in_flight 1\n")
+	require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_total{code=\"200\"} 0\n")
 
-	writer.Body.Reset()
-	handler.ServeHTTP(writer, request)
-	if got, want := writer.Code, http.StatusOK; got != want {
-		t.Errorf("got HTTP status code %d, want %d", got, want)
-	}
+	for i := 0; i < 100; i++ {
+		writer.Body.Reset()
+		handler.ServeHTTP(writer, request)
 
-	want = "promhttp_metric_handler_requests_in_flight 1\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
-	}
-	want = "promhttp_metric_handler_requests_total{code=\"200\"} 1\n"
-	if got := writer.Body.String(); !strings.Contains(got, want) {
-		t.Errorf("got body %q, does not contain %q", got, want)
+		require.Equal(t, i+2, mReg.gatherInvoked)
+		require.Equal(t, i+2, mReg.doneInvoked)
+
+		require.Equal(t, http.StatusOK, writer.Code)
+		require.Contains(t, writer.Body.String(), "promhttp_metric_handler_requests_in_flight 1\n")
+		require.Contains(t, writer.Body.String(), fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1))
 	}
 }
 
