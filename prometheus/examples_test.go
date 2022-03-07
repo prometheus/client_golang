@@ -16,12 +16,13 @@ package prometheus_test
 import (
 	"bytes"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"net/http"
 	"runtime"
 	"strings"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
@@ -556,12 +557,12 @@ func ExampleNewConstHistogram() {
 	lp := dto.LabelPair{Name: &n, Value: &v}
 	var labelPairs []*dto.LabelPair
 	labelPairs = append(labelPairs, &lp)
-	val := float64(42)
+	vals := []float64{24.0, 42.0, 89.0, 157.0}
 	t, _ := time.Parse("unix", "Mon Jan _2 15:04:05 MST 2006")
 	ts := timestamppb.New(t)
 
 	for i := 0; i < 4; i++ {
-		e := dto.Exemplar{Label: labelPairs, Value: &val, Timestamp: ts}
+		e := dto.Exemplar{Label: labelPairs, Value: &vals[i], Timestamp: ts}
 		exemplars = append(exemplars, &e)
 	}
 
@@ -605,7 +606,7 @@ func ExampleNewConstHistogram() {
 	//         name: "testName"
 	//         value: "testVal"
 	//       >
-	//       value: 42
+	//       value: 24
 	//       timestamp: <
 	//         seconds: -62135596800
 	//       >
@@ -633,7 +634,7 @@ func ExampleNewConstHistogram() {
 	//         name: "testName"
 	//         value: "testVal"
 	//       >
-	//       value: 42
+	//       value: 89
 	//       timestamp: <
 	//         seconds: -62135596800
 	//       >
@@ -647,7 +648,7 @@ func ExampleNewConstHistogram() {
 	//         name: "testName"
 	//         value: "testVal"
 	//       >
-	//       value: 42
+	//       value: 157
 	//       timestamp: <
 	//         seconds: -62135596800
 	//       >
