@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 )
 
 type untypedCollector struct{}
@@ -138,7 +139,7 @@ func TestCollectAndCompare(t *testing.T) {
 		some_total{ label1 = "value1" } 1
 	`
 
-	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
+	if err := CollectAndCompare(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -160,7 +161,7 @@ func TestCollectAndCompareNoLabel(t *testing.T) {
 		some_total 1
 	`
 
-	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
+	if err := CollectAndCompare(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -232,7 +233,7 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 		}
 
 		t.Run(input.name, func(t *testing.T) {
-			if err := CollectAndCompare(input.c, strings.NewReader(input.metadata+input.expect)); err != nil {
+			if err := CollectAndCompare(t, input.c, strings.NewReader(input.metadata+input.expect), false); err != nil {
 				t.Errorf("unexpected collecting result:\n%s", err)
 			}
 		})
@@ -259,7 +260,7 @@ func TestNoMetricFilter(t *testing.T) {
 		some_total{label1="value1"} 1
 	`
 
-	if err := CollectAndCompare(c, strings.NewReader(metadata+expected)); err != nil {
+	if err := CollectAndCompare(t, c, strings.NewReader(metadata+expected), false); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -297,14 +298,12 @@ got:
 some_total{label1="value1"} 1
 `
 
-	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
+	err := CollectAndCompare(t, c, strings.NewReader(metadata+expected), true)
 	if err == nil {
 		t.Error("Expected error, got no error.")
 	}
 
-	if err.Error() != expectedError {
-		t.Errorf("Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
-	}
+	require.EqualErrorf(t, err, expectedError, "Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
 }
 
 func TestCollectAndCount(t *testing.T) {

@@ -41,8 +41,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"testing"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/stretchr/testify/require"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -154,27 +156,27 @@ func GatherAndCount(g prometheus.Gatherer, metricNames ...string) (int, error) {
 // CollectAndCompare registers the provided Collector with a newly created
 // pedantic Registry. It then calls GatherAndCompare with that Registry and with
 // the provided metricNames.
-func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
+func CollectAndCompare(t *testing.T, c prometheus.Collector, expected io.Reader, shouldFail bool, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
 		return fmt.Errorf("registering collector failed: %s", err)
 	}
-	return GatherAndCompare(reg, expected, metricNames...)
+	return GatherAndCompare(t, reg, expected, shouldFail, metricNames...)
 }
 
 // GatherAndCompare gathers all metrics from the provided Gatherer and compares
 // it to an expected output read from the provided Reader in the Prometheus text
 // exposition format. If any metricNames are provided, only metrics with those
 // names are compared.
-func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
-	return TransactionalGatherAndCompare(prometheus.ToTransactionalGatherer(g), expected, metricNames...)
+func GatherAndCompare(t *testing.T, g prometheus.Gatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
+	return TransactionalGatherAndCompare(t, prometheus.ToTransactionalGatherer(g), expected, shouldFail, metricNames...)
 }
 
 // TransactionalGatherAndCompare gathers all metrics from the provided Gatherer and compares
 // it to an expected output read from the provided Reader in the Prometheus text
 // exposition format. If any metricNames are provided, only metrics with those
 // names are compared.
-func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected io.Reader, metricNames ...string) error {
+func TransactionalGatherAndCompare(t *testing.T, g prometheus.TransactionalGatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
 	got, done, err := g.Gather()
 	defer done()
 	if err != nil {
@@ -190,14 +192,14 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	}
 	want := internal.NormalizeMetricFamilies(wantRaw)
 
-	return compare(got, want)
+	return compare(t, got, want, shouldFail)
 }
 
 // compare encodes both provided slices of metric families into the text format,
 // compares their string message, and returns an error if they do not match.
 // The error contains the encoded text of both the desired and the actual
 // result.
-func compare(got, want []*dto.MetricFamily) error {
+func compare(t *testing.T, got, want []*dto.MetricFamily, shouldFail bool) error {
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
 	for _, mf := range got {
@@ -212,7 +214,7 @@ func compare(got, want []*dto.MetricFamily) error {
 		}
 	}
 
-	if wantBuf.String() != gotBuf.String() {
+	if shouldFail && wantBuf.String() != gotBuf.String() {
 		return fmt.Errorf(`
 metric output does not match expectation; want:
 
@@ -220,8 +222,9 @@ metric output does not match expectation; want:
 got:
 
 %s`, wantBuf.String(), gotBuf.String())
-
 	}
+
+	require.Equal(t, wantBuf.String(), gotBuf.String())
 	return nil
 }
 
