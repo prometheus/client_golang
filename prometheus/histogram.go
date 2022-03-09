@@ -604,7 +604,8 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 
 	if len(h.exemplars) > 0 {
 		r := len(buckets)
-		for i := 0; i < r; i++ {
+		l := len(h.exemplars)
+		for i := 0; i < r && i < l; i++ {
 			bound := sort.SearchFloat64s(bounds, *h.exemplars[i].Value)
 			// Only append the exemplar if it's within the bounds defined in the
 			// buckets.
