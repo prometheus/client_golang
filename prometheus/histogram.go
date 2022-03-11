@@ -584,7 +584,7 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 	his := &dto.Histogram{}
 	// h.buckets, buckets and bounds are all the same length
 	buckets := make([]*dto.Bucket, 0, len(h.buckets))
-	bounds := make([]float64, 0)
+	bounds := make([]float64, 0, len(h.buckets))
 
 	his.SampleCount = proto.Uint64(h.count)
 	his.SampleSum = proto.Float64(h.sum)
@@ -599,8 +599,8 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 	// make sure that both bounds and buckets have the same ordering
 	if len(buckets) > 0 {
 		sort.Sort(buckSort(buckets))
+		sort.Float64s(bounds)
 	}
-	sort.Float64s(bounds)
 
 	if len(h.exemplars) > 0 {
 		r := len(buckets)
