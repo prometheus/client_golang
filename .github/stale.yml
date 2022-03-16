@@ -24,7 +24,7 @@ exemptLabels:
 exemptProjects: true # default: false
 
 # Set to true to ignore issues in a milestone (defaults to false)
-exemptMilestones: false
+exemptMilestones: true # default: false
 
 # Set to true to ignore issues with an assignee (defaults to false)
 exemptAssignees: false
@@ -72,7 +72,6 @@ pull:
     **Do you mind updating us on the status?** Is there anything we can help with? If you plan to still work on it, just comment on this PR or push a commit. Thanks! 🤗
     
     If there will be no activity in the next 2 weeks, this issue will be closed (we can always reopen a PR if you get back to this!).
-    Alternatively, use [`remind` command](https://probot.github.io/apps/reminders/) if you wish to be reminded at some point in future.
   # unmarkComment: No need for unmark comment.
   closeComment: >
     Closing for now as promised, let us know if you need this to be reopened! 🤗
@@ -84,7 +83,6 @@ issues:
     **Do you mind updating us on the status?** Is this still reproducible or needed? If yes, just comment on this PR or push a commit. Thanks! 🤗
     
     If there will be no activity in the next 4 weeks, this issue will be closed (we can always reopen an issue if we need!).
-    Alternatively, use [`remind` command](https://probot.github.io/apps/reminders/) if you wish to be reminded at some point in future.
   # unmarkComment: No need for unmark comment.
   closeComment: >
     Closing for now as promised, let us know if you need this to be reopened! 🤗
