@@ -22,13 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/expfmt"
-
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -551,28 +548,81 @@ func ExampleNewConstHistogram() {
 		prometheus.Labels{"owner": "example"},
 	)
 
-	var exemplars []*dto.Exemplar
-	n := "testName"
-	v := "testVal"
-	lp := dto.LabelPair{Name: &n, Value: &v}
-	var labelPairs []*dto.LabelPair
-	labelPairs = append(labelPairs, &lp)
-	vals := []float64{24.0, 42.0, 89.0, 157.0}
-	t, _ := time.Parse("unix", "Mon Jan _2 15:04:05 MST 2006")
-	ts := timestamppb.New(t)
-
-	for i := 0; i < 4; i++ {
-		e := dto.Exemplar{Label: labelPairs, Value: &vals[i], Timestamp: ts}
-		exemplars = append(exemplars, &e)
-	}
-
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
-	h := prometheus.MustNewConstHistogramWithExemplar(
+	h := prometheus.MustNewConstHistogram(
 		desc,
 		4711, 403.34,
 		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
-		exemplars,
 		"200", "get",
+	)
+
+	// Just for demonstration, let's check the state of the histogram by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	h.Write(metric)
+	fmt.Println(proto.MarshalTextString(metric))
+
+	// Output:
+	// label: <
+	//   name: "code"
+	//   value: "200"
+	// >
+	// label: <
+	//   name: "method"
+	//   value: "get"
+	// >
+	// label: <
+	//   name: "owner"
+	//   value: "example"
+	// >
+	// histogram: <
+	//   sample_count: 4711
+	//   sample_sum: 403.34
+	//   bucket: <
+	//     cumulative_count: 121
+	//     upper_bound: 25
+	//   >
+	//   bucket: <
+	//     cumulative_count: 2403
+	//     upper_bound: 50
+	//   >
+	//   bucket: <
+	//     cumulative_count: 3221
+	//     upper_bound: 100
+	//   >
+	//   bucket: <
+	//     cumulative_count: 4233
+	//     upper_bound: 200
+	//   >
+	// >
+}
+
+func ExampleNewConstHistogram_WithExemplar() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A histogram of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	// Create a constant histogram from values we got from a 3rd party telemetry system.
+	h := prometheus.MustNewConstHistogram(
+		desc,
+		4711, 403.34,
+		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		"200", "get",
+	)
+
+	// Wrap const histogram with exemplars for each bucket.
+	exemplarTs, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 GMT")
+	exemplarLabels := prometheus.Labels{"testName": "testVal"}
+	h = prometheus.MustNewMetricWithExemplars(
+		h,
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 24.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 42.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 89.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 157.0},
 	)
 
 	// Just for demonstration, let's check the state of the histogram by
@@ -608,7 +658,7 @@ func ExampleNewConstHistogram() {
 	//       >
 	//       value: 24
 	//       timestamp: <
-	//         seconds: -62135596800
+	//         seconds: 1136214245
 	//       >
 	//     >
 	//   >
@@ -622,7 +672,7 @@ func ExampleNewConstHistogram() {
 	//       >
 	//       value: 42
 	//       timestamp: <
-	//         seconds: -62135596800
+	//         seconds: 1136214245
 	//       >
 	//     >
 	//   >
@@ -636,7 +686,7 @@ func ExampleNewConstHistogram() {
 	//       >
 	//       value: 89
 	//       timestamp: <
-	//         seconds: -62135596800
+	//         seconds: 1136214245
 	//       >
 	//     >
 	//   >
@@ -650,7 +700,7 @@ func ExampleNewConstHistogram() {
 	//       >
 	//       value: 157
 	//       timestamp: <
-	//         seconds: -62135596800
+	//         seconds: 1136214245
 	//       >
 	//     >
 	//   >

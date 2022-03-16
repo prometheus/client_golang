@@ -573,7 +573,6 @@ type constHistogram struct {
 	sum        float64
 	buckets    map[float64]uint64
 	labelPairs []*dto.LabelPair
-	exemplars  []*dto.Exemplar
 }
 
 func (h *constHistogram) Desc() *Desc {
@@ -582,9 +581,8 @@ func (h *constHistogram) Desc() *Desc {
 
 func (h *constHistogram) Write(out *dto.Metric) error {
 	his := &dto.Histogram{}
-	// h.buckets, buckets and bounds are all the same length
+
 	buckets := make([]*dto.Bucket, 0, len(h.buckets))
-	bounds := make([]float64, 0, len(h.buckets))
 
 	his.SampleCount = proto.Uint64(h.count)
 	his.SampleSum = proto.Float64(h.sum)
@@ -593,28 +591,11 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 			CumulativeCount: proto.Uint64(count),
 			UpperBound:      proto.Float64(upperBound),
 		})
-		bounds = append(bounds, upperBound)
 	}
 
-	// make sure that both bounds and buckets have the same ordering
 	if len(buckets) > 0 {
 		sort.Sort(buckSort(buckets))
-		sort.Float64s(bounds)
 	}
-
-	if len(h.exemplars) > 0 {
-		r := len(buckets)
-		l := len(h.exemplars)
-		for i := 0; i < r && i < l; i++ {
-			bound := sort.SearchFloat64s(bounds, *h.exemplars[i].Value)
-			// Only append the exemplar if it's within the bounds defined in the
-			// buckets.
-			if bound < r {
-				buckets[bound].Exemplar = h.exemplars[i]
-			}
-		}
-	}
-
 	his.Bucket = buckets
 
 	out.Histogram = his
@@ -636,7 +617,6 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 //
 // NewConstHistogram returns an error if the length of labelValues is not
 // consistent with the variable labels in Desc or if Desc is invalid.
-
 func NewConstHistogram(
 	desc *Desc,
 	count uint64,
@@ -673,47 +653,6 @@ func MustNewConstHistogram(
 		panic(err)
 	}
 	return m
-}
-
-func NewConstHistogramWithExemplar(
-	desc *Desc,
-	count uint64,
-	sum float64,
-	buckets map[float64]uint64,
-	exemplars []*dto.Exemplar,
-	labelValues ...string,
-
-) (Metric, error) {
-	if desc.err != nil {
-		return nil, desc.err
-	}
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
-		return nil, err
-	}
-
-	h, err := NewConstHistogram(desc, count, sum, buckets, labelValues...)
-	if err != nil {
-		return nil, err
-	}
-
-	h.(*constHistogram).exemplars = exemplars
-
-	return h, nil
-}
-
-// MustNewConstHistogram is a version of NewConstHistogram that panics where
-// NewConstHistogram would have returned an error.
-func MustNewConstHistogramWithExemplar(
-	desc *Desc,
-	count uint64,
-	sum float64,
-	buckets map[float64]uint64,
-	exemplars []*dto.Exemplar,
-	labelValues ...string,
-) Metric {
-	h := MustNewConstHistogram(desc, count, sum, buckets, labelValues...)
-	h.(*constHistogram).exemplars = exemplars
-	return h
 }
 
 type buckSort []*dto.Bucket
