@@ -24,9 +24,8 @@ import (
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/expfmt"
-
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -595,6 +594,115 @@ func ExampleNewConstHistogram() {
 	//   bucket: <
 	//     cumulative_count: 4233
 	//     upper_bound: 200
+	//   >
+	// >
+}
+
+func ExampleNewConstHistogram_WithExemplar() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A histogram of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	// Create a constant histogram from values we got from a 3rd party telemetry system.
+	h := prometheus.MustNewConstHistogram(
+		desc,
+		4711, 403.34,
+		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		"200", "get",
+	)
+
+	// Wrap const histogram with exemplars for each bucket.
+	exemplarTs, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 GMT")
+	exemplarLabels := prometheus.Labels{"testName": "testVal"}
+	h = prometheus.MustNewMetricWithExemplars(
+		h,
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 24.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 42.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 89.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 157.0},
+	)
+
+	// Just for demonstration, let's check the state of the histogram by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	h.Write(metric)
+	fmt.Println(proto.MarshalTextString(metric))
+
+	// Output:
+	// label: <
+	//   name: "code"
+	//   value: "200"
+	// >
+	// label: <
+	//   name: "method"
+	//   value: "get"
+	// >
+	// label: <
+	//   name: "owner"
+	//   value: "example"
+	// >
+	// histogram: <
+	//   sample_count: 4711
+	//   sample_sum: 403.34
+	//   bucket: <
+	//     cumulative_count: 121
+	//     upper_bound: 25
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 24
+	//       timestamp: <
+	//         seconds: 1136214245
+	//       >
+	//     >
+	//   >
+	//   bucket: <
+	//     cumulative_count: 2403
+	//     upper_bound: 50
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 42
+	//       timestamp: <
+	//         seconds: 1136214245
+	//       >
+	//     >
+	//   >
+	//   bucket: <
+	//     cumulative_count: 3221
+	//     upper_bound: 100
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 89
+	//       timestamp: <
+	//         seconds: 1136214245
+	//       >
+	//     >
+	//   >
+	//   bucket: <
+	//     cumulative_count: 4233
+	//     upper_bound: 200
+	//     exemplar: <
+	//       label: <
+	//         name: "testName"
+	//         value: "testVal"
+	//       >
+	//       value: 157
+	//       timestamp: <
+	//         seconds: 1136214245
+	//       >
+	//     >
 	//   >
 	// >
 }
