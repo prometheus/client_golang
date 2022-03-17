@@ -59,4 +59,10 @@ workflows:
           name: go-1-17
           go_version: "1.17"
           run_lint: true
+      - test:
+          name: go-1-18
+          go_version: "1.18"
+          run_lint: true
+          # Style and unused/missing packages are only checked against
+          # the latest supported Go version.
           run_style_and_unused: true
