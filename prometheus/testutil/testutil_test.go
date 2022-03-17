@@ -139,7 +139,7 @@ func TestCollectAndCompare(t *testing.T) {
 		some_total{ label1 = "value1" } 1
 	`
 
-	if err := CollectAndCompareV2(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
+	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestCollectAndCompareNoLabel(t *testing.T) {
 		some_total 1
 	`
 
-	if err := CollectAndCompareV2(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
+	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -233,7 +233,7 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 		}
 
 		t.Run(input.name, func(t *testing.T) {
-			if err := CollectAndCompareV2(t, input.c, strings.NewReader(input.metadata+input.expect), false); err != nil {
+			if err := CollectAndCompareWithT(t, input.c, strings.NewReader(input.metadata+input.expect), false); err != nil {
 				t.Errorf("unexpected collecting result:\n%s", err)
 			}
 		})
@@ -260,7 +260,7 @@ func TestNoMetricFilter(t *testing.T) {
 		some_total{label1="value1"} 1
 	`
 
-	if err := CollectAndCompareV2(t, c, strings.NewReader(metadata+expected), false); err != nil {
+	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -298,7 +298,7 @@ got:
 some_total{label1="value1"} 1
 `
 
-	err := CollectAndCompareV2(t, c, strings.NewReader(metadata+expected), true)
+	err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), true)
 	if err == nil {
 		t.Error("Expected error, got no error.")
 	}

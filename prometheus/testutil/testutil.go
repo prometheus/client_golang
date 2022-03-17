@@ -225,25 +225,25 @@ got:
 	return nil
 }
 
-// CollectAndCompareV2 is similar to CollectAndCompare except it takes *testing.T object
+// CollectAndCompareWithT is similar to CollectAndCompare except it takes *testing.T object
 // and shouldFail Flag to pass down to GatherAndCompareV2.
-func CollectAndCompareV2(t *testing.T, c prometheus.Collector, expected io.Reader, shouldFail bool, metricNames ...string) error {
+func CollectAndCompareWithT(t *testing.T, c prometheus.Collector, expected io.Reader, shouldFail bool, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
 		return fmt.Errorf("registering collector failed: %s", err)
 	}
-	return GatherAndCompareV2(t, reg, expected, shouldFail, metricNames...)
+	return GatherAndCompareWithT(t, reg, expected, shouldFail, metricNames...)
 }
 
-// GatherAndCompareV2 is similiar to GatherAndCompare except it takes t *testing.T and shouldFail flag
+// GatherAndCompareWithT is similiar to GatherAndCompare except it takes t *testing.T and shouldFail flag
 // and calls TransactionalGatherAndCompareV2.
-func GatherAndCompareV2(t *testing.T, g prometheus.Gatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
-	return TransactionalGatherAndCompareV2(t, prometheus.ToTransactionalGatherer(g), expected, shouldFail, metricNames...)
+func GatherAndCompareWithT(t *testing.T, g prometheus.Gatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
+	return TransactionalGatherAndCompareWithT(t, prometheus.ToTransactionalGatherer(g), expected, shouldFail, metricNames...)
 }
 
-// TransactionalGatherAndCompareV2 is similiar to TransactionalGatherAndCompare except
+// TransactionalGatherAndCompareWithT is similiar to TransactionalGatherAndCompare except
 // it takes t *testing.T and shouldFail flag and calls compareV2 for better diff.
-func TransactionalGatherAndCompareV2(t *testing.T, g prometheus.TransactionalGatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
+func TransactionalGatherAndCompareWithT(t *testing.T, g prometheus.TransactionalGatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
 	got, done, err := g.Gather()
 	defer done()
 	if err != nil {
@@ -259,12 +259,12 @@ func TransactionalGatherAndCompareV2(t *testing.T, g prometheus.TransactionalGat
 	}
 	want := internal.NormalizeMetricFamilies(wantRaw)
 
-	return compareV2(t, got, want, shouldFail)
+	return compareWithT(t, got, want, shouldFail)
 }
 
-// compareV2 accepts *testing.T object and uses require package to provide
+// compareWithT accepts *testing.T object and uses require package to provide
 // a better diff between got and want.
-func compareV2(t *testing.T, got, want []*dto.MetricFamily, shouldFail bool) error {
+func compareWithT(t *testing.T, got, want []*dto.MetricFamily, shouldFail bool) error {
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
 	for _, mf := range got {
