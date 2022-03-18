@@ -20,7 +20,6 @@ jobs:
       - name: install Go
         uses: actions/setup-go@v2
         with:
-          # golangci-lint is not read for Go 1.18 (https://github.com/golangci/golangci-lint/issues/2649)
           go-version: 1.17.x
       - name: Lint
         uses: golangci/golangci-lint-action@v3.1.0
