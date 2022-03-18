@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/require"
 )
 
 type untypedCollector struct{}
@@ -139,7 +138,7 @@ func TestCollectAndCompare(t *testing.T) {
 		some_total{ label1 = "value1" } 1
 	`
 
-	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -161,7 +160,7 @@ func TestCollectAndCompareNoLabel(t *testing.T) {
 		some_total 1
 	`
 
-	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false, "some_total"); err != nil {
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -233,7 +232,7 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 		}
 
 		t.Run(input.name, func(t *testing.T) {
-			if err := CollectAndCompareWithT(t, input.c, strings.NewReader(input.metadata+input.expect), false); err != nil {
+			if err := CollectAndCompare(input.c, strings.NewReader(input.metadata+input.expect)); err != nil {
 				t.Errorf("unexpected collecting result:\n%s", err)
 			}
 		})
@@ -260,7 +259,7 @@ func TestNoMetricFilter(t *testing.T) {
 		some_total{label1="value1"} 1
 	`
 
-	if err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), false); err != nil {
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected)); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 }
@@ -285,25 +284,28 @@ func TestMetricNotFound(t *testing.T) {
 	`
 
 	expectedError := `
-metric output does not match expectation; want:
 
-# HELP some_other_metric A value that represents a counter.
-# TYPE some_other_metric counter
-some_other_metric{label1="value1"} 1
-
-got:
-
-# HELP some_total A value that represents a counter.
-# TYPE some_total counter
-some_total{label1="value1"} 1
+Diff:
+--- metric output does not match expectation; want
++++ got:
+@@ -1,4 +1,4 @@
+-(bytes.Buffer) # HELP some_other_metric A value that represents a counter.
+-# TYPE some_other_metric counter
+-some_other_metric{label1="value1"} 1
++(bytes.Buffer) # HELP some_total A value that represents a counter.
++# TYPE some_total counter
++some_total{label1="value1"} 1
+ 
 `
 
-	err := CollectAndCompareWithT(t, c, strings.NewReader(metadata+expected), true)
+	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
 	if err == nil {
 		t.Error("Expected error, got no error.")
 	}
 
-	require.EqualErrorf(t, err, expectedError, "Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
+	if err.Error() != expectedError {
+		t.Errorf("Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
+	}
 }
 
 func TestCollectAndCount(t *testing.T) {

@@ -41,10 +41,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"testing"
+	"reflect"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pmezard/go-difflib/difflib"
 	"github.com/prometheus/common/expfmt"
-	"github.com/stretchr/testify/require"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -213,84 +214,71 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %s", err)
 		}
 	}
-
-	if wantBuf.String() != gotBuf.String() {
-		return fmt.Errorf(`
-metric output does not match expectation; want:
-%s
-got:
-%s`, wantBuf.String(), gotBuf.String())
-
+	if diffErr := diff(wantBuf, gotBuf); diffErr != "" {
+		return fmt.Errorf(diffErr)
 	}
 	return nil
 }
 
-// CollectAndCompareWithT is similar to CollectAndCompare except it takes *testing.T object
-// and shouldFail Flag to pass down to GatherAndCompareV2.
-func CollectAndCompareWithT(t *testing.T, c prometheus.Collector, expected io.Reader, shouldFail bool, metricNames ...string) error {
-	reg := prometheus.NewPedanticRegistry()
-	if err := reg.Register(c); err != nil {
-		return fmt.Errorf("registering collector failed: %s", err)
+// diff returns a diff of both values as long as both are of the same type and
+// are a struct, map, slice, array or string. Otherwise it returns an empty string.
+func diff(expected interface{}, actual interface{}) string {
+	if expected == nil || actual == nil {
+		return ""
 	}
-	return GatherAndCompareWithT(t, reg, expected, shouldFail, metricNames...)
+
+	et, ek := typeAndKind(expected)
+	at, _ := typeAndKind(actual)
+	if et != at {
+		return ""
+	}
+
+	if ek != reflect.Struct && ek != reflect.Map && ek != reflect.Slice && ek != reflect.Array && ek != reflect.String {
+		return ""
+	}
+
+	var e, a string
+	c := spew.ConfigState{
+		Indent:                  " ",
+		DisablePointerAddresses: true,
+		DisableCapacities:       true,
+		SortKeys:                true,
+	}
+	if et != reflect.TypeOf("") {
+		e = c.Sdump(expected)
+		a = c.Sdump(actual)
+	} else {
+		e = reflect.ValueOf(expected).String()
+		a = reflect.ValueOf(actual).String()
+	}
+
+	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+		A:        difflib.SplitLines(e),
+		B:        difflib.SplitLines(a),
+		FromFile: "metric output does not match expectation; want",
+		FromDate: "",
+		ToFile:   "got:",
+		ToDate:   "",
+		Context:  1,
+	})
+
+	if diff == "" {
+		return ""
+	}
+
+	return "\n\nDiff:\n" + diff
 }
 
-// GatherAndCompareWithT is similiar to GatherAndCompare except it takes t *testing.T and shouldFail flag
-// and calls TransactionalGatherAndCompareV2.
-func GatherAndCompareWithT(t *testing.T, g prometheus.Gatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
-	return TransactionalGatherAndCompareWithT(t, prometheus.ToTransactionalGatherer(g), expected, shouldFail, metricNames...)
-}
+// typeAndKind returns the type and kind of the given interface{}
+func typeAndKind(v interface{}) (reflect.Type, reflect.Kind) {
+	t := reflect.TypeOf(v)
+	k := t.Kind()
 
-// TransactionalGatherAndCompareWithT is similiar to TransactionalGatherAndCompare except
-// it takes t *testing.T and shouldFail flag and calls compareV2 for better diff.
-func TransactionalGatherAndCompareWithT(t *testing.T, g prometheus.TransactionalGatherer, expected io.Reader, shouldFail bool, metricNames ...string) error {
-	got, done, err := g.Gather()
-	defer done()
-	if err != nil {
-		return fmt.Errorf("gathering metrics failed: %s", err)
+	if k == reflect.Ptr {
+		t = t.Elem()
+		k = t.Kind()
 	}
-	if metricNames != nil {
-		got = filterMetrics(got, metricNames)
-	}
-	var tp expfmt.TextParser
-	wantRaw, err := tp.TextToMetricFamilies(expected)
-	if err != nil {
-		return fmt.Errorf("parsing expected metrics failed: %s", err)
-	}
-	want := internal.NormalizeMetricFamilies(wantRaw)
-
-	return compareWithT(t, got, want, shouldFail)
-}
-
-// compareWithT accepts *testing.T object and uses require package to provide
-// a better diff between got and want.
-func compareWithT(t *testing.T, got, want []*dto.MetricFamily, shouldFail bool) error {
-	var gotBuf, wantBuf bytes.Buffer
-	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
-	for _, mf := range got {
-		if err := enc.Encode(mf); err != nil {
-			return fmt.Errorf("encoding gathered metrics failed: %s", err)
-		}
-	}
-	enc = expfmt.NewEncoder(&wantBuf, expfmt.FmtText)
-	for _, mf := range want {
-		if err := enc.Encode(mf); err != nil {
-			return fmt.Errorf("encoding expected metrics failed: %s", err)
-		}
-	}
-
-	if shouldFail && wantBuf.String() != gotBuf.String() {
-		return fmt.Errorf(`
-metric output does not match expectation; want:
-
-%s
-got:
-
-%s`, wantBuf.String(), gotBuf.String())
-	}
-
-	require.Equal(t, wantBuf.String(), gotBuf.String())
-	return nil
+	return t, k
 }
 
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
