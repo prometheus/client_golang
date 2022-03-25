@@ -80,7 +80,7 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	return m.metricMap.deleteByHashWithLabelValues(h, lvs, m.curry)
 }
 
-// DeletePartialMatchLabelValues removes the metric where the variable labels
+// DeletePartialMatchLabelValues deletes all metrics where the variable labels
 // contain all of the values passed. The order of the passed values does not matter.
 // It returns the number of metrics deleted.
 
@@ -109,7 +109,7 @@ func (m *MetricVec) Delete(labels Labels) bool {
 	return m.metricMap.deleteByHashWithLabels(h, labels, m.curry)
 }
 
-// DeletePartialMatch deletes the metric where the variable labels contains all of those
+// DeletePartialMatch deletes all metrics where the variable labels contain all of those
 // passed in as labels. The order of the labels does not matter.
 // It returns the number of metrics deleted.
 
