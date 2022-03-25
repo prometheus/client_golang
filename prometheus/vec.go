@@ -80,6 +80,10 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	return m.metricMap.deleteByHashWithLabelValues(h, lvs, m.curry)
 }
 
+func (m *MetricVec) DeletePartialMatchLabelValues(lvs ...string) bool {
+	return m.metricMap.deleteByLabelValues(lvs, m.curry)
+}
+
 // Delete deletes the metric where the variable labels are the same as those
 // passed in as labels. It returns true if a metric was deleted.
 //
@@ -97,6 +101,10 @@ func (m *MetricVec) Delete(labels Labels) bool {
 	}
 
 	return m.metricMap.deleteByHashWithLabels(h, labels, m.curry)
+}
+
+func (m *MetricVec) DeletePartialMatch(labels Labels) bool {
+	return m.metricMap.deleteByLabels(labels, m.curry)
 }
 
 // Without explicit forwarding of Describe, Collect, Reset, those methods won't
@@ -353,6 +361,84 @@ func (m *metricMap) deleteByHashWithLabelValues(
 	return true
 }
 
+func (m *metricMap) deleteByLabelValues(
+	lvs []string, curry []curriedLabelValue,
+) bool {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for h, metrics := range m.metrics {
+		i := findMetricWithPartialLabelValues(metrics, lvs, curry)
+		if i >= len(metrics) {
+			// Didn't find matching label values in this metric slice.
+			continue
+		}
+		delete(m.metrics, h)
+		return true
+	}
+
+	return false
+}
+
+// findMetricWithPartialLabelValues returns the index of the matching metric or
+// len(metrics) if not found.
+func findMetricWithPartialLabelValues(
+	metrics []metricWithLabelValues, lvs []string, curry []curriedLabelValue,
+) int {
+	for i, metric := range metrics {
+		if matchPartialLabelValues(metric.values, lvs, curry) {
+			return i
+		}
+	}
+	return len(metrics)
+}
+
+func matchPartialLabelValues(values []string, lvs []string, curry []curriedLabelValue) bool {
+	for _, v := range lvs {
+		// Check if the target value exists in our metrics and get the index.
+		if _, validValue := indexOfLabel(v, values); validValue {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func xmatchPartialLabelValues(values []string, lvs []string, curry []curriedLabelValue) bool {
+	// if len(values) != len(lvs)+len(curry) {
+	// 	return false
+	// }
+
+	for i, v := range values {
+		fmt.Printf("%d, %v", i, v)
+		// See if the value was previously curried
+		for _, vCurry := range curry {
+			if vCurry.value == v {
+				continue
+			}
+		}
+		// for _, vMetric := range values {
+		// 	if vMetric
+		// }
+	}
+
+	var iLVs, iCurry int
+	for i, v := range values {
+		if iCurry < len(curry) && curry[iCurry].index == i {
+			if v != curry[iCurry].value {
+				return false
+			}
+			iCurry++
+			continue
+		}
+		if v != lvs[iLVs] {
+			return false
+		}
+		iLVs++
+	}
+	return true
+}
+
 // deleteByHashWithLabels removes the metric from the hash bucket h. If there
 // are multiple matches in the bucket, use lvs to select a metric and remove
 // only that metric.
@@ -379,6 +465,139 @@ func (m *metricMap) deleteByHashWithLabels(
 		delete(m.metrics, h)
 	}
 	return true
+}
+func (m *metricMap) deleteByLabels(
+	labels Labels, curry []curriedLabelValue,
+) bool {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	for h, metrics := range m.metrics {
+		i := findMetricWithPartialLabels(m.desc, metrics, labels, curry)
+		if i >= len(metrics) {
+			continue
+		}
+		delete(m.metrics, h)
+		return true
+	}
+
+	return false
+}
+
+func findMetricWithPartialLabels(
+	desc *Desc, metrics []metricWithLabelValues, labels Labels, curry []curriedLabelValue,
+) int {
+	for i, metric := range metrics {
+		if matchPartialLabels(desc, metric.values, labels, curry) {
+			return i
+		}
+	}
+	return len(metrics)
+}
+
+// TODO: This is untested and might not work
+func getCurriedLabelValue(desc *Desc, values []string, targetLabel string, curry []curriedLabelValue) (string, bool) {
+	iCurry := 0
+	for i, k := range desc.variableLabels {
+		if iCurry < len(curry) && curry[iCurry].index == i {
+			if k == targetLabel {
+				return curry[iCurry].value, true
+			}
+			iCurry++
+			continue
+		}
+	}
+	return "", false
+}
+
+// indexOfLabel searches the given list of labels for the target string and returns
+// the index or len(labels) as well as a boolean whether the search succeeded.
+func indexOfLabel(target string, labels []string) (int, bool) {
+	for i, l := range labels {
+		if l == target {
+			return i, true
+		}
+	}
+	return len(labels), false
+}
+
+func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
+	for l, v := range labels {
+		// Check if the target label exists in our metrics and get the index.
+		varLabelIndex, validLabel := indexOfLabel(l, desc.variableLabels)
+		if validLabel {
+			// Check the value of that label against the target value.
+			if values[varLabelIndex] == v {
+				continue
+
+			}
+		}
+		return false
+	}
+	return true
+}
+
+func xmatchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
+
+	// for label, value := range labels {
+	// 	// Check if the label was previously curried, and check the value if so.
+	// 	curriedValue, ok := getCurriedLabelValue(desc, values, label, curry)
+	// 	if ok {
+	// 		if curriedValue == value {
+	// 			continue
+	// 		}
+	// 	}
+
+	// 	// See if the target label is among the remaining labels in this metric, and get the index if so.
+
+	// }
+
+	iCurry := 0
+	for i, k := range desc.variableLabels {
+		// Check if the label was previously curried, and check the value if so.
+
+		if iCurry < len(curry) && curry[iCurry].index == i {
+			if values[i] != curry[iCurry].value {
+				return false
+			}
+			iCurry++
+			continue
+		}
+		if targetValue, ok := labels[k]; ok {
+			if values[i] != targetValue {
+				return false
+			}
+			continue
+		}
+
+		// }
+		// Check the value at the index. Abort if it doesn't match our value. Continue if it does.
+
+		// See if the target label is among the remaining labels in this metric, and get the index if so.
+
+		// Check the value at the index. Abort if it doesn't match our value. Continue if it does.
+
+		// If we haven't continued, the target label or the target value for a label did not exist. Abort.
+		return false
+	}
+
+	// If we get through all the labels, we've got a match.
+	return true
+
+	// iCurry := 0
+	// for i, k := range desc.variableLabels {
+	// 	if iCurry < len(curry) && curry[iCurry].index == i {
+	// 		if values[i] != curry[iCurry].value {
+	// 			return false
+	// 		}
+	// 		iCurry++
+	// 		continue
+	// 	}
+	// 	if values[i] != labels[k] {
+	// 		return false
+	// 	}
+	// }
+	// return true
 }
 
 // getOrCreateMetricWithLabelValues retrieves the metric by hash and label value
