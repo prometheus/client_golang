@@ -138,7 +138,7 @@ func TestDeletePartialMatch(t *testing.T) {
 
 func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 	// No metric value is set.
-	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1", "l2": "v2"}), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -146,25 +146,39 @@ func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 	c1.WithLabelValues("2").Inc()
 
 	// Try to delete nonexistent label lx with existent value v1.
-	if got, want := c1.DeletePartialMatch(Labels{"lx": "v1"}), false; got != want {
+	if got, want := c1.DeletePartialMatch(Labels{"lx": "v1"}), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Delete with valid pair l1: v1.
-	if got, want := c1.DeletePartialMatch(Labels{"l1": "v1"}), true; got != want {
+	if got, want := c1.DeletePartialMatch(Labels{"l1": "v1"}), 1; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete with partially invalid labels.
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1", "l2": "xv2"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete with a single valid label which matches multiple metrics.
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "vv22"}).(Gauge).Set(84)
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1"}), 2; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	c2 := vec.MustCurryWith(Labels{"l2": "l2CurriedValue"})
 	c2.With(Labels{"l1": "11"}).Inc()
+
 	// Delete with valid curried pair l2: l2CurriedValue.
-	if got, want := c2.DeletePartialMatch(Labels{"l2": "l2CurriedValue"}), true; got != want {
+	if got, want := c2.DeletePartialMatch(Labels{"l2": "l2CurriedValue"}), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Same labels, value matches.
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1"}), true; got != want {
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1"}), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
@@ -182,19 +196,26 @@ func TestDeletePartialMatchLabelValues(t *testing.T) {
 
 func testDeletePartialMatchLabelValues(t *testing.T, vec *GaugeVec) {
 	// No metric value is set.
-	if got, want := vec.DeletePartialMatchLabelValues("v1", "v2"), false; got != want {
+	if got, want := vec.DeletePartialMatchLabelValues("v1", "v2"), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Try to delete with a single valid value.
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.DeletePartialMatchLabelValues("v1"), true; got != want {
+	if got, want := vec.DeletePartialMatchLabelValues("v1"), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Try to delete with partially invalid values.
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	if got, want := vec.DeletePartialMatchLabelValues("v1", "xv2"), false; got != want {
+	if got, want := vec.DeletePartialMatchLabelValues("v1", "xv2"), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete with a single valid value which matches multiple metrics.
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "vv22"}).(Gauge).Set(84)
+	if got, want := vec.DeletePartialMatchLabelValues("v1"), 2; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -202,12 +223,12 @@ func testDeletePartialMatchLabelValues(t *testing.T, vec *GaugeVec) {
 	c1.WithLabelValues("2").Inc()
 
 	// Try to delete with nonexistent value z1.
-	if got, want := c1.DeletePartialMatchLabelValues("z1"), false; got != want {
+	if got, want := c1.DeletePartialMatchLabelValues("z1"), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
 	// Delete with valid curried value cv1.
-	if got, want := c1.DeletePartialMatchLabelValues("cv1"), true; got != want {
+	if got, want := c1.DeletePartialMatchLabelValues("cv1"), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
