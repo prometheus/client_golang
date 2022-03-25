@@ -80,6 +80,12 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	return m.metricMap.deleteByHashWithLabelValues(h, lvs, m.curry)
 }
 
+// DeletePartialMatchLabelValues removes the metric where the variable labels
+// contain all of the values passed. The order of the passed values does not matter.
+// It returns true if a metric was deleted.
+
+// This method deletes a metric if the given value is present for any label.
+// To delete a metric based on a partial match for a particular label, use DeletePartialMatch().
 func (m *MetricVec) DeletePartialMatchLabelValues(lvs ...string) bool {
 	return m.metricMap.deleteByLabelValues(lvs)
 }
@@ -103,6 +109,12 @@ func (m *MetricVec) Delete(labels Labels) bool {
 	return m.metricMap.deleteByHashWithLabels(h, labels, m.curry)
 }
 
+// DeletePartialMatch deletes the metric where the variable labels contains all of those
+// passed in as labels. The order of the labels does not matter.
+// It returns true if a metric was deleted.
+
+// This method deletes a metric if the given label: value pair is found in that metric.
+// To delete a metric if a particular value is found associated with any label, use DeletePartialMatchLabelValues().
 func (m *MetricVec) DeletePartialMatch(labels Labels) bool {
 	return m.metricMap.deleteByLabels(labels)
 }
@@ -361,6 +373,7 @@ func (m *metricMap) deleteByHashWithLabelValues(
 	return true
 }
 
+// deleteByLabelValues deletes a metric if the given values (lvs) are present in the metric.
 func (m *metricMap) deleteByLabelValues(lvs []string) bool {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -431,6 +444,7 @@ func (m *metricMap) deleteByHashWithLabels(
 	return true
 }
 
+// deleteByLabels deletes a metric if the given labels are present in the metric.
 func (m *metricMap) deleteByLabels(labels Labels) bool {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
