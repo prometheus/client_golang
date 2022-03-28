@@ -453,14 +453,14 @@ func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curr
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels)
 		if validLabel {
 			// Check the value of that label against the target value.
-			if valueOrCurriedValue(varLabelIndex, values, curry) == v {
-				continue
-			}
-
-			// if values[varLabelIndex] == v {
+			// if valueOrCurriedValue(varLabelIndex, values, curry) == v {
 			// 	continue
-
 			// }
+
+			if values[varLabelIndex] == v {
+				continue
+
+			}
 		}
 		return false
 	}
