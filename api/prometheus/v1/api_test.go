@@ -170,9 +170,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, Warnings, error) {
+	doQuery := func(q string, ts time.Time, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.Query(context.Background(), q, ts)
+			return promAPI.Query(context.Background(), q, ts, opts...)
 		}
 	}
 
@@ -246,7 +246,7 @@ func TestAPIs(t *testing.T) {
 
 	queryTests := []apiTest{
 		{
-			do: doQuery("2", testTime),
+			do: doQuery("2", testTime, WithTimeout(5*time.Second)),
 			inRes: &queryResult{
 				Type: model.ValScalar,
 				Result: &model.Scalar{

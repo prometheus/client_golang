@@ -238,7 +238,7 @@ type API interface {
 	// LabelValues performs a query for the values of the given label, time range and matchers.
 	LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
-	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
+	Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
 	// QueryExemplars performs a query for exemplars by the given query and time range.
@@ -818,9 +818,32 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	return labelValues, w, json.Unmarshal(body, &labelValues)
 }
 
-func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error) {
+type apiOptions struct {
+	timeout time.Duration
+}
+
+type Option func(c *apiOptions)
+
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *apiOptions) {
+		o.timeout = timeout
+	}
+}
+
+func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
+
 	u := h.client.URL(epQuery, nil)
 	q := u.Query()
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	t := opt.timeout.Milliseconds()
+	if t > 0 {
+		q.Set("timeout", fmt.Sprint(t))
+	}
 
 	q.Set("query", query)
 	if !ts.IsZero() {
