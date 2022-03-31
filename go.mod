@@ -6,7 +6,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/golang/protobuf v1.5.2
 	github.com/json-iterator/go v1.1.12
-	github.com/pmezard/go-difflib v1.0.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.33.0
 	github.com/prometheus/procfs v0.7.3

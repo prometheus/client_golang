@@ -44,7 +44,6 @@ import (
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pmezard/go-difflib/difflib"
 	"github.com/prometheus/common/expfmt"
 
 	dto "github.com/prometheus/client_model/go"
@@ -252,9 +251,9 @@ func diff(expected interface{}, actual interface{}) string {
 		a = reflect.ValueOf(actual).String()
 	}
 
-	diff, _ := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
-		A:        difflib.SplitLines(e),
-		B:        difflib.SplitLines(a),
+	diff, _ := GetUnifiedDiffString(UnifiedDiff{
+		A:        SplitLines(e),
+		B:        SplitLines(a),
 		FromFile: "metric output does not match expectation; want",
 		FromDate: "",
 		ToFile:   "got:",
