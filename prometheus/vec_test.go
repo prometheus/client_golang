@@ -194,6 +194,11 @@ func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
+	// Try to delete with a label value from before currying.
+	if got, want := c2.DeletePartialMatch(Labels{"l2": "v3"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
 	// Same labels, value matches.
 	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
 	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1"}), 1; got != want {
