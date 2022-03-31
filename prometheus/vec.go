@@ -102,9 +102,6 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // DeletePartialMatch deletes all metrics where the variable labels contain all of those
 // passed in as labels. The order of the labels does not matter.
 // It returns the number of metrics deleted.
-
-// This method deletes a metric if the given label: value pair is found in that metric.
-// To delete a metric if a particular value is found associated with any label, use DeletePartialMatchLabelValues().
 func (m *MetricVec) DeletePartialMatch(labels Labels) int {
 	return m.metricMap.deleteByLabels(labels, m.curry)
 }
@@ -435,17 +432,6 @@ func indexOf(target string, items []string) (int, bool) {
 	return len(items), false
 }
 
-// valueOrCurriedValue determines if a value was previously curried,
-// and returns either the "base" value or the curried value accordingly.
-func valueOrCurriedValue(index int, values []string, curry []curriedLabelValue) string {
-	for _, curriedValue := range curry {
-		if curriedValue.index == index {
-			return curriedValue.value
-		}
-	}
-	return values[index]
-}
-
 // matchPartialLabels searches the current metric and returns whether all of the target label:value pairs are present.
 func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
 	for l, v := range labels {
@@ -453,10 +439,6 @@ func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curr
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels)
 		if validLabel {
 			// Check the value of that label against the target value.
-			// if valueOrCurriedValue(varLabelIndex, values, curry) == v {
-			// 	continue
-			// }
-
 			if values[varLabelIndex] == v {
 				continue
 
