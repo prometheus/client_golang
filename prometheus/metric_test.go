@@ -13,7 +13,13 @@
 
 package prometheus
 
-import "testing"
+import (
+	"testing"
+
+	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
+	"github.com/golang/protobuf/proto"
+	dto "github.com/prometheus/client_model/go"
+)
 
 func TestBuildFQName(t *testing.T) {
 	scenarios := []struct{ namespace, subsystem, name, result string }{
@@ -32,4 +38,42 @@ func TestBuildFQName(t *testing.T) {
 			t.Errorf("%d. want %s, got %s", i, want, got)
 		}
 	}
+}
+
+func TestWithExemplarsMetric(t *testing.T) {
+	t.Run("histogram", func(t *testing.T) {
+		// Create a constant histogram from values we got from a 3rd party telemetry system.
+		h := MustNewConstHistogram(
+			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
+			4711, 403.34,
+			map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		)
+
+		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
+			{Value: proto.Float64(24.0)},
+			{Value: proto.Float64(25.1)},
+			{Value: proto.Float64(42.0)},
+			{Value: proto.Float64(89.0)},
+			{Value: proto.Float64(100.0)},
+			{Value: proto.Float64(157.0)},
+		}}
+		metric := dto.Metric{}
+		if err := m.Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+		if want, got := 4, len(metric.GetHistogram().Bucket); want != got {
+			t.Errorf("want %v, got %v", want, got)
+		}
+
+		expectedExemplarVals := []float64{24.0, 42.0, 100.0, 157.0}
+		for i, b := range metric.GetHistogram().Bucket {
+			if b.Exemplar == nil {
+				t.Errorf("Expected exemplar for bucket %v, got nil", i)
+			}
+			if want, got := expectedExemplarVals[i], *metric.GetHistogram().Bucket[i].Exemplar.Value; want != got {
+				t.Errorf("%v: want %v, got %v", i, want, got)
+			}
+		}
+	})
+
 }

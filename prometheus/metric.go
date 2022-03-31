@@ -14,6 +14,8 @@
 package prometheus
 
 import (
+	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -157,4 +159,92 @@ func (m timestampedMetric) Write(pb *dto.Metric) error {
 // next full millisecond value.
 func NewMetricWithTimestamp(t time.Time, m Metric) Metric {
 	return timestampedMetric{Metric: m, t: t}
+}
+
+type withExemplarsMetric struct {
+	Metric
+
+	exemplars []*dto.Exemplar
+}
+
+func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
+	if err := m.Metric.Write(pb); err != nil {
+		return err
+	}
+
+	switch {
+	case pb.Counter != nil:
+		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
+	case pb.Histogram != nil:
+		for _, e := range m.exemplars {
+			// pb.Histogram.Bucket are sorted by UpperBound.
+			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
+				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
+			})
+			if i < len(pb.Histogram.Bucket) {
+				pb.Histogram.Bucket[i].Exemplar = e
+			} else {
+				// This is not possible as last bucket is Inf.
+				panic("no bucket was found for given exemplar value")
+			}
+		}
+	default:
+		// TODO(bwplotka): Implement Gauge?
+		return errors.New("cannot inject exemplar into Gauge, Summary or Untyped")
+	}
+
+	return nil
+}
+
+// Exemplar is easier to use, user-facing representation of *dto.Exemplar.
+type Exemplar struct {
+	Value  float64
+	Labels Labels
+	// Optional.
+	// Default value (time.Time{}) indicates its empty, which should be
+	// understood as time.Now() time at the moment of creation of metric.
+	Timestamp time.Time
+}
+
+// NewMetricWithExemplars returns a new Metric wrapping the provided Metric with given
+// exemplars. Exemplars are validated.
+//
+// Only last applicable exemplar is injected from the list.
+// For example for Counter it means last exemplar is injected.
+// For Histogram, it means last applicable exemplar for each bucket is injected.
+//
+// NewMetricWithExemplars works best with MustNewConstMetric and
+// MustNewConstHistogram, see example.
+func NewMetricWithExemplars(m Metric, exemplars ...Exemplar) (Metric, error) {
+	if len(exemplars) == 0 {
+		return nil, errors.New("no exemplar was passed for NewMetricWithExemplars")
+	}
+
+	var (
+		now = time.Now()
+		exs = make([]*dto.Exemplar, len(exemplars))
+		err error
+	)
+	for i, e := range exemplars {
+		ts := e.Timestamp
+		if ts == (time.Time{}) {
+			ts = now
+		}
+		exs[i], err = newExemplar(e.Value, ts, e.Labels)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &withExemplarsMetric{Metric: m, exemplars: exs}, nil
+}
+
+// MustNewMetricWithExemplars is a version of NewMetricWithExemplars that panics where
+// NewMetricWithExemplars would have returned an error.
+func MustNewMetricWithExemplars(m Metric, exemplars ...Exemplar) Metric {
+	ret, err := NewMetricWithExemplars(m, exemplars...)
+	if err != nil {
+		panic(err)
+	}
+	return ret
 }

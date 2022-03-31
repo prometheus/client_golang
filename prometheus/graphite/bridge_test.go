@@ -101,6 +101,7 @@ func testWriteSummary(t *testing.T, useTags bool) {
 		{prefix: "prefix"},
 		{prefix: "pre/fix"},
 		{prefix: "pre.fix"},
+		{prefix: ""},
 	}
 
 	var (
@@ -141,10 +142,15 @@ func testWriteSummary(t *testing.T, useTags bool) {
 			t.Fatalf("error: %v", err)
 		}
 
-		wantWithPrefix := fmt.Sprintf(want,
-			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
-			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
-		)
+		var wantWithPrefix string
+		if tc.prefix == "" {
+			wantWithPrefix = strings.ReplaceAll(want, "%s.", "")
+		} else {
+			wantWithPrefix = fmt.Sprintf(want,
+				tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+				tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+			)
+		}
 
 		got := buf.String()
 
