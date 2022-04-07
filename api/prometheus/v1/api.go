@@ -1133,7 +1133,8 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it
 // will fallback to a GET request.
 func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	encodedArgs := args.Encode()
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -1141,19 +1142,14 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 
 	resp, body, warnings, err := h.Do(ctx, req)
 	if resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
-		u.RawQuery = args.Encode()
+		u.RawQuery = encodedArgs
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, nil, warnings, err
 		}
-
-	} else {
-		if err != nil {
-			return resp, body, warnings, err
-		}
-		return resp, body, warnings, nil
+		return h.Do(ctx, req)
 	}
-	return h.Do(ctx, req)
+	return resp, body, warnings, err
 }
 
 func formatTime(t time.Time) string {
