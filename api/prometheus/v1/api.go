@@ -1140,7 +1140,7 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Underlying `net.http` library automatically retries` idempotent requests when connectivity issues are hit.
 	// POST requests are not considered idempotent by default, so we need to explicitly mark them as such.
-	req.Header.Set("Idempotency-Key", "TODO")
+	req.Header["Idempotency-Key"] = nil
 
 	resp, body, warnings, err := h.Do(ctx, req)
 	if resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
