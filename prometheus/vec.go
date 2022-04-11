@@ -434,15 +434,16 @@ func indexOf(target string, items []string) (int, bool) {
 
 // valueMatchesVariableOrCurriedValue determines if a value was previously curried,
 // and returns whether it matches either the "base" value or the curried value accordingly.
-func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []string, curry []curriedLabelValue) bool {
+// It also indicates whether the match is against a curried or uncurried value.
+func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []string, curry []curriedLabelValue) (bool, bool) {
 	for _, curriedValue := range curry {
 		if curriedValue.index == index {
 			// This label was curried. See if the value in this metric matches the curry value as well as our target.
-			return curriedValue.value == targetValue && values[index] == targetValue
+			return curriedValue.value == targetValue && values[index] == targetValue, true
 		}
 	}
 	// This label was not curried. See if the current value matches our target label.
-	return values[index] == targetValue
+	return values[index] == targetValue, false
 }
 
 // matchPartialLabels searches the current metric and returns whether all of the target label:value pairs are present.
@@ -452,7 +453,9 @@ func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curr
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels)
 		if validLabel {
 			// Check the value of that label against the target value.
-			if valueMatchesVariableOrCurriedValue(v, varLabelIndex, values, curry) {
+			// We don't consider curried values in partial matches.
+			matches, curried := valueMatchesVariableOrCurriedValue(v, varLabelIndex, values, curry)
+			if matches && !curried {
 				continue
 			}
 		}
