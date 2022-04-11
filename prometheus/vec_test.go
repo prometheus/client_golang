@@ -126,30 +126,25 @@ func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
 }
 
 func TestDeletePartialMatch(t *testing.T) {
-	vec := NewGaugeVec(
+	baseVec := NewGaugeVec(
 		GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
 		[]string{"l1", "l2", "l3"},
 	)
-	testDeletePartialMatch(t, vec)
-}
-
-func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 
 	assertNoMetric := func(t *testing.T) {
-		if n := len(vec.metricMap.metrics); n != 0 {
+		if n := len(baseVec.metricMap.metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
 
 	// No metric value is set.
-	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1", "l2": "v2"}), 0; got != want {
+	if got, want := baseVec.DeletePartialMatch(Labels{"l1": "v1", "l2": "v2"}), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	baseVec := vec
 	baseVec.With(Labels{"l1": "baseValue1", "l2": "baseValue2", "l3": "baseValue3"}).Inc()
 	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff1BaseValue2", "l3": "v3"}).(Gauge).Set(42)
 	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff2BaseValue2", "l3": "v3"}).(Gauge).Set(84)
@@ -170,14 +165,12 @@ func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	// TODO: Error
 	// Try to delete from a curried vector based on labels which were curried.
 	// This operation succeeds when run against the base vector below.
 	if got, want := curriedVec.DeletePartialMatch(Labels{"l2": "curriedValue2"}), 0; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	// TODO: Error
 	// Try to delete from a curried vector based on labels which were curried,
 	// but the value actually exists in the base vector.
 	if got, want := curriedVec.DeletePartialMatch(Labels{"l2": "baseValue2"}), 0; got != want {
@@ -200,7 +193,7 @@ func testDeletePartialMatch(t *testing.T, vec *GaugeVec) {
 	}
 
 	// Delete from the base vector based on values which were curried.
-	// This operation fails when run against a curried vector below.
+	// This operation fails when run against a curried vector above.
 	if got, want := baseVec.DeletePartialMatch(Labels{"l2": "curriedValue2"}), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
