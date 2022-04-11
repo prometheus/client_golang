@@ -102,6 +102,9 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // DeletePartialMatch deletes all metrics where the variable labels contain all of those
 // passed in as labels. The order of the labels does not matter.
 // It returns the number of metrics deleted.
+//
+// Note that curried labels will never be matched if deleting from the curried vector.
+// To match curried labels with DeletePartialMatch, it must be called on the base vector.
 func (m *MetricVec) DeletePartialMatch(labels Labels) int {
 	return m.metricMap.deleteByLabels(labels, m.curry)
 }
