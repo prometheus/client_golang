@@ -3,6 +3,7 @@
 [![CircleCI](https://circleci.com/gh/prometheus/client_golang/tree/master.svg?style=svg)](https://circleci.com/gh/prometheus/client_golang/tree/master)
 [![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang.svg)](https://pkg.go.dev/github.com/prometheus/client_golang)
+[![Slack](https://img.shields.io/badge/join%20slack-%23prometheus--client_golang-brightgreen.svg)](https://slack.cncf.io/)
 
 This is the [Go](http://golang.org) client library for
 [Prometheus](http://prometheus.io). It has two separate parts, one for
@@ -66,3 +67,5 @@ The `extraction` and `text` packages are now contained in
 
 See the [contributing guidelines](CONTRIBUTING.md) and the
 [Community section](http://prometheus.io/community/) of the homepage.
+
+`clint_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.  
