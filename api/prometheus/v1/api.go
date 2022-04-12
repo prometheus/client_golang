@@ -1138,8 +1138,13 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 		return nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	// Underlying `net.http` library automatically retries` idempotent requests when connectivity issues are hit.
-	// POST requests are not considered idempotent by default, so we need to explicitly mark them as such.
+	// Following comment originates from https://pkg.go.dev/net/http#Transport
+	// Transport only retries a request upon encountering a network error if the request is
+	// idempotent and either has no body or has its Request.GetBody defined. HTTP requests
+	// are considered idempotent if they have HTTP methods GET, HEAD, OPTIONS, or TRACE; or
+	// if their Header map contains an "Idempotency-Key" or "X-Idempotency-Key" entry. If the
+	// idempotency key value is a zero-length slice, the request is treated as idempotent but
+	// the header is not sent on the wire.
 	req.Header["Idempotency-Key"] = nil
 
 	resp, body, warnings, err := h.Do(ctx, req)
