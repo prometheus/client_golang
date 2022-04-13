@@ -70,8 +70,8 @@ const (
 // WithGoCollections(GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection) means both GoRuntimeMemStatsCollection
 // metrics and GoRuntimeMetricsCollection will be exposed.
 //
-// Use WithGoCollections(GoRuntimeMemStatsCollection) to have Go collector working in
-// the compatibility mode with client_golang pre v1.12 (move to runtime/metrics).
+// The current default is GoRuntimeMemStatsCollection, so the compatibility mode with
+// client_golang pre v1.12 (move to runtime/metrics).
 func WithGoCollections(flags uint32) goOption {
 	return func(o *goOptions) {
 		o.EnabledCollections = flags

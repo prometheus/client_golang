@@ -1,3 +1,9 @@
+## Unreleased
+
+* [CHANGE] Minimum required Go version is now 1.16.
+* [CHANGE] Added `collectors.WithGoCollections` that allows to choose what collection of Go runtime metrics user wants: Equivalent of [`MemStats` structure](https://pkg.go.dev/runtime#MemStats) configured using `GoRuntimeMemStatsCollection`, new based on dedicated [runtime/metrics](https://pkg.go.dev/runtime/metrics) metrics represented by `GoRuntimeMetricsCollection` option, or both by specifying `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` flag.
+* [CHANGE] :warning: Change in `collectors.NewGoCollector` metrics: Reverting addition of new ~80 runtime metrics by default. You can enable this back with `GoRuntimeMetricsCollection` option or `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection`  for smooth transition.
+
 ## 1.12.1 / 2022-01-29
 
 * [BUGFIX] Make the Go 1.17 collector concurrency-safe #969
