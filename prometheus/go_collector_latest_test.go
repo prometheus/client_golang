@@ -117,7 +117,7 @@ func TestGoCollector(t *testing.T) {
 var sink interface{}
 
 func TestBatchHistogram(t *testing.T) {
-	goMetrics := collectGoMetrics(t, defaultGoCollections)
+	goMetrics := collectGoMetrics(t, goRuntimeMetricsCollection)
 
 	var mhist Metric
 	for _, m := range goMetrics {
