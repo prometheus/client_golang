@@ -28,78 +28,96 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-func TestGoCollectorRuntimeMetrics(t *testing.T) {
-	metrics := collectGoMetrics(t)
-
-	msChecklist := make(map[string]bool)
-	for _, m := range goRuntimeMemStats() {
-		msChecklist[m.desc.fqName] = false
-	}
-
-	if len(metrics) == 0 {
-		t.Fatal("no metrics created by Collect")
-	}
-
-	// Check a few specific metrics.
-	//
-	// Checking them all is somewhat pointless because the runtime/metrics
-	// metrics are going to shift underneath us. Also if we try to check
-	// against the runtime/metrics package in an automated fashion we're kind
-	// of missing the point, because we have to do all the same work the code
-	// has to do to perform the translation. Same for supporting old metric
-	// names (the best we can do here is make sure they're all accounted for).
-	var sysBytes, allocs float64
-	for _, m := range metrics {
-		name := m.Desc().fqName
-		switch name {
-		case "go_memory_classes_total_bytes":
-			checkMemoryMetric(t, m, &sysBytes)
-		case "go_sys_bytes":
-			checkMemoryMetric(t, m, &sysBytes)
-		case "go_gc_heap_allocs_bytes_total":
-			checkMemoryMetric(t, m, &allocs)
-		case "go_alloc_bytes_total":
-			checkMemoryMetric(t, m, &allocs)
-		}
-		if present, ok := msChecklist[name]; ok {
-			if present {
-				t.Errorf("memstats metric %s found more than once", name)
-			}
-			msChecklist[name] = true
-		}
-	}
-	for name := range msChecklist {
-		if present := msChecklist[name]; !present {
-			t.Errorf("memstats metric %s not collected", name)
-		}
+func TestRmForMemStats(t *testing.T) {
+	if got, want := len(bestEffortLookupRM(rmForMemStats)), len(rmForMemStats); got != want {
+		t.Errorf("got %d, want %d metrics", got, want)
 	}
 }
 
-func checkMemoryMetric(t *testing.T, m Metric, expValue *float64) {
-	t.Helper()
+func expectedBaseMetrics() map[string]struct{} {
+	metrics := map[string]struct{}{}
+	b := newBaseGoCollector()
+	for _, m := range []string{
+		b.gcDesc.fqName,
+		b.goInfoDesc.fqName,
+		b.goroutinesDesc.fqName,
+		b.gcLastTimeDesc.fqName,
+		b.threadsDesc.fqName,
+	} {
+		metrics[m] = struct{}{}
+	}
+	return metrics
+}
 
-	pb := &dto.Metric{}
-	m.Write(pb)
-	var value float64
-	if g := pb.GetGauge(); g != nil {
-		value = g.GetValue()
-	} else {
-		value = pb.GetCounter().GetValue()
+func addExpectedRuntimeMemStats(metrics map[string]struct{}) map[string]struct{} {
+	for _, m := range goRuntimeMemStats() {
+		metrics[m.desc.fqName] = struct{}{}
 	}
-	if value <= 0 {
-		t.Error("bad value for total memory")
+	return metrics
+}
+
+func addExpectedRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} {
+	for _, m := range expectedRuntimeMetrics {
+		metrics[m] = struct{}{}
 	}
-	if *expValue == 0 {
-		*expValue = value
-	} else if value != *expValue {
-		t.Errorf("legacy metric and runtime/metrics metric do not match: want %d, got %d", int64(*expValue), int64(value))
+	return metrics
+}
+
+func TestGoCollector(t *testing.T) {
+	for _, tcase := range []struct {
+		collections       uint32
+		expectedFQNameSet map[string]struct{}
+	}{
+		{
+			collections:       0,
+			expectedFQNameSet: expectedBaseMetrics(),
+		},
+		{
+			collections:       goRuntimeMemStatsCollection,
+			expectedFQNameSet: addExpectedRuntimeMemStats(expectedBaseMetrics()),
+		},
+		{
+			collections:       goRuntimeMetricsCollection,
+			expectedFQNameSet: addExpectedRuntimeMetrics(expectedBaseMetrics()),
+		},
+		{
+			collections:       goRuntimeMemStatsCollection | goRuntimeMetricsCollection,
+			expectedFQNameSet: addExpectedRuntimeMemStats(addExpectedRuntimeMetrics(expectedBaseMetrics())),
+		},
+	} {
+		if ok := t.Run("", func(t *testing.T) {
+			goMetrics := collectGoMetrics(t, tcase.collections)
+			goMetricSet := make(map[string]Metric)
+			for _, m := range goMetrics {
+				goMetricSet[m.Desc().fqName] = m
+			}
+
+			for i := range goMetrics {
+				name := goMetrics[i].Desc().fqName
+
+				if _, ok := tcase.expectedFQNameSet[name]; !ok {
+					t.Errorf("found unpexpected metric %s", name)
+					continue
+				}
+			}
+
+			// Now iterate over the expected metrics and look for removals.
+			for expectedName := range tcase.expectedFQNameSet {
+				if _, ok := goMetricSet[expectedName]; !ok {
+					t.Errorf("missing expected metric %s in collection", expectedName)
+					continue
+				}
+			}
+		}); !ok {
+			return
+		}
 	}
 }
 
 var sink interface{}
 
 func TestBatchHistogram(t *testing.T) {
-	goMetrics := collectGoMetrics(t)
+	goMetrics := collectGoMetrics(t, defaultGoCollections)
 
 	var mhist Metric
 	for _, m := range goMetrics {
@@ -126,7 +144,7 @@ func TestBatchHistogram(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		sink = make([]byte, 128)
 	}
-	collectGoMetrics(t)
+	collectGoMetrics(t, defaultGoCollections)
 	for i, v := range hist.counts {
 		if v != countsCopy[i] {
 			t.Error("counts changed during new collection")
@@ -175,10 +193,12 @@ func TestBatchHistogram(t *testing.T) {
 	}
 }
 
-func collectGoMetrics(t *testing.T) []Metric {
+func collectGoMetrics(t *testing.T, enabledCollections uint32) []Metric {
 	t.Helper()
 
-	c := NewGoCollector().(*goCollector)
+	c := NewGoCollector(func(o *GoCollectorOptions) {
+		o.EnabledCollections = enabledCollections
+	}).(*goCollector)
 
 	// Collect all metrics.
 	ch := make(chan Metric)
@@ -201,7 +221,8 @@ func collectGoMetrics(t *testing.T) []Metric {
 
 func TestMemStatsEquivalence(t *testing.T) {
 	var msReal, msFake runtime.MemStats
-	descs := metrics.All()
+	descs := bestEffortLookupRM(rmForMemStats)
+
 	samples := make([]metrics.Sample, len(descs))
 	samplesMap := make(map[string]*metrics.Sample)
 	for i := range descs {
@@ -214,9 +235,9 @@ func TestMemStatsEquivalence(t *testing.T) {
 
 	// Populate msReal.
 	runtime.ReadMemStats(&msReal)
-
-	// Populate msFake.
+	// Populate msFake and hope that no GC happened in between (:
 	metrics.Read(samples)
+
 	memStatsFromRM(&msFake, samplesMap)
 
 	// Iterate over them and make sure they're somewhat close.
@@ -227,9 +248,16 @@ func TestMemStatsEquivalence(t *testing.T) {
 	for i := 0; i < msRealValue.NumField(); i++ {
 		fr := msRealValue.Field(i)
 		ff := msFakeValue.Field(i)
-		switch typ.Kind() {
+
+		if typ.Field(i).Name == "PauseTotalNs" || typ.Field(i).Name == "LastGC" {
+			// We don't use those fields for metrics,
+			// thus we are not interested in having this filled.
+			continue
+		}
+		switch fr.Kind() {
+		// Fields which we are interested in are all uint64s.
+		// The only float64 field GCCPUFraction is by design omitted.
 		case reflect.Uint64:
-			// N.B. Almost all fields of MemStats are uint64s.
 			vr := fr.Interface().(uint64)
 			vf := ff.Interface().(uint64)
 			if float64(vr-vf)/float64(vf) > 0.05 {
@@ -240,7 +268,7 @@ func TestMemStatsEquivalence(t *testing.T) {
 }
 
 func TestExpectedRuntimeMetrics(t *testing.T) {
-	goMetrics := collectGoMetrics(t)
+	goMetrics := collectGoMetrics(t, goRuntimeMetricsCollection)
 	goMetricSet := make(map[string]Metric)
 	for _, m := range goMetrics {
 		goMetricSet[m.Desc().fqName] = m
@@ -253,6 +281,7 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 		rmName := descs[i].Name
 		rmSet[rmName] = struct{}{}
 
+		// expectedRuntimeMetrics depends on Go version.
 		expFQName, ok := expectedRuntimeMetrics[rmName]
 		if !ok {
 			t.Errorf("found new runtime/metrics metric %s", rmName)
@@ -268,6 +297,7 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 			continue
 		}
 	}
+
 	// Now iterate over the expected metrics and look for removals.
 	cardinality := 0
 	for rmName, fqName := range expectedRuntimeMetrics {
