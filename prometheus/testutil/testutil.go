@@ -251,9 +251,9 @@ func diff(expected interface{}, actual interface{}) string {
 		a = reflect.ValueOf(actual).String()
 	}
 
-	diff, _ := GetUnifiedDiffString(UnifiedDiff{
-		A:        SplitLines(e),
-		B:        SplitLines(a),
+	diff, _ := internal.GetUnifiedDiffString(internal.UnifiedDiff{
+		A:        internal.SplitLines(e),
+		B:        internal.SplitLines(a),
 		FromFile: "metric output does not match expectation; want",
 		FromDate: "",
 		ToFile:   "got:",
