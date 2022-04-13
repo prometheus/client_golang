@@ -132,7 +132,7 @@ func (c GoCollectorOptions) isEnabled(flag uint32) bool {
 	return c.EnabledCollections&flag != 0
 }
 
-const defaultGoCollections = goRuntimeMemStatsCollection | goRuntimeMetricsCollection
+const defaultGoCollections = goRuntimeMemStatsCollection
 
 // NewGoCollector is the obsolete version of collectors.NewGoCollector.
 // See there for documentation.
