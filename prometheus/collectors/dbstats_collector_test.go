@@ -15,7 +15,6 @@ package collectors
 
 import (
 	"database/sql"
-	"runtime"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,9 +49,7 @@ func TestDBStatsCollector(t *testing.T) {
 		"go_sql_wait_duration_seconds_total",
 		"go_sql_max_idle_closed_total",
 		"go_sql_max_lifetime_closed_total",
-	}
-	if runtime.Version() >= "go1.15" {
-		names = append(names, "go_sql_max_idle_time_closed_total")
+		"go_sql_max_idle_time_closed_total",
 	}
 	type result struct {
 		found bool

@@ -47,10 +47,6 @@ workflows:
     jobs:
       # Refer to README.md for the currently supported versions.
       - test:
-          name: go-1-15
-          go_version: "1.15"
-          run_lint: true
-      - test:
           name: go-1-16
           go_version: "1.16"
           run_lint: true
