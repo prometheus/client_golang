@@ -1,3 +1,7 @@
+## Unreleased
+
+* [CHANGE] Minimum required Go version is now 1.16.
+
 ## 1.12.1 / 2022-01-29
 
 * [BUGFIX] Make the Go 1.17 collector concurrency-safe #969
