@@ -260,7 +260,7 @@ func TestAPIs(t *testing.T) {
 			reqParam: url.Values{
 				"query":   []string{"2"},
 				"time":    []string{testTime.Format(time.RFC3339Nano)},
-				"timeout": []string{"s"},
+				"timeout": []string{(5 * time.Second).String()},
 			},
 			res: &model.Scalar{
 				Value:     2,
@@ -372,10 +372,11 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query_range",
 			reqParam: url.Values{
-				"query": []string{"2"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
-				"step":  []string{time.Minute.String()},
+				"query":   []string{"2"},
+				"start":   []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
+				"end":     []string{testTime.Format(time.RFC3339Nano)},
+				"step":    []string{time.Minute.String()},
+				"timeout": []string{(5 * time.Second).String()},
 			},
 			err: fmt.Errorf("some error"),
 		},
