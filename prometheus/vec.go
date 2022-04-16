@@ -441,8 +441,8 @@ func indexOf(target string, items []string) (int, bool) {
 func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []string, curry []curriedLabelValue) (bool, bool) {
 	for _, curriedValue := range curry {
 		if curriedValue.index == index {
-			// This label was curried. See if the value in this metric matches the curry value as well as our target.
-			return curriedValue.value == targetValue && values[index] == targetValue, true
+			// This label was curried. See if the curried value matches our target.
+			return curriedValue.value == targetValue, true
 		}
 	}
 	// This label was not curried. See if the current value matches our target label.
