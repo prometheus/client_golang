@@ -840,9 +840,9 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 		o(opt)
 	}
 
-	d := opt.timeout.Milliseconds()
-	if t > 0 {
-		q.Set("timeout", t.String())
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
 	}
 
 	q.Set("query", query)
