@@ -67,7 +67,7 @@ func ExampleAPI_queryRange() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r, v1.WithTimeout(5*time.Second))
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)

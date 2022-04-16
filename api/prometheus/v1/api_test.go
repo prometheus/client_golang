@@ -176,9 +176,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, Warnings, error) {
+	doQueryRange := func(q string, rng Range, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.QueryRange(context.Background(), q, rng)
+			return promAPI.QueryRange(context.Background(), q, rng, opts...)
 		}
 	}
 
@@ -258,8 +258,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
-				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"query":   []string{"2"},
+				"time":    []string{testTime.Format(time.RFC3339Nano)},
+				"timeout": []string{"s"},
 			},
 			res: &model.Scalar{
 				Value:     2,
@@ -365,7 +366,7 @@ func TestAPIs(t *testing.T) {
 				Start: testTime.Add(-time.Minute),
 				End:   testTime,
 				Step:  time.Minute,
-			}),
+			}, WithTimeout(5*time.Second)),
 			inErr: fmt.Errorf("some error"),
 
 			reqMethod: "POST",
