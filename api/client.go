@@ -40,6 +40,10 @@ type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
 
+	// Client is used by the Client to drive HTTP requests. If not provided,
+	// a new one is created.
+	Client *http.Client
+
 	// RoundTripper is used by the Client to drive HTTP requests. If not
 	// provided, DefaultRoundTripper will be used.
 	RoundTripper http.RoundTripper
@@ -50,6 +54,15 @@ func (cfg *Config) roundTripper() http.RoundTripper {
 		return DefaultRoundTripper
 	}
 	return cfg.RoundTripper
+}
+
+func (cfg *Config) client() http.Client {
+	if cfg.Client == nil {
+		return http.Client{
+			Transport: cfg.roundTripper(),
+		}
+	}
+	return *cfg.Client
 }
 
 // Client is the interface for an API client.
@@ -70,7 +83,7 @@ func NewClient(cfg Config) (Client, error) {
 
 	return &httpClient{
 		endpoint: u,
-		client:   http.Client{Transport: cfg.roundTripper()},
+		client:   cfg.client(),
 	}, nil
 }
 
