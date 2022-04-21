@@ -17,6 +17,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,7 +42,7 @@ type Config struct {
 	Address string
 
 	// Client is used by the Client to drive HTTP requests. If not provided,
-	// a new one is created.
+	// a new one based on the provided RoundTripper (or DefaultRoundTripper) will be used.
 	Client *http.Client
 
 	// RoundTripper is used by the Client to drive HTTP requests. If not
@@ -65,6 +66,13 @@ func (cfg *Config) client() http.Client {
 	return *cfg.Client
 }
 
+func (cfg *Config) validate() error {
+	if cfg.Client != nil && cfg.RoundTripper != nil {
+		return errors.New("api.Config.RoundTripper and api.Config.Client are mutually exclusive")
+	}
+	return nil
+}
+
 // Client is the interface for an API client.
 type Client interface {
 	URL(ep string, args map[string]string) *url.URL
@@ -80,6 +88,10 @@ func NewClient(cfg Config) (Client, error) {
 		return nil, err
 	}
 	u.Path = strings.TrimRight(u.Path, "/")
+
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 
 	return &httpClient{
 		endpoint: u,
