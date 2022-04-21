@@ -238,9 +238,9 @@ type API interface {
 	// LabelValues performs a query for the values of the given label, time range and matchers.
 	LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
-	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
+	Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
-	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
+	QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error)
 	// QueryExemplars performs a query for exemplars by the given query and time range.
 	QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error)
 	// Buildinfo returns various build information properties about the Prometheus server
@@ -818,9 +818,32 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	return labelValues, w, json.Unmarshal(body, &labelValues)
 }
 
-func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error) {
+type apiOptions struct {
+	timeout time.Duration
+}
+
+type Option func(c *apiOptions)
+
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *apiOptions) {
+		o.timeout = timeout
+	}
+}
+
+func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
+
 	u := h.client.URL(epQuery, nil)
 	q := u.Query()
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
+	}
 
 	q.Set("query", query)
 	if !ts.IsZero() {
@@ -836,7 +859,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error) {
+func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error) {
 	u := h.client.URL(epQueryRange, nil)
 	q := u.Query()
 
@@ -844,6 +867,16 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
 	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
+	}
 
 	_, body, warnings, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
