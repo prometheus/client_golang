@@ -125,6 +125,93 @@ func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
 	}
 }
 
+func TestDeletePartialMatch(t *testing.T) {
+	baseVec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2", "l3"},
+	)
+
+	assertNoMetric := func(t *testing.T) {
+		if n := len(baseVec.metricMap.metrics); n != 0 {
+			t.Error("expected no metrics, got", n)
+		}
+	}
+
+	// No metric value is set.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l1": "v1", "l2": "v2"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	baseVec.With(Labels{"l1": "baseValue1", "l2": "baseValue2", "l3": "baseValue3"}).Inc()
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff1BaseValue2", "l3": "v3"}).(Gauge).Set(42)
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff2BaseValue2", "l3": "v3"}).(Gauge).Set(84)
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff3BaseValue2", "l3": "v3"}).(Gauge).Set(168)
+
+	curriedVec := baseVec.MustCurryWith(Labels{"l2": "curriedValue2"})
+	curriedVec.WithLabelValues("curriedValue1", "curriedValue3").Inc()
+	curriedVec.WithLabelValues("curriedValue1", "differentCurriedValue3").Inc()
+	curriedVec.WithLabelValues("differentCurriedValue1", "differentCurriedValue3").Inc()
+
+	// Try to delete nonexistent label with existent value from curried vector.
+	if got, want := curriedVec.DeletePartialMatch(Labels{"lx": "curriedValue1"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete valid label with nonexistent value from curried vector.
+	if got, want := curriedVec.DeletePartialMatch(Labels{"l1": "badValue1"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete from a curried vector based on labels which were curried.
+	// This operation succeeds when run against the base vector below.
+	if got, want := curriedVec.DeletePartialMatch(Labels{"l2": "curriedValue2"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete from a curried vector based on labels which were curried,
+	// but the value actually exists in the base vector.
+	if got, want := curriedVec.DeletePartialMatch(Labels{"l2": "baseValue2"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Delete multiple matching metrics from a curried vector based on partial values.
+	if got, want := curriedVec.DeletePartialMatch(Labels{"l1": "curriedValue1"}), 2; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete nonexistent label with existent value from base vector.
+	if got, want := baseVec.DeletePartialMatch(Labels{"lx": "curriedValue1"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Try to delete partially invalid labels from base vector.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l1": "baseValue1", "l2": "badValue2"}), 0; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Delete from the base vector based on values which were curried.
+	// This operation fails when run against a curried vector above.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l2": "curriedValue2"}), 1; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Delete multiple metrics from the base vector based on a single valid label.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l1": "multiDeleteV1"}), 3; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// Delete from the base vector based on values which were not curried.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l3": "baseValue3"}), 1; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// All metrics should have been deleted now.
+	assertNoMetric(t)
+}
+
 func TestMetricVec(t *testing.T) {
 	vec := NewGaugeVec(
 		GaugeOpts{
