@@ -218,3 +218,30 @@ func ExampleAPI_series() {
 		fmt.Println(lbl)
 	}
 }
+
+func ExampleAPI_queryWithStats() {
+	client, err := api.NewClient(api.Config{
+		Address: "http://demo.robustperception.io:9090",
+	})
+	if err != nil {
+		fmt.Printf("Error creating client: %v\n", err)
+		os.Exit(1)
+	}
+
+	v1api := v1.NewAPI(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	stats := v1.QueryStats{}
+	result, warnings, err := v1api.Query(ctx, "up", time.Now(),
+		v1.WithTimeout(5*time.Second),
+		v1.WithQueryStats(&stats, true))
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	fmt.Printf("Stats:\n%v\n", stats)
+}

@@ -1300,6 +1300,28 @@ func TestAPIs(t *testing.T) {
 				},
 			},
 		},
+		{
+			do: doQuery("2", testTime, WithQueryStats(nil, true)),
+			inRes: &queryResult{
+				Type: model.ValScalar,
+				Result: &model.Scalar{
+					Value:     2,
+					Timestamp: model.TimeFromUnix(testTime.Unix()),
+				},
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			reqParam: url.Values{
+				"query": []string{"2"},
+				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"stats": []string{"all"},
+			},
+			res: &model.Scalar{
+				Value:     2,
+				Timestamp: model.TimeFromUnix(testTime.Unix()),
+			},
+		},
 	}
 
 	var tests []apiTest

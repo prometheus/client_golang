@@ -421,10 +421,36 @@ type Metadata struct {
 	Unit string     `json:"unit"`
 }
 
+type stepStat struct {
+	T int64
+	V float64
+}
+
+type queryTimings struct {
+	EvalTotalTime        float64 `json:"evalTotalTime"`
+	ResultSortTime       float64 `json:"resultSortTime"`
+	QueryPreparationTime float64 `json:"queryPreparationTime"`
+	InnerEvalTime        float64 `json:"innerEvalTime"`
+	ExecQueueTime        float64 `json:"execQueueTime"`
+	ExecTotalTime        float64 `json:"execTotalTime"`
+}
+
+type querySamples struct {
+	TotalQueryableSamplesPerStep []stepStat `json:"totalQueryableSamplesPerStep,omitempty"`
+	TotalQueryableSamples        int        `json:"totalQueryableSamples"`
+	PeakSamples                  int        `json:"peakSamples"`
+}
+
+type QueryStats struct {
+	Timings queryTimings `json:"timings"`
+	Samples querySamples `json:"samples"`
+}
+
 // queryResult contains result data for a query.
 type queryResult struct {
 	Type   model.ValueType `json:"resultType"`
 	Result interface{}     `json:"result"`
+	Stats  *QueryStats     `json:"stats"`
 
 	// The decoded value.
 	v model.Value
@@ -580,7 +606,10 @@ func (qr *queryResult) UnmarshalJSON(b []byte) error {
 	v := struct {
 		Type   model.ValueType `json:"resultType"`
 		Result json.RawMessage `json:"result"`
-	}{}
+		Stats  *QueryStats     `json:"stats"`
+	}{
+		Stats: qr.Stats,
+	}
 
 	err := json.Unmarshal(b, &v)
 	if err != nil {
@@ -819,7 +848,9 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 }
 
 type apiOptions struct {
-	timeout time.Duration
+	timeout      time.Duration
+	stats        *QueryStats
+	perStepStats bool
 }
 
 type Option func(c *apiOptions)
@@ -827,6 +858,13 @@ type Option func(c *apiOptions)
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *apiOptions) {
 		o.timeout = timeout
+	}
+}
+
+func WithQueryStats(s *QueryStats, perStep bool) Option {
+	return func(o *apiOptions) {
+		o.stats = s
+		o.perStepStats = perStep
 	}
 }
 
@@ -845,6 +883,10 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 		q.Set("timeout", d.String())
 	}
 
+	if opt.perStepStats {
+		q.Set("stats", "all")
+	}
+
 	q.Set("query", query)
 	if !ts.IsZero() {
 		q.Set("time", formatTime(ts))
@@ -856,6 +898,10 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 	}
 
 	var qres queryResult
+	if opt.stats != nil {
+		qres.Stats = opt.stats
+	}
+
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
@@ -878,12 +924,19 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 		q.Set("timeout", d.String())
 	}
 
+	if opt.perStepStats {
+		q.Set("stats", "all")
+	}
+
 	_, body, warnings, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
 		return nil, warnings, err
 	}
 
 	var qres queryResult
+	if opt.stats != nil {
+		qres.Stats = opt.stats
+	}
 
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
