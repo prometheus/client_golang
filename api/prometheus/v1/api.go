@@ -824,6 +824,8 @@ type apiOptions struct {
 
 type Option func(c *apiOptions)
 
+// WithTimeout can be used to provide an optional query evaluation timeout for Query and QueryRange.
+// https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *apiOptions) {
 		o.timeout = timeout
