@@ -15,6 +15,7 @@
 package promlint
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -83,7 +84,7 @@ func (l *Linter) Lint() ([]Problem, error) {
 		mf := &dto.MetricFamily{}
 		for {
 			if err := d.Decode(mf); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 

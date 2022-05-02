@@ -120,8 +120,8 @@ metric: <
 >
 
 `)
-	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > > 
-`)
+	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > >`)
+	externalMetricFamilyAsProtoCompactText = append(externalMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	expectedMetricFamily := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -202,8 +202,8 @@ metric: <
 >
 
 `)
-	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
-`)
+	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > >`)
+	expectedMetricFamilyAsProtoCompactText = append(expectedMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -228,8 +228,8 @@ metric: <
 		},
 	}
 
-	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
-`)
+	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > >`)
+	expectedMetricFamilyMergedWithExternalAsProtoCompactText = append(expectedMetricFamilyMergedWithExternalAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithInvalidLabelValue := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -850,7 +850,8 @@ func TestAlreadyRegistered(t *testing.T) {
 			if err = s.reRegisterWith(reg).Register(s.newCollector); err == nil {
 				t.Fatal("expected error when registering new collector")
 			}
-			if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			are := &prometheus.AlreadyRegisteredError{}
+			if errors.As(err, are) {
 				if are.ExistingCollector != s.originalCollector {
 					t.Error("expected original collector but got something else")
 				}
@@ -931,7 +932,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 				return
 			default:
 				if err := reg.Register(hv); err != nil {
-					if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+					if !errors.As(err, &prometheus.AlreadyRegisteredError{}) {
 						t.Error("Registering failed:", err)
 					}
 				}
@@ -1162,15 +1163,15 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 		// Register should not fail, since each collector has a unique
 		// set of sub-collectors, determined by their names and const label values.
 		if err := reg.Register(&collector); err != nil {
-			alreadyRegErr, ok := err.(prometheus.AlreadyRegisteredError)
-			if !ok {
+			are := &prometheus.AlreadyRegisteredError{}
+			if !errors.As(err, are) {
 				t.Fatal(err)
 			}
 
-			previous := alreadyRegErr.ExistingCollector.(*collidingCollector)
-			current := alreadyRegErr.NewCollector.(*collidingCollector)
+			previous := are.ExistingCollector.(*collidingCollector)
+			current := are.NewCollector.(*collidingCollector)
 
-			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", alreadyRegErr, previous.name, previous.i, current.name, current.i)
+			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", are, previous.name, previous.i, current.name, current.i)
 		}
 	}
 }

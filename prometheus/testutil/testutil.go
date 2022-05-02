@@ -126,7 +126,7 @@ func ToFloat64(c prometheus.Collector) float64 {
 func CollectAndCount(c prometheus.Collector, metricNames ...string) int {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
-		panic(fmt.Errorf("registering collector failed: %s", err))
+		panic(fmt.Errorf("registering collector failed: %w", err))
 	}
 	result, err := GatherAndCount(reg, metricNames...)
 	if err != nil {
@@ -142,7 +142,7 @@ func CollectAndCount(c prometheus.Collector, metricNames ...string) int {
 func GatherAndCount(g prometheus.Gatherer, metricNames ...string) (int, error) {
 	got, err := g.Gather()
 	if err != nil {
-		return 0, fmt.Errorf("gathering metrics failed: %s", err)
+		return 0, fmt.Errorf("gathering metrics failed: %w", err)
 	}
 	if metricNames != nil {
 		got = filterMetrics(got, metricNames)
@@ -161,7 +161,7 @@ func GatherAndCount(g prometheus.Gatherer, metricNames ...string) (int, error) {
 func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
-		return fmt.Errorf("registering collector failed: %s", err)
+		return fmt.Errorf("registering collector failed: %w", err)
 	}
 	return GatherAndCompare(reg, expected, metricNames...)
 }
@@ -182,7 +182,7 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	got, done, err := g.Gather()
 	defer done()
 	if err != nil {
-		return fmt.Errorf("gathering metrics failed: %s", err)
+		return fmt.Errorf("gathering metrics failed: %w", err)
 	}
 	if metricNames != nil {
 		got = filterMetrics(got, metricNames)
@@ -190,7 +190,7 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	var tp expfmt.TextParser
 	wantRaw, err := tp.TextToMetricFamilies(expected)
 	if err != nil {
-		return fmt.Errorf("parsing expected metrics failed: %s", err)
+		return fmt.Errorf("parsing expected metrics failed: %w", err)
 	}
 	want := internal.NormalizeMetricFamilies(wantRaw)
 
@@ -206,13 +206,13 @@ func compare(got, want []*dto.MetricFamily) error {
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.FmtText)
 	for _, mf := range got {
 		if err := enc.Encode(mf); err != nil {
-			return fmt.Errorf("encoding gathered metrics failed: %s", err)
+			return fmt.Errorf("encoding gathered metrics failed: %w", err)
 		}
 	}
 	enc = expfmt.NewEncoder(&wantBuf, expfmt.FmtText)
 	for _, mf := range want {
 		if err := enc.Encode(mf); err != nil {
-			return fmt.Errorf("encoding expected metrics failed: %s", err)
+			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
 	if diffErr := diff(wantBuf, gotBuf); diffErr != "" {
