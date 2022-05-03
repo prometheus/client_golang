@@ -41,6 +41,9 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
+
+	// Get _created suffixed metric. Records when it got first exposed.
+	Created() float64
 }
 
 // ExemplarAdder is implemented by Counters that offer the option of adding a
@@ -79,6 +82,7 @@ func NewCounter(opts CounterOpts) Counter {
 		opts.ConstLabels,
 	)
 	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: time.Now}
+	result.initCreated()
 	result.init(result) // Init self-collection.
 	return result
 }
@@ -88,8 +92,9 @@ type counter struct {
 	// valInt stores values that are exact integers. Both have to go first
 	// in the struct to guarantee alignment for atomic operations.
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	valBits uint64
-	valInt  uint64
+	valBits     uint64
+	valInt      uint64
+	createdTime uint64
 
 	selfCollector
 	desc *Desc
@@ -161,6 +166,14 @@ func (c *counter) updateExemplar(v float64, l Labels) {
 	c.exemplar.Store(e)
 }
 
+func (c *counter) Created() float64 {
+	return float64(c.createdTime)
+}
+
+func (c *counter) initCreated() {
+	c.createdTime = uint64(c.now().Unix())
+}
+
 // CounterVec is a Collector that bundles a set of Counters that all share the
 // same Desc, but have different values for their variable labels. This is used
 // if you want to count the same thing partitioned by various dimensions
@@ -185,6 +198,7 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels, lvs))
 			}
 			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: time.Now}
+			result.initCreated()
 			result.init(result) // Init self-collection.
 			return result
 		}),

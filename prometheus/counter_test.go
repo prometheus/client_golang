@@ -273,3 +273,17 @@ func TestCounterExemplar(t *testing.T) {
 		t.Error("adding exemplar with oversized labels succeeded")
 	}
 }
+
+func TestCounterCreatedTime(t *testing.T) {
+	now := time.Now()
+
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+	}).(*counter)
+	counter.now = func() time.Time { return now }
+	counter.initCreated()
+	if float64(now.Unix()) != counter.Created() {
+		t.Error("counter has different created timestamp as initialized")
+	}
+}
