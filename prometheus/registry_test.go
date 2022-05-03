@@ -1241,7 +1241,7 @@ func TestNewMultiTRegistry(t *testing.T) {
 	t.Run("two registries, one with error", func(t *testing.T) {
 		m := prometheus.NewMultiTRegistry(prometheus.ToTransactionalGatherer(reg), treg)
 		ret, done, err := m.Gather()
-		if err != treg.err {
+		if !errors.Is(err, treg.err) {
 			t.Error("unexpected error:", err)
 		}
 		done()

@@ -146,7 +146,6 @@ func TestLabelCheck(t *testing.T) {
 				},
 				append(sc.varLabels, sc.curriedLabels...),
 			))
-			//nolint:typecheck // Ignore declared but unused error.
 			for _, l := range sc.curriedLabels {
 				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
 				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})

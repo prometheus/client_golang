@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -724,7 +725,8 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	for i, g := range gs {
 		mfs, err := g.Gather()
 		if err != nil {
-			if multiErr, ok := err.(MultiError); ok {
+			multiErr := MultiError{}
+			if errors.As(err, &multiErr) {
 				for _, err := range multiErr {
 					errs = append(errs, fmt.Errorf("[from Gatherer #%d] %w", i+1, err))
 				}

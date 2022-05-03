@@ -1484,9 +1484,13 @@ func TestAPIClientDo(t *testing.T) {
 				}
 
 				if test.expectedErr.Detail != "" {
-					apiErr := err.(*Error)
-					if apiErr.Detail != test.expectedErr.Detail {
-						t.Fatalf("expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
+					apiErr := &Error{}
+					if errors.As(err, &apiErr) {
+						if apiErr.Detail != test.expectedErr.Detail {
+							t.Fatalf("expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
+						}
+					} else {
+						t.Fatalf("expected v1.Error instance, but got:%T", err)
 					}
 				}
 
