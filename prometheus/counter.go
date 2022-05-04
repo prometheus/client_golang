@@ -41,9 +41,6 @@ type Counter interface {
 	// Add adds the given value to the counter. It panics if the value is <
 	// 0.
 	Add(float64)
-
-	// Get _created suffixed metric. Records when it got first exposed.
-	Created() float64
 }
 
 // ExemplarAdder is implemented by Counters that offer the option of adding a
@@ -164,10 +161,6 @@ func (c *counter) updateExemplar(v float64, l Labels) {
 		panic(err)
 	}
 	c.exemplar.Store(e)
-}
-
-func (c *counter) Created() float64 {
-	return float64(c.createdTime)
 }
 
 func (c *counter) initCreated() {

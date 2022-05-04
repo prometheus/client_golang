@@ -283,7 +283,7 @@ func TestCounterCreatedTime(t *testing.T) {
 	}).(*counter)
 	counter.now = func() time.Time { return now }
 	counter.initCreated()
-	if float64(now.Unix()) != counter.Created() {
+	if float64(now.Unix()) != float64(counter.createdTime) {
 		t.Error("counter has different created timestamp as initialized")
 	}
 }
