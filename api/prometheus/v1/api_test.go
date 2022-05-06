@@ -90,7 +90,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 	}
 
 	if !reflect.DeepEqual(vals, test.reqParam) {
-		c.Fatalf("unexpected request body: want %s, got %s", vals, test.reqParam)
+		c.Fatalf("unexpected request parameters: want %s, got %s", vals, test.reqParam)
 	}
 
 	b, err := json.Marshal(test.inRes)
