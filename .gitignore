@@ -1,6 +1,7 @@
 # Examples
 examples/simple/simple
 examples/random/random
+examples/gocollector/gocollector
 
 # Typical backup/temporary files of editors
 *~
