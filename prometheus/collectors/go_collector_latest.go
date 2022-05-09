@@ -72,9 +72,9 @@ const (
 //
 // The current default is GoRuntimeMemStatsCollection, so the compatibility mode with
 // client_golang pre v1.12 (move to runtime/metrics).
-func WithGoCollections(flags uint32) goOption {
+func WithGoCollections(flags GoCollectionOption) goOption {
 	return func(o *goOptions) {
-		o.EnabledCollections = flags
+		o.EnabledCollections = uint32(flags)
 	}
 }
 

@@ -24,8 +24,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 func TestRmForMemStats(t *testing.T) {
@@ -121,7 +122,7 @@ func TestBatchHistogram(t *testing.T) {
 
 	var mhist Metric
 	for _, m := range goMetrics {
-		if m.Desc().fqName == "go_gc_heap_allocs_by_size_bytes_total" {
+		if m.Desc().fqName == "go_gc_heap_allocs_by_size_bytes" {
 			mhist = m
 			break
 		}
