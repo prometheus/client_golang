@@ -34,6 +34,6 @@ func TestGoCollectorMarshalling(t *testing.T) {
 	}
 
 	if _, err := json.Marshal(result); err != nil {
-		t.Errorf("json marshalling shoudl not fail, %v", err)
+		t.Errorf("json marshalling shoud not fail, %v", err)
 	}
 }
