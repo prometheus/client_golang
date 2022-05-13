@@ -493,10 +493,9 @@ func (h *batchHistogram) Write(out *dto.Metric) error {
 	for i, count := range h.counts {
 		totalCount += count
 		if !h.hasSum {
-			curr := h.buckets[i]
 			if count != 0 {
 				// N.B. This computed sum is an underestimate.
-				sum += curr * float64(count)
+				sum += h.buckets[i] * float64(count)
 			}
 		}
 
