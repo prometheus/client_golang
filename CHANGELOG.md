@@ -1,9 +1,14 @@
 ## Unreleased
 
 * [CHANGE] Minimum required Go version is now 1.16.
+
+## 1.12.2 / 2022-01-29
+
 * [CHANGE] Added `collectors.WithGoCollections` that allows to choose what collection of Go runtime metrics user wants: Equivalent of [`MemStats` structure](https://pkg.go.dev/runtime#MemStats) configured using `GoRuntimeMemStatsCollection`, new based on dedicated [runtime/metrics](https://pkg.go.dev/runtime/metrics) metrics represented by `GoRuntimeMetricsCollection` option, or both by specifying `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` flag.
-* [CHANGE] :warning: Change in `collectors.NewGoCollector` metrics: Reverting addition of new ~80 runtime metrics by default. You can enable this back with `GoRuntimeMetricsCollection` option or `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection`  for smooth transition.
-* [BUGFIX] Fix the bug that causes generated histogram metric names to end with `_total`. `go_gc_heap_allocs_by_size_bytes_total` -> `go_gc_heap_allocs_by_size_bytes`, `go_gc_heap_frees_by_size_bytes_total` -> `go_gc_heap_allocs_by_size_bytes` and`go_gc_pauses_seconds_total` -> `go_gc_pauses_seconds`.
+* [CHANGE] :warning: Change in `collectors.NewGoCollector` metrics: Reverting addition of new ~80 runtime metrics by default. You can enable this back with `GoRuntimeMetricsCollection` option or `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` for smooth transition.
+* [BUGFIX] Fixed the bug that causes generated histogram metric names to end with `_total`. `go_gc_heap_allocs_by_size_bytes_total` -> `go_gc_heap_allocs_by_size_bytes`, `go_gc_heap_frees_by_size_bytes_total` -> `go_gc_heap_allocs_by_size_bytes` and`go_gc_pauses_seconds_total` -> `go_gc_pauses_seconds`.
+* [CHANGE] Updated `examples/random/main.go`: `prometheus.NewBuildInfoCollector` is deprecated. Use `collectors.NewBuildInfoCollector` instead.
+* [CHANCE] Removed `-Inf` buckets from new Go Collector histograms.
 
 ## 1.12.1 / 2022-01-29
 
