@@ -25,8 +25,9 @@ import (
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
 	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/client_golang/prometheus/internal"
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 const (
@@ -429,6 +430,11 @@ type batchHistogram struct {
 // buckets must always be from the runtime/metrics package, following
 // the same conventions.
 func newBatchHistogram(desc *Desc, buckets []float64, hasSum bool) *batchHistogram {
+	// We need to remove -Inf values. runtime/metrics keeps them around.
+	// But -Inf bucket should not be allowed for prometheus histograms.
+	if buckets[0] == math.Inf(-1) {
+		buckets = buckets[1:]
+	}
 	h := &batchHistogram{
 		desc:    desc,
 		buckets: buckets,
@@ -487,8 +493,10 @@ func (h *batchHistogram) Write(out *dto.Metric) error {
 	for i, count := range h.counts {
 		totalCount += count
 		if !h.hasSum {
-			// N.B. This computed sum is an underestimate.
-			sum += h.buckets[i] * float64(count)
+			if count != 0 {
+				// N.B. This computed sum is an underestimate.
+				sum += h.buckets[i] * float64(count)
+			}
 		}
 
 		// Skip the +Inf bucket, but only for the bucket list.
