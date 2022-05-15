@@ -595,7 +595,8 @@ func (hc *histogramCounts) observe(v float64, bucket int, doSparse bool) {
 			if frac == 0.5 {
 				sparseKey--
 			}
-			sparseKey /= 1 << -sparseSchema
+			div := 1 << -sparseSchema
+			sparseKey = (sparseKey + div - 1) / div
 		}
 		switch {
 		case v > sparseZeroThreshold:
