@@ -11,17 +11,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !go1.15
-// +build !go1.15
+//go:build go1.17
+// +build go1.17
 
 package collectors
 
 import (
-	"database/sql"
+	"encoding/json"
+	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func (c *dbStatsCollector) describeNewInGo115(ch chan<- *prometheus.Desc) {}
+func TestGoCollectorMarshalling(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(NewGoCollector(
+		WithGoCollections(GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection),
+	))
+	result, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
 
-func (c *dbStatsCollector) collectNewInGo115(ch chan<- prometheus.Metric, stats sql.DBStats) {}
+	if _, err := json.Marshal(result); err != nil {
+		t.Errorf("json marshalling shoud not fail, %v", err)
+	}
+}

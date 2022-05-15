@@ -41,7 +41,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/prometheus/common/expfmt"
 
 	dto "github.com/prometheus/client_model/go"
@@ -167,7 +169,16 @@ func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames .
 // exposition format. If any metricNames are provided, only metrics with those
 // names are compared.
 func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
-	got, err := g.Gather()
+	return TransactionalGatherAndCompare(prometheus.ToTransactionalGatherer(g), expected, metricNames...)
+}
+
+// TransactionalGatherAndCompare gathers all metrics from the provided Gatherer and compares
+// it to an expected output read from the provided Reader in the Prometheus text
+// exposition format. If any metricNames are provided, only metrics with those
+// names are compared.
+func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected io.Reader, metricNames ...string) error {
+	got, done, err := g.Gather()
+	defer done()
 	if err != nil {
 		return fmt.Errorf("gathering metrics failed: %s", err)
 	}
@@ -202,18 +213,71 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %s", err)
 		}
 	}
-
-	if wantBuf.String() != gotBuf.String() {
-		return fmt.Errorf(`
-metric output does not match expectation; want:
-
-%s
-got:
-
-%s`, wantBuf.String(), gotBuf.String())
-
+	if diffErr := diff(wantBuf, gotBuf); diffErr != "" {
+		return fmt.Errorf(diffErr)
 	}
 	return nil
+}
+
+// diff returns a diff of both values as long as both are of the same type and
+// are a struct, map, slice, array or string. Otherwise it returns an empty string.
+func diff(expected interface{}, actual interface{}) string {
+	if expected == nil || actual == nil {
+		return ""
+	}
+
+	et, ek := typeAndKind(expected)
+	at, _ := typeAndKind(actual)
+	if et != at {
+		return ""
+	}
+
+	if ek != reflect.Struct && ek != reflect.Map && ek != reflect.Slice && ek != reflect.Array && ek != reflect.String {
+		return ""
+	}
+
+	var e, a string
+	c := spew.ConfigState{
+		Indent:                  " ",
+		DisablePointerAddresses: true,
+		DisableCapacities:       true,
+		SortKeys:                true,
+	}
+	if et != reflect.TypeOf("") {
+		e = c.Sdump(expected)
+		a = c.Sdump(actual)
+	} else {
+		e = reflect.ValueOf(expected).String()
+		a = reflect.ValueOf(actual).String()
+	}
+
+	diff, _ := internal.GetUnifiedDiffString(internal.UnifiedDiff{
+		A:        internal.SplitLines(e),
+		B:        internal.SplitLines(a),
+		FromFile: "metric output does not match expectation; want",
+		FromDate: "",
+		ToFile:   "got:",
+		ToDate:   "",
+		Context:  1,
+	})
+
+	if diff == "" {
+		return ""
+	}
+
+	return "\n\nDiff:\n" + diff
+}
+
+// typeAndKind returns the type and kind of the given interface{}
+func typeAndKind(v interface{}) (reflect.Type, reflect.Kind) {
+	t := reflect.TypeOf(v)
+	k := t.Kind()
+
+	if k == reflect.Ptr {
+		t = t.Elem()
+		k = t.Kind()
+	}
+	return t, k
 }
 
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {

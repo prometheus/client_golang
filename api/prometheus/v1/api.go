@@ -238,9 +238,9 @@ type API interface {
 	// LabelValues performs a query for the values of the given label, time range and matchers.
 	LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
-	Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error)
+	Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
-	QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error)
+	QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error)
 	// QueryExemplars performs a query for exemplars by the given query and time range.
 	QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error)
 	// Buildinfo returns various build information properties about the Prometheus server
@@ -818,9 +818,34 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	return labelValues, w, json.Unmarshal(body, &labelValues)
 }
 
-func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.Value, Warnings, error) {
+type apiOptions struct {
+	timeout time.Duration
+}
+
+type Option func(c *apiOptions)
+
+// WithTimeout can be used to provide an optional query evaluation timeout for Query and QueryRange.
+// https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries
+func WithTimeout(timeout time.Duration) Option {
+	return func(o *apiOptions) {
+		o.timeout = timeout
+	}
+}
+
+func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
+
 	u := h.client.URL(epQuery, nil)
 	q := u.Query()
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
+	}
 
 	q.Set("query", query)
 	if !ts.IsZero() {
@@ -836,7 +861,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time) (model.
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.Value, Warnings, error) {
+func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error) {
 	u := h.client.URL(epQueryRange, nil)
 	q := u.Query()
 
@@ -844,6 +869,16 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range) (model.
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
 	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
+
+	opt := &apiOptions{}
+	for _, o := range opts {
+		o(opt)
+	}
+
+	d := opt.timeout
+	if d > 0 {
+		q.Set("timeout", d.String())
+	}
 
 	_, body, warnings, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
@@ -1133,27 +1168,31 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it
 // will fallback to a GET request.
 func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	encodedArgs := args.Encode()
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Following comment originates from https://pkg.go.dev/net/http#Transport
+	// Transport only retries a request upon encountering a network error if the request is
+	// idempotent and either has no body or has its Request.GetBody defined. HTTP requests
+	// are considered idempotent if they have HTTP methods GET, HEAD, OPTIONS, or TRACE; or
+	// if their Header map contains an "Idempotency-Key" or "X-Idempotency-Key" entry. If the
+	// idempotency key value is a zero-length slice, the request is treated as idempotent but
+	// the header is not sent on the wire.
+	req.Header["Idempotency-Key"] = nil
 
 	resp, body, warnings, err := h.Do(ctx, req)
 	if resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
-		u.RawQuery = args.Encode()
+		u.RawQuery = encodedArgs
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, nil, warnings, err
 		}
-
-	} else {
-		if err != nil {
-			return resp, body, warnings, err
-		}
-		return resp, body, warnings, nil
+		return h.Do(ctx, req)
 	}
-	return h.Do(ctx, req)
+	return resp, body, warnings, err
 }
 
 func formatTime(t time.Time) string {

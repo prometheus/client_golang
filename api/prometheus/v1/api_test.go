@@ -170,15 +170,15 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doQuery := func(q string, ts time.Time) func() (interface{}, Warnings, error) {
+	doQuery := func(q string, ts time.Time, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.Query(context.Background(), q, ts)
+			return promAPI.Query(context.Background(), q, ts, opts...)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range) func() (interface{}, Warnings, error) {
+	doQueryRange := func(q string, rng Range, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.QueryRange(context.Background(), q, rng)
+			return promAPI.QueryRange(context.Background(), q, rng, opts...)
 		}
 	}
 
@@ -246,7 +246,7 @@ func TestAPIs(t *testing.T) {
 
 	queryTests := []apiTest{
 		{
-			do: doQuery("2", testTime),
+			do: doQuery("2", testTime, WithTimeout(5*time.Second)),
 			inRes: &queryResult{
 				Type: model.ValScalar,
 				Result: &model.Scalar{
@@ -258,8 +258,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
-				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"query":   []string{"2"},
+				"time":    []string{testTime.Format(time.RFC3339Nano)},
+				"timeout": []string{(5 * time.Second).String()},
 			},
 			res: &model.Scalar{
 				Value:     2,
@@ -365,16 +366,17 @@ func TestAPIs(t *testing.T) {
 				Start: testTime.Add(-time.Minute),
 				End:   testTime,
 				Step:  time.Minute,
-			}),
+			}, WithTimeout(5*time.Second)),
 			inErr: fmt.Errorf("some error"),
 
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query_range",
 			reqParam: url.Values{
-				"query": []string{"2"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
-				"step":  []string{time.Minute.String()},
+				"query":   []string{"2"},
+				"start":   []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
+				"end":     []string{testTime.Format(time.RFC3339Nano)},
+				"step":    []string{time.Minute.String()},
+				"timeout": []string{(5 * time.Second).String()},
 			},
 			err: fmt.Errorf("some error"),
 		},

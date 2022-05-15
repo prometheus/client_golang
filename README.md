@@ -1,15 +1,16 @@
 # Prometheus Go client library
 
-[![CircleCI](https://circleci.com/gh/prometheus/client_golang/tree/master.svg?style=svg)](https://circleci.com/gh/prometheus/client_golang/tree/master)
+[![CircleCI](https://circleci.com/gh/prometheus/client_golang/tree/main.svg?style=svg)](https://circleci.com/gh/prometheus/client_golang/tree/main)
 [![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang.svg)](https://pkg.go.dev/github.com/prometheus/client_golang)
+[![Slack](https://img.shields.io/badge/join%20slack-%23prometheus--client_golang-brightgreen.svg)](https://slack.cncf.io/)
 
 This is the [Go](http://golang.org) client library for
 [Prometheus](http://prometheus.io). It has two separate parts, one for
 instrumenting application code, and one for creating clients that talk to the
 Prometheus HTTP API.
 
-__This library requires Go1.13 or later.__
+__This library requires Go1.16 or later.__
 
 ## Important note about releases and stability
 
@@ -34,13 +35,13 @@ coexist for a while to enable a convenient transition.
 [![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/prometheus.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus)
 
 The
-[`prometheus` directory](https://github.com/prometheus/client_golang/tree/master/prometheus)
+[`prometheus` directory](https://github.com/prometheus/client_golang/tree/main/prometheus)
 contains the instrumentation library. See the
 [guide](https://prometheus.io/docs/guides/go-application/) on the Prometheus
 website to learn more about instrumenting applications.
 
 The
-[`examples` directory](https://github.com/prometheus/client_golang/tree/master/examples)
+[`examples` directory](https://github.com/prometheus/client_golang/tree/main/examples)
 contains simple examples of instrumented code.
 
 ## Client for the Prometheus HTTP API
@@ -48,7 +49,7 @@ contains simple examples of instrumented code.
 [![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus/v1)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus/v1) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
 
 The
-[`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/master/api/prometheus)
+[`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/main/api/prometheus)
 contains the client for the
 [Prometheus HTTP API](http://prometheus.io/docs/querying/api/). It allows you
 to write Go applications that query time series data from a Prometheus
@@ -57,12 +58,14 @@ server. It is still in alpha stage.
 ## Where is `model`, `extraction`, and `text`?
 
 The `model` packages has been moved to
-[`prometheus/common/model`](https://github.com/prometheus/common/tree/master/model).
+[`prometheus/common/model`](https://github.com/prometheus/common/tree/main/model).
 
 The `extraction` and `text` packages are now contained in
-[`prometheus/common/expfmt`](https://github.com/prometheus/common/tree/master/expfmt).
+[`prometheus/common/expfmt`](https://github.com/prometheus/common/tree/main/expfmt).
 
 ## Contributing and community
 
 See the [contributing guidelines](CONTRIBUTING.md) and the
 [Community section](http://prometheus.io/community/) of the homepage.
+
+`clint_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.

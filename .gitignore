@@ -1,6 +1,7 @@
 # Examples
 examples/simple/simple
 examples/random/random
+examples/gocollector/gocollector
 
 # Typical backup/temporary files of editors
 *~
@@ -11,7 +12,7 @@ examples/random/random
 vendor/
 
 # The remainder of this file is taken from
-# https://github.com/github/gitignore/blob/master/Go.gitignore
+# https://github.com/github/gitignore/blob/main/Go.gitignore
 
 # Binaries for programs and plugins
 *.exe

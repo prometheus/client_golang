@@ -36,6 +36,7 @@ package push
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -123,14 +124,28 @@ func New(url, job string) *Pusher {
 // Push returns the first error encountered by any method call (including this
 // one) in the lifetime of the Pusher.
 func (p *Pusher) Push() error {
-	return p.push(http.MethodPut)
+	return p.push(context.Background(), http.MethodPut)
+}
+
+// PushContext is like Push but includes a context.
+//
+// If the context expires before HTTP request is complete, an error is returned.
+func (p *Pusher) PushContext(ctx context.Context) error {
+	return p.push(ctx, http.MethodPut)
 }
 
 // Add works like push, but only previously pushed metrics with the same name
 // (and the same job and other grouping labels) will be replaced. (It uses HTTP
 // method “POST” to push to the Pushgateway.)
 func (p *Pusher) Add() error {
-	return p.push(http.MethodPost)
+	return p.push(context.Background(), http.MethodPost)
+}
+
+// AddContext is like Add but includes a context.
+//
+// If the context expires before HTTP request is complete, an error is returned.
+func (p *Pusher) AddContext(ctx context.Context) error {
+	return p.push(ctx, http.MethodPost)
 }
 
 // Gatherer adds a Gatherer to the Pusher, from which metrics will be gathered
@@ -233,7 +248,7 @@ func (p *Pusher) Delete() error {
 	return nil
 }
 
-func (p *Pusher) push(method string) error {
+func (p *Pusher) push(ctx context.Context, method string) error {
 	if p.error != nil {
 		return p.error
 	}
@@ -260,7 +275,7 @@ func (p *Pusher) push(method string) error {
 		}
 		enc.Encode(mf)
 	}
-	req, err := http.NewRequest(method, p.fullURL(), buf)
+	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
 	if err != nil {
 		return err
 	}
