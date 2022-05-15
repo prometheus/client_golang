@@ -355,7 +355,8 @@ func TestBuckets(t *testing.T) {
 	}
 
 	got = ExponentialBucketsRange(1, 100, 10)
-	want = []float64{1.0, 1.6681005372000588, 2.782559402207125,
+	want = []float64{
+		1.0, 1.6681005372000588, 2.782559402207125,
 		4.641588833612779, 7.742636826811273, 12.915496650148842,
 		21.544346900318846, 35.93813663804629, 59.94842503189414,
 		100.00000000000007,
@@ -469,7 +470,6 @@ func TestHistogramExemplar(t *testing.T) {
 }
 
 func TestSparseHistogram(t *testing.T) {
-
 	scenarios := []struct {
 		name             string
 		observations     []float64 // With simulated interval of 1m.
@@ -497,6 +497,27 @@ func TestSparseHistogram(t *testing.T) {
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2},
 			factor:       1.2,
 			want:         `sample_count:6 sample_sum:7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+		},
+		{
+			name: "factor 4 results in schema -1",
+			observations: []float64{
+				0.5, 1, // Bucket 0: (0.25, 1]
+				1.5, 2, 3, 3.5, // Bucket 1: (1, 4]
+				5, 6, 7, // Bucket 2: (4, 16]
+				33.33, // Bucket 3: (16, 64]
+			},
+			factor: 4,
+			want:   `sample_count:10 sample_sum:62.83 sb_schema:-1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:0 length:4 > delta:2 delta:2 delta:-1 delta:-2 > `,
+		},
+		{
+			name: "factor 17 results in schema -2",
+			observations: []float64{
+				0.5, 1, // Bucket 0: (0.0625, 1]
+				1.5, 2, 3, 3.5, 5, 6, 7, // Bucket 1: (1, 16]
+				33.33, // Bucket 2: (16, 256]
+			},
+			factor: 17,
+			want:   `sample_count:10 sample_sum:62.83 sb_schema:-2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:0 length:3 > delta:2 delta:5 delta:-6 > `,
 		},
 		{
 			name:         "negative buckets",
@@ -662,7 +683,6 @@ func TestSparseHistogram(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestSparseHistogramConcurrency(t *testing.T) {
