@@ -13,11 +13,14 @@
 
 package promhttp
 
-// Option are used to configure a middleware or round tripper..
+import "context"
+
+// Option are used to configure a middleware or round tripper.
 type Option func(*option)
 
 type option struct {
-	extraMethods []string
+	extraMethods  []string
+	getExemplarFn func(ctx context.Context) map[string]string
 }
 
 // WithExtraMethods adds additional HTTP methods to the list of allowed methods.
@@ -27,5 +30,13 @@ type option struct {
 func WithExtraMethods(methods ...string) Option {
 	return func(o *option) {
 		o.extraMethods = methods
+	}
+}
+
+// WithExemplarFromRequestContext adds allows to put a hook to all counter and histogram metrics.
+// If the hook function returns non-nil map representing key values, exemplars will be added for that request.
+func WithExemplarFromRequestContext(getExemplarFn func(ctx context.Context) map[string]string) Option {
+	return func(o *option) {
+		o.getExemplarFn = getExemplarFn
 	}
 }

@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -27,6 +28,22 @@ import (
 
 // magicString is used for the hacky label test in checkLabels. Remove once fixed.
 const magicString = "zZgWfBxLqvG8kc8IMv3POi2Bb0tZI3vAnBx+gBaFi9FyPzB/CzKUer1yufDa"
+
+func exemplarObserve(obs prometheus.Observer, val float64, labels map[string]string) {
+	if labels == nil {
+		obs.Observe(val)
+		return
+	}
+	obs.(prometheus.ExemplarObserver).ObserveWithExemplar(val, labels)
+}
+
+func exemplarAdd(obs prometheus.Counter, val float64, labels map[string]string) {
+	if labels == nil {
+		obs.Add(val)
+		return
+	}
+	obs.(prometheus.ExemplarAdder).AddWithExemplar(val, labels)
+}
 
 // InstrumentHandlerInFlight is a middleware that wraps the provided
 // http.Handler. It sets the provided prometheus.Gauge to the number of
@@ -62,7 +79,7 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
 func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
-	mwOpts := &option{}
+	mwOpts := &option{getExemplarFn: func(ctx context.Context) map[string]string { return nil }}
 	for _, o := range opts {
 		o(mwOpts)
 	}
@@ -70,20 +87,29 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 	code, method := checkLabels(obs)
 
 	if code {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
 			now := time.Now()
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 
-			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
-		})
+			exemplarObserve(
+				obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)),
+				time.Since(now).Seconds(),
+				mwOpts.getExemplarFn(r.Context()),
+			)
+		}
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		next.ServeHTTP(w, r)
-		obs.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
-	})
+
+		exemplarObserve(
+			obs.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)),
+			time.Since(now).Seconds(),
+			mwOpts.getExemplarFn(r.Context()),
+		)
+	}
 }
 
 // InstrumentHandlerCounter is a middleware that wraps the provided http.Handler
@@ -104,7 +130,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 //
 // See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler, opts ...Option) http.HandlerFunc {
-	mwOpts := &option{}
+	mwOpts := &option{getExemplarFn: func(ctx context.Context) map[string]string { return nil }}
 	for _, o := range opts {
 		o(mwOpts)
 	}
@@ -112,17 +138,26 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 	code, method := checkLabels(counter)
 
 	if code {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
-			counter.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Inc()
-		})
+
+			exemplarAdd(
+				counter.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)),
+				1,
+				mwOpts.getExemplarFn(r.Context()),
+			)
+		}
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
-		counter.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Inc()
-	})
+		exemplarAdd(
+			counter.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)),
+			1,
+			mwOpts.getExemplarFn(r.Context()),
+		)
+	}
 }
 
 // InstrumentHandlerTimeToWriteHeader is a middleware that wraps the provided
@@ -155,13 +190,17 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 
 	code, method := checkLabels(obs)
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
-			obs.With(labels(code, method, r.Method, status, mwOpts.extraMethods...)).Observe(time.Since(now).Seconds())
+			exemplarObserve(
+				obs.With(labels(code, method, r.Method, status, mwOpts.extraMethods...)),
+				time.Since(now).Seconds(),
+				mwOpts.getExemplarFn(r.Context()),
+			)
 		})
 		next.ServeHTTP(d, r)
-	})
+	}
 }
 
 // InstrumentHandlerRequestSize is a middleware that wraps the provided
@@ -192,19 +231,19 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 	code, method := checkLabels(obs)
 
 	if code {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		return func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			size := computeApproximateRequestSize(r)
 			obs.With(labels(code, method, r.Method, d.Status(), mwOpts.extraMethods...)).Observe(float64(size))
-		})
+		}
 	}
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		size := computeApproximateRequestSize(r)
 		obs.With(labels(code, method, r.Method, 0, mwOpts.extraMethods...)).Observe(float64(size))
-	})
+	}
 }
 
 // InstrumentHandlerResponseSize is a middleware that wraps the provided
