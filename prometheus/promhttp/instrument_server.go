@@ -183,7 +183,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 //
 // See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
-	mwOpts := &option{}
+	mwOpts := &option{getExemplarFn: func(ctx context.Context) prometheus.Labels { return nil }}
 	for _, o := range opts {
 		o(mwOpts)
 	}
