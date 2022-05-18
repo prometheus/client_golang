@@ -13,14 +13,18 @@
 
 package promhttp
 
-import "context"
+import (
+	"context"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Option are used to configure a middleware or round tripper.
 type Option func(*option)
 
 type option struct {
 	extraMethods  []string
-	getExemplarFn func(ctx context.Context) map[string]string
+	getExemplarFn func(ctx context.Context) prometheus.Labels
 }
 
 // WithExtraMethods adds additional HTTP methods to the list of allowed methods.
@@ -34,8 +38,9 @@ func WithExtraMethods(methods ...string) Option {
 }
 
 // WithExemplarFromRequestContext adds allows to put a hook to all counter and histogram metrics.
-// If the hook function returns non-nil map representing key values, exemplars will be added for that request.
-func WithExemplarFromRequestContext(getExemplarFn func(ctx context.Context) map[string]string) Option {
+// If the hook function returns non-nil labels, exemplars will be added for that request, otherwise metric will get instrumented
+// without exemplar.
+func WithExemplarFromRequestContext(getExemplarFn func(ctx context.Context) prometheus.Labels) Option {
 	return func(o *option) {
 		o.getExemplarFn = getExemplarFn
 	}

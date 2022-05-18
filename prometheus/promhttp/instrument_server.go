@@ -79,7 +79,7 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
 func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, opts ...Option) http.HandlerFunc {
-	mwOpts := &option{getExemplarFn: func(ctx context.Context) map[string]string { return nil }}
+	mwOpts := &option{getExemplarFn: func(ctx context.Context) prometheus.Labels { return nil }}
 	for _, o := range opts {
 		o(mwOpts)
 	}
@@ -130,7 +130,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 //
 // See the example for InstrumentHandlerDuration for example usage.
 func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler, opts ...Option) http.HandlerFunc {
-	mwOpts := &option{getExemplarFn: func(ctx context.Context) map[string]string { return nil }}
+	mwOpts := &option{getExemplarFn: func(ctx context.Context) prometheus.Labels { return nil }}
 	for _, o := range opts {
 		o(mwOpts)
 	}
