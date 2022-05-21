@@ -101,7 +101,9 @@ func ToFloat64(c prometheus.Collector) float64 {
 	}
 
 	pb := &dto.Metric{}
-	m.Write(pb)
+	if err := m.Write(pb); err != nil {
+		panic(fmt.Errorf("error happened while collecting metrics: %w", err))
+	}
 	if pb.Gauge != nil {
 		return pb.Gauge.GetValue()
 	}

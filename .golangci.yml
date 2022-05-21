@@ -12,12 +12,20 @@ linters:
     - gofumpt
     - goimports
     - revive
+    - misspell
+    - errcheck
   disable-all: true
 
 issues:
   max-same-issues: 0
+  exclude-rules:
+    - path: _test.go
+      linters:
+        - errcheck
 
 linters-settings:
+  errcheck:
+    exclude: scripts/errcheck_excludes.txt
   goimports:
     local-prefixes: github.com/prometheus/client_golang
   gofumpt:
