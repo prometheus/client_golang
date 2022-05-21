@@ -98,9 +98,7 @@ func New(url, job string) *Pusher {
 	if !strings.Contains(url, "://") {
 		url = "http://" + url
 	}
-	if strings.HasSuffix(url, "/") {
-		url = url[:len(url)-1]
-	}
+	url = strings.TrimSuffix(url, "/")
 
 	return &Pusher{
 		error:      err,

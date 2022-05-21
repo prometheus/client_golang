@@ -49,7 +49,7 @@ func testDelete(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(42)
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -57,7 +57,7 @@ func testDelete(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(42)
 	if got, want := vec.Delete(Labels{"l2": "v2", "l1": "v1"}), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -65,7 +65,7 @@ func testDelete(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(42)
 	if got, want := vec.Delete(Labels{"l2": "v1", "l1": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -103,8 +103,8 @@ func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
-	vec.With(Labels{"l1": "v1", "l2": "v3"}).(Gauge).Set(42) // Add junk data for collision.
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v3"}).Set(42) // Add junk data for collision.
 	if got, want := vec.DeleteLabelValues("v1", "v2"), true; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -115,7 +115,7 @@ func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
-	vec.With(Labels{"l1": "v1", "l2": "v2"}).(Gauge).Set(42)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(42)
 	// Delete out of order.
 	if got, want := vec.DeleteLabelValues("v2", "v1"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
@@ -146,9 +146,9 @@ func TestDeletePartialMatch(t *testing.T) {
 	}
 
 	baseVec.With(Labels{"l1": "baseValue1", "l2": "baseValue2", "l3": "baseValue3"}).Inc()
-	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff1BaseValue2", "l3": "v3"}).(Gauge).Set(42)
-	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff2BaseValue2", "l3": "v3"}).(Gauge).Set(84)
-	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff3BaseValue2", "l3": "v3"}).(Gauge).Set(168)
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff1BaseValue2", "l3": "v3"}).Set(42)
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff2BaseValue2", "l3": "v3"}).Set(84)
+	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff3BaseValue2", "l3": "v3"}).Set(168)
 
 	curriedVec := baseVec.MustCurryWith(Labels{"l2": "curriedValue2"})
 	curriedVec.WithLabelValues("curriedValue1", "curriedValue3").Inc()
@@ -249,7 +249,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
 		expected[[2]string{"v1", "v2"}]++
-		vec.WithLabelValues("v1", "v2").(Gauge).Inc()
+		vec.WithLabelValues("v1", "v2").Inc()
 	}
 
 	var total int

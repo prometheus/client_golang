@@ -14,6 +14,8 @@ linters:
     - revive
     - misspell
     - errcheck
+    - govet
+    - gosimple
   disable-all: true
 
 issues:
@@ -22,6 +24,7 @@ issues:
     - path: _test.go
       linters:
         - errcheck
+        - govet
 
 linters-settings:
   errcheck:
