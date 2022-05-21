@@ -10,11 +10,14 @@ linters:
   enable:
     - staticcheck
     - gofumpt
+    - goimports
   disable-all: true
 
 issues:
   max-same-issues: 0
 
 linters-settings:
+  goimports:
+    local-prefixes: github.com/prometheus/client_golang
   gofumpt:
     extra-rules: true
