@@ -8,15 +8,10 @@ output:
 
 linters:
   enable:
-    - staticcheck
     - gofumpt
     - goimports
     - revive
     - misspell
-    - errcheck
-    - govet
-    - gosimple
-  disable-all: true
 
 issues:
   max-same-issues: 0
@@ -25,6 +20,7 @@ issues:
       linters:
         - errcheck
         - govet
+        - structcheck
 
 linters-settings:
   errcheck:
