@@ -330,7 +330,8 @@ thermometers_rankine 10
 				Metric: "thermometers_rankine",
 				Text:   `use base unit "celsius" instead of "rankine"`,
 			}},
-		}, {
+		},
+		{
 			name: "inches",
 			in: `
 # HELP x_inches Test metric.
@@ -341,7 +342,8 @@ x_inches 10
 				Metric: "x_inches",
 				Text:   `use base unit "meters" instead of "inches"`,
 			}},
-		}, {
+		},
+		{
 			name: "yards",
 			in: `
 # HELP x_yards Test metric.
@@ -352,7 +354,8 @@ x_yards 10
 				Metric: "x_yards",
 				Text:   `use base unit "meters" instead of "yards"`,
 			}},
-		}, {
+		},
+		{
 			name: "miles",
 			in: `
 # HELP x_miles Test metric.
@@ -363,7 +366,8 @@ x_miles 10
 				Metric: "x_miles",
 				Text:   `use base unit "meters" instead of "miles"`,
 			}},
-		}, {
+		},
+		{
 			name: "bits",
 			in: `
 # HELP x_bits Test metric.

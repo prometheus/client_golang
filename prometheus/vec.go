@@ -571,7 +571,7 @@ func findMetricWithLabels(
 	return len(metrics)
 }
 
-func matchLabelValues(values []string, lvs []string, curry []curriedLabelValue) bool {
+func matchLabelValues(values, lvs []string, curry []curriedLabelValue) bool {
 	if len(values) != len(lvs)+len(curry) {
 		return false
 	}

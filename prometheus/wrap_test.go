@@ -46,7 +46,6 @@ func toMetricFamilies(cs ...Collector) []*dto.MetricFamily {
 }
 
 func TestWrap(t *testing.T) {
-
 	simpleCnt := NewCounter(CounterOpts{
 		Name: "simpleCnt",
 		Help: "helpSimpleCnt",
@@ -319,7 +318,6 @@ func TestWrap(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestNil(t *testing.T) {

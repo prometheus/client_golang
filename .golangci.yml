@@ -1,5 +1,20 @@
-# Run only staticcheck for now. Additional linters will be enabled one-by-one.
+---
+
+run:
+  deadline: 5m
+
+output:
+  sort-results: true
+
 linters:
   enable:
-  - staticcheck
+    - staticcheck
+    - gofumpt
   disable-all: true
+
+issues:
+  max-same-issues: 0
+
+linters-settings:
+  gofumpt:
+    extra-rules: true

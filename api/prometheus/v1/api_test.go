@@ -65,7 +65,6 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 }
 
 func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
-
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -101,7 +100,6 @@ func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.
 }
 
 func TestAPIs(t *testing.T) {
-
 	testTime := time.Now()
 
 	tc := &apiTestClient{
@@ -131,7 +129,7 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+	doDeleteSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			return nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
@@ -182,7 +180,7 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doSeries := func(matcher string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+	doSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
 		}
@@ -209,14 +207,14 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doTargetsMetadata := func(matchTarget string, metric string, limit string) func() (interface{}, Warnings, error) {
+	doTargetsMetadata := func(matchTarget, metric, limit string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
 			return v, nil, err
 		}
 	}
 
-	doMetadata := func(metric string, limit string) func() (interface{}, Warnings, error) {
+	doMetadata := func(metric, limit string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.Metadata(context.Background(), metric, limit)
 			return v, nil, err
@@ -237,7 +235,7 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doQueryExemplars := func(query string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+	doQueryExemplars := func(query string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.QueryExemplars(context.Background(), query, startTime, endTime)
 			return v, nil, err
@@ -471,7 +469,8 @@ func TestAPIs(t *testing.T) {
 				{
 					"__name__": "up",
 					"job":      "prometheus",
-					"instance": "localhost:9090"},
+					"instance": "localhost:9090",
+				},
 			},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/series",
@@ -495,7 +494,8 @@ func TestAPIs(t *testing.T) {
 				{
 					"__name__": "up",
 					"job":      "prometheus",
-					"instance": "localhost:9090"},
+					"instance": "localhost:9090",
+				},
 			},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
@@ -586,7 +586,8 @@ func TestAPIs(t *testing.T) {
 				{
 					"__name__": "up",
 					"job":      "prometheus",
-					"instance": "localhost:9090"},
+					"instance": "localhost:9090",
+				},
 			},
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/delete_series",
@@ -1115,7 +1116,7 @@ func TestAPIs(t *testing.T) {
 				"limit":  []string{"1"},
 			},
 			res: map[string][]Metadata{
-				"go_goroutines": []Metadata{
+				"go_goroutines": {
 					{
 						Type: "gauge",
 						Help: "Number of goroutines that currently exist.",
@@ -1523,7 +1524,6 @@ func TestAPIClientDo(t *testing.T) {
 
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-
 			tc.ch <- test
 
 			_, body, warnings, err := client.Do(context.Background(), tc.req)
@@ -1564,7 +1564,6 @@ func TestAPIClientDo(t *testing.T) {
 				t.Fatalf("expected body :%v, but got:%v", test.expectedBody, string(body))
 			}
 		})
-
 	}
 }
 

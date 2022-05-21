@@ -351,7 +351,6 @@ func TestCurryVecWithCollisions(t *testing.T) {
 }
 
 func testCurryVec(t *testing.T, vec *CounterVec) {
-
 	assertMetrics := func(t *testing.T) {
 		n := 0
 		for _, m := range vec.metricMap.metrics {
@@ -538,7 +537,6 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		} else if err.Error() != `label name "three" is already curried` {
 			t.Error("currying returned unexpected error:", err)
 		}
-
 	})
 	t.Run("unknown label", func(t *testing.T) {
 		if _, err := vec.CurryWith(Labels{"foo": "bar"}); err == nil {

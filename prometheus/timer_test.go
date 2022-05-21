@@ -148,5 +148,4 @@ func TestTimerByOutcome(t *testing.T) {
 	if want, got := uint64(2), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for 'bar' histogram, got %d", want, got)
 	}
-
 }

@@ -231,7 +231,7 @@ func TestCounterExemplar(t *testing.T) {
 	}
 	expectedExemplar := &dto.Exemplar{
 		Label: []*dto.LabelPair{
-			&dto.LabelPair{Name: proto.String("foo"), Value: proto.String("bar")},
+			{Name: proto.String("foo"), Value: proto.String("bar")},
 		},
 		Value:     proto.Float64(42),
 		Timestamp: ts,

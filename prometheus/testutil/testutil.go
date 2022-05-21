@@ -221,7 +221,7 @@ func compare(got, want []*dto.MetricFamily) error {
 
 // diff returns a diff of both values as long as both are of the same type and
 // are a struct, map, slice, array or string. Otherwise it returns an empty string.
-func diff(expected interface{}, actual interface{}) string {
+func diff(expected, actual interface{}) string {
 	if expected == nil || actual == nil {
 		return ""
 	}
