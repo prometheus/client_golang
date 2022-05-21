@@ -11,6 +11,7 @@ linters:
     - staticcheck
     - gofumpt
     - goimports
+    - revive
   disable-all: true
 
 issues:
