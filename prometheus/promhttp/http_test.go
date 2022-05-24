@@ -15,6 +15,7 @@ package promhttp
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -329,4 +330,80 @@ func TestHandlerTimeout(t *testing.T) {
 	}
 
 	close(c.Block) // To not leak a goroutine.
+}
+
+func TestHandlerBasicAuth(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	correctUsername := "promuser"
+	correctPassword := "promsecret"
+	handler := HandlerFor(reg, HandlerOpts{HandlerBasicAuthOpts: &HandlerBasicAuthOpts{Username: correctUsername, Password: correctPassword}})
+
+	w := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Add("Accept", "test/plain")
+	request.SetBasicAuth(correctUsername, correctPassword)
+
+	rw0 := httptest.NewRecorder()
+	rejectedRequest0, _ := http.NewRequest("GET", "/", nil)
+	rejectedRequest0.Header.Add("Accept", "test/plain")
+	rejectedRequest0.SetBasicAuth("open", "sesame")
+
+	rw1 := httptest.NewRecorder()
+	rejectedRequest1, _ := http.NewRequest("GET", "/", nil)
+	rejectedRequest1.Header.Add("Accept", "test/plain")
+	rejectedRequest1.SetBasicAuth(correctUsername, "opensesame")
+
+	rw2 := httptest.NewRecorder()
+	rejectedRequest2, _ := http.NewRequest("GET", "/", nil)
+	rejectedRequest2.Header.Add("Accept", "test/plain")
+	rejectedRequest2.SetBasicAuth("opensesame", correctPassword)
+
+	rw3 := httptest.NewRecorder()
+	rejectedRequest3, _ := http.NewRequest("GET", "/", nil)
+	rejectedRequest3.Header.Add("Accept", "test/plain")
+	rejectedRequest3.Header.Set("Authorization", "NotBasic "+base64.StdEncoding.EncodeToString([]byte(correctUsername+":"+correctPassword)))
+
+	rw4 := httptest.NewRecorder()
+	rejectedRequest4, _ := http.NewRequest("GET", "/", nil)
+	rejectedRequest4.Header.Add("Accept", "test/plain")
+	rejectedRequest4.Header.Set("Authorization", "Basic "+correctUsername+":"+correctPassword)
+
+	cnt := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "the_count",
+		Help: "Ah-ah-ah! Thunder and lightning!",
+	})
+	cnt.Inc()
+	reg.MustRegister(cnt)
+
+	handler.ServeHTTP(w, request)
+	handler.ServeHTTP(rw0, rejectedRequest0)
+	handler.ServeHTTP(rw1, rejectedRequest1)
+	handler.ServeHTTP(rw2, rejectedRequest2)
+	handler.ServeHTTP(rw3, rejectedRequest3)
+	handler.ServeHTTP(rw4, rejectedRequest4)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := rw0.Code, http.StatusUnauthorized; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := rw1.Code, http.StatusUnauthorized; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := rw2.Code, http.StatusUnauthorized; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := rw3.Code, http.StatusNotAcceptable; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := rw4.Code, http.StatusNotAcceptable; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
 }

@@ -119,6 +119,18 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 	}
 
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
+		if opts.HandlerBasicAuthOpts != nil {
+			username, password, ok := req.BasicAuth()
+			if !ok {
+				rsp.WriteHeader(http.StatusNotAcceptable)
+				return
+			}
+			if !(username == opts.HandlerBasicAuthOpts.Username &&
+				password == opts.HandlerBasicAuthOpts.Password) {
+				rsp.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+		}
 		if inFlightSem != nil {
 			select {
 			case inFlightSem <- struct{}{}: // All good, carry on.
@@ -308,6 +320,15 @@ type Logger interface {
 	Println(v ...interface{})
 }
 
+// HandlerBasicAuthOpts specifies options how to verify metrics pull request
+// in BasicAuth authorization.
+type HandlerBasicAuthOpts struct {
+	// Username defines user account id in BasicAuth authorization
+	Username string
+	// Password defines user account secret in BasicAuth authorization
+	Password string
+}
+
 // HandlerOpts specifies options how to serve metrics via an http.Handler. The
 // zero value of HandlerOpts is a reasonable default.
 type HandlerOpts struct {
@@ -362,6 +383,13 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
+
+	// HandlerBasicAuthOpts defines BasicAuth authorization info (with Username
+	// and Password inside). If HandlerBasicAuthOpts is not nil, the handler
+	// will identify "Authorization" header from request. The handler will
+	// reject unauthorized requests for what don't match the Username or Password
+	// from HandlerBasicAuthOpts.
+	*HandlerBasicAuthOpts
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
