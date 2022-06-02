@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
+	"github.com/m3db/prometheus_client_golang/prometheus/testutil/promlint"
 )
 
 type test struct {

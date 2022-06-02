@@ -16,7 +16,7 @@
 
 package collectors
 
-import "github.com/prometheus/client_golang/prometheus"
+import "github.com/m3db/prometheus_client_golang/prometheus"
 
 //nolint:staticcheck // Ignore SA1019 until v2.
 type goOptions = prometheus.GoCollectorOptions
@@ -49,7 +49,7 @@ const (
 	// go_memstats_other_sys_bytes
 	// go_memstats_next_gc_bytes
 	// so the metrics known from pre client_golang v1.12.0, except skipped go_memstats_gc_cpu_fraction (see
-	// https://github.com/prometheus/client_golang/issues/842#issuecomment-861812034 for explanation.
+	// https://github.com/m3db/prometheus_client_golang/issues/842#issuecomment-861812034 for explanation.
 	//
 	// NOTE that this mode represents runtime.MemStats statistics, but they are
 	// actually implemented using new runtime/metrics package.

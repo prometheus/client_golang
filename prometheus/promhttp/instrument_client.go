@@ -19,7 +19,7 @@ import (
 	"net/http/httptrace"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus"
 )
 
 // The RoundTripperFunc type is an adapter to allow the use of ordinary

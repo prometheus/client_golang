@@ -16,8 +16,8 @@ package testutil
 import (
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
+	"github.com/m3db/prometheus_client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus/testutil/promlint"
 )
 
 // CollectAndLint registers the provided Collector with a newly created pedantic

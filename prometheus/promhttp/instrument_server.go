@@ -22,7 +22,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus"
 )
 
 // magicString is used for the hacky label test in checkLabels. Remove once fixed.

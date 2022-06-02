@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/m3db/prometheus_client_golang/prometheus"
 )
 
 type untypedCollector struct{}
@@ -214,7 +214,7 @@ func TestCollectAndCompareHistogram(t *testing.T) {
             			some_histogram_bucket{test="test",le="+Inf"} 1
             			some_histogram_sum{test="test"} 2.5
            		 	some_histogram_count{test="test"} 1
-		
+
 			`,
 			observation: 2.5,
 		},

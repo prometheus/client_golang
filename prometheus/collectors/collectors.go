@@ -15,7 +15,7 @@
 // conveniently collect process and Go-related metrics.
 package collectors
 
-import "github.com/prometheus/client_golang/prometheus"
+import "github.com/m3db/prometheus_client_golang/prometheus"
 
 // NewBuildInfoCollector returns a collector collecting a single metric
 // "go_build_info" with the constant value 1 and three labels "path", "version",
@@ -25,7 +25,7 @@ import "github.com/prometheus/client_golang/prometheus"
 // the source repository (rather than the local file system). This is usually
 // accomplished by building from outside of GOPATH, specifying the full address
 // of the main package, e.g. "GO111MODULE=on go run
-// github.com/prometheus/client_golang/examples/random". If built without Go
+// github.com/m3db/prometheus_client_golang/examples/random". If built without Go
 // module support, all label values will be "unknown". If built with Go module
 // support but using the source code from the local file system, the "path" will
 // be set appropriately, but "checksum" will be empty and "version" will be

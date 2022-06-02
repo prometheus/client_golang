@@ -46,7 +46,7 @@ func NewGoCollector() Collector {
 		eval    func(*runtime.MemStats) float64
 		valType ValueType
 	}{
-		// This metric is omitted in Go1.17+, see https://github.com/prometheus/client_golang/issues/842#issuecomment-861812034
+		// This metric is omitted in Go1.17+, see https://github.com/m3db/prometheus_client_golang/issues/842#issuecomment-861812034
 		desc: NewDesc(
 			memstatNamespace("gc_cpu_fraction"),
 			"The fraction of this program's available CPU time used by the GC since the program started.",

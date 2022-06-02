@@ -27,7 +27,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
+	"github.com/m3db/prometheus_client_golang/prometheus/internal"
 )
 
 const (
@@ -113,14 +113,14 @@ type goCollector struct {
 
 const (
 	// Those are not exposed due to need to move Go collector to another package in v2.
-	// See issue https://github.com/prometheus/client_golang/issues/1030.
+	// See issue https://github.com/m3db/prometheus_client_golang/issues/1030.
 	goRuntimeMemStatsCollection uint32 = 1 << iota
 	goRuntimeMetricsCollection
 )
 
 // GoCollectorOptions should not be used be directly by anything, except `collectors` package.
 // Use it via collectors package instead. See issue
-// https://github.com/prometheus/client_golang/issues/1030.
+// https://github.com/m3db/prometheus_client_golang/issues/1030.
 //
 // Deprecated: Use collectors.WithGoCollections
 type GoCollectorOptions struct {
@@ -400,7 +400,7 @@ func memStatsFromRM(ms *runtime.MemStats, rm map[string]*metrics.Sample) {
 	// N.B. GCCPUFraction is intentionally omitted. This metric is not useful,
 	// and often misleading due to the fact that it's an average over the lifetime
 	// of the process.
-	// See https://github.com/prometheus/client_golang/issues/842#issuecomment-861812034
+	// See https://github.com/m3db/prometheus_client_golang/issues/842#issuecomment-861812034
 	// for more details.
 	ms.GCCPUFraction = 0
 }

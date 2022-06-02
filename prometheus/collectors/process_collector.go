@@ -13,7 +13,7 @@
 
 package collectors
 
-import "github.com/prometheus/client_golang/prometheus"
+import "github.com/m3db/prometheus_client_golang/prometheus"
 
 // ProcessCollectorOpts defines the behavior of a process metrics collector
 // created with NewProcessCollector.
