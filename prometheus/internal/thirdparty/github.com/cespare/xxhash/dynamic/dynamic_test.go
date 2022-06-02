@@ -14,12 +14,14 @@ import (
 // This is a cursory test that checks whether things work under dynamic linking.
 
 func TestMain(m *testing.M) {
-	cmd := exec.Command(
-		"go", "build",
+	args := []string{"build",
 		"-buildmode", "plugin",
-		"-o", "plugin.so",
-		"plugin.go",
-	)
+		"-o", "plugin.so"}
+	if compileWithRace {
+		args = append(args, "-race")
+	}
+	args = append(args, "plugin.go")
+	cmd := exec.Command("go", args...)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
