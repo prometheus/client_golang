@@ -30,6 +30,7 @@ func TestLabelCheck(t *testing.T) {
 		varLabels     []string
 		constLabels   []string
 		curriedLabels []string
+		dynamicLabels []string
 		ok            bool
 	}{
 		"empty": {
@@ -60,12 +61,14 @@ func TestLabelCheck(t *testing.T) {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
 			ok:            true,
 		},
 		"all labels used with an invalid const label name": {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"in-valid", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
 			ok:            false,
 		},
 		"unsupported var label": {
@@ -98,6 +101,18 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{"method"},
 			ok:            true,
 		},
+		"supported label as const and dynamic": {
+			varLabels:     []string{},
+			constLabels:   []string{"code"},
+			dynamicLabels: []string{"method"},
+			ok:            true,
+		},
+		"supported label as curried and dynamic": {
+			varLabels:     []string{},
+			curriedLabels: []string{"code"},
+			dynamicLabels: []string{"method"},
+			ok:            true,
+		},
 		"supported label as const and curry with unsupported as var": {
 			varLabels:     []string{"foo"},
 			constLabels:   []string{"code"},
@@ -116,6 +131,7 @@ func TestLabelCheck(t *testing.T) {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
 			ok:            false,
 		},
 	}
@@ -130,25 +146,38 @@ func TestLabelCheck(t *testing.T) {
 			for _, l := range sc.constLabels {
 				constLabels[l] = "dummy"
 			}
-			c := prometheus.NewCounterVec(
-				prometheus.CounterOpts{
-					Name:        metricName,
-					Help:        "c help",
-					ConstLabels: constLabels,
+			labelNames := append(append(sc.varLabels, sc.curriedLabels...), sc.dynamicLabels...)
+			c := prometheus.V2.NewCounterVec(
+				prometheus.CounterVecOpts{
+					CounterOpts: prometheus.CounterOpts{
+						Name:        metricName,
+						Help:        "c help",
+						ConstLabels: constLabels,
+					},
+					VariableLabels: prometheus.UnconstrainedLabels(labelNames),
 				},
-				append(sc.varLabels, sc.curriedLabels...),
 			)
-			o := prometheus.ObserverVec(prometheus.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Name:        metricName,
-					Help:        "c help",
-					ConstLabels: constLabels,
+			o := prometheus.ObserverVec(prometheus.V2.NewHistogramVec(
+				prometheus.HistogramVecOpts{
+					HistogramOpts: prometheus.HistogramOpts{
+						Name:        metricName,
+						Help:        "c help",
+						ConstLabels: constLabels,
+					},
+					VariableLabels: prometheus.UnconstrainedLabels(labelNames),
 				},
-				append(sc.varLabels, sc.curriedLabels...),
 			))
 			for _, l := range sc.curriedLabels {
 				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
 				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
+			}
+			opts := []Option{}
+			for _, l := range sc.dynamicLabels {
+				opts = append(opts, WithLabelFromCtx(l,
+					func(_ context.Context) string {
+						return "foo"
+					},
+				))
 			}
 
 			func() {
@@ -161,7 +190,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerCounter(c, nil)
+				InstrumentHandlerCounter(c, nil, opts...)
 			}()
 			func() {
 				defer func() {
@@ -173,7 +202,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerDuration(o, nil)
+				InstrumentHandlerDuration(o, nil, opts...)
 			}()
 			if sc.ok {
 				// Test if wantCode and wantMethod were detected correctly.
@@ -185,6 +214,11 @@ func TestLabelCheck(t *testing.T) {
 					if l == "method" {
 						wantMethod = true
 					}
+				}
+				// Curry the dynamic labels since this is done normally behind the scenes for the check
+				for _, l := range sc.dynamicLabels {
+					c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
+					o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
 				}
 				gotCode, gotMethod := checkLabels(c)
 				if gotCode != wantCode {
