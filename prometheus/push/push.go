@@ -168,6 +168,16 @@ func (p *Pusher) Collector(c prometheus.Collector) *Pusher {
 	return p
 }
 
+// MustCollector works like Collector but registers any number of
+// Collectors and panics upon the first registration that causes an
+// error.
+//
+// For convenience, this method returns a pointer to the Pusher itself.
+func (p *Pusher) MustCollector(c ...prometheus.Collector) *Pusher {
+	p.registerer.MustRegister(c...)
+	return p
+}
+
 // Grouping adds a label pair to the grouping key of the Pusher, replacing any
 // previously added label pair with the same label name. Note that setting any
 // labels in the grouping key that are already contained in the metrics to push

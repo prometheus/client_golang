@@ -107,6 +107,22 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
+	// use MustCollectors, all good.
+	if err := New(pgwOK.URL, "testjob").
+		MustCollector(metric1, metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob" {
+		t.Error("unexpected path:", lastPath)
+	}
+
 	// Add some Collectors, with nil grouping, all good.
 	if err := New(pgwOK.URL, "testjob").
 		Collector(metric1).
