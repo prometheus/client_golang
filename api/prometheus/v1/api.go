@@ -109,7 +109,6 @@ func marshalPointJSON(ptr unsafe.Pointer, stream *json.Stream) {
 
 	stream.WriteRaw(`"`)
 	stream.WriteArrayEnd()
-
 }
 
 func marshalPointJSONIsEmpty(ptr unsafe.Pointer) bool {
@@ -230,25 +229,25 @@ type API interface {
 	// Config returns the current Prometheus configuration.
 	Config(ctx context.Context) (ConfigResult, error)
 	// DeleteSeries deletes data for a selection of series in a time range.
-	DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error
+	DeleteSeries(ctx context.Context, matches []string, startTime, endTime time.Time) error
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns the unique label names present in the block in sorted order by given time range and matchers.
-	LabelNames(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]string, Warnings, error)
+	LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time) ([]string, Warnings, error)
 	// LabelValues performs a query for the values of the given label, time range and matchers.
-	LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error)
+	LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
 	Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error)
 	// QueryRange performs a query for the given range.
 	QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error)
 	// QueryExemplars performs a query for exemplars by the given query and time range.
-	QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error)
+	QueryExemplars(ctx context.Context, query string, startTime, endTime time.Time) ([]ExemplarQueryResult, error)
 	// Buildinfo returns various build information properties about the Prometheus server
 	Buildinfo(ctx context.Context) (BuildinfoResult, error)
 	// Runtimeinfo returns the various runtime information properties about the Prometheus server.
 	Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error)
 	// Series finds series by label matchers.
-	Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, Warnings, error)
+	Series(ctx context.Context, matches []string, startTime, endTime time.Time) ([]model.LabelSet, Warnings, error)
 	// Snapshot creates a snapshot of all current data into snapshots/<datetime>-<rand>
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
@@ -257,9 +256,9 @@ type API interface {
 	// Targets returns an overview of the current state of the Prometheus target discovery.
 	Targets(ctx context.Context) (TargetsResult, error)
 	// TargetsMetadata returns metadata about metrics currently scraped by the target.
-	TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) ([]MetricMetadata, error)
+	TargetsMetadata(ctx context.Context, matchTarget, metric, limit string) ([]MetricMetadata, error)
 	// Metadata returns metadata about metrics currently scraped by the metric name.
-	Metadata(ctx context.Context, metric string, limit string) (map[string][]Metadata, error)
+	Metadata(ctx context.Context, metric, limit string) (map[string][]Metadata, error)
 	// TSDB returns the cardinality statistics.
 	TSDB(ctx context.Context) (TSDBResult, error)
 	// WalReplay returns the current replay status of the wal.
@@ -699,7 +698,7 @@ func (h *httpAPI) Config(ctx context.Context) (ConfigResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) error {
+func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime, endTime time.Time) error {
 	u := h.client.URL(epDeleteSeries, nil)
 	q := u.Query()
 
@@ -772,7 +771,7 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]string, Warnings, error) {
+func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
 	q := u.Query()
 	q.Set("start", formatTime(startTime))
@@ -795,7 +794,7 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime ti
 	return labelNames, w, json.Unmarshal(body, &labelNames)
 }
 
-func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime time.Time, endTime time.Time) (model.LabelValues, Warnings, error) {
+func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time) (model.LabelValues, Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	q := u.Query()
 	q.Set("start", formatTime(startTime))
@@ -833,7 +832,6 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
-
 	u := h.client.URL(epQuery, nil)
 	q := u.Query()
 
@@ -890,7 +888,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 	return model.Value(qres.v), warnings, json.Unmarshal(body, &qres)
 }
 
-func (h *httpAPI) Series(ctx context.Context, matches []string, startTime time.Time, endTime time.Time) ([]model.LabelSet, Warnings, error) {
+func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time) ([]model.LabelSet, Warnings, error) {
 	u := h.client.URL(epSeries, nil)
 	q := u.Query()
 
@@ -973,7 +971,7 @@ func (h *httpAPI) Targets(ctx context.Context) (TargetsResult, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget string, metric string, limit string) ([]MetricMetadata, error) {
+func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget, metric, limit string) ([]MetricMetadata, error) {
 	u := h.client.URL(epTargetsMetadata, nil)
 	q := u.Query()
 
@@ -997,7 +995,7 @@ func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget string, metri
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) Metadata(ctx context.Context, metric string, limit string) (map[string][]Metadata, error) {
+func (h *httpAPI) Metadata(ctx context.Context, metric, limit string) (map[string][]Metadata, error) {
 	u := h.client.URL(epMetadata, nil)
 	q := u.Query()
 
@@ -1054,7 +1052,7 @@ func (h *httpAPI) WalReplay(ctx context.Context) (WalReplayStatus, error) {
 	return res, json.Unmarshal(body, &res)
 }
 
-func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime time.Time, endTime time.Time) ([]ExemplarQueryResult, error) {
+func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime, endTime time.Time) ([]ExemplarQueryResult, error) {
 	u := h.client.URL(epQueryExemplars, nil)
 	q := u.Query()
 
@@ -1162,7 +1160,6 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 	}
 
 	return resp, []byte(result.Data), result.Warnings, err
-
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it

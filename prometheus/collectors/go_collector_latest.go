@@ -72,7 +72,8 @@ const (
 //
 // The current default is GoRuntimeMemStatsCollection, so the compatibility mode with
 // client_golang pre v1.12 (move to runtime/metrics).
-func WithGoCollections(flags GoCollectionOption) goOption {
+//nolint:staticcheck // Ignore SA1019 until v2.
+func WithGoCollections(flags GoCollectionOption) func(options *prometheus.GoCollectorOptions) {
 	return func(o *goOptions) {
 		o.EnabledCollections = uint32(flags)
 	}

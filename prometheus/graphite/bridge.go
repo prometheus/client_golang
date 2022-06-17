@@ -240,9 +240,8 @@ func writeMetric(buf *bufio.Writer, m model.Metric, useTags bool) error {
 		}
 		if useTags {
 			return writeTags(buf, m)
-		} else {
-			return writeLabels(buf, m, numLabels)
 		}
+		return writeLabels(buf, m, numLabels)
 	}
 	return nil
 }

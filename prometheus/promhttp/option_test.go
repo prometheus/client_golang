@@ -50,11 +50,10 @@ func ExampleInstrumentHandlerWithExtraMethods() {
 
 	// Instrument the handlers with all the metrics, injecting the "handler"
 	// label by currying.
-	pullChain :=
-		InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "pull"}),
-			InstrumentHandlerCounter(counter, pullHandler, opts),
-			opts,
-		)
+	pullChain := InstrumentHandlerDuration(duration.MustCurryWith(prometheus.Labels{"handler": "pull"}),
+		InstrumentHandlerCounter(counter, pullHandler, opts),
+		opts,
+	)
 
 	http.Handle("/metrics", Handler())
 	http.Handle("/pull", pullChain)

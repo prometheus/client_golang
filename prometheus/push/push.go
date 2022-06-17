@@ -98,9 +98,7 @@ func New(url, job string) *Pusher {
 	if !strings.Contains(url, "://") {
 		url = "http://" + url
 	}
-	if strings.HasSuffix(url, "/") {
-		url = url[:len(url)-1]
-	}
+	url = strings.TrimSuffix(url, "/")
 
 	return &Pusher{
 		error:      err,
@@ -273,7 +271,11 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 				}
 			}
 		}
-		enc.Encode(mf)
+		if err := enc.Encode(mf); err != nil {
+			return fmt.Errorf(
+				"failed to encode metric familty %s, error is %w",
+				mf.GetName(), err)
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
 	if err != nil {

@@ -246,7 +246,7 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 // Collector does not have a Desc or has more than one Desc or its Desc is
 // invalid. It also panics if the Collector has any non-const, non-curried
 // labels that are not named "code" or "method".
-func checkLabels(c prometheus.Collector) (code bool, method bool) {
+func checkLabels(c prometheus.Collector) (code, method bool) {
 	// TODO(beorn7): Remove this hacky way to check for instance labels
 	// once Descriptors can have their dimensionality queried.
 	var (

@@ -108,7 +108,6 @@ func (v *InfoVec) MustCurryWith(labels prometheus.Labels) *InfoVec {
 }
 
 func ExampleMetricVec() {
-
 	infoVec := NewInfoVec(
 		"library_version_info",
 		"Versions of the libraries used in this binary.",

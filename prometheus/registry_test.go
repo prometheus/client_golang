@@ -349,7 +349,7 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 		body    []byte
 	}
 
-	var scenarios = []struct {
+	scenarios := []struct {
 		headers    map[string]string
 		out        output
 		collector  prometheus.Collector
@@ -1118,7 +1118,6 @@ func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
 // TestAlreadyRegistered will fail with the old, weaker hash function.  It is
 // taken from https://play.golang.org/p/HpV7YE6LI_4 , authored by @awilliams.
 func TestAlreadyRegisteredCollision(t *testing.T) {
-
 	reg := prometheus.NewRegistry()
 
 	for i := 0; i < 10000; i++ {
