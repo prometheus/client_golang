@@ -22,9 +22,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/common/config"
+
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/config"
 )
 
 func ExampleAPI_query() {

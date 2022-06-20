@@ -26,7 +26,6 @@ import (
 )
 
 func TestPush(t *testing.T) {
-
 	var (
 		lastMethod string
 		lastBody   []byte

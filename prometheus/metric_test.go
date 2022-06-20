@@ -75,5 +75,4 @@ func TestWithExemplarsMetric(t *testing.T) {
 			}
 		}
 	})
-
 }

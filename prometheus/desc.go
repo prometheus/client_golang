@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/prometheus/client_golang/prometheus/internal"
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.

@@ -134,7 +134,6 @@ func BenchmarkClient(b *testing.B) {
 
 	for _, sizeKB := range []int{4, 50, 1000, 2000} {
 		b.Run(fmt.Sprintf("%dKB", sizeKB), func(b *testing.B) {
-
 			testServer := httptest.NewServer(serveSpaces{sizeKB})
 			defer testServer.Close()
 

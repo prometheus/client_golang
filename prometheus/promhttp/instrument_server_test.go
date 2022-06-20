@@ -279,7 +279,7 @@ func TestLabels(t *testing.T) {
 			ok:         false,
 		},
 	}
-	checkLabels := func(labels []string) (gotCode bool, gotMethod bool) {
+	checkLabels := func(labels []string) (gotCode, gotMethod bool) {
 		for _, label := range labels {
 			switch label {
 			case "code":
