@@ -61,6 +61,7 @@ var (
 func init() {
 	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
 	MustRegister(NewGoCollector())
+	MustRegister(NewMetaMetricsCollector())
 }
 
 // NewRegistry creates a new vanilla Registry without any Collectors
@@ -446,11 +447,16 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 
 	wg.Add(goroutineBudget)
 
+	var metaMetricCollector Collector
 	collectWorker := func() {
 		for {
 			select {
 			case collector := <-checkedCollectors:
-				collector.Collect(checkedMetricChan)
+				if _, ok := collector.(*MetaMetrics); ok {
+					metaMetricCollector = collector
+				} else {
+					collector.Collect(checkedMetricChan)
+				}
 			case collector := <-uncheckedCollectors:
 				collector.Collect(uncheckedMetricChan)
 			default:
@@ -468,6 +474,9 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	// are collected.
 	go func() {
 		wg.Wait()
+		if metaMetricCollector != nil {
+			metaMetricCollector.Collect(checkedMetricChan)
+		}
 		close(checkedMetricChan)
 		close(uncheckedMetricChan)
 	}()
