@@ -168,6 +168,11 @@ func (p *Pusher) Collector(c prometheus.Collector) *Pusher {
 	return p
 }
 
+// Error returns the error that was encountered.
+func (p *Pusher) Error() error {
+	return p.error
+}
+
 // Grouping adds a label pair to the grouping key of the Pusher, replacing any
 // previously added label pair with the same label name. Note that setting any
 // labels in the grouping key that are already contained in the metrics to push
