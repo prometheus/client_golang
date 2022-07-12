@@ -38,15 +38,8 @@ func main() {
 		log.Fatal("requires Go version (e.g. go1.17) as an argument")
 	}
 	toolVersion := runtime.Version()
-<<<<<<< HEAD
 	if majorVersion := toolVersion[:strings.LastIndexByte(toolVersion, '.')]; majorVersion != os.Args[1] {
 		log.Fatalf("using Go version %q but expected Go version %q", majorVersion, os.Args[1])
-=======
-	mtv := majorVersion(toolVersion)
-	mv := majorVersion(os.Args[1])
-	if mtv != mv {
-		log.Fatalf("using Go version %q but expected Go version %q", mtv, mv)
->>>>>>> f251146 (prometheus: Fix convention violating names for generated collector metrics (#1048))
 	}
 	version, err := parseVersion(mv)
 	if err != nil {
