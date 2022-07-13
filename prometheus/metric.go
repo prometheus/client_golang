@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"errors"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -181,11 +182,16 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
 				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
 			})
+
 			if i < len(pb.Histogram.Bucket) {
 				pb.Histogram.Bucket[i].Exemplar = e
 			} else {
-				// This is not possible as last bucket is Inf.
-				panic("no bucket was found for given exemplar value")
+				b := &dto.Bucket{
+					CumulativeCount: proto.Uint64(pb.Histogram.Bucket[i].GetCumulativeCount()),
+					UpperBound:      proto.Float64(math.Inf(1)),
+					Exemplar:        e,
+				}
+				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
 			}
 		}
 	default:
