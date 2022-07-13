@@ -56,6 +56,8 @@ func TestWithExemplarsMetric(t *testing.T) {
 			{Value: proto.Float64(89.0)},
 			{Value: proto.Float64(100.0)},
 			{Value: proto.Float64(157.0)},
+			{Value: proto.Float64(500.0)},
+			{Value: proto.Float64(600.0)},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {

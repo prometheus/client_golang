@@ -186,12 +186,14 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 			if i < len(pb.Histogram.Bucket) {
 				pb.Histogram.Bucket[i].Exemplar = e
 			} else {
-				b := &dto.Bucket{
-					CumulativeCount: proto.Uint64(pb.Histogram.Bucket[i].GetCumulativeCount()),
-					UpperBound:      proto.Float64(math.Inf(1)),
-					Exemplar:        e,
+				if i < len(pb.Histogram.Bucket)-1 {
+					b := &dto.Bucket{
+						CumulativeCount: proto.Uint64(pb.Histogram.Bucket[i].GetCumulativeCount()),
+						UpperBound:      proto.Float64(math.Inf(1)),
+						Exemplar:        e,
+					}
+					pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
 				}
-				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
 			}
 		}
 	default:
