@@ -177,22 +177,24 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 	case pb.Counter != nil:
 		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
 	case pb.Histogram != nil:
+		origBucketSize := len(pb.Histogram.Bucket)
 		for _, e := range m.exemplars {
 			// pb.Histogram.Bucket are sorted by UpperBound.
 			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
 				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
 			})
-
-			if i < len(pb.Histogram.Bucket) {
+			if i < origBucketSize {
 				pb.Histogram.Bucket[i].Exemplar = e
-			} else {
+			} else { // +inf bucket should be explicitly added if there is an exemplar for it.
 				b := &dto.Bucket{
 					CumulativeCount: proto.Uint64(pb.Histogram.Bucket[len(pb.Histogram.GetBucket())-1].GetCumulativeCount()),
 					UpperBound:      proto.Float64(math.Inf(1)),
 					Exemplar:        e,
 				}
 				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
-
+				break
+				//end looping after creating +inf bucket and adding one exemplar.
+				//there could be other exemplars that are in the "inf" range but those will be ignored.
 			}
 		}
 	default:
