@@ -17,7 +17,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1360,7 +1359,7 @@ func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if ctx == nil {
 		c.Fatalf("context was not passed down")
 	}
@@ -1370,24 +1369,11 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 
 	test := <-c.ch
 
-	var b []byte
-	var err error
-
-	switch v := test.response.(type) {
-	case string:
-		b = []byte(v)
-	default:
-		b, err = json.Marshal(v)
-		if err != nil {
-			c.Fatal(err)
-		}
-	}
-
 	resp := &http.Response{
 		StatusCode: test.code,
 	}
 
-	return resp, b, nil
+	return resp, nil
 }
 
 func TestAPIClientDo(t *testing.T) {
@@ -1671,30 +1657,13 @@ func (c *httpTestClient) URL(ep string, args map[string]string) *url.URL {
 	return nil
 }
 
-func (c *httpTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *httpTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	var body []byte
-	done := make(chan struct{})
-	go func() {
-		body, err = ioutil.ReadAll(resp.Body)
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		<-done
-		err = resp.Body.Close()
-		if err == nil {
-			err = ctx.Err()
-		}
-	case <-done:
-	}
-
-	return resp, body, err
+	return resp, err
 }
 
 func TestDoGetFallback(t *testing.T) {

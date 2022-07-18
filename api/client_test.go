@@ -152,7 +152,7 @@ func BenchmarkClient(b *testing.B) {
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, _, err := client.Do(ctx, req)
+				_, err := client.Do(ctx, req)
 				if err != nil {
 					b.Fatalf("Query failed: %v", err)
 				}

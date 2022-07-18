@@ -1118,30 +1118,22 @@ func (h *apiClientImpl) URL(ep string, args map[string]string) *url.URL {
 }
 
 func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
-	resp, body, err := h.client.Do(ctx, req)
+	resp, err := h.client.Do(ctx, req)
 	if err != nil {
-		return resp, body, nil, err
+		return resp, nil, nil, err
 	}
+
+	var result apiResponse
+	err = json.NewDecoder(resp.Body).Decode(&result)
 
 	code := resp.StatusCode
 
 	if code/100 != 2 && !apiError(code) {
 		errorType, errorMsg := errorTypeAndMsgFor(resp)
-		return resp, body, nil, &Error{
+		return resp, nil, nil, &Error{
 			Type:   errorType,
 			Msg:    errorMsg,
-			Detail: string(body),
-		}
-	}
-
-	var result apiResponse
-
-	if http.StatusNoContent != code {
-		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
-			return resp, body, nil, &Error{
-				Type: ErrBadResponse,
-				Msg:  jsonErr.Error(),
-			}
+			Detail: string(result.Data),
 		}
 	}
 
@@ -1159,7 +1151,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		}
 	}
 
-	return resp, []byte(result.Data), result.Warnings, err
+	return resp, result.Data, result.Warnings, err
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it

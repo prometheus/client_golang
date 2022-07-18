@@ -15,7 +15,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net"
@@ -76,7 +75,7 @@ func (cfg *Config) validate() error {
 // Client is the interface for an API client.
 type Client interface {
 	URL(ep string, args map[string]string) *url.URL
-	Do(context.Context, *http.Request) (*http.Response, []byte, error)
+	Do(context.Context, *http.Request) (*http.Response, error)
 }
 
 // NewClient returns a new Client.
@@ -118,7 +117,7 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 	return &u
 }
 
-func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
@@ -130,27 +129,8 @@ func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	}()
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	var body []byte
-	done := make(chan struct{})
-	go func() {
-		var buf bytes.Buffer
-		_, err = buf.ReadFrom(resp.Body)
-		body = buf.Bytes()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		<-done
-		err = resp.Body.Close()
-		if err == nil {
-			err = ctx.Err()
-		}
-	case <-done:
-	}
-
-	return resp, body, err
+	return resp, err
 }
