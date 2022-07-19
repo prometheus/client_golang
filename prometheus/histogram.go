@@ -382,19 +382,20 @@ type HistogramOpts struct {
 	Buckets []float64
 
 	// If SparseBucketsFactor is greater than one, sparse buckets are used
-	// (in addition to the regular buckets, if defined above). Sparse
-	// buckets are exponential buckets covering the whole float64 range
-	// (with the exception of the “zero” bucket, see
-	// SparseBucketsZeroThreshold below). From any one bucket to the next,
-	// the width of the bucket grows by a constant factor.
-	// SparseBucketsFactor provides an upper bound for this factor
-	// (exception see below). The smaller SparseBucketsFactor, the more
-	// buckets will be used and thus the more costly the histogram will
-	// become. A generally good trade-off between cost and accuracy is a
-	// value of 1.1 (each bucket is at most 10% wider than the previous
-	// one), which will result in each power of two divided into 8 buckets
-	// (e.g. there will be 8 buckets between 1 and 2, same as between 2 and
-	// 4, and 4 and 8, etc.).
+	// (in addition to the regular buckets, if defined above). A histogram
+	// with sparse buckets will be ingested as a native histogram by a
+	// Prometheus server with that feature enable. Sparse buckets are
+	// exponential buckets covering the whole float64 range (with the
+	// exception of the “zero” bucket, see SparseBucketsZeroThreshold
+	// below). From any one bucket to the next, the width of the bucket
+	// grows by a constant factor. SparseBucketsFactor provides an upper
+	// bound for this factor (exception see below). The smaller
+	// SparseBucketsFactor, the more buckets will be used and thus the more
+	// costly the histogram will become. A generally good trade-off between
+	// cost and accuracy is a value of 1.1 (each bucket is at most 10% wider
+	// than the previous one), which will result in each power of two
+	// divided into 8 buckets (e.g. there will be 8 buckets between 1 and 2,
+	// same as between 2 and 4, and 4 and 8, etc.).
 	//
 	// Details about the actually used factor: The factor is calculated as
 	// 2^(2^n), where n is an integer number between (and including) -8 and
@@ -723,8 +724,8 @@ func (h *histogram) Write(out *dto.Metric) error {
 		his.Bucket = append(his.Bucket, b)
 	}
 	if h.sparseSchema > math.MinInt32 {
-		his.SbZeroThreshold = proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sparseZeroThresholdBits)))
-		his.SbSchema = proto.Int32(atomic.LoadInt32(&coldCounts.sparseSchema))
+		his.ZeroThreshold = proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sparseZeroThresholdBits)))
+		his.Schema = proto.Int32(atomic.LoadInt32(&coldCounts.sparseSchema))
 		zeroBucket := atomic.LoadUint64(&coldCounts.sparseZeroBucket)
 
 		defer func() {
@@ -732,9 +733,9 @@ func (h *histogram) Write(out *dto.Metric) error {
 			coldCounts.sparseBucketsNegative.Range(addAndReset(&hotCounts.sparseBucketsNegative, &hotCounts.sparseBucketsNumber))
 		}()
 
-		his.SbZeroCount = proto.Uint64(zeroBucket)
-		his.SbNegative = makeSparseBuckets(&coldCounts.sparseBucketsNegative)
-		his.SbPositive = makeSparseBuckets(&coldCounts.sparseBucketsPositive)
+		his.ZeroCount = proto.Uint64(zeroBucket)
+		his.NegativeSpan, his.NegativeDelta = makeSparseBuckets(&coldCounts.sparseBucketsNegative)
+		his.PositiveSpan, his.PositiveDelta = makeSparseBuckets(&coldCounts.sparseBucketsPositive)
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
@@ -1235,7 +1236,7 @@ func pickSparseSchema(bucketFactor float64) int32 {
 	}
 }
 
-func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
+func makeSparseBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 	var ii []int
 	buckets.Range(func(k, v interface{}) bool {
 		ii = append(ii, k.(int))
@@ -1244,16 +1245,19 @@ func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
 	sort.Ints(ii)
 
 	if len(ii) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	sbs := dto.SparseBuckets{}
-	var prevCount int64
-	var nextI int
+	var (
+		spans     []*dto.BucketSpan
+		deltas    []int64
+		prevCount int64
+		nextI     int
+	)
 
 	appendDelta := func(count int64) {
-		*sbs.Span[len(sbs.Span)-1].Length++
-		sbs.Delta = append(sbs.Delta, count-prevCount)
+		*spans[len(spans)-1].Length++
+		deltas = append(deltas, count-prevCount)
 		prevCount = count
 	}
 
@@ -1270,7 +1274,7 @@ func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
 			// We have to create a new span, either because we are
 			// at the very beginning, or because we have found a gap
 			// of more than two buckets.
-			sbs.Span = append(sbs.Span, &dto.SparseBuckets_Span{
+			spans = append(spans, &dto.BucketSpan{
 				Offset: proto.Int32(iDelta),
 				Length: proto.Uint32(0),
 			})
@@ -1284,7 +1288,7 @@ func makeSparseBuckets(buckets *sync.Map) *dto.SparseBuckets {
 		appendDelta(count)
 		nextI = i + 1
 	}
-	return &sbs
+	return spans, deltas
 }
 
 // addToSparseBucket increments the sparse bucket at key by the provided

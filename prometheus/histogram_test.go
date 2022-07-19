@@ -490,13 +490,13 @@ func TestSparseHistogram(t *testing.T) {
 			name:         "factor 1.1 results in schema 3",
 			observations: []float64{0, 1, 2, 3},
 			factor:       1.1,
-			want:         `sample_count:4 sample_sum:6 sb_schema:3 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:1 > span:<offset:7 length:1 > span:<offset:4 length:1 > delta:1 delta:0 delta:0 > `,
+			want:         `sample_count:4 sample_sum:6 schema:3 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:1 > positive_span:<offset:7 length:1 > positive_span:<offset:4 length:1 > positive_delta:1 positive_delta:0 positive_delta:0 `,
 		},
 		{
 			name:         "factor 1.2 results in schema 2",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2},
 			factor:       1.2,
-			want:         `sample_count:6 sample_sum:7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:6 sample_sum:7.4 schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name: "factor 4 results in schema -1",
@@ -507,7 +507,7 @@ func TestSparseHistogram(t *testing.T) {
 				33.33, // Bucket 3: (16, 64]
 			},
 			factor: 4,
-			want:   `sample_count:10 sample_sum:62.83 sb_schema:-1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:0 length:4 > delta:2 delta:2 delta:-1 delta:-2 > `,
+			want:   `sample_count:10 sample_sum:62.83 schema:-1 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:0 length:4 > positive_delta:2 positive_delta:2 positive_delta:-1 positive_delta:-2 `,
 		},
 		{
 			name: "factor 17 results in schema -2",
@@ -517,58 +517,58 @@ func TestSparseHistogram(t *testing.T) {
 				33.33, // Bucket 2: (16, 256]
 			},
 			factor: 17,
-			want:   `sample_count:10 sample_sum:62.83 sb_schema:-2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:0 length:3 > delta:2 delta:5 delta:-6 > `,
+			want:   `sample_count:10 sample_sum:62.83 schema:-2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:0 length:3 > positive_delta:2 positive_delta:5 positive_delta:-6 `,
 		},
 		{
 			name:         "negative buckets",
 			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2},
 			factor:       1.2,
-			want:         `sample_count:6 sample_sum:-7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:6 sample_sum:-7.4 schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:0 length:5 > negative_delta:1 negative_delta:-1 negative_delta:2 negative_delta:-2 negative_delta:2 `,
 		},
 		{
 			name:         "negative and positive buckets",
 			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2, 1, 1.2, 1.4, 1.8, 2},
 			factor:       1.2,
-			want:         `sample_count:11 sample_sum:0 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:11 sample_sum:0 schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:0 length:5 > negative_delta:1 negative_delta:-1 negative_delta:2 negative_delta:-2 negative_delta:2 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:          "wide zero bucket",
 			observations:  []float64{0, -1, -1.2, -1.4, -1.8, -2, 1, 1.2, 1.4, 1.8, 2},
 			factor:        1.2,
 			zeroThreshold: 1.4,
-			want:          `sample_count:11 sample_sum:0 sb_schema:2 sb_zero_threshold:1.4 sb_zero_count:7 sb_negative:<span:<offset:4 length:1 > delta:2 > sb_positive:<span:<offset:4 length:1 > delta:2 > `,
+			want:          `sample_count:11 sample_sum:0 schema:2 zero_threshold:1.4 zero_count:7 negative_span:<offset:4 length:1 > negative_delta:2 positive_span:<offset:4 length:1 > positive_delta:2 `,
 		},
 		{
 			name:         "NaN observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.NaN()},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:nan sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:7 sample_sum:nan schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "+Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(+1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:inf sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > span:<offset:2147483642 length:1 > delta:1 delta:-1 delta:2 delta:-2 delta:2 delta:-1 > `,
+			want:         `sample_count:7 sample_sum:inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_span:<offset:2147483642 length:1 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 positive_delta:-1 `,
 		},
 		{
 			name:         "-Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(-1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:-inf sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:2147483647 length:1 > delta:1 > sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:7 sample_sum:-inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:2147483647 length:1 > negative_delta:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "limited buckets but nothing triggered",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2},
 			factor:       1.2,
 			maxBuckets:   4,
-			want:         `sample_count:6 sample_sum:7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:6 sample_sum:7.4 schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "buckets limited by halving resolution",
 			observations: []float64{0, 1, 1.1, 1.2, 1.4, 1.8, 2, 3},
 			factor:       1.2,
 			maxBuckets:   4,
-			want:         `sample_count:8 sample_sum:11.5 sb_schema:1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_positive:<span:<offset:0 length:5 > delta:1 delta:2 delta:-1 delta:-2 delta:1 > `,
+			want:         `sample_count:8 sample_sum:11.5 schema:1 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:2 positive_delta:-1 positive_delta:-2 positive_delta:1 `,
 		},
 		{
 			name:             "buckets limited by widening the zero bucket",
@@ -576,7 +576,7 @@ func TestSparseHistogram(t *testing.T) {
 			factor:           1.2,
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
-			want:             `sample_count:8 sample_sum:11.5 sb_schema:2 sb_zero_threshold:1 sb_zero_count:2 sb_positive:<span:<offset:1 length:7 > delta:1 delta:1 delta:-2 delta:2 delta:-2 delta:0 delta:1 > `,
+			want:             `sample_count:8 sample_sum:11.5 schema:2 zero_threshold:1 zero_count:2 positive_span:<offset:1 length:7 > positive_delta:1 positive_delta:1 positive_delta:-2 positive_delta:2 positive_delta:-2 positive_delta:0 positive_delta:1 `,
 		},
 		{
 			name:             "buckets limited by widening the zero bucket twice",
@@ -584,7 +584,7 @@ func TestSparseHistogram(t *testing.T) {
 			factor:           1.2,
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
-			want:             `sample_count:9 sample_sum:15.5 sb_schema:2 sb_zero_threshold:1.189207115002721 sb_zero_count:3 sb_positive:<span:<offset:2 length:7 > delta:2 delta:-2 delta:2 delta:-2 delta:0 delta:1 delta:0 > `,
+			want:             `sample_count:9 sample_sum:15.5 schema:2 zero_threshold:1.189207115002721 zero_count:3 positive_span:<offset:2 length:7 > positive_delta:2 positive_delta:-2 positive_delta:2 positive_delta:-2 positive_delta:0 positive_delta:1 positive_delta:0 `,
 		},
 		{
 			name:             "buckets limited by reset",
@@ -593,21 +593,21 @@ func TestSparseHistogram(t *testing.T) {
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
 			minResetDuration: 5 * time.Minute,
-			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+			want:             `sample_count:2 sample_sum:7 schema:2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:7 length:2 > positive_delta:1 positive_delta:0 `,
 		},
 		{
 			name:         "limited buckets but nothing triggered, negative observations",
 			observations: []float64{0, -1, -1.2, -1.4, -1.8, -2},
 			factor:       1.2,
 			maxBuckets:   4,
-			want:         `sample_count:6 sample_sum:-7.4 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:-1 delta:2 delta:-2 delta:2 > `,
+			want:         `sample_count:6 sample_sum:-7.4 schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:0 length:5 > negative_delta:1 negative_delta:-1 negative_delta:2 negative_delta:-2 negative_delta:2 `,
 		},
 		{
 			name:         "buckets limited by halving resolution, negative observations",
 			observations: []float64{0, -1, -1.1, -1.2, -1.4, -1.8, -2, -3},
 			factor:       1.2,
 			maxBuckets:   4,
-			want:         `sample_count:8 sample_sum:-11.5 sb_schema:1 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:1 sb_negative:<span:<offset:0 length:5 > delta:1 delta:2 delta:-1 delta:-2 delta:1 > `,
+			want:         `sample_count:8 sample_sum:-11.5 schema:1 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:0 length:5 > negative_delta:1 negative_delta:2 negative_delta:-1 negative_delta:-2 negative_delta:1 `,
 		},
 		{
 			name:             "buckets limited by widening the zero bucket, negative observations",
@@ -615,7 +615,7 @@ func TestSparseHistogram(t *testing.T) {
 			factor:           1.2,
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
-			want:             `sample_count:8 sample_sum:-11.5 sb_schema:2 sb_zero_threshold:1 sb_zero_count:2 sb_negative:<span:<offset:1 length:7 > delta:1 delta:1 delta:-2 delta:2 delta:-2 delta:0 delta:1 > `,
+			want:             `sample_count:8 sample_sum:-11.5 schema:2 zero_threshold:1 zero_count:2 negative_span:<offset:1 length:7 > negative_delta:1 negative_delta:1 negative_delta:-2 negative_delta:2 negative_delta:-2 negative_delta:0 negative_delta:1 `,
 		},
 		{
 			name:             "buckets limited by widening the zero bucket twice, negative observations",
@@ -623,7 +623,7 @@ func TestSparseHistogram(t *testing.T) {
 			factor:           1.2,
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
-			want:             `sample_count:9 sample_sum:-15.5 sb_schema:2 sb_zero_threshold:1.189207115002721 sb_zero_count:3 sb_negative:<span:<offset:2 length:7 > delta:2 delta:-2 delta:2 delta:-2 delta:0 delta:1 delta:0 > `,
+			want:             `sample_count:9 sample_sum:-15.5 schema:2 zero_threshold:1.189207115002721 zero_count:3 negative_span:<offset:2 length:7 > negative_delta:2 negative_delta:-2 negative_delta:2 negative_delta:-2 negative_delta:0 negative_delta:1 negative_delta:0 `,
 		},
 		{
 			name:             "buckets limited by reset, negative observations",
@@ -632,7 +632,7 @@ func TestSparseHistogram(t *testing.T) {
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
 			minResetDuration: 5 * time.Minute,
-			want:             `sample_count:2 sample_sum:-7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_negative:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+			want:             `sample_count:2 sample_sum:-7 schema:2 zero_threshold:2.938735877055719e-39 zero_count:0 negative_span:<offset:7 length:2 > negative_delta:1 negative_delta:0 `,
 		},
 		{
 			name:             "buckets limited by halving resolution, then reset",
@@ -640,7 +640,7 @@ func TestSparseHistogram(t *testing.T) {
 			factor:           1.2,
 			maxBuckets:       4,
 			minResetDuration: 9 * time.Minute,
-			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+			want:             `sample_count:2 sample_sum:7 schema:2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:7 length:2 > positive_delta:1 positive_delta:0 `,
 		},
 		{
 			name:             "buckets limited by widening the zero bucket, then reset",
@@ -649,7 +649,7 @@ func TestSparseHistogram(t *testing.T) {
 			maxBuckets:       4,
 			maxZeroThreshold: 1.2,
 			minResetDuration: 9 * time.Minute,
-			want:             `sample_count:2 sample_sum:7 sb_schema:2 sb_zero_threshold:2.938735877055719e-39 sb_zero_count:0 sb_positive:<span:<offset:7 length:2 > delta:1 delta:0 > `,
+			want:             `sample_count:2 sample_sum:7 schema:2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:7 length:2 > positive_delta:1 positive_delta:0 `,
 		},
 	}
 
@@ -754,9 +754,9 @@ func TestSparseHistogramConcurrency(t *testing.T) {
 		// 	t.Errorf("got sample sum %f, want %f", got, want)
 		// }
 
-		sumBuckets := int(m.Histogram.GetSbZeroCount())
+		sumBuckets := int(m.Histogram.GetZeroCount())
 		current := 0
-		for _, delta := range m.Histogram.GetSbNegative().GetDelta() {
+		for _, delta := range m.Histogram.GetNegativeDelta() {
 			current += int(delta)
 			if current < 0 {
 				t.Fatalf("negative bucket population negative: %d", current)
@@ -764,7 +764,7 @@ func TestSparseHistogramConcurrency(t *testing.T) {
 			sumBuckets += current
 		}
 		current = 0
-		for _, delta := range m.Histogram.GetSbPositive().GetDelta() {
+		for _, delta := range m.Histogram.GetPositiveDelta() {
 			current += int(delta)
 			if current < 0 {
 				t.Fatalf("positive bucket population negative: %d", current)
