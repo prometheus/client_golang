@@ -16,6 +16,7 @@ package prometheus
 import (
 	"fmt"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -262,10 +263,11 @@ func TestCounterExemplar(t *testing.T) {
 				err = e.(error)
 			}
 		}()
-		// Should panic because of 65 runes.
+		// Should panic because of 129 runes.
 		counter.AddWithExemplar(42, Labels{
 			"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
 			"x1234567":                   "8+15 characters",
+			"z":                          strings.Repeat("x", 63),
 		})
 		return nil
 	}
