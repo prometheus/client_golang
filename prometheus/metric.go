@@ -184,8 +184,8 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 			})
 			if i < len(pb.Histogram.Bucket) {
 				pb.Histogram.Bucket[i].Exemplar = e
-			} else { 
-			    // The +Inf bucket should be explicitly added if there is an exemplar for it, similar to non-const histogram logic in https://github.com/prometheus/client_golang/blob/main/prometheus/histogram.go#L357-L365.
+			} else {
+				// The +Inf bucket should be explicitly added if there is an exemplar for it, similar to non-const histogram logic in https://github.com/prometheus/client_golang/blob/main/prometheus/histogram.go#L357-L365.
 				b := &dto.Bucket{
 					CumulativeCount: proto.Uint64(pb.Histogram.Bucket[len(pb.Histogram.GetBucket())-1].GetCumulativeCount()),
 					UpperBound:      proto.Float64(math.Inf(1)),
@@ -193,8 +193,7 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 				}
 				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
 				break
-				// end looping after creating +inf bucket and adding one exemplar.
-				// there could be other exemplars that are in the "inf" range but those will be ignored.
+				// Terminating the loop after creating the +Inf bucket and adding one exemplar, if there are other exemplars in the +Inf bucket range they will be ignored.
 			}
 		}
 	default:

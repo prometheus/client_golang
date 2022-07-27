@@ -84,11 +84,5 @@ func TestWithExemplarsMetric(t *testing.T) {
 		if infBucket != math.Inf(1) {
 			t.Errorf("want %v, got %v", math.Inf(1), infBucket)
 		}
-
-		infBucketValue := metric.GetHistogram().Bucket[len(metric.GetHistogram().Bucket)-1].GetExemplar().GetValue()
-
-		if infBucketValue != 500.0 {
-			t.Errorf("want %v, got %v", 500.0, infBucketValue)
-		}
 	})
 }
