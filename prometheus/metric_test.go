@@ -68,7 +68,7 @@ func TestWithExemplarsMetric(t *testing.T) {
 			t.Errorf("want %v, got %v", want, got)
 		}
 
-		// when there are more exemplars than there are buckets, a +inf bucket will be created and the last exemplar value will be added to the +inf bucket.
+		// When there are more exemplars than there are buckets, a +Inf bucket will be created and the last exemplar value will be added.
 		expectedExemplarVals := []float64{24.0, 42.0, 100.0, 157.0, 500.0}
 		for i, b := range metric.GetHistogram().Bucket {
 			if b.Exemplar == nil {
