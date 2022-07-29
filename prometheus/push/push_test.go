@@ -15,7 +15,7 @@ package push
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,7 +38,7 @@ func TestPush(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lastMethod = r.Method
 			var err error
-			lastBody, err = ioutil.ReadAll(r.Body)
+			lastBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
