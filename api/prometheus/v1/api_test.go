@@ -64,7 +64,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -72,6 +72,25 @@ func (c *apiTestClient) Do(ctx context.Context, req *http.Request) (*http.Respon
 	}
 	if req.Method != test.reqMethod {
 		c.Errorf("unexpected request method: want %s, got %s", test.reqMethod, req.Method)
+	}
+
+	var vals url.Values
+	switch test.reqMethod {
+	case http.MethodGet:
+		if req.URL.RawQuery != "" {
+			vals = req.URL.Query()
+		}
+	case http.MethodPost:
+		if req.Body != nil {
+			reqBody, _ := io.ReadAll(req.Body)
+			vals, _ = url.ParseQuery(string(reqBody))
+		} else if req.URL.RawQuery != "" {
+			vals = req.URL.Query()
+		}
+	}
+
+	if !reflect.DeepEqual(vals, test.reqParam) {
+		c.Fatalf("unexpected request parameters: want %s, got %s", vals, test.reqParam)
 	}
 
 	b, err := json.Marshal(test.inRes)
@@ -156,15 +175,15 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doLabelNames := func(matches []string) func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelNames(context.Background(), matches, time.Now().Add(-100*time.Hour), time.Now())
+			return promAPI.LabelNames(context.Background(), matches, startTime, endTime)
 		}
 	}
 
-	doLabelValues := func(matches []string, label string) func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelValues(context.Background(), label, matches, time.Now().Add(-100*time.Hour), time.Now())
+			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime)
 		}
 	}
 
@@ -257,7 +276,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query":   []string{"2"},
-				"time":    []string{testTime.Format(time.RFC3339Nano)},
+				"time":    []string{formatTime(testTime)},
 				"timeout": []string{(5 * time.Second).String()},
 			},
 			res: &model.Scalar{
@@ -273,7 +292,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"time":  []string{formatTime(testTime)},
 			},
 			err: fmt.Errorf("some error"),
 		},
@@ -291,7 +310,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"time":  []string{formatTime(testTime)},
 			},
 			err: errors.New("server_error: server error: 500"),
 		},
@@ -309,7 +328,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"time":  []string{formatTime(testTime)},
 			},
 			err: errors.New("client_error: client error: 404"),
 		},
@@ -329,7 +348,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"time":  []string{formatTime(testTime)},
 			},
 			res: &model.Scalar{
 				Value:     2,
@@ -353,7 +372,7 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query",
 			reqParam: url.Values{
 				"query": []string{"2"},
-				"time":  []string{testTime.Format(time.RFC3339Nano)},
+				"time":  []string{formatTime(testTime)},
 			},
 			err:      errors.New("client_error: client error: 404"),
 			warnings: []string{"warning"},
@@ -363,7 +382,7 @@ func TestAPIs(t *testing.T) {
 			do: doQueryRange("2", Range{
 				Start: testTime.Add(-time.Minute),
 				End:   testTime,
-				Step:  time.Minute,
+				Step:  1 * time.Minute,
 			}, WithTimeout(5*time.Second)),
 			inErr: fmt.Errorf("some error"),
 
@@ -371,96 +390,136 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/query_range",
 			reqParam: url.Values{
 				"query":   []string{"2"},
-				"start":   []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":     []string{testTime.Format(time.RFC3339Nano)},
-				"step":    []string{time.Minute.String()},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
+				"step":    []string{"60"},
 				"timeout": []string{(5 * time.Second).String()},
 			},
 			err: fmt.Errorf("some error"),
 		},
 
 		{
-			do:        doLabelNames(nil),
+			do:        doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
-			res:       []string{"val1", "val2"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			res: []string{"val1", "val2"},
 		},
 		{
-			do:         doLabelNames(nil),
+			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/labels",
-			res:        []string{"val1", "val2"},
-			warnings:   []string{"a"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			res:      []string{"val1", "val2"},
+			warnings: []string{"a"},
 		},
 
 		{
-			do:        doLabelNames(nil),
+			do:        doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
-			err:       fmt.Errorf("some error"),
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			err: fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelNames(nil),
+			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/labels",
-			err:        fmt.Errorf("some error"),
-			warnings:   []string{"a"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			err:      fmt.Errorf("some error"),
+			warnings: []string{"a"},
 		},
 		{
-			do:        doLabelNames([]string{"up"}),
+			do:        doLabelNames([]string{"up"}, testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/labels",
-			reqParam:  url.Values{"match[]": {"up"}},
-			res:       []string{"val1", "val2"},
+			reqParam: url.Values{
+				"match[]": {"up"},
+				"start":   []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":     []string{formatTime(testTime)},
+			},
+			res: []string{"val1", "val2"},
 		},
 
 		{
-			do:        doLabelValues(nil, "mylabel"),
+			do:        doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
-			res:       model.LabelValues{"val1", "val2"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			res: model.LabelValues{"val1", "val2"},
 		},
 		{
-			do:         doLabelValues(nil, "mylabel"),
+			do:         doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
-			res:        model.LabelValues{"val1", "val2"},
-			warnings:   []string{"a"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			res:      model.LabelValues{"val1", "val2"},
+			warnings: []string{"a"},
 		},
 
 		{
-			do:        doLabelValues(nil, "mylabel"),
+			do:        doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
-			err:       fmt.Errorf("some error"),
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			err: fmt.Errorf("some error"),
 		},
 		{
-			do:         doLabelValues(nil, "mylabel"),
+			do:         doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
-			err:        fmt.Errorf("some error"),
-			warnings:   []string{"a"},
+			reqParam: url.Values{
+				"start": []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":   []string{formatTime(testTime)},
+			},
+			err:      fmt.Errorf("some error"),
+			warnings: []string{"a"},
 		},
 		{
-			do:        doLabelValues([]string{"up"}, "mylabel"),
+			do:        doLabelValues([]string{"up"}, "mylabel", testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
-			reqParam:  url.Values{"match[]": {"up"}},
-			res:       model.LabelValues{"val1", "val2"},
+			reqParam: url.Values{
+				"match[]": {"up"},
+				"start":   []string{formatTime(testTime.Add(-100 * time.Hour))},
+				"end":     []string{formatTime(testTime)},
+			},
+			res: model.LabelValues{"val1", "val2"},
 		},
 
 		{
@@ -475,9 +534,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 			res: []model.LabelSet{
 				{
@@ -501,9 +560,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 			res: []model.LabelSet{
 				{
@@ -521,9 +580,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 			err: fmt.Errorf("some error"),
 		},
@@ -535,9 +594,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 			err:      fmt.Errorf("some error"),
 			warnings: []string{"a"},
@@ -563,7 +622,10 @@ func TestAPIs(t *testing.T) {
 			inErr:     fmt.Errorf("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/snapshot",
-			err:       fmt.Errorf("some error"),
+			reqParam: url.Values{
+				"skip_head": []string{"true"},
+			},
+			err: fmt.Errorf("some error"),
 		},
 
 		{
@@ -592,9 +654,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/delete_series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 		},
 
@@ -604,9 +666,9 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/delete_series",
 			reqParam: url.Values{
-				"match": []string{"up"},
-				"start": []string{testTime.Add(-time.Minute).Format(time.RFC3339Nano)},
-				"end":   []string{testTime.Format(time.RFC3339Nano)},
+				"match[]": []string{"up"},
+				"start":   []string{formatTime(testTime.Add(-time.Minute))},
+				"end":     []string{formatTime(testTime)},
 			},
 			err: fmt.Errorf("some error"),
 		},
@@ -1246,14 +1308,24 @@ func TestAPIs(t *testing.T) {
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/query_exemplars",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			reqParam: url.Values{
+				"query": []string{"tns_request_duration_seconds_bucket"},
+				"start": []string{formatTime(testTime.Add(-1 * time.Minute))},
+				"end":   []string{formatTime(testTime)},
+			},
+			inErr: fmt.Errorf("some error"),
+			err:   fmt.Errorf("some error"),
 		},
 
 		{
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/query_exemplars",
+			reqParam: url.Values{
+				"query": []string{"tns_request_duration_seconds_bucket"},
+				"start": []string{formatTime(testTime.Add(-1 * time.Minute))},
+				"end":   []string{formatTime(testTime)},
+			},
 			inRes: []interface{}{
 				map[string]interface{}{
 					"seriesLabels": map[string]interface{}{
