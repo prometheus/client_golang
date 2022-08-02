@@ -192,8 +192,6 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 					Exemplar:        e,
 				}
 				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
-				break
-				// Terminating the loop after creating the +Inf bucket and adding one exemplar, if there are other exemplars in the +Inf bucket range they will be ignored.
 			}
 		}
 	default:
