@@ -175,13 +175,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doLabelNames := func(matches []string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			return promAPI.LabelNames(context.Background(), matches, startTime, endTime)
 		}
 	}
 
-	doLabelValues := func(matches []string, label string, startTime time.Time, endTime time.Time) func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime)
 		}
