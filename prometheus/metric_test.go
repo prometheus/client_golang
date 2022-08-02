@@ -47,18 +47,19 @@ func TestWithExemplarsMetric(t *testing.T) {
 		h := MustNewConstHistogram(
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
 			4711, 403.34,
+			// Four buckets, but we expect five as the +Inf bucket will be created if we see value outside of those buckets.
 			map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
 		)
 
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
+			{Value: proto.Float64(2000.0)}, // Unordered exemplars.
+			{Value: proto.Float64(500.0)},
+			{Value: proto.Float64(42.0)},
+			{Value: proto.Float64(157.0)},
+			{Value: proto.Float64(100.0)},
+			{Value: proto.Float64(89.0)},
 			{Value: proto.Float64(24.0)},
 			{Value: proto.Float64(25.1)},
-			{Value: proto.Float64(42.0)},
-			{Value: proto.Float64(89.0)},
-			{Value: proto.Float64(100.0)},
-			{Value: proto.Float64(157.0)},
-			{Value: proto.Float64(500.0)},
-			{Value: proto.Float64(2000.0)},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {
@@ -68,8 +69,7 @@ func TestWithExemplarsMetric(t *testing.T) {
 			t.Errorf("want %v, got %v", want, got)
 		}
 
-		// When there are more exemplars than there are buckets, a +Inf bucket will be created and the last exemplar value will be added.
-		expectedExemplarVals := []float64{24.0, 42.0, 100.0, 157.0, 500.0}
+		expectedExemplarVals := []float64{24.0, 25.1, 89.0, 157.0, 500.0}
 		for i, b := range metric.GetHistogram().Bucket {
 			if b.Exemplar == nil {
 				t.Errorf("Expected exemplar for bucket %v, got nil", i)
