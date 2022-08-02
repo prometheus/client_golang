@@ -16,7 +16,6 @@ package prometheus
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -563,7 +562,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 // This is intended for use with the textfile collector of the node exporter.
 // Note that the node exporter expects the filename to be suffixed with ".prom".
 func WriteToTextfile(filename string, g Gatherer) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename))
+	tmp, err := os.CreateTemp(filepath.Dir(filename), filepath.Base(filename))
 	if err != nil {
 		return err
 	}
