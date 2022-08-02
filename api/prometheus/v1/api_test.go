@@ -72,25 +72,6 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		c.Errorf("unexpected request method: want %s, got %s", test.reqMethod, req.Method)
 	}
 
-	var vals url.Values
-	switch test.reqMethod {
-	case http.MethodGet:
-		if req.URL.RawQuery != "" {
-			vals = req.URL.Query()
-		}
-	case http.MethodPost:
-		if req.Body != nil {
-			reqBody, _ := io.ReadAll(req.Body)
-			vals, _ = url.ParseQuery(string(reqBody))
-		} else if req.URL.RawQuery != "" {
-			vals = req.URL.Query()
-		}
-	}
-
-	if !reflect.DeepEqual(vals, test.reqParam) {
-		c.Fatalf("unexpected request parameters: want %s, got %s", vals, test.reqParam)
-	}
-
 	b, err := json.Marshal(test.inRes)
 	if err != nil {
 		c.Fatal(err)
@@ -375,7 +356,7 @@ func TestAPIs(t *testing.T) {
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/labels",
-			res:       []string{"val1", "val2"},
+			res:        []string{"val1", "val2"},
 		},
 
 		{
@@ -414,7 +395,7 @@ func TestAPIs(t *testing.T) {
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
-			res:      model.LabelValues{"val1", "val2"},
+			res:        model.LabelValues{"val1", "val2"},
 		},
 
 		{
@@ -430,7 +411,7 @@ func TestAPIs(t *testing.T) {
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
-			err:       errors.New("some error"),
+			err:        errors.New("some error"),
 		},
 		{
 			do:        doLabelValues([]string{"up"}, "mylabel", testTime.Add(-100*time.Hour), testTime),
@@ -1170,24 +1151,14 @@ func TestAPIs(t *testing.T) {
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/query_exemplars",
-			reqParam: url.Values{
-				"query": []string{"tns_request_duration_seconds_bucket"},
-				"start": []string{formatTime(testTime.Add(-1 * time.Minute))},
-				"end":   []string{formatTime(testTime)},
-			},
-			inErr: errors.New("some error"),
-			err:   errors.New("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/query_exemplars",
-			reqParam: url.Values{
-				"query": []string{"tns_request_duration_seconds_bucket"},
-				"start": []string{formatTime(testTime.Add(-1 * time.Minute))},
-				"end":   []string{formatTime(testTime)},
-			},
 			inRes: []interface{}{
 				map[string]interface{}{
 					"seriesLabels": map[string]interface{}{
