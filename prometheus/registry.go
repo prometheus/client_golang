@@ -252,8 +252,8 @@ func (errs MultiError) MaybeUnwrap() error {
 }
 
 // Registry registers Prometheus collectors, collects their metrics, and gathers
-// them into MetricFamilies for exposition. It implements both Registerer,
-// Gatherer, and Collector. The zero value is not usable. Create instances with
+// them into MetricFamilies for exposition. It implements Registerer, Gatherer,
+// and Collector. The zero value is not usable. Create instances with
 // NewRegistry or NewPedanticRegistry.
 type Registry struct {
 	mtx                   sync.RWMutex
