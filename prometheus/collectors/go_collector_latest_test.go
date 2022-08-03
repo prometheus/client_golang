@@ -18,6 +18,7 @@ package collectors
 
 import (
 	"encoding/json"
+	"regexp"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,7 +27,9 @@ import (
 func TestGoCollectorMarshalling(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(NewGoCollector(
-		WithGoCollections(GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection),
+		WithGoCollectorRuntimeMetrics(GoRuntimeMetricsRule{
+			Matcher: regexp.MustCompile("/.*"),
+		}),
 	))
 	result, err := reg.Gather()
 	if err != nil {
@@ -36,4 +39,10 @@ func TestGoCollectorMarshalling(t *testing.T) {
 	if _, err := json.Marshal(result); err != nil {
 		t.Errorf("json marshalling shoud not fail, %v", err)
 	}
+}
+
+func ExampleGoCollector() {
+}
+
+func ExampleGoCollector_WithAdvancedGoMetrics() {
 }
