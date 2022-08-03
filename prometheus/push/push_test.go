@@ -15,6 +15,7 @@ package push
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -200,8 +201,8 @@ func TestPush(t *testing.T) {
 		Push(); err == nil {
 		t.Error("push with empty job succeeded")
 	} else {
-		if got, want := err, errJobEmpty; got != want {
-			t.Errorf("got error %q, want %q", got, want)
+		if want := errJobEmpty; !errors.Is(err, want) {
+			t.Errorf("got error %q, want %q", err, want)
 		}
 	}
 

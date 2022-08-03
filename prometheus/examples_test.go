@@ -15,6 +15,7 @@ package prometheus_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -713,7 +714,8 @@ func ExampleAlreadyRegisteredError() {
 		Help: "The total number of requests served.",
 	})
 	if err := prometheus.Register(reqCounter); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		are := &prometheus.AlreadyRegisteredError{}
+		if errors.As(err, are) {
 			// A counter for that metric has been registered before.
 			// Use the old counter from now on.
 			reqCounter = are.ExistingCollector.(prometheus.Counter)

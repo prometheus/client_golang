@@ -64,7 +64,7 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // names are "code" and "method". The function panics otherwise. For the "method"
 // label a predefined default label value set is used to filter given values.
 // Values besides predefined values will count as `unknown` method.
-//`WithExtraMethods` can be used to add more methods to the set. The Observe
+// `WithExtraMethods` can be used to add more methods to the set. The Observe
 // method of the Observer in the ObserverVec is called with the request duration
 // in seconds. Partitioning happens by HTTP status code and/or HTTP method if
 // the respective instance label names are present in the ObserverVec. For

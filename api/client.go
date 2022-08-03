@@ -109,7 +109,7 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 
 	for arg, val := range args {
 		arg = ":" + arg
-		p = strings.Replace(p, arg, val, -1)
+		p = strings.ReplaceAll(p, arg, val)
 	}
 
 	u := *c.endpoint
