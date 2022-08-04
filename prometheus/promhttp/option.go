@@ -26,12 +26,16 @@ type Option interface {
 
 // options store options for both a handler or round tripper.
 type options struct {
-	extraMethods  []string
-	getExemplarFn func(requestCtx context.Context) prometheus.Labels
+	extraMethods     []string
+	getExemplarFn    func(requestCtx context.Context) prometheus.Labels
+	getExtraLabelsFn func(requestCtx context.Context) prometheus.Labels
 }
 
 func defaultOptions() *options {
-	return &options{getExemplarFn: func(ctx context.Context) prometheus.Labels { return nil }}
+	return &options{
+		getExemplarFn:    func(ctx context.Context) prometheus.Labels { return nil },
+		getExtraLabelsFn: func(ctx context.Context) prometheus.Labels { return prometheus.Labels{} },
+	}
 }
 
 type optionApplyFunc func(*options)
@@ -54,5 +58,14 @@ func WithExtraMethods(methods ...string) Option {
 func WithExemplarFromContext(getExemplarFn func(requestCtx context.Context) prometheus.Labels) Option {
 	return optionApplyFunc(func(o *options) {
 		o.getExemplarFn = getExemplarFn
+	})
+}
+
+// WithExtraLabels allows a hook to be run on all counters and histogram metrics.
+// If the hook function returns non-nil labels, the labels will be added to the metrics. Any extra labels
+// must be unconditionally added with a reasonable default label value.
+func WithExtraLabels(getExtraLabelsFn func(requestCtx context.Context) prometheus.Labels) Option {
+	return optionApplyFunc(func(o *options) {
+		o.getExtraLabelsFn = getExtraLabelsFn
 	})
 }

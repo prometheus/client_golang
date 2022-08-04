@@ -30,78 +30,98 @@ func TestLabelCheck(t *testing.T) {
 		varLabels     []string
 		constLabels   []string
 		curriedLabels []string
+		extraLabels   prometheus.Labels
 		ok            bool
 	}{
 		"empty": {
 			varLabels:     []string{},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"code as single var label": {
 			varLabels:     []string{"code"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"method as single var label": {
 			varLabels:     []string{"method"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"code and method as var labels": {
 			varLabels:     []string{"method", "code"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"valid case with all labels used": {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			extraLabels:   prometheus.Labels{},
+			ok:            true,
+		},
+		"valid case with extra labels": {
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"foo", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			extraLabels:   prometheus.Labels{"b": "c", "g": "h"},
 			ok:            true,
 		},
 		"all labels used with an invalid const label name": {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"in-valid", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 		"unsupported var label": {
 			varLabels:     []string{"foo"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 		"mixed var labels": {
 			varLabels:     []string{"method", "foo", "code"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 		"unsupported var label but curried": {
 			varLabels:     []string{},
 			constLabels:   []string{},
 			curriedLabels: []string{"foo"},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"mixed var labels but unsupported curried": {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{},
 			curriedLabels: []string{"foo"},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"supported label as const and curry": {
 			varLabels:     []string{},
 			constLabels:   []string{"code"},
 			curriedLabels: []string{"method"},
+			extraLabels:   prometheus.Labels{},
 			ok:            true,
 		},
 		"supported label as const and curry with unsupported as var": {
 			varLabels:     []string{"foo"},
 			constLabels:   []string{"code"},
 			curriedLabels: []string{"method"},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 		"invalid name and otherwise empty": {
@@ -109,6 +129,7 @@ func TestLabelCheck(t *testing.T) {
 			varLabels:     []string{},
 			constLabels:   []string{},
 			curriedLabels: []string{},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 		"invalid name with all the otherwise valid labels": {
@@ -116,6 +137,7 @@ func TestLabelCheck(t *testing.T) {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			extraLabels:   prometheus.Labels{},
 			ok:            false,
 		},
 	}
@@ -130,13 +152,19 @@ func TestLabelCheck(t *testing.T) {
 			for _, l := range sc.constLabels {
 				constLabels[l] = "dummy"
 			}
+			labels := []string{}
+			labels = append(labels, sc.varLabels...)
+			labels = append(labels, sc.curriedLabels...)
+			for k := range sc.extraLabels {
+				labels = append(labels, k)
+			}
 			c := prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Name:        metricName,
 					Help:        "c help",
 					ConstLabels: constLabels,
 				},
-				append(sc.varLabels, sc.curriedLabels...),
+				labels,
 			)
 			o := prometheus.ObserverVec(prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
@@ -144,11 +172,16 @@ func TestLabelCheck(t *testing.T) {
 					Help:        "c help",
 					ConstLabels: constLabels,
 				},
-				append(sc.varLabels, sc.curriedLabels...),
+				labels,
 			))
 			for _, l := range sc.curriedLabels {
 				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
 				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
+			}
+
+			opts := []Option{}
+			if len(sc.extraLabels) > 0 {
+				opts = append(opts, WithExtraLabels(func(ctx context.Context) prometheus.Labels { return sc.extraLabels }))
 			}
 
 			func() {
@@ -161,7 +194,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerCounter(c, nil)
+				InstrumentHandlerCounter(c, nil, opts...)
 			}()
 			func() {
 				defer func() {
@@ -173,7 +206,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerDuration(o, nil)
+				InstrumentHandlerDuration(o, nil, opts...)
 			}()
 			if sc.ok {
 				// Test if wantCode and wantMethod were detected correctly.
@@ -186,14 +219,14 @@ func TestLabelCheck(t *testing.T) {
 						wantMethod = true
 					}
 				}
-				gotCode, gotMethod := checkLabels(c)
+				gotCode, gotMethod := checkLabels(c, sc.extraLabels)
 				if gotCode != wantCode {
 					t.Errorf("wanted code=%t for counter, got code=%t", wantCode, gotCode)
 				}
 				if gotMethod != wantMethod {
 					t.Errorf("wanted method=%t for counter, got method=%t", wantMethod, gotMethod)
 				}
-				gotCode, gotMethod = checkLabels(o)
+				gotCode, gotMethod = checkLabels(o, sc.extraLabels)
 				if gotCode != wantCode {
 					t.Errorf("wanted code=%t for observer, got code=%t", wantCode, gotCode)
 				}
@@ -211,6 +244,7 @@ func TestLabels(t *testing.T) {
 		reqMethod    string
 		respStatus   int
 		extraMethods []string
+		extraLabels  prometheus.Labels
 		wantLabels   prometheus.Labels
 		ok           bool
 	}{
@@ -263,6 +297,14 @@ func TestLabels(t *testing.T) {
 			wantLabels: prometheus.Labels{"method": "get", "code": "200"},
 			ok:         true,
 		},
+		"code and method as var labels and extra labels": {
+			varLabels:   []string{"method", "code"},
+			reqMethod:   "GET",
+			respStatus:  200,
+			extraLabels: prometheus.Labels{"f": "g", "h": "i"},
+			wantLabels:  prometheus.Labels{"method": "get", "code": "200", "f": "g", "h": "i"},
+			ok:          true,
+		},
 		"method as single var label with extra methods specified": {
 			varLabels:    []string{"method"},
 			reqMethod:    "CUSTOM_METHOD",
@@ -279,7 +321,7 @@ func TestLabels(t *testing.T) {
 			ok:         false,
 		},
 	}
-	checkLabels := func(labels []string) (gotCode, gotMethod bool) {
+	checkLabels := func(labels []string, extraLabels prometheus.Labels) (gotCode, gotMethod bool) {
 		for _, label := range labels {
 			switch label {
 			case "code":
@@ -287,7 +329,9 @@ func TestLabels(t *testing.T) {
 			case "method":
 				gotMethod = true
 			default:
-				panic("metric partitioned with non-supported labels for this test")
+				if _, ok := extraLabels[label]; !ok {
+					panic("metric partitioned with non-supported labels for this test")
+				}
 			}
 		}
 		return
@@ -311,8 +355,11 @@ func TestLabels(t *testing.T) {
 	for name, sc := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			if sc.ok {
-				gotCode, gotMethod := checkLabels(sc.varLabels)
-				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
+				if sc.extraLabels == nil {
+					sc.extraLabels = prometheus.Labels{}
+				}
+				gotCode, gotMethod := checkLabels(sc.varLabels, sc.extraLabels)
+				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraLabels, sc.extraMethods...)
 				if !equalLabels(gotLabels, sc.wantLabels) {
 					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
 				}

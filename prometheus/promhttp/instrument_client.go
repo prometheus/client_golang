@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptrace"
@@ -68,17 +69,17 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 		o.apply(rtOpts)
 	}
 
-	code, method := checkLabels(counter)
+	code, method := checkLabels(counter, rtOpts.getExtraLabelsFn(context.Background()))
 
 	return func(r *http.Request) (*http.Response, error) {
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			exemplarAdd(
-				counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)),
+				counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.getExtraLabelsFn(r.Context()), rtOpts.extraMethods...)),
 				1,
 				rtOpts.getExemplarFn(r.Context()),
 			)
-			counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)).Inc()
+			counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.getExtraLabelsFn(r.Context()), rtOpts.extraMethods...)).Inc()
 		}
 		return resp, err
 	}
@@ -111,14 +112,14 @@ func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundT
 		o.apply(rtOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method := checkLabels(obs, rtOpts.getExtraLabelsFn(context.Background()))
 
 	return func(r *http.Request) (*http.Response, error) {
 		start := time.Now()
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			exemplarObserve(
-				obs.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)),
+				obs.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.getExtraLabelsFn(r.Context()), rtOpts.extraMethods...)),
 				time.Since(start).Seconds(),
 				rtOpts.getExemplarFn(r.Context()),
 			)

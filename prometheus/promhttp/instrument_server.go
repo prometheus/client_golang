@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -83,7 +84,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 		o.apply(hOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method := checkLabels(obs, hOpts.getExtraLabelsFn(context.Background()))
 
 	if code {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +93,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 			next.ServeHTTP(d, r)
 
 			exemplarObserve(
-				obs.With(labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)),
+				obs.With(labels(code, method, r.Method, d.Status(), hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 				time.Since(now).Seconds(),
 				hOpts.getExemplarFn(r.Context()),
 			)
@@ -104,7 +105,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 		next.ServeHTTP(w, r)
 
 		exemplarObserve(
-			obs.With(labels(code, method, r.Method, 0, hOpts.extraMethods...)),
+			obs.With(labels(code, method, r.Method, 0, hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 			time.Since(now).Seconds(),
 			hOpts.getExemplarFn(r.Context()),
 		)
@@ -134,7 +135,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 		o.apply(hOpts)
 	}
 
-	code, method := checkLabels(counter)
+	code, method := checkLabels(counter, hOpts.getExtraLabelsFn(context.Background()))
 
 	if code {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +143,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 			next.ServeHTTP(d, r)
 
 			exemplarAdd(
-				counter.With(labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)),
+				counter.With(labels(code, method, r.Method, d.Status(), hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 				1,
 				hOpts.getExemplarFn(r.Context()),
 			)
@@ -152,7 +153,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 	return func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 		exemplarAdd(
-			counter.With(labels(code, method, r.Method, 0, hOpts.extraMethods...)),
+			counter.With(labels(code, method, r.Method, 0, hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 			1,
 			hOpts.getExemplarFn(r.Context()),
 		)
@@ -187,13 +188,13 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 		o.apply(hOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method := checkLabels(obs, hOpts.getExtraLabelsFn(context.Background()))
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
 			exemplarObserve(
-				obs.With(labels(code, method, r.Method, status, hOpts.extraMethods...)),
+				obs.With(labels(code, method, r.Method, status, hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 				time.Since(now).Seconds(),
 				hOpts.getExemplarFn(r.Context()),
 			)
@@ -227,14 +228,14 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 		o.apply(hOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method := checkLabels(obs, hOpts.getExtraLabelsFn(context.Background()))
 	if code {
 		return func(w http.ResponseWriter, r *http.Request) {
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 			size := computeApproximateRequestSize(r)
 			exemplarObserve(
-				obs.With(labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)),
+				obs.With(labels(code, method, r.Method, d.Status(), hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 				float64(size),
 				hOpts.getExemplarFn(r.Context()),
 			)
@@ -245,7 +246,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 		next.ServeHTTP(w, r)
 		size := computeApproximateRequestSize(r)
 		exemplarObserve(
-			obs.With(labels(code, method, r.Method, 0, hOpts.extraMethods...)),
+			obs.With(labels(code, method, r.Method, 0, hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 			float64(size),
 			hOpts.getExemplarFn(r.Context()),
 		)
@@ -277,13 +278,13 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 		o.apply(hOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method := checkLabels(obs, hOpts.getExtraLabelsFn(context.Background()))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		d := newDelegator(w, nil)
 		next.ServeHTTP(d, r)
 		exemplarObserve(
-			obs.With(labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)),
+			obs.With(labels(code, method, r.Method, d.Status(), hOpts.getExtraLabelsFn(r.Context()), hOpts.extraMethods...)),
 			float64(d.Written()),
 			hOpts.getExemplarFn(r.Context()),
 		)
@@ -295,7 +296,7 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 // Collector does not have a Desc or has more than one Desc or its Desc is
 // invalid. It also panics if the Collector has any non-const, non-curried
 // labels that are not named "code" or "method".
-func checkLabels(c prometheus.Collector) (code, method bool) {
+func checkLabels(c prometheus.Collector, extraLabels prometheus.Labels) (code, method bool) {
 	// TODO(beorn7): Remove this hacky way to check for instance labels
 	// once Descriptors can have their dimensionality queried.
 	var (
@@ -339,6 +340,7 @@ func checkLabels(c prometheus.Collector) (code, method bool) {
 	if err := m.Write(&pm); err != nil {
 		panic("error checking metric for labels")
 	}
+
 	for _, label := range pm.Label {
 		name, value := label.GetName(), label.GetValue()
 		if value != magicString || isLabelCurried(c, name) {
@@ -350,7 +352,9 @@ func checkLabels(c prometheus.Collector) (code, method bool) {
 		case "method":
 			method = true
 		default:
-			panic("metric partitioned with non-supported labels")
+			if _, ok := extraLabels[name]; !ok {
+				panic("metric partitioned with non-supported labels")
+			}
 		}
 	}
 	return
@@ -380,11 +384,11 @@ func isLabelCurried(c prometheus.Collector, label string) bool {
 // unnecessary allocations on each request.
 var emptyLabels = prometheus.Labels{}
 
-func labels(code, method bool, reqMethod string, status int, extraMethods ...string) prometheus.Labels {
+func labels(code, method bool, reqMethod string, status int, extraLabels prometheus.Labels, extraMethods ...string) prometheus.Labels {
 	if !(code || method) {
 		return emptyLabels
 	}
-	labels := prometheus.Labels{}
+	labels := extraLabels
 
 	if code {
 		labels["code"] = sanitizeCode(status)
