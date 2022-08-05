@@ -1,3 +1,4 @@
+//go:build !js || wasm
 // +build !js wasm
 
 // Copyright 2015 The Prometheus Authors
