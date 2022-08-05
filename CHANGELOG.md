@@ -1,10 +1,26 @@
 ## Unreleased
 
-* [CHANGE] Minimum required Go version is now 1.16.
+## 1.13.0 / 2022-08-05
+
+* [CHANGE] Minimum required Go version is now 1.17 (we also test client_golang against new 1.19 version).
+* [ENHANCEMENT] Added `prometheus.TransactionalGatherer` interface for `promhttp.Handler` use which allows using low allocation update techniques for custom collectors. #989
+* [ENHANCEMENT] Added exemplar support to `prometheus.NewConstHistogram`. See [`ExampleNewConstHistogram_WithExemplar`](prometheus/examples_test.go#L602) example on how to use it. #986
+* [ENHANCEMENT] `prometheus/push.Pusher` has now context aware methods that pass context to HTTP request. #1028
+* [ENHANCEMENT] `prometheus/push.Pusher` has now `Error` method that retrieve last error. #1075
+* [ENHANCEMENT] `testutil.GatherAndCompare` provides now readable diff on failed comparisons. #998
+* [ENHANCEMENT] Query API now supports timeouts. #1014
+* [ENHANCEMENT] New `MetricVec` method `DeletePartialMatch(labels Labels)` for deleting all metrics that match provided labels. #1013
+* [ENHANCEMENT] `api.Config` now accepts passing custom `*http.Client`. #1025
+* [BUGFIX] Raise exemplar labels limit from 64 to 128 bytes as specified in OpenMetrics spec. #1091
+* [BUGFIX] Allow adding exemplar to +Inf bucket to const histograms. #1094
+* [ENHANCEMENT] Most `promhttp.Instrument*` middlewares now supports adding exemplars to metrics. This allows hooking those to your tracing middleware that retrieves trace ID and put it in exemplar if present. #1055
+* [ENHANCEMENT] Added `testutil.ScrapeAndCompare` method. #1043
+* [BUGFIX] Fixed `GopherJS` build support. #897
+* [ENHANCEMENT] :warning: Added way to specify what `runtime/metrics`  `collectors.NewGoCollector` should use. See [`ExampleGoCollector_WithAdvancedGoMetrics`](prometheus/collectors/go_collector_latest_test.go#L263). #1102
 
 ## 1.12.2 / 2022-05-13
 
-* [CHANGE] Added `collectors.WithGoCollections` that allows to choose what collection of Go runtime metrics user wants: Equivalent of [`MemStats` structure](https://pkg.go.dev/runtime#MemStats) configured using `GoRuntimeMemStatsCollection`, new based on dedicated [runtime/metrics](https://pkg.go.dev/runtime/metrics) metrics represented by `GoRuntimeMetricsCollection` option, or both by specifying `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` flag.
+* [CHANGE] Added `collectors.WithGoCollections` that allows to choose what collection of Go runtime metrics user wants: Equivalent of [`MemStats` structure](https://pkg.go.dev/runtime#MemStats) configured using `GoRuntimeMemStatsCollection`, new based on dedicated [runtime/metrics](https://pkg.go.dev/runtime/metrics) metrics represented by `GoRuntimeMetricsCollection` option, or both by specifying `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` flag. #1031
 * [CHANGE] :warning: Change in `collectors.NewGoCollector` metrics: Reverting addition of new ~80 runtime metrics by default. You can enable this back with `GoRuntimeMetricsCollection` option or `GoRuntimeMemStatsCollection | GoRuntimeMetricsCollection` for smooth transition.
 * [BUGFIX] Fixed the bug that causes generated histogram metric names to end with `_total`. ⚠️ This changes 3 metric names in the new Go collector that was reverted from default in this release.
   * `go_gc_heap_allocs_by_size_bytes_total` -> `go_gc_heap_allocs_by_size_bytes`,
