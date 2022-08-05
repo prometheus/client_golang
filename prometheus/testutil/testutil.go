@@ -240,7 +240,6 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 		got = filterMetrics(got, metricNames)
 	}
 
-
 	return compare(got, expected)
 }
 
