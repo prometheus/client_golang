@@ -19,6 +19,10 @@ import (
 	"time"
 )
 
+// goRuntimeMemStats provides the metrics initially provided by runtime.ReadMemStats.
+// From Go 1.17 those similar (and better) statistics are provided by runtime/metrics, so
+// while eval closure works on runtime.MemStats, the struct from Go 1.17+ is
+// populated using runtime/metrics.
 func goRuntimeMemStats() memStatsMetrics {
 	return memStatsMetrics{
 		{
@@ -224,7 +228,7 @@ func newBaseGoCollector() baseGoCollector {
 			"A summary of the pause duration of garbage collection cycles.",
 			nil, nil),
 		gcLastTimeDesc: NewDesc(
-			memstatNamespace("last_gc_time_seconds"),
+			"go_memstats_last_gc_time_seconds",
 			"Number of seconds since 1970 of last garbage collection.",
 			nil, nil),
 		goInfoDesc: NewDesc(
@@ -270,7 +274,6 @@ func memstatNamespace(s string) string {
 
 // memStatsMetrics provide description, evaluator, runtime/metrics name, and
 // value type for memstat metrics.
-// TODO(bwplotka): Remove with end Go 1.16 EOL and replace with runtime/metrics.Description
 type memStatsMetrics []struct {
 	desc    *Desc
 	eval    func(*runtime.MemStats) float64
