@@ -135,9 +135,10 @@ func rmCardinality() int {
 			// We already counted the infinity bucket separately.
 			cardinality--
 		}
-		// https://github.com/prometheus/client_golang/pull/1049/files
+		// Prometheus also doesn't have buckets for -Inf, so they need to be omitted.
+		// See the following PR for more information:
+		// https://github.com/prometheus/client_golang/pull/1049
 		if buckets[0] == math.Inf(-1) {
-			// We already counted the infinity bucket separately.
 			cardinality--
 		}
 	}
