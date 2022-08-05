@@ -248,7 +248,7 @@ func (c *baseGoCollector) Collect(ch chan<- Metric) {
 	ch <- MustNewConstMetric(c.goroutinesDesc, GaugeValue, float64(runtime.NumGoroutine()))
 
 	n := getRuntimeNumThreads()
-	ch <- MustNewConstMetric(c.threadsDesc, GaugeValue, float64(n))
+	ch <- MustNewConstMetric(c.threadsDesc, GaugeValue, n)
 
 	var stats debug.GCStats
 	stats.PauseQuantiles = make([]time.Duration, 5)
