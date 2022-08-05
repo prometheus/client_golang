@@ -20,13 +20,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    "example_request_duration_seconds",
-		Help:    "Histogram for the runtime of a simple example function.",
-		Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
-	})
-)
+var requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+	Name:    "example_request_duration_seconds",
+	Help:    "Histogram for the runtime of a simple example function.",
+	Buckets: prometheus.LinearBuckets(0.01, 0.01, 10),
+})
 
 func ExampleTimer() {
 	// timer times this example function. It uses a Histogram, but a Summary

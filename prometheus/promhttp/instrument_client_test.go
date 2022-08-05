@@ -18,14 +18,19 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
-func makeInstrumentedClient() (*http.Client, *prometheus.Registry) {
+func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry) {
 	client := http.DefaultClient
 	client.Timeout = 1 * time.Second
 
@@ -91,11 +96,89 @@ func makeInstrumentedClient() (*http.Client, *prometheus.Registry) {
 	client.Transport = InstrumentRoundTripperInFlight(inFlightGauge,
 		InstrumentRoundTripperCounter(counter,
 			InstrumentRoundTripperTrace(trace,
-				InstrumentRoundTripperDuration(histVec, http.DefaultTransport),
+				InstrumentRoundTripperDuration(histVec, http.DefaultTransport, opts...),
 			),
-		),
+			opts...),
 	)
 	return client, reg
+}
+
+func labelsToLabelPair(l prometheus.Labels) []*dto.LabelPair {
+	ret := make([]*dto.LabelPair, 0, len(l))
+	for k, v := range l {
+		ret = append(ret, &dto.LabelPair{Name: proto.String(k), Value: proto.String(v)})
+	}
+	sort.Slice(ret, func(i, j int) bool {
+		return *ret[i].Name < *ret[j].Name
+	})
+	return ret
+}
+
+func assetMetricAndExemplars(
+	t *testing.T,
+	reg *prometheus.Registry,
+	expectedNumMetrics int,
+	expectedExemplar []*dto.LabelPair,
+) {
+	t.Helper()
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want, got := expectedNumMetrics, len(mfs); want != got {
+		t.Fatalf("unexpected number of metric families gathered, want %d, got %d", want, got)
+	}
+
+	for _, mf := range mfs {
+		if len(mf.Metric) == 0 {
+			t.Errorf("metric family %s must not be empty", mf.GetName())
+		}
+		for _, m := range mf.GetMetric() {
+			if c := m.GetCounter(); c != nil {
+				if len(expectedExemplar) == 0 {
+					if c.Exemplar != nil {
+						t.Errorf("expected no exemplar on the counter %v%v, got %v", mf.GetName(), m.Label, c.Exemplar.String())
+					}
+					continue
+				}
+
+				if c.Exemplar == nil {
+					t.Errorf("expected exemplar %v on the counter %v%v, got none", expectedExemplar, mf.GetName(), m.Label)
+					continue
+				}
+				if got := c.Exemplar.Label; !reflect.DeepEqual(expectedExemplar, got) {
+					t.Errorf("expected exemplar %v on the counter %v%v, got %v", expectedExemplar, mf.GetName(), m.Label, got)
+				}
+				continue
+			}
+			if h := m.GetHistogram(); h != nil {
+				found := false
+				for _, b := range h.GetBucket() {
+					if len(expectedExemplar) == 0 {
+						if b.Exemplar != nil {
+							t.Errorf("expected no exemplar on histogram %v%v bkt %v, got %v", mf.GetName(), m.Label, b.GetUpperBound(), b.Exemplar.String())
+						}
+						continue
+					}
+
+					if b.Exemplar == nil {
+						continue
+					}
+					if got := b.Exemplar.Label; !reflect.DeepEqual(expectedExemplar, got) {
+						t.Errorf("expected exemplar %v on the histogram %v%v on bkt %v, got %v", expectedExemplar, mf.GetName(), m.Label, b.GetUpperBound(), got)
+						continue
+					}
+					found = true
+					break
+				}
+
+				if len(expectedExemplar) > 0 && !found {
+					t.Errorf("expected exemplar %v on at least one bucket of the histogram %v%v, got none", expectedExemplar, mf.GetName(), m.Label)
+				}
+			}
+		}
+	}
 }
 
 func TestClientMiddlewareAPI(t *testing.T) {
@@ -111,21 +194,28 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	mfs, err := reg.Gather()
+	assetMetricAndExemplars(t, reg, 3, nil)
+}
+
+func TestClientMiddlewareAPI_WithExemplars(t *testing.T) {
+	exemplar := prometheus.Labels{"traceID": "example situation observed by this metric"}
+
+	client, reg := makeInstrumentedClient(WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }))
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer backend.Close()
+
+	resp, err := client.Get(backend.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want, got := 3, len(mfs); want != got {
-		t.Fatalf("unexpected number of metric families gathered, want %d, got %d", want, got)
-	}
-	for _, mf := range mfs {
-		if len(mf.Metric) == 0 {
-			t.Errorf("metric family %s must not be empty", mf.GetName())
-		}
-	}
+	defer resp.Body.Close()
+
+	assetMetricAndExemplars(t, reg, 3, labelsToLabelPair(exemplar))
 }
 
-func TestClientMiddlewareAPIWithRequestContext(t *testing.T) {
+func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	client, reg := makeInstrumentedClient()
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

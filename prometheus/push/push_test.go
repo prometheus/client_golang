@@ -15,7 +15,8 @@ package push
 
 import (
 	"bytes"
-	"io/ioutil"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,6 @@ import (
 )
 
 func TestPush(t *testing.T) {
-
 	var (
 		lastMethod string
 		lastBody   []byte
@@ -39,7 +39,7 @@ func TestPush(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lastMethod = r.Method
 			var err error
-			lastBody, err = ioutil.ReadAll(r.Body)
+			lastBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -201,8 +201,8 @@ func TestPush(t *testing.T) {
 		Push(); err == nil {
 		t.Error("push with empty job succeeded")
 	} else {
-		if got, want := err, errJobEmpty; got != want {
-			t.Errorf("got error %q, want %q", got, want)
+		if want := errJobEmpty; !errors.Is(err, want) {
+			t.Errorf("got error %q, want %q", err, want)
 		}
 	}
 

@@ -101,7 +101,9 @@ func ToFloat64(c prometheus.Collector) float64 {
 	}
 
 	pb := &dto.Metric{}
-	m.Write(pb)
+	if err := m.Write(pb); err != nil {
+		panic(fmt.Errorf("error happened while collecting metrics: %w", err))
+	}
 	if pb.Gauge != nil {
 		return pb.Gauge.GetValue()
 	}
@@ -238,6 +240,7 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 		got = filterMetrics(got, metricNames)
 	}
 
+
 	return compare(got, expected)
 }
 
@@ -267,7 +270,7 @@ func compare(got, want []*dto.MetricFamily) error {
 
 // diff returns a diff of both values as long as both are of the same type and
 // are a struct, map, slice, array or string. Otherwise it returns an empty string.
-func diff(expected interface{}, actual interface{}) string {
+func diff(expected, actual interface{}) string {
 	if expected == nil || actual == nil {
 		return ""
 	}

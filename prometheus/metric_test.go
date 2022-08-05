@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"math"
 	"testing"
 
 	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
@@ -46,26 +47,29 @@ func TestWithExemplarsMetric(t *testing.T) {
 		h := MustNewConstHistogram(
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
 			4711, 403.34,
+			// Four buckets, but we expect five as the +Inf bucket will be created if we see value outside of those buckets.
 			map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
 		)
 
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
+			{Value: proto.Float64(2000.0)}, // Unordered exemplars.
+			{Value: proto.Float64(500.0)},
+			{Value: proto.Float64(42.0)},
+			{Value: proto.Float64(157.0)},
+			{Value: proto.Float64(100.0)},
+			{Value: proto.Float64(89.0)},
 			{Value: proto.Float64(24.0)},
 			{Value: proto.Float64(25.1)},
-			{Value: proto.Float64(42.0)},
-			{Value: proto.Float64(89.0)},
-			{Value: proto.Float64(100.0)},
-			{Value: proto.Float64(157.0)},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {
 			t.Fatal(err)
 		}
-		if want, got := 4, len(metric.GetHistogram().Bucket); want != got {
+		if want, got := 5, len(metric.GetHistogram().Bucket); want != got {
 			t.Errorf("want %v, got %v", want, got)
 		}
 
-		expectedExemplarVals := []float64{24.0, 42.0, 100.0, 157.0}
+		expectedExemplarVals := []float64{24.0, 25.1, 89.0, 157.0, 500.0}
 		for i, b := range metric.GetHistogram().Bucket {
 			if b.Exemplar == nil {
 				t.Errorf("Expected exemplar for bucket %v, got nil", i)
@@ -74,6 +78,11 @@ func TestWithExemplarsMetric(t *testing.T) {
 				t.Errorf("%v: want %v, got %v", i, want, got)
 			}
 		}
-	})
 
+		infBucket := metric.GetHistogram().Bucket[len(metric.GetHistogram().Bucket)-1].GetUpperBound()
+
+		if infBucket != math.Inf(1) {
+			t.Errorf("want %v, got %v", math.Inf(1), infBucket)
+		}
+	})
 }

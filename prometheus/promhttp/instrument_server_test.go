@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -145,7 +146,6 @@ func TestLabelCheck(t *testing.T) {
 				},
 				append(sc.varLabels, sc.curriedLabels...),
 			))
-			//nolint:typecheck // Ignore declared but unused error.
 			for _, l := range sc.curriedLabels {
 				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
 				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
@@ -279,7 +279,7 @@ func TestLabels(t *testing.T) {
 			ok:         false,
 		},
 	}
-	checkLabels := func(labels []string) (gotCode bool, gotMethod bool) {
+	checkLabels := func(labels []string) (gotCode, gotMethod bool) {
 		for _, label := range labels {
 			switch label {
 			case "code":
@@ -321,7 +321,7 @@ func TestLabels(t *testing.T) {
 	}
 }
 
-func TestMiddlewareAPI(t *testing.T) {
+func makeInstrumentedHandler(handler http.HandlerFunc, opts ...Option) (http.Handler, *prometheus.Registry) {
 	reg := prometheus.NewRegistry()
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -366,25 +366,43 @@ func TestMiddlewareAPI(t *testing.T) {
 		[]string{},
 	)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
-
 	reg.MustRegister(inFlightGauge, counter, histVec, responseSize, writeHeaderVec)
 
-	chain := InstrumentHandlerInFlight(inFlightGauge,
+	return InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
 			InstrumentHandlerDuration(histVec,
 				InstrumentHandlerTimeToWriteHeader(writeHeaderVec,
-					InstrumentHandlerResponseSize(responseSize, handler),
-				),
-			),
-		),
-	)
+					InstrumentHandlerResponseSize(responseSize, handler, opts...),
+					opts...),
+				opts...),
+			opts...),
+	), reg
+}
+
+func TestMiddlewareAPI(t *testing.T) {
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	})
 
 	r, _ := http.NewRequest("GET", "www.example.com", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, r)
+
+	assetMetricAndExemplars(t, reg, 5, nil)
+}
+
+func TestMiddlewareAPI_WithExemplars(t *testing.T) {
+	exemplar := prometheus.Labels{"traceID": "example situation observed by this metric"}
+
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	}, WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }))
+
+	r, _ := http.NewRequest("GET", "www.example.com", nil)
+	w := httptest.NewRecorder()
+	chain.ServeHTTP(w, r)
+
+	assetMetricAndExemplars(t, reg, 5, labelsToLabelPair(exemplar))
 }
 
 func TestInstrumentTimeToFirstWrite(t *testing.T) {

@@ -39,11 +39,11 @@ func main() {
 	}
 	toolVersion := runtime.Version()
 	mtv := majorVersion(toolVersion)
-	mv != majorVersion(os.Args[1])
+	mv := majorVersion(os.Args[1])
 	if mtv != mv {
 		log.Fatalf("using Go version %q but expected Go version %q", mtv, mv)
 	}
-	version, err := parseVersion(os.Args[1])
+	version, err := parseVersion(mv)
 	if err != nil {
 		log.Fatalf("parsing Go version: %v", err)
 	}

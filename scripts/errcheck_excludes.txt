@@ -1,0 +1,5 @@
+// The following 2 methods always return nil as the error
+(*github.com/cespare/xxhash/v2.Digest).Write
+(*github.com/cespare/xxhash/v2.Digest).WriteString
+
+(*bufio.Writer).WriteRune

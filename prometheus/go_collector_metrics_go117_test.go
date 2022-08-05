@@ -10,16 +10,16 @@ var expectedRuntimeMetrics = map[string]string{
 	"/gc/cycles/automatic:gc-cycles":              "go_gc_cycles_automatic_gc_cycles_total",
 	"/gc/cycles/forced:gc-cycles":                 "go_gc_cycles_forced_gc_cycles_total",
 	"/gc/cycles/total:gc-cycles":                  "go_gc_cycles_total_gc_cycles_total",
-	"/gc/heap/allocs-by-size:bytes":               "go_gc_heap_allocs_by_size_bytes_total",
+	"/gc/heap/allocs-by-size:bytes":               "go_gc_heap_allocs_by_size_bytes",
 	"/gc/heap/allocs:bytes":                       "go_gc_heap_allocs_bytes_total",
 	"/gc/heap/allocs:objects":                     "go_gc_heap_allocs_objects_total",
-	"/gc/heap/frees-by-size:bytes":                "go_gc_heap_frees_by_size_bytes_total",
+	"/gc/heap/frees-by-size:bytes":                "go_gc_heap_frees_by_size_bytes",
 	"/gc/heap/frees:bytes":                        "go_gc_heap_frees_bytes_total",
 	"/gc/heap/frees:objects":                      "go_gc_heap_frees_objects_total",
 	"/gc/heap/goal:bytes":                         "go_gc_heap_goal_bytes",
 	"/gc/heap/objects:objects":                    "go_gc_heap_objects_objects",
 	"/gc/heap/tiny/allocs:objects":                "go_gc_heap_tiny_allocs_objects_total",
-	"/gc/pauses:seconds":                          "go_gc_pauses_seconds_total",
+	"/gc/pauses:seconds":                          "go_gc_pauses_seconds",
 	"/memory/classes/heap/free:bytes":             "go_memory_classes_heap_free_bytes",
 	"/memory/classes/heap/objects:bytes":          "go_memory_classes_heap_objects_bytes",
 	"/memory/classes/heap/released:bytes":         "go_memory_classes_heap_released_bytes",
@@ -38,4 +38,4 @@ var expectedRuntimeMetrics = map[string]string{
 	"/sched/latencies:seconds":                    "go_sched_latencies_seconds",
 }
 
-const expectedRuntimeMetricsCardinality = 79
+const expectedRuntimeMetricsCardinality = 77

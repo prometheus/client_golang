@@ -1,5 +1,47 @@
-# Run only staticcheck for now. Additional linters will be enabled one-by-one.
+---
+
+run:
+  deadline: 5m
+
+output:
+  sort-results: true
+
 linters:
   enable:
-  - staticcheck
-  disable-all: true
+    - deadcode
+    - depguard
+    - durationcheck
+    - errorlint
+    - exportloopref
+    - gofmt
+    - gofumpt
+    - goimports
+    - gosimple
+    - ineffassign
+    - misspell
+    - nolintlint
+    - predeclared
+    - revive
+    - staticcheck
+    - structcheck
+    - unconvert
+    - unused
+    - varcheck
+    - wastedassign
+
+issues:
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test.go
+      linters:
+        - errcheck
+        - govet
+        - structcheck
+
+linters-settings:
+  errcheck:
+    exclude: scripts/errcheck_excludes.txt
+  goimports:
+    local-prefixes: github.com/prometheus/client_golang
+  gofumpt:
+    extra-rules: true

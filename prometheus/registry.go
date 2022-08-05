@@ -15,8 +15,8 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -289,7 +289,7 @@ func (r *Registry) Register(c Collector) error {
 
 		// Is the descriptor valid at all?
 		if desc.err != nil {
-			return fmt.Errorf("descriptor %s is invalid: %s", desc, desc.err)
+			return fmt.Errorf("descriptor %s is invalid: %w", desc, desc.err)
 		}
 
 		// Is the descID unique?
@@ -563,7 +563,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 // This is intended for use with the textfile collector of the node exporter.
 // Note that the node exporter expects the filename to be suffixed with ".prom".
 func WriteToTextfile(filename string, g Gatherer) error {
-	tmp, err := ioutil.TempFile(filepath.Dir(filename), filepath.Base(filename))
+	tmp, err := os.CreateTemp(filepath.Dir(filename), filepath.Base(filename))
 	if err != nil {
 		return err
 	}
@@ -582,7 +582,7 @@ func WriteToTextfile(filename string, g Gatherer) error {
 		return err
 	}
 
-	if err := os.Chmod(tmp.Name(), 0644); err != nil {
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), filename)
@@ -603,7 +603,7 @@ func processMetric(
 	}
 	dtoMetric := &dto.Metric{}
 	if err := metric.Write(dtoMetric); err != nil {
-		return fmt.Errorf("error collecting metric %v: %s", desc, err)
+		return fmt.Errorf("error collecting metric %v: %w", desc, err)
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
@@ -725,12 +725,13 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	for i, g := range gs {
 		mfs, err := g.Gather()
 		if err != nil {
-			if multiErr, ok := err.(MultiError); ok {
+			multiErr := MultiError{}
+			if errors.As(err, &multiErr) {
 				for _, err := range multiErr {
-					errs = append(errs, fmt.Errorf("[from Gatherer #%d] %s", i+1, err))
+					errs = append(errs, fmt.Errorf("[from Gatherer #%d] %w", i+1, err))
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("[from Gatherer #%d] %s", i+1, err))
+				errs = append(errs, fmt.Errorf("[from Gatherer #%d] %w", i+1, err))
 			}
 		}
 		for _, mf := range mfs {

@@ -30,7 +30,6 @@ func (c collectorDescribedByCollect) Describe(ch chan<- *Desc) {
 }
 
 func TestDescribeByCollect(t *testing.T) {
-
 	goodCollector := collectorDescribedByCollect{
 		cnt: NewCounter(CounterOpts{Name: "c1", Help: "help c1"}),
 		gge: NewGauge(GaugeOpts{Name: "g1", Help: "help g1"}),

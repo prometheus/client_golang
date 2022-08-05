@@ -40,7 +40,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -98,9 +98,7 @@ func New(url, job string) *Pusher {
 	if !strings.Contains(url, "://") {
 		url = "http://" + url
 	}
-	if strings.HasSuffix(url, "/") {
-		url = url[:len(url)-1]
-	}
+	url = strings.TrimSuffix(url, "/")
 
 	return &Pusher{
 		error:      err,
@@ -168,6 +166,11 @@ func (p *Pusher) Collector(c prometheus.Collector) *Pusher {
 		p.error = p.registerer.Register(c)
 	}
 	return p
+}
+
+// Error returns the error that was encountered.
+func (p *Pusher) Error() error {
+	return p.error
 }
 
 // Grouping adds a label pair to the grouping key of the Pusher, replacing any
@@ -242,7 +245,7 @@ func (p *Pusher) Delete() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		body, _ := ioutil.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
+		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
 		return fmt.Errorf("unexpected status code %d while deleting %s: %s", resp.StatusCode, p.fullURL(), body)
 	}
 	return nil
@@ -273,7 +276,11 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 				}
 			}
 		}
-		enc.Encode(mf)
+		if err := enc.Encode(mf); err != nil {
+			return fmt.Errorf(
+				"failed to encode metric familty %s, error is %w",
+				mf.GetName(), err)
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
 	if err != nil {
@@ -290,7 +297,7 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 	defer resp.Body.Close()
 	// Depending on version and configuration of the PGW, StatusOK or StatusAccepted may be returned.
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, _ := ioutil.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
+		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
 		return fmt.Errorf("unexpected status code %d while pushing to %s: %s", resp.StatusCode, p.fullURL(), body)
 	}
 	return nil
