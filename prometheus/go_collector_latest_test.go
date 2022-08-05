@@ -269,7 +269,7 @@ func TestMemStatsEquivalence(t *testing.T) {
 }
 
 func TestExpectedRuntimeMetrics(t *testing.T) {
-	goMetrics := collectGoMetrics(t, goRuntimeMetricsCollection)
+	goMetrics := collectGoMetrics(t, goRuntimeMemStatsCollection|goRuntimeMetricsCollection)
 	goMetricSet := make(map[string]Metric)
 	for _, m := range goMetrics {
 		goMetricSet[m.Desc().fqName] = m
