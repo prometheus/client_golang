@@ -18,7 +18,6 @@ import "regexp"
 type GoCollectorRule struct {
 	Matcher *regexp.Regexp
 	Deny    bool
-	Buckets interface{}
 }
 
 // GoCollectorOptions should not be used be directly by anything, except `collectors` package.

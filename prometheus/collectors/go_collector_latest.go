@@ -70,6 +70,7 @@ func WithGoCollectorMemStatsMetricsDisabled() func(options *internal.GoCollector
 }
 
 // GoRuntimeMetricsRule allow enabling and configuring particular group of runtime/metrics.
+// TODO(bwplotka): Consider adding ability to adjust buckets.
 type GoRuntimeMetricsRule struct {
 	// Matcher represents RE2 expression will match the runtime/metrics from https://golang.bg/src/runtime/metrics/description.go
 	// Use `regexp.MustCompile` or `regexp.Compile` to create this field.
