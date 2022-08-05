@@ -24,9 +24,16 @@ import (
 )
 
 var (
-	MetricsAll       = regexp.MustCompile("/.*")
-	MetricsGC        = GoRuntimeMetricsRule{regexp.MustCompile(`^/gc/.*`)}
-	MetricsMemory    = GoRuntimeMetricsRule{regexp.MustCompile(`^/memory/.*`)}
+	// MetricsAll allows all the metrics to be collected from Go runtime.
+	MetricsAll = GoRuntimeMetricsRule{regexp.MustCompile("/.*")}
+	// MetricsGC allows only GC metrics to be collected from Go runtime.
+	// e.g. go_gc_cycles_automatic_gc_cycles_total
+	MetricsGC = GoRuntimeMetricsRule{regexp.MustCompile(`^/gc/.*`)}
+	// MetricsMemory allows only memory metrics to be collected from Go runtime.
+	// e.g. go_memory_classes_heap_free_bytes
+	MetricsMemory = GoRuntimeMetricsRule{regexp.MustCompile(`^/memory/.*`)}
+	// MetricsScheduler allows only scheduler metrics to be collected from Go runtime.
+	// e.g. go_sched_goroutines_goroutines
 	MetricsScheduler = GoRuntimeMetricsRule{regexp.MustCompile(`^/sched/.*`)}
 )
 

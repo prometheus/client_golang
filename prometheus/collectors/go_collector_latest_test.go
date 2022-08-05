@@ -86,10 +86,8 @@ func TestGoCollectorAllowList(t *testing.T) {
 			expected: baseMetrics,
 		},
 		{
-			name: "allow all",
-			rules: []GoRuntimeMetricsRule{{
-				Matcher: regexp.MustCompile("/.*"),
-			}},
+			name:  "allow all",
+			rules: []GoRuntimeMetricsRule{MetricsAll},
 			expected: withBaseMetrics([]string{
 				"go_gc_cycles_automatic_gc_cycles_total",
 				"go_gc_cycles_forced_gc_cycles_total",
