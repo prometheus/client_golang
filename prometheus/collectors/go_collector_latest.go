@@ -23,7 +23,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
-// WithGoCollectorMemStatsMetricsDisabled metrics that where representing runtime.MemStats structure such as:
+var (
+	// MetricsAll allows all the metrics to be collected from Go runtime.
+	MetricsAll = GoRuntimeMetricsRule{regexp.MustCompile("/.*")}
+	// MetricsGC allows only GC metrics to be collected from Go runtime.
+	// e.g. go_gc_cycles_automatic_gc_cycles_total
+	MetricsGC = GoRuntimeMetricsRule{regexp.MustCompile(`^/gc/.*`)}
+	// MetricsMemory allows only memory metrics to be collected from Go runtime.
+	// e.g. go_memory_classes_heap_free_bytes
+	MetricsMemory = GoRuntimeMetricsRule{regexp.MustCompile(`^/memory/.*`)}
+	// MetricsScheduler allows only scheduler metrics to be collected from Go runtime.
+	// e.g. go_sched_goroutines_goroutines
+	MetricsScheduler = GoRuntimeMetricsRule{regexp.MustCompile(`^/sched/.*`)}
+)
+
+// WithGoCollectorMemStatsMetricsDisabled disables metrics that is gathered in runtime.MemStats structure such as:
 //
 // go_memstats_alloc_bytes
 // go_memstats_alloc_bytes_total
@@ -90,7 +104,7 @@ func WithGoCollectorRuntimeMetrics(rules ...GoRuntimeMetricsRule) func(options *
 	}
 
 	return func(o *internal.GoCollectorOptions) {
-		o.DisableMemStatsLikeMetrics = true
+		o.RuntimeMetricRules = append(o.RuntimeMetricRules, rs...)
 	}
 }
 
