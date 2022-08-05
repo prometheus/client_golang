@@ -109,8 +109,36 @@ func WithoutGoCollectorRuntimeMetrics(matchers ...*regexp.Regexp) func(options *
 	}
 }
 
+// GoCollectionOption represents Go collection option flag.
+// Deprecated.
+type GoCollectionOption uint32
+
+const (
+	// GoRuntimeMemStatsCollection represents the metrics represented by runtime.MemStats structure.
+	// Deprecated. Use WithGoCollectorMemStatsMetricsDisabled() function to disable those metrics in the collector.
+	GoRuntimeMemStatsCollection GoCollectionOption = 1 << iota
+	// GoRuntimeMetricsCollection is the new set of metrics represented by runtime/metrics package.
+	// Deprecated. Use WithGoCollectorRuntimeMetrics(GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")})
+	// function to enable those metrics in the collector.
+	GoRuntimeMetricsCollection
+)
+
+// WithGoCollections allows enabling different collections for Go collector on top of base metrics.
+// Deprecated. Use WithGoCollectorRuntimeMetrics() and WithGoCollectorMemStatsMetricsDisabled() instead to control metrics.
+func WithGoCollections(flags GoCollectionOption) func(options *internal.GoCollectorOptions) {
+	return func(options *internal.GoCollectorOptions) {
+		if flags&GoRuntimeMemStatsCollection == 0 {
+			WithGoCollectorMemStatsMetricsDisabled()(options)
+		}
+
+		if flags&GoRuntimeMetricsCollection != 0 {
+			WithGoCollectorRuntimeMetrics(GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")})(options)
+		}
+	}
+}
+
 // NewGoCollector returns a collector that exports metrics about the current Go
-// process using debug.GCStats and runtime/metrics.
+// process using debug.GCStats (base metrics) and runtime/metrics (both in MemStats style and new ones).
 func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) prometheus.Collector {
 	//nolint:staticcheck // Ignore SA1019 until v2.
 	return prometheus.NewGoCollector(opts...)
