@@ -64,6 +64,10 @@ func WithExemplarFromContext(getExemplarFn func(requestCtx context.Context) prom
 // WithExtraLabels allows a hook to be run on all counters and histogram metrics.
 // If the hook function returns non-nil labels, the labels will be added to the metrics. Any extra labels
 // must be unconditionally added with a reasonable default label value.
+// 
+// Make sure to add specified label names to the metricVec you defined.
+//
+// WARNING: It's tempting to add labels like `Client-IP` or `User Agent` that come from request headers. While it will give you more insights, it might belong to more logging or tracing observability. Metrics are optimized for stable cardinality long-term metrics. Always sanitise your label names and values to avoid huge monitoring costs or DoS/CVEs in your service. For example see sanitizeCode() function. We also don't recommend using this function on histograms which multiples this problem dozen times.
 func WithExtraLabels(getExtraLabelsFn func(requestCtx context.Context) prometheus.Labels) Option {
 	return optionApplyFunc(func(o *options) {
 		o.getExtraLabelsFn = getExtraLabelsFn
