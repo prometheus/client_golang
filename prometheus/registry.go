@@ -255,6 +255,9 @@ func (errs MultiError) MaybeUnwrap() error {
 // them into MetricFamilies for exposition. It implements Registerer, Gatherer,
 // and Collector. The zero value is not usable. Create instances with
 // NewRegistry or NewPedanticRegistry.
+//
+// Registry implements Collector to allow it to be used for creating groups of
+// metrics. See the Grouping example for how this can be done.
 type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
