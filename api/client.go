@@ -132,5 +132,13 @@ func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		return nil, err
 	}
 
+	go func() {
+		<-ctx.Done()
+		err = resp.Body.Close()
+		if err == nil {
+			err = ctx.Err()
+		}
+	}()
+
 	return resp, err
 }
