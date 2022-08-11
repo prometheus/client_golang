@@ -25,28 +25,41 @@ import (
 	"os"
 	"runtime"
 	"runtime/metrics"
-	"strconv"
 	"strings"
 	"text/template"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
+
+	"github.com/hashicorp/go-version"
 )
 
 func main() {
-	if len(os.Args) != 2 {
-		log.Fatal("requires Go version (e.g. go1.17) as an argument")
-	}
+	var givenVersion string
 	toolVersion := runtime.Version()
-	mtv := majorVersion(toolVersion)
-	mv := majorVersion(os.Args[1])
-	if mtv != mv {
-		log.Fatalf("using Go version %q but expected Go version %q", mtv, mv)
+	if len(os.Args) != 2 {
+		log.Printf("requires Go version (e.g. go1.17) as an argument. Since it is not specified, assuming %s.", toolVersion)
+		givenVersion = toolVersion
+	} else {
+		givenVersion = os.Args[1]
 	}
-	version, err := parseVersion(mv)
+	log.Printf("given version for Go: %s", givenVersion)
+	log.Printf("tool version for Go: %s", toolVersion)
+
+	tv, err := version.NewVersion(strings.TrimPrefix(givenVersion, "go"))
 	if err != nil {
-		log.Fatalf("parsing Go version: %v", err)
+		log.Fatal(err)
 	}
+	gv, err := version.NewVersion(strings.TrimPrefix(toolVersion, "go"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !gv.Equal(tv) {
+		log.Fatalf("using Go version %q but expected Go version %q", tv, gv)
+	}
+
+	v := goVersion(gv.Segments()[1])
+	log.Printf("generating metrics for Go version %q", v)
 
 	// Generate code.
 	var buf bytes.Buffer
@@ -56,7 +69,7 @@ func main() {
 		Cardinality  int
 	}{
 		Descriptions: metrics.All(),
-		GoVersion:    version,
+		GoVersion:    v,
 		Cardinality:  rmCardinality(),
 	})
 	if err != nil {
@@ -70,7 +83,7 @@ func main() {
 	}
 
 	// Write it to a file.
-	fname := fmt.Sprintf("go_collector_metrics_%s_test.go", version.Abbr())
+	fname := fmt.Sprintf("go_collector_metrics_%s_test.go", v.Abbr())
 	if err := os.WriteFile(fname, result, 0o644); err != nil {
 		log.Fatalf("writing file: %v", err)
 	}
@@ -84,19 +97,6 @@ func (g goVersion) String() string {
 
 func (g goVersion) Abbr() string {
 	return fmt.Sprintf("go1%d", g)
-}
-
-func parseVersion(s string) (goVersion, error) {
-	i := strings.IndexRune(s, '.')
-	if i < 0 {
-		return goVersion(-1), fmt.Errorf("bad Go version format")
-	}
-	i, err := strconv.Atoi(s[i+1:])
-	return goVersion(i), err
-}
-
-func majorVersion(v string) string {
-	return v[:strings.LastIndexByte(v, '.')]
 }
 
 func rmCardinality() int {
@@ -123,6 +123,7 @@ func rmCardinality() int {
 			name[strings.IndexRune(name, ':')+1:],
 		)
 		cardinality += len(buckets) + 3 // Plus total count, sum, and the implicit infinity bucket.
+
 		// runtime/metrics bucket boundaries are lower-bound-inclusive, but
 		// always represents each actual *boundary* so Buckets is always
 		// 1 longer than Counts, while in Prometheus the mapping is one-to-one,
@@ -132,6 +133,12 @@ func rmCardinality() int {
 		cardinality--
 		if buckets[len(buckets)-1] == math.Inf(1) {
 			// We already counted the infinity bucket separately.
+			cardinality--
+		}
+		// Prometheus also doesn't have buckets for -Inf, so they need to be omitted.
+		// See the following PR for more information:
+		// https://github.com/prometheus/client_golang/pull/1049
+		if buckets[0] == math.Inf(-1) {
 			cardinality--
 		}
 	}

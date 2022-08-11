@@ -33,6 +33,7 @@ package promhttp
 
 import (
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,7 +111,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		errCnt.WithLabelValues("gathering")
 		errCnt.WithLabelValues("encoding")
 		if err := opts.Registry.Register(errCnt); err != nil {
-			if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			are := &prometheus.AlreadyRegisteredError{}
+			if errors.As(err, are) {
 				errCnt = are.ExistingCollector.(*prometheus.CounterVec)
 			} else {
 				panic(err)
@@ -250,7 +252,8 @@ func InstrumentMetricHandler(reg prometheus.Registerer, handler http.Handler) ht
 	cnt.WithLabelValues("500")
 	cnt.WithLabelValues("503")
 	if err := reg.Register(cnt); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		are := &prometheus.AlreadyRegisteredError{}
+		if errors.As(err, are) {
 			cnt = are.ExistingCollector.(*prometheus.CounterVec)
 		} else {
 			panic(err)
@@ -262,7 +265,8 @@ func InstrumentMetricHandler(reg prometheus.Registerer, handler http.Handler) ht
 		Help: "Current number of scrapes being served.",
 	})
 	if err := reg.Register(gge); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		are := &prometheus.AlreadyRegisteredError{}
+		if errors.As(err, are) {
 			gge = are.ExistingCollector.(prometheus.Gauge)
 		} else {
 			panic(err)

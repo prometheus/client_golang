@@ -8,10 +8,26 @@ output:
 
 linters:
   enable:
+    - deadcode
+    - depguard
+    - durationcheck
+    - errorlint
+    - exportloopref
+    - gofmt
     - gofumpt
     - goimports
-    - revive
+    - gosimple
+    - ineffassign
     - misspell
+    - nolintlint
+    - predeclared
+    - revive
+    - staticcheck
+    - structcheck
+    - unconvert
+    - unused
+    - varcheck
+    - wastedassign
 
 issues:
   max-same-issues: 0

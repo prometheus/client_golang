@@ -200,7 +200,7 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 }
 
 // ExemplarMaxRunes is the max total number of runes allowed in exemplar labels.
-const ExemplarMaxRunes = 64
+const ExemplarMaxRunes = 128
 
 // newExemplar creates a new dto.Exemplar from the provided values. An error is
 // returned if any of the label names or values are invalid or if the total
