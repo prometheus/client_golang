@@ -36,6 +36,8 @@ func exemplarObserve(obs prometheus.Observer, val float64, labels map[string]str
 	obs.(prometheus.ExemplarObserver).ObserveWithExemplar(val, labels)
 }
 
+// addWithExemplar is a wrapper for [prometheus.ExemplarAdder.AddWithExemplar],
+// which falls back to [prometheus.Counter.Add] if no labels are provided.
 func addWithExemplar(obs prometheus.Counter, val float64, labels map[string]string) {
 	if labels == nil {
 		obs.Add(val)
