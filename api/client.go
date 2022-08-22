@@ -24,6 +24,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/prometheus/client_golang/internal/errcapture"
 )
 
 // DefaultRoundTripper is used if no RoundTripper is set in Config.
@@ -118,39 +120,17 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 	return &u
 }
 
-func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+func (c *httpClient) Do(ctx context.Context, req *http.Request) (_ *http.Response, _ []byte, err error) {
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
 	resp, err := c.client.Do(req)
-	defer func() {
-		if resp != nil {
-			resp.Body.Close()
-		}
-	}()
-
 	if err != nil {
 		return nil, nil, err
 	}
+	defer errcapture.ExhaustClose(&err, resp.Body, "close response body")
 
-	var body []byte
-	done := make(chan struct{})
-	go func() {
-		var buf bytes.Buffer
-		_, err = buf.ReadFrom(resp.Body)
-		body = buf.Bytes()
-		close(done)
-	}()
-
-	select {
-	case <-ctx.Done():
-		<-done
-		err = resp.Body.Close()
-		if err == nil {
-			err = ctx.Err()
-		}
-	case <-done:
-	}
-
-	return resp, body, err
+	var buf bytes.Buffer
+	_, err = buf.ReadFrom(resp.Body)
+	return resp, buf.Bytes(), err
 }

@@ -48,6 +48,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
+	"github.com/prometheus/client_golang/internal/errcapture"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
 )
@@ -158,12 +159,12 @@ func GatherAndCount(g prometheus.Gatherer, metricNames ...string) (int, error) {
 // ScrapeAndCompare calls a remote exporter's endpoint which is expected to return some metrics in
 // plain text format. Then it compares it with the results that the `expected` would return.
 // If the `metricNames` is not empty it would filter the comparison only to the given metric names.
-func ScrapeAndCompare(url string, expected io.Reader, metricNames ...string) error {
+func ScrapeAndCompare(url string, expected io.Reader, metricNames ...string) (err error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("scraping metrics failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer errcapture.ExhaustClose(&err, resp.Body, "close response body")
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("the scraping target returned a status code other than 200: %d",

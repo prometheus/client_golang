@@ -48,6 +48,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 
+	"github.com/prometheus/client_golang/internal/errcapture"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -228,7 +229,7 @@ func (p *Pusher) Format(format expfmt.Format) *Pusher {
 //
 // Delete returns the first error encountered by any method call (including this
 // one) in the lifetime of the Pusher.
-func (p *Pusher) Delete() error {
+func (p *Pusher) Delete() (err error) {
 	if p.error != nil {
 		return p.error
 	}
@@ -243,7 +244,8 @@ func (p *Pusher) Delete() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer errcapture.ExhaustClose(&err, resp.Body, "close response body")
+
 	if resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
 		return fmt.Errorf("unexpected status code %d while deleting %s: %s", resp.StatusCode, p.fullURL(), body)
@@ -294,7 +296,8 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer errcapture.ExhaustClose(&err, resp.Body, "close response body")
+
 	// Depending on version and configuration of the PGW, StatusOK or StatusAccepted may be returned.
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
