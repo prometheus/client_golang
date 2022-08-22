@@ -116,7 +116,7 @@ func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundT
 		start := time.Now()
 		resp, err := next.RoundTrip(r)
 		if err == nil {
-			exemplarObserve(
+			observeWithExemplar(
 				obs.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)),
 				time.Since(start).Seconds(),
 				rtOpts.getExemplarFn(r.Context()),
