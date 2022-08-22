@@ -36,7 +36,7 @@ func exemplarObserve(obs prometheus.Observer, val float64, labels map[string]str
 	obs.(prometheus.ExemplarObserver).ObserveWithExemplar(val, labels)
 }
 
-func exemplarAdd(obs prometheus.Counter, val float64, labels map[string]string) {
+func addWithExemplar(obs prometheus.Counter, val float64, labels map[string]string) {
 	if labels == nil {
 		obs.Add(val)
 		return
@@ -141,7 +141,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 			d := newDelegator(w, nil)
 			next.ServeHTTP(d, r)
 
-			exemplarAdd(
+			addWithExemplar(
 				counter.With(labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)),
 				1,
 				hOpts.getExemplarFn(r.Context()),
@@ -151,7 +151,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
-		exemplarAdd(
+		addWithExemplar(
 			counter.With(labels(code, method, r.Method, 0, hOpts.extraMethods...)),
 			1,
 			hOpts.getExemplarFn(r.Context()),
