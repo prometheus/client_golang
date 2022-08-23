@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -121,8 +120,8 @@ metric: <
 >
 
 `)
-	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > > 
-`)
+	externalMetricFamilyAsProtoCompactText := []byte(`name:"externalname" help:"externaldocstring" type:COUNTER metric:<label:<name:"externalconstname" value:"externalconstvalue" > label:<name:"externallabelname" value:"externalval1" > counter:<value:1 > >`)
+	externalMetricFamilyAsProtoCompactText = append(externalMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	expectedMetricFamily := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -203,8 +202,8 @@ metric: <
 >
 
 `)
-	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
-`)
+	expectedMetricFamilyAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > >`)
+	expectedMetricFamilyAsProtoCompactText = append(expectedMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -229,8 +228,8 @@ metric: <
 		},
 	}
 
-	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > > 
-`)
+	expectedMetricFamilyMergedWithExternalAsProtoCompactText := []byte(`name:"name" help:"docstring" type:COUNTER metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"different_val" > counter:<value:42 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val1" > counter:<value:1 > > metric:<label:<name:"constname" value:"constvalue" > label:<name:"labelname" value:"val2" > counter:<value:1 > >`)
+	expectedMetricFamilyMergedWithExternalAsProtoCompactText = append(expectedMetricFamilyMergedWithExternalAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithInvalidLabelValue := &dto.MetricFamily{
 		Name: proto.String("name"),
@@ -851,7 +850,8 @@ func TestAlreadyRegistered(t *testing.T) {
 			if err = s.reRegisterWith(reg).Register(s.newCollector); err == nil {
 				t.Fatal("expected error when registering new collector")
 			}
-			if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			are := &prometheus.AlreadyRegisteredError{}
+			if errors.As(err, are) {
 				if are.ExistingCollector != s.originalCollector {
 					t.Error("expected original collector but got something else")
 				}
@@ -932,7 +932,7 @@ func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 				return
 			default:
 				if err := reg.Register(hv); err != nil {
-					if _, ok := err.(prometheus.AlreadyRegisteredError); !ok {
+					if !errors.As(err, &prometheus.AlreadyRegisteredError{}) {
 						t.Error("Registering failed:", err)
 					}
 				}
@@ -1066,7 +1066,7 @@ test_summary_count{name="foo"} 2
 	gauge.With(prometheus.Labels{"name": "baz"}).Set(1.1)
 	counter.With(prometheus.Labels{"name": "qux"}).Inc()
 
-	tmpfile, err := ioutil.TempFile("", "prom_registry_test")
+	tmpfile, err := os.CreateTemp("", "prom_registry_test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1076,7 +1076,7 @@ test_summary_count{name="foo"} 2
 		t.Fatal(err)
 	}
 
-	fileBytes, err := ioutil.ReadFile(tmpfile.Name())
+	fileBytes, err := os.ReadFile(tmpfile.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1163,15 +1163,15 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 		// Register should not fail, since each collector has a unique
 		// set of sub-collectors, determined by their names and const label values.
 		if err := reg.Register(&collector); err != nil {
-			alreadyRegErr, ok := err.(prometheus.AlreadyRegisteredError)
-			if !ok {
+			are := &prometheus.AlreadyRegisteredError{}
+			if !errors.As(err, are) {
 				t.Fatal(err)
 			}
 
-			previous := alreadyRegErr.ExistingCollector.(*collidingCollector)
-			current := alreadyRegErr.NewCollector.(*collidingCollector)
+			previous := are.ExistingCollector.(*collidingCollector)
+			current := are.NewCollector.(*collidingCollector)
 
-			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", alreadyRegErr, previous.name, previous.i, current.name, current.i)
+			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", are, previous.name, previous.i, current.name, current.i)
 		}
 	}
 }
@@ -1241,7 +1241,7 @@ func TestNewMultiTRegistry(t *testing.T) {
 	t.Run("two registries, one with error", func(t *testing.T) {
 		m := prometheus.NewMultiTRegistry(prometheus.ToTransactionalGatherer(reg), treg)
 		ret, done, err := m.Gather()
-		if err != treg.err {
+		if !errors.Is(err, treg.err) {
 			t.Error("unexpected error:", err)
 		}
 		done()
@@ -1253,4 +1253,38 @@ func TestNewMultiTRegistry(t *testing.T) {
 			t.Error("inner transactional registry not marked as done")
 		}
 	})
+}
+
+// This example shows how to use multiple registries for registering and
+// unregistering groups of metrics.
+func ExampleRegistry_grouping() {
+	// Create a global registry.
+	globalReg := prometheus.NewRegistry()
+
+	// Spawn 10 workers, each of which will have their own group of metrics.
+	for i := 0; i < 10; i++ {
+		// Create a new registry for each worker, which acts as a group of
+		// worker-specific metrics.
+		workerReg := prometheus.NewRegistry()
+		globalReg.Register(workerReg)
+
+		go func(workerID int) {
+			// Once the worker is done, it can unregister itself.
+			defer globalReg.Unregister(workerReg)
+
+			workTime := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "worker_total_work_time_milliseconds",
+				ConstLabels: prometheus.Labels{
+					// Generate a label unique to this worker so its metric doesn't
+					// collide with the metrics from other workers.
+					"worker_id": fmt.Sprintf("%d", workerID),
+				},
+			})
+			workerReg.MustRegister(workTime)
+
+			start := time.Now()
+			time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+			workTime.Add(float64(time.Since(start).Milliseconds()))
+		}(i)
+	}
 }

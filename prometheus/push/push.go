@@ -40,7 +40,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -245,7 +245,7 @@ func (p *Pusher) Delete() error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusAccepted {
-		body, _ := ioutil.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
+		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
 		return fmt.Errorf("unexpected status code %d while deleting %s: %s", resp.StatusCode, p.fullURL(), body)
 	}
 	return nil
@@ -297,7 +297,7 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 	defer resp.Body.Close()
 	// Depending on version and configuration of the PGW, StatusOK or StatusAccepted may be returned.
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
-		body, _ := ioutil.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
+		body, _ := io.ReadAll(resp.Body) // Ignore any further error as this is for an error message only.
 		return fmt.Errorf("unexpected status code %d while pushing to %s: %s", resp.StatusCode, p.fullURL(), body)
 	}
 	return nil

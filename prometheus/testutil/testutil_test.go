@@ -14,6 +14,9 @@
 package testutil
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -305,6 +308,61 @@ Diff:
 
 	if err.Error() != expectedError {
 		t.Errorf("Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
+	}
+}
+
+func TestScrapeAndCompare(t *testing.T) {
+	const expected = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+	`
+
+	expectedReader := strings.NewReader(expected)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
+
+	if err := ScrapeAndCompare(ts.URL, expectedReader, "some_total"); err != nil {
+		t.Errorf("unexpected scraping result:\n%s", err)
+	}
+}
+
+func TestScrapeAndCompareFetchingFail(t *testing.T) {
+	err := ScrapeAndCompare("some_url", strings.NewReader("some expectation"), "some_total")
+	if err == nil {
+		t.Errorf("expected an error but got nil")
+	}
+	if !strings.HasPrefix(err.Error(), "scraping metrics failed") {
+		t.Errorf("unexpected error happened: %s", err)
+	}
+}
+
+func TestScrapeAndCompareBadStatusCode(t *testing.T) {
+	const expected = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+	`
+
+	expectedReader := strings.NewReader(expected)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
+
+	err := ScrapeAndCompare(ts.URL, expectedReader, "some_total")
+	if err == nil {
+		t.Errorf("expected an error but got nil")
+	}
+	if !strings.HasPrefix(err.Error(), "the scraping target returned a status code other than 200") {
+		t.Errorf("unexpected error happened: %s", err)
 	}
 }
 

@@ -19,6 +19,7 @@ package prometheus
 import (
 	"math"
 	"reflect"
+	"regexp"
 	"runtime"
 	"runtime/metrics"
 	"sync"
@@ -30,8 +31,17 @@ import (
 )
 
 func TestRmForMemStats(t *testing.T) {
-	if got, want := len(bestEffortLookupRM(rmForMemStats)), len(rmForMemStats); got != want {
+	descs := bestEffortLookupRM(rmNamesForMemStatsMetrics)
+
+	if got, want := len(descs), len(rmNamesForMemStatsMetrics); got != want {
 		t.Errorf("got %d, want %d metrics", got, want)
+	}
+
+	for _, d := range descs {
+		// We don't expect histograms there.
+		if d.Kind == metrics.KindFloat64Histogram {
+			t.Errorf("we don't expect to use histograms for MemStats metrics, got %v", d.Name)
+		}
 	}
 }
 
@@ -64,30 +74,43 @@ func addExpectedRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} 
 	return metrics
 }
 
-func TestGoCollector(t *testing.T) {
+func TestGoCollector_ExposedMetrics(t *testing.T) {
 	for _, tcase := range []struct {
-		collections       uint32
+		opts              internal.GoCollectorOptions
 		expectedFQNameSet map[string]struct{}
 	}{
 		{
-			collections:       0,
+			opts: internal.GoCollectorOptions{
+				DisableMemStatsLikeMetrics: true,
+			},
 			expectedFQNameSet: expectedBaseMetrics(),
 		},
 		{
-			collections:       goRuntimeMemStatsCollection,
+			// Default, only MemStats.
 			expectedFQNameSet: addExpectedRuntimeMemStats(expectedBaseMetrics()),
 		},
 		{
-			collections:       goRuntimeMetricsCollection,
+			// Get all runtime/metrics without MemStats.
+			opts: internal.GoCollectorOptions{
+				DisableMemStatsLikeMetrics: true,
+				RuntimeMetricRules: []internal.GoCollectorRule{
+					{Matcher: regexp.MustCompile("/.*")},
+				},
+			},
 			expectedFQNameSet: addExpectedRuntimeMetrics(expectedBaseMetrics()),
 		},
 		{
-			collections:       goRuntimeMemStatsCollection | goRuntimeMetricsCollection,
+			// Get all runtime/metrics and MemStats.
+			opts: internal.GoCollectorOptions{
+				RuntimeMetricRules: []internal.GoCollectorRule{
+					{Matcher: regexp.MustCompile("/.*")},
+				},
+			},
 			expectedFQNameSet: addExpectedRuntimeMemStats(addExpectedRuntimeMetrics(expectedBaseMetrics())),
 		},
 	} {
 		if ok := t.Run("", func(t *testing.T) {
-			goMetrics := collectGoMetrics(t, tcase.collections)
+			goMetrics := collectGoMetrics(t, tcase.opts)
 			goMetricSet := make(map[string]Metric)
 			for _, m := range goMetrics {
 				goMetricSet[m.Desc().fqName] = m
@@ -118,7 +141,11 @@ func TestGoCollector(t *testing.T) {
 var sink interface{}
 
 func TestBatchHistogram(t *testing.T) {
-	goMetrics := collectGoMetrics(t, goRuntimeMetricsCollection)
+	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
+		RuntimeMetricRules: []internal.GoCollectorRule{
+			{Matcher: regexp.MustCompile("/.*")},
+		},
+	})
 
 	var mhist Metric
 	for _, m := range goMetrics {
@@ -145,7 +172,8 @@ func TestBatchHistogram(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		sink = make([]byte, 128)
 	}
-	collectGoMetrics(t, defaultGoCollections)
+
+	collectGoMetrics(t, defaultGoCollectorOptions())
 	for i, v := range hist.counts {
 		if v != countsCopy[i] {
 			t.Error("counts changed during new collection")
@@ -194,11 +222,13 @@ func TestBatchHistogram(t *testing.T) {
 	}
 }
 
-func collectGoMetrics(t *testing.T, enabledCollections uint32) []Metric {
+func collectGoMetrics(t *testing.T, opts internal.GoCollectorOptions) []Metric {
 	t.Helper()
 
-	c := NewGoCollector(func(o *GoCollectorOptions) {
-		o.EnabledCollections = enabledCollections
+	c := NewGoCollector(func(o *internal.GoCollectorOptions) {
+		o.DisableMemStatsLikeMetrics = opts.DisableMemStatsLikeMetrics
+		o.RuntimeMetricSumForHist = opts.RuntimeMetricSumForHist
+		o.RuntimeMetricRules = opts.RuntimeMetricRules
 	}).(*goCollector)
 
 	// Collect all metrics.
@@ -222,7 +252,7 @@ func collectGoMetrics(t *testing.T, enabledCollections uint32) []Metric {
 
 func TestMemStatsEquivalence(t *testing.T) {
 	var msReal, msFake runtime.MemStats
-	descs := bestEffortLookupRM(rmForMemStats)
+	descs := bestEffortLookupRM(rmNamesForMemStatsMetrics)
 
 	samples := make([]metrics.Sample, len(descs))
 	samplesMap := make(map[string]*metrics.Sample)
@@ -269,7 +299,12 @@ func TestMemStatsEquivalence(t *testing.T) {
 }
 
 func TestExpectedRuntimeMetrics(t *testing.T) {
-	goMetrics := collectGoMetrics(t, goRuntimeMetricsCollection)
+	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
+		DisableMemStatsLikeMetrics: true,
+		RuntimeMetricRules: []internal.GoCollectorRule{
+			{Matcher: regexp.MustCompile("/.*")},
+		},
+	})
 	goMetricSet := make(map[string]Metric)
 	for _, m := range goMetrics {
 		goMetricSet[m.Desc().fqName] = m

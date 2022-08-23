@@ -485,7 +485,7 @@ func (m *SequenceMatcher) QuickRatio() float64 {
 	if m.fullBCount == nil {
 		m.fullBCount = map[string]int{}
 		for _, s := range m.b {
-			m.fullBCount[s] = m.fullBCount[s] + 1
+			m.fullBCount[s]++
 		}
 	}
 
