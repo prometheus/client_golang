@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
@@ -249,6 +250,19 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 		if len(mf.Metric) == 0 {
 			t.Errorf("metric family %s must not be empty", mf.GetName())
 		}
+	}
+
+	// make sure counters aren't double-incremented (see #1117)
+	expected := `
+		# HELP client_api_requests_total A counter for requests from the wrapped client.
+		# TYPE client_api_requests_total counter
+		client_api_requests_total{code="200",method="get"} 1
+	`
+
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(expected),
+		"client_api_requests_total",
+	); err != nil {
+		t.Fatal(err)
 	}
 }
 

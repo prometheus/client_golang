@@ -1254,3 +1254,37 @@ func TestNewMultiTRegistry(t *testing.T) {
 		}
 	})
 }
+
+// This example shows how to use multiple registries for registering and
+// unregistering groups of metrics.
+func ExampleRegistry_grouping() {
+	// Create a global registry.
+	globalReg := prometheus.NewRegistry()
+
+	// Spawn 10 workers, each of which will have their own group of metrics.
+	for i := 0; i < 10; i++ {
+		// Create a new registry for each worker, which acts as a group of
+		// worker-specific metrics.
+		workerReg := prometheus.NewRegistry()
+		globalReg.Register(workerReg)
+
+		go func(workerID int) {
+			// Once the worker is done, it can unregister itself.
+			defer globalReg.Unregister(workerReg)
+
+			workTime := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "worker_total_work_time_milliseconds",
+				ConstLabels: prometheus.Labels{
+					// Generate a label unique to this worker so its metric doesn't
+					// collide with the metrics from other workers.
+					"worker_id": fmt.Sprintf("%d", workerID),
+				},
+			})
+			workerReg.MustRegister(workTime)
+
+			start := time.Now()
+			time.Sleep(time.Millisecond * time.Duration(rand.Intn(100)))
+			workTime.Add(float64(time.Since(start).Milliseconds()))
+		}(i)
+	}
+}
