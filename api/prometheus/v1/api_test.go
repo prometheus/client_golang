@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1276,7 +1277,9 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 
 	test := <-c.ch
 
+	body := io.NopCloser(strings.NewReader(test.expectedBody))
 	resp := &http.Response{
+		Body:       body,
 		StatusCode: test.code,
 	}
 
@@ -1343,6 +1346,7 @@ func TestAPIClientDo(t *testing.T) {
 				Type: ErrBadData,
 				Msg:  "end timestamp must not be before start time",
 			},
+			expectedBody: `null`,
 		},
 		{
 			code:     http.StatusUnprocessableEntity,
@@ -1362,6 +1366,7 @@ func TestAPIClientDo(t *testing.T) {
 				Type: ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			},
+			expectedBody: `test`,
 		},
 		{
 			code: http.StatusUnprocessableEntity,
@@ -1375,6 +1380,7 @@ func TestAPIClientDo(t *testing.T) {
 				Type: ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			},
+			expectedBody: `test`,
 		},
 		{
 			code: http.StatusOK,
@@ -1388,6 +1394,7 @@ func TestAPIClientDo(t *testing.T) {
 				Type: ErrTimeout,
 				Msg:  "timed out",
 			},
+			expectedBody: `test`,
 		},
 		{
 			code: http.StatusOK,
@@ -1403,6 +1410,7 @@ func TestAPIClientDo(t *testing.T) {
 				Msg:  "timed out",
 			},
 			expectedWarnings: []string{"a"},
+			expectedBody:     `test`,
 		},
 	}
 

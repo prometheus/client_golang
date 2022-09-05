@@ -1122,11 +1122,19 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 	if err != nil {
 		return resp, nil, nil, err
 	}
+	code := resp.StatusCode
 
 	var result apiResponse
-	err = json.NewDecoder(resp.Body).Decode(&result)
 
-	code := resp.StatusCode
+	if http.StatusNoContent != code {
+		if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return resp, nil, nil, &Error{
+				Type: ErrBadResponse,
+				Msg:  err.Error(),
+			}
+		}
+
+	}
 
 	if code/100 != 2 && !apiError(code) {
 		errorType, errorMsg := errorTypeAndMsgFor(resp)
