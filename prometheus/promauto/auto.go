@@ -14,13 +14,13 @@
 // Package promauto provides alternative constructors for the fundamental
 // Prometheus metric types and their …Vec and …Func variants. The difference to
 // their counterparts in the prometheus package is that the promauto
-// constructors return Collectors that are already registered with a
-// registry. There are two sets of constructors. The constructors in the first
-// set are top-level functions, while the constructors in the other set are
-// methods of the Factory type. The top-level function return Collectors
-// registered with the global registry (prometheus.DefaultRegisterer), while the
-// methods return Collectors registered with the registry the Factory was
-// constructed with. All constructors panic if the registration fails.
+// constructors register the Collectors with a registry before returning them.
+// There are two sets of constructors. The constructors in the first set are
+// top-level functions, while the constructors in the other set are methods of
+// the Factory type. The top-level function return Collectors registered with
+// the global registry (prometheus.DefaultRegisterer), while the methods return
+// Collectors registered with the registry the Factory was constructed with. All
+// constructors panic if the registration fails.
 //
 // The following example is a complete program to create a histogram of normally
 // distributed random numbers from the math/rand package:
