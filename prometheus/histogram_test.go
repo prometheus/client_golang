@@ -359,7 +359,7 @@ func TestBuckets(t *testing.T) {
 		35.9381, 59.9484, 100.0000,
 	}
 	const tolerance = 0.0001
-	if !equalFloat64s(got, want, 0.0001) {
+	if !equalFloat64s(got, want, tolerance) {
 		t.Errorf("exponential buckets range: got %v, want %v (tolerance %f)", got, want, tolerance)
 	}
 }
