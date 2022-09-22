@@ -48,7 +48,7 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // InstrumentRoundTripperCounter is a middleware that wraps the provided
 // http.RoundTripper to observe the request result with the provided CounterVec.
 // The CounterVec must have zero, one, or two non-const non-curried labels. For
-// those, the only allowed label names are "code" and "method". The function
+// those, the only allowed label names are "code", "method" and "path". The function
 // panics otherwise. For the "method" label a predefined default label value set
 // is used to filter given values. Values besides predefined values will count
 // as `unknown` method.`WithExtraMethods` can be used to add more
@@ -60,6 +60,7 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // is not incremented.
 //
 // Use with WithExemplarFromContext to instrument the exemplars on the counter of requests.
+// Use with WithRequestPath to associate the request path with the context.
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
@@ -68,13 +69,13 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 		o.apply(rtOpts)
 	}
 
-	code, method := checkLabels(counter)
+	code, method, path := checkLabels(counter)
 
 	return func(r *http.Request) (*http.Response, error) {
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			addWithExemplar(
-				counter.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)),
+				counter.With(labels(code, method, path, r.Method, resp.StatusCode, rtOpts.getRequestPathFn(r), rtOpts.extraMethods...)),
 				1,
 				rtOpts.getExemplarFn(r.Context()),
 			)
@@ -86,8 +87,8 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // InstrumentRoundTripperDuration is a middleware that wraps the provided
 // http.RoundTripper to observe the request duration with the provided
 // ObserverVec.  The ObserverVec must have zero, one, or two non-const
-// non-curried labels. For those, the only allowed label names are "code" and
-// "method". The function panics otherwise. For the "method" label a predefined
+// non-curried labels. For those, the only allowed label names are "code", "method"
+// and "path". The function panics otherwise. For the "method" label a predefined
 // default label value set is used to filter given values. Values besides
 // predefined values will count as `unknown` method. `WithExtraMethods`
 // can be used to add more methods to the set. The Observe method of the Observer
@@ -101,6 +102,7 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // reported.
 //
 // Use with WithExemplarFromContext to instrument the exemplars on the duration histograms.
+// Use with WithRequestPath to associate the request path with the context.
 //
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
@@ -110,14 +112,14 @@ func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundT
 		o.apply(rtOpts)
 	}
 
-	code, method := checkLabels(obs)
+	code, method, path := checkLabels(obs)
 
 	return func(r *http.Request) (*http.Response, error) {
 		start := time.Now()
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			observeWithExemplar(
-				obs.With(labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)),
+				obs.With(labels(code, method, path, r.Method, resp.StatusCode, rtOpts.getRequestPathFn(r), rtOpts.extraMethods...)),
 				time.Since(start).Seconds(),
 				rtOpts.getExemplarFn(r.Context()),
 			)

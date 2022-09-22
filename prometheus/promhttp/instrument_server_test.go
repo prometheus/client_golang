@@ -50,22 +50,28 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{},
 			ok:            true,
 		},
-		"code and method as var labels": {
-			varLabels:     []string{"method", "code"},
+		"path as single var label": {
+			varLabels:     []string{"path"},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            true,
+		},
+		"code, method and path as var labels": {
+			varLabels:     []string{"method", "code", "path"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
 			ok:            true,
 		},
 		"valid case with all labels used": {
-			varLabels:     []string{"code", "method"},
-			constLabels:   []string{"foo", "bar"},
-			curriedLabels: []string{"dings", "bums"},
+			varLabels:     []string{"code", "method", "path"},
+			constLabels:   []string{"foo", "bar", "baz"},
+			curriedLabels: []string{"dings", "bums", "pat"},
 			ok:            true,
 		},
 		"all labels used with an invalid const label name": {
-			varLabels:     []string{"code", "method"},
-			constLabels:   []string{"in-valid", "bar"},
-			curriedLabels: []string{"dings", "bums"},
+			varLabels:     []string{"code", "method", "path"},
+			constLabels:   []string{"in-valid", "bar", "baz"},
+			curriedLabels: []string{"dings", "bums", "pat"},
 			ok:            false,
 		},
 		"unsupported var label": {
@@ -75,7 +81,7 @@ func TestLabelCheck(t *testing.T) {
 			ok:            false,
 		},
 		"mixed var labels": {
-			varLabels:     []string{"method", "foo", "code"},
+			varLabels:     []string{"method", "foo", "code", "path"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
 			ok:            false,
@@ -87,7 +93,7 @@ func TestLabelCheck(t *testing.T) {
 			ok:            true,
 		},
 		"mixed var labels but unsupported curried": {
-			varLabels:     []string{"code", "method"},
+			varLabels:     []string{"code", "method", "path"},
 			constLabels:   []string{},
 			curriedLabels: []string{"foo"},
 			ok:            true,
@@ -113,9 +119,9 @@ func TestLabelCheck(t *testing.T) {
 		},
 		"invalid name with all the otherwise valid labels": {
 			metricName:    "in-valid",
-			varLabels:     []string{"code", "method"},
-			constLabels:   []string{"foo", "bar"},
-			curriedLabels: []string{"dings", "bums"},
+			varLabels:     []string{"code", "method", "path"},
+			constLabels:   []string{"foo", "bar", "baz"},
+			curriedLabels: []string{"dings", "bums", "pat"},
 			ok:            false,
 		},
 	}
@@ -177,7 +183,7 @@ func TestLabelCheck(t *testing.T) {
 			}()
 			if sc.ok {
 				// Test if wantCode and wantMethod were detected correctly.
-				var wantCode, wantMethod bool
+				var wantCode, wantMethod, wantPath bool
 				for _, l := range sc.varLabels {
 					if l == "code" {
 						wantCode = true
@@ -185,20 +191,29 @@ func TestLabelCheck(t *testing.T) {
 					if l == "method" {
 						wantMethod = true
 					}
+					if l == "path" {
+						wantPath = true
+					}
 				}
-				gotCode, gotMethod := checkLabels(c)
+				gotCode, gotMethod, gotPath := checkLabels(c)
 				if gotCode != wantCode {
 					t.Errorf("wanted code=%t for counter, got code=%t", wantCode, gotCode)
 				}
 				if gotMethod != wantMethod {
 					t.Errorf("wanted method=%t for counter, got method=%t", wantMethod, gotMethod)
 				}
-				gotCode, gotMethod = checkLabels(o)
+				if gotPath != wantPath {
+					t.Errorf("wanted path=%t for counter, got path=%t", wantPath, gotPath)
+				}
+				gotCode, gotMethod, gotPath = checkLabels(o)
 				if gotCode != wantCode {
 					t.Errorf("wanted code=%t for observer, got code=%t", wantCode, gotCode)
 				}
 				if gotMethod != wantMethod {
 					t.Errorf("wanted method=%t for observer, got method=%t", wantMethod, gotMethod)
+				}
+				if gotPath != wantPath {
+					t.Errorf("wanted path=%t for observer, got path=%t", wantPath, gotPath)
 				}
 			}
 		})
@@ -209,6 +224,7 @@ func TestLabels(t *testing.T) {
 	scenarios := map[string]struct {
 		varLabels    []string
 		reqMethod    string
+		reqPath      string
 		respStatus   int
 		extraMethods []string
 		wantLabels   prometheus.Labels
@@ -218,12 +234,14 @@ func TestLabels(t *testing.T) {
 			varLabels:  []string{},
 			wantLabels: emptyLabels,
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 200,
 			ok:         true,
 		},
 		"code as single var label": {
 			varLabels:  []string{"code"},
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 200,
 			wantLabels: prometheus.Labels{"code": "200"},
 			ok:         true,
@@ -231,6 +249,7 @@ func TestLabels(t *testing.T) {
 		"code as single var label and out-of-range code": {
 			varLabels:  []string{"code"},
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 99,
 			wantLabels: prometheus.Labels{"code": "unknown"},
 			ok:         true,
@@ -238,6 +257,7 @@ func TestLabels(t *testing.T) {
 		"code as single var label and in-range but unrecognized code": {
 			varLabels:  []string{"code"},
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 308,
 			wantLabels: prometheus.Labels{"code": "308"},
 			ok:         true,
@@ -245,6 +265,7 @@ func TestLabels(t *testing.T) {
 		"method as single var label": {
 			varLabels:  []string{"method"},
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 200,
 			wantLabels: prometheus.Labels{"method": "get"},
 			ok:         true,
@@ -252,15 +273,25 @@ func TestLabels(t *testing.T) {
 		"method as single var label and unknown method": {
 			varLabels:  []string{"method"},
 			reqMethod:  "CUSTOM_METHOD",
+			reqPath:    "/path",
 			respStatus: 200,
 			wantLabels: prometheus.Labels{"method": "unknown"},
 			ok:         true,
 		},
-		"code and method as var labels": {
-			varLabels:  []string{"method", "code"},
+		"path as single var label": {
+			varLabels:  []string{"path"},
 			reqMethod:  "GET",
+			reqPath:    "/path",
 			respStatus: 200,
-			wantLabels: prometheus.Labels{"method": "get", "code": "200"},
+			wantLabels: prometheus.Labels{"path": "/path"},
+			ok:         true,
+		},
+		"code, method and path as var labels": {
+			varLabels:  []string{"method", "code", "path"},
+			reqMethod:  "GET",
+			reqPath:    "/path",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "get", "code": "200", "path": "/path"},
 			ok:         true,
 		},
 		"method as single var label with extra methods specified": {
@@ -279,13 +310,15 @@ func TestLabels(t *testing.T) {
 			ok:         false,
 		},
 	}
-	checkLabels := func(labels []string) (gotCode, gotMethod bool) {
+	checkLabels := func(labels []string) (gotCode, gotMethod, gotPath bool) {
 		for _, label := range labels {
 			switch label {
 			case "code":
 				gotCode = true
 			case "method":
 				gotMethod = true
+			case "path":
+				gotPath = true
 			default:
 				panic("metric partitioned with non-supported labels for this test")
 			}
@@ -311,8 +344,8 @@ func TestLabels(t *testing.T) {
 	for name, sc := range scenarios {
 		t.Run(name, func(t *testing.T) {
 			if sc.ok {
-				gotCode, gotMethod := checkLabels(sc.varLabels)
-				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
+				gotCode, gotMethod, gotPath := checkLabels(sc.varLabels)
+				gotLabels := labels(gotCode, gotMethod, gotPath, sc.reqMethod, sc.respStatus, sc.reqPath, sc.extraMethods...)
 				if !equalLabels(gotLabels, sc.wantLabels) {
 					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
 				}
@@ -334,7 +367,7 @@ func makeInstrumentedHandler(handler http.HandlerFunc, opts ...Option) (http.Han
 			Name: "api_requests_total",
 			Help: "A counter for requests to the wrapped handler.",
 		},
-		[]string{"code", "method"},
+		[]string{"code", "method", "path"},
 	)
 
 	histVec := prometheus.NewHistogramVec(
@@ -500,7 +533,7 @@ func ExampleInstrumentHandlerDuration() {
 			Name: "api_requests_total",
 			Help: "A counter for requests to the wrapped handler.",
 		},
-		[]string{"code", "method"},
+		[]string{"code", "method", "path"},
 	)
 
 	// duration is partitioned by the HTTP method and handler. It uses custom

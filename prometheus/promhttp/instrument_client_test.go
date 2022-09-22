@@ -47,7 +47,7 @@ func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry)
 			Name: "client_api_requests_total",
 			Help: "A counter for requests from the wrapped client.",
 		},
-		[]string{"code", "method"},
+		[]string{"code", "method", "path"},
 	)
 
 	dnsLatencyVec := prometheus.NewHistogramVec(
@@ -228,8 +228,9 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 
+	ctx := WithRequestPath(context.Background(), "/home")
 	// Set a context with a long timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
 	req = req.WithContext(ctx)
 
@@ -256,7 +257,7 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	expected := `
 		# HELP client_api_requests_total A counter for requests from the wrapped client.
 		# TYPE client_api_requests_total counter
-		client_api_requests_total{code="200",method="get"} 1
+		client_api_requests_total{code="200",method="get",path="/home"} 1
 	`
 
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(expected),
@@ -310,7 +311,7 @@ func ExampleInstrumentRoundTripperDuration() {
 			Name: "client_api_requests_total",
 			Help: "A counter for requests from the wrapped client.",
 		},
-		[]string{"code", "method"},
+		[]string{"code", "method", "path"},
 	)
 
 	// dnsLatencyVec uses custom buckets based on expected dns durations.
@@ -381,7 +382,12 @@ func ExampleInstrumentRoundTripperDuration() {
 	// Set the RoundTripper on our client.
 	client.Transport = roundTripper
 
-	resp, err := client.Get("http://google.com")
+	ctx := WithRequestPath(context.Background(), "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://google.com", nil)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("error: %v", err)
 	}
