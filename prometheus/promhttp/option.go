@@ -15,6 +15,7 @@ package promhttp
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -26,12 +27,16 @@ type Option interface {
 
 // options store options for both a handler or round tripper.
 type options struct {
-	extraMethods  []string
-	getExemplarFn func(requestCtx context.Context) prometheus.Labels
+	extraMethods     []string
+	getExemplarFn    func(requestCtx context.Context) prometheus.Labels
+	getRequestPathFn func(request *http.Request) string
 }
 
 func defaultOptions() *options {
-	return &options{getExemplarFn: func(ctx context.Context) prometheus.Labels { return nil }}
+	return &options{
+		getExemplarFn:    func(ctx context.Context) prometheus.Labels { return nil },
+		getRequestPathFn: func(request *http.Request) string { return pathFromContext(request.Context()) },
+	}
 }
 
 type optionApplyFunc func(*options)
@@ -54,5 +59,11 @@ func WithExtraMethods(methods ...string) Option {
 func WithExemplarFromContext(getExemplarFn func(requestCtx context.Context) prometheus.Labels) Option {
 	return optionApplyFunc(func(o *options) {
 		o.getExemplarFn = getExemplarFn
+	})
+}
+
+func WithRequestPathFromContext(getRequestPathFn func(request *http.Request) string) Option {
+	return optionApplyFunc(func(o *options) {
+		o.getRequestPathFn = getRequestPathFn
 	})
 }
