@@ -28,6 +28,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/client_golang/prometheus/internal"
+
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -358,9 +360,9 @@ func TestBuckets(t *testing.T) {
 		1.0, 1.6681, 2.7825, 4.6415, 7.7426, 12.9154, 21.5443,
 		35.9381, 59.9484, 100.0000,
 	}
-	const tolerance = 0.0001
-	if !equalFloat64s(got, want, tolerance) {
-		t.Errorf("exponential buckets range: got %v, want %v (tolerance %f)", got, want, tolerance)
+	const epsilon = 0.0001
+	if !internal.AlmostEqualFloat64s(got, want, epsilon) {
+		t.Errorf("exponential buckets range: got %v, want %v (epsilon %f)", got, want, epsilon)
 	}
 }
 
@@ -465,24 +467,4 @@ func TestHistogramExemplar(t *testing.T) {
 			t.Errorf("expected exemplar %s, got %s.", expected, got)
 		}
 	}
-}
-
-// equalFloat64 returns true if a and b are within the tolerance. We have this
-// because float comparison varies on different architectures. For example,
-// architectures which do FMA yield slightly different results.
-// https://github.com/prometheus/client_golang/pull/899#issuecomment-1244506390
-func equalFloat64(a, b, tolerance float64) bool {
-	return math.Abs(a-b) < tolerance
-}
-
-func equalFloat64s(a, b []float64, tolerance float64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !equalFloat64(a[i], b[i], tolerance) {
-			return false
-		}
-	}
-	return true
 }
