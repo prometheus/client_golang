@@ -548,13 +548,13 @@ func TestSparseHistogram(t *testing.T) {
 			name:         "+Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(+1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_span:<offset:2147483642 length:1 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 positive_delta:-1 `,
+			want:         `sample_count:7 sample_sum:inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "-Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(-1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:-inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:2147483647 length:1 > negative_delta:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
+			want:         `sample_count:7 sample_sum:-inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "limited buckets but nothing triggered",

@@ -577,7 +577,9 @@ func (hc *histogramCounts) observe(v float64, bucket int, doSparse bool) {
 		atomic.AddUint64(&hc.buckets[bucket], 1)
 	}
 	atomicAddFloat(&hc.sumBits, v)
-	if doSparse {
+
+	// Only handle sparse buckets if requested, and only if v is a regular number.
+	if doSparse && !math.IsInf(v, 0) && !math.IsNaN(v) {
 		var (
 			sparseKey           int
 			sparseSchema        = atomic.LoadInt32(&hc.sparseSchema)
@@ -585,13 +587,10 @@ func (hc *histogramCounts) observe(v float64, bucket int, doSparse bool) {
 			frac, exp           = math.Frexp(math.Abs(v))
 			bucketCreated       bool
 		)
-		switch {
-		case math.IsInf(v, 0):
-			sparseKey = math.MaxInt32 // Largest possible sparseKey.
-		case sparseSchema > 0:
+		if sparseSchema > 0 {
 			bounds := sparseBounds[sparseSchema]
 			sparseKey = sort.SearchFloat64s(bounds, frac) + (exp-1)*len(bounds)
-		default:
+		} else {
 			sparseKey = exp
 			if frac == 0.5 {
 				sparseKey--
@@ -1062,7 +1061,8 @@ func (v *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 // WithLabelValues works as GetMetricWithLabelValues, but panics where
 // GetMetricWithLabelValues would have returned an error. Not returning an
 // error allows shortcuts like
-//     myVec.WithLabelValues("404", "GET").Observe(42.21)
+//
+//	myVec.WithLabelValues("404", "GET").Observe(42.21)
 func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
 	h, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
@@ -1073,7 +1073,8 @@ func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
 
 // With works as GetMetricWith but panics where GetMetricWithLabels would have
 // returned an error. Not returning an error allows shortcuts like
-//     myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
+//
+//	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
 func (v *HistogramVec) With(labels Labels) Observer {
 	h, err := v.GetMetricWith(labels)
 	if err != nil {
@@ -1219,8 +1220,8 @@ func (s buckSort) Less(i, j int) bool {
 // 2^(2^-n) is less or equal the provided bucketFactor.
 //
 // Special cases:
-//     - bucketFactor <= 1: panics.
-//     - bucketFactor < 2^(2^-8) (but > 1): still returns 8.
+//   - bucketFactor <= 1: panics.
+//   - bucketFactor < 2^(2^-8) (but > 1): still returns 8.
 func pickSparseSchema(bucketFactor float64) int32 {
 	if bucketFactor <= 1 {
 		panic(fmt.Errorf("bucketFactor %f is <=1", bucketFactor))
