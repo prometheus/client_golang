@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 )
 
@@ -45,97 +44,6 @@ func calculateRatio(matches, length int) float64 {
 		return 2.0 * float64(matches) / float64(length)
 	}
 	return 1.0
-}
-
-var (
-	// minNormalFloat64 is the smallest positive normal value of type float64.
-	minNormalFloat64 = math.Float64frombits(0x0010000000000000)
-
-	// minNormalFloat32 is the smallest positive normal value of type float32.
-	minNormalFloat32 = math.Float32frombits(0x00800000)
-)
-
-// AlmostEqualFloat64 returns true if a and b are equal within a relative error
-// of epsilon. See http://floating-point-gui.de/errors/comparison/ for the
-// details of the applied method.
-//
-// This function is copy/paste to avoid a dependency.
-// https://github.com/beorn7/floats
-func AlmostEqualFloat64(a, b, epsilon float64) bool {
-	if a == b {
-		return true
-	}
-	absA := math.Abs(a)
-	absB := math.Abs(b)
-	diff := math.Abs(a - b)
-	if a == 0 || b == 0 || absA+absB < minNormalFloat64 {
-		return diff < epsilon*minNormalFloat64
-	}
-	return diff/math.Min(absA+absB, math.MaxFloat64) < epsilon
-}
-
-// AlmostEqualFloat64s is the slice form of AlmostEqualFloat64.
-func AlmostEqualFloat64s(a, b []float64, epsilon float64) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !AlmostEqualFloat64(a[i], b[i], epsilon) {
-			return false
-		}
-	}
-	return true
-}
-
-// AlmostEqualFloat32 returns true if a and b are equal within a relative error
-// of epsilon. See http://floating-point-gui.de/errors/comparison/ for the
-// details of the applied method.
-//
-// This function is copy/paste to avoid a dependency.
-// https://github.com/beorn7/floats
-func AlmostEqualFloat32(a, b, epsilon float32) bool {
-	if a == b {
-		return true
-	}
-	absA := AbsFloat32(a)
-	absB := AbsFloat32(b)
-	diff := AbsFloat32(a - b)
-	if a == 0 || b == 0 || absA+absB < minNormalFloat32 {
-		return diff < epsilon*minNormalFloat32
-	}
-	return diff/MinFloat32(absA+absB, math.MaxFloat32) < epsilon
-}
-
-// AlmostEqualFloat32s is the slice form of AlmostEqualFloat32.
-func AlmostEqualFloat32s(a, b []float32, epsilon float32) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if !AlmostEqualFloat32(a[i], b[i], epsilon) {
-			return false
-		}
-	}
-	return true
-}
-
-// AbsFloat32 works like math.Abs, but for float32.
-func AbsFloat32(x float32) float32 {
-	switch {
-	case x < 0:
-		return -x
-	case x == 0:
-		return 0 // return correctly abs(-0)
-	}
-	return x
-}
-
-// MinFloat32 works like math.Min, but for float32.
-func MinFloat32(x, y float32) float32 {
-	if x < y {
-		return x
-	}
-	return y
 }
 
 type Match struct {
