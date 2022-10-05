@@ -548,13 +548,13 @@ func TestSparseHistogram(t *testing.T) {
 			name:         "+Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(+1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_span:<offset:2147483642 length:1 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 positive_delta:-1 `,
+			want:         `sample_count:7 sample_sum:inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 positive_span:<offset:0 length:5 > positive_span:<offset:4092 length:1 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 positive_delta:-1 `,
 		},
 		{
 			name:         "-Inf observation",
 			observations: []float64{0, 1, 1.2, 1.4, 1.8, 2, math.Inf(-1)},
 			factor:       1.2,
-			want:         `sample_count:7 sample_sum:-inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:2147483647 length:1 > negative_delta:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
+			want:         `sample_count:7 sample_sum:-inf schema:2 zero_threshold:2.938735877055719e-39 zero_count:1 negative_span:<offset:4097 length:1 > negative_delta:1 positive_span:<offset:0 length:5 > positive_delta:1 positive_delta:-1 positive_delta:2 positive_delta:-2 positive_delta:2 `,
 		},
 		{
 			name:         "limited buckets but nothing triggered",
@@ -780,5 +780,96 @@ func TestSparseHistogramConcurrency(t *testing.T) {
 
 	if err := quick.Check(it, nil); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestGetLe(t *testing.T) {
+	scenarios := []struct {
+		key    int
+		schema int32
+		want   float64
+	}{
+		{
+			key:    -1,
+			schema: -1,
+			want:   0.25,
+		},
+		{
+			key:    0,
+			schema: -1,
+			want:   1,
+		},
+		{
+			key:    1,
+			schema: -1,
+			want:   4,
+		},
+		{
+			key:    512,
+			schema: -1,
+			want:   math.MaxFloat64,
+		},
+		{
+			key:    513,
+			schema: -1,
+			want:   math.Inf(+1),
+		},
+		{
+			key:    -1,
+			schema: 0,
+			want:   0.5,
+		},
+		{
+			key:    0,
+			schema: 0,
+			want:   1,
+		},
+		{
+			key:    1,
+			schema: 0,
+			want:   2,
+		},
+		{
+			key:    1024,
+			schema: 0,
+			want:   math.MaxFloat64,
+		},
+		{
+			key:    1025,
+			schema: 0,
+			want:   math.Inf(+1),
+		},
+		{
+			key:    -1,
+			schema: 2,
+			want:   0.8408964152537144,
+		},
+		{
+			key:    0,
+			schema: 2,
+			want:   1,
+		},
+		{
+			key:    1,
+			schema: 2,
+			want:   1.189207115002721,
+		},
+		{
+			key:    4096,
+			schema: 2,
+			want:   math.MaxFloat64,
+		},
+		{
+			key:    4097,
+			schema: 2,
+			want:   math.Inf(+1),
+		},
+	}
+
+	for i, s := range scenarios {
+		got := getLe(s.key, s.schema)
+		if s.want != got {
+			t.Errorf("%d. key %d, schema %d, want upper bound of %g, got %g", i, s.key, s.schema, s.want, got)
+		}
 	}
 }

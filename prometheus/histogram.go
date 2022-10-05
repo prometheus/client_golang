@@ -577,27 +577,36 @@ func (hc *histogramCounts) observe(v float64, bucket int, doSparse bool) {
 		atomic.AddUint64(&hc.buckets[bucket], 1)
 	}
 	atomicAddFloat(&hc.sumBits, v)
-	if doSparse {
+	if doSparse && !math.IsNaN(v) {
 		var (
-			sparseKey           int
-			sparseSchema        = atomic.LoadInt32(&hc.sparseSchema)
-			sparseZeroThreshold = math.Float64frombits(atomic.LoadUint64(&hc.sparseZeroThresholdBits))
-			frac, exp           = math.Frexp(math.Abs(v))
-			bucketCreated       bool
+			sparseKey            int
+			sparseSchema         = atomic.LoadInt32(&hc.sparseSchema)
+			sparseZeroThreshold  = math.Float64frombits(atomic.LoadUint64(&hc.sparseZeroThresholdBits))
+			bucketCreated, isInf bool
 		)
-		switch {
-		case math.IsInf(v, 0):
-			sparseKey = math.MaxInt32 // Largest possible sparseKey.
-		case sparseSchema > 0:
+		if math.IsInf(v, 0) {
+			// Pretend v is MaxFloat64 but later increment sparseKey by one.
+			if math.IsInf(v, +1) {
+				v = math.MaxFloat64
+			} else {
+				v = -math.MaxFloat64
+			}
+			isInf = true
+		}
+		frac, exp := math.Frexp(math.Abs(v))
+		if sparseSchema > 0 {
 			bounds := sparseBounds[sparseSchema]
 			sparseKey = sort.SearchFloat64s(bounds, frac) + (exp-1)*len(bounds)
-		default:
+		} else {
 			sparseKey = exp
 			if frac == 0.5 {
 				sparseKey--
 			}
 			div := 1 << -sparseSchema
 			sparseKey = (sparseKey + div - 1) / div
+		}
+		if isInf {
+			sparseKey++
 		}
 		switch {
 		case v > sparseZeroThreshold:
@@ -1062,7 +1071,8 @@ func (v *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 // WithLabelValues works as GetMetricWithLabelValues, but panics where
 // GetMetricWithLabelValues would have returned an error. Not returning an
 // error allows shortcuts like
-//     myVec.WithLabelValues("404", "GET").Observe(42.21)
+//
+//	myVec.WithLabelValues("404", "GET").Observe(42.21)
 func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
 	h, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
@@ -1073,7 +1083,8 @@ func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
 
 // With works as GetMetricWith but panics where GetMetricWithLabels would have
 // returned an error. Not returning an error allows shortcuts like
-//     myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
+//
+//	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
 func (v *HistogramVec) With(labels Labels) Observer {
 	h, err := v.GetMetricWith(labels)
 	if err != nil {
@@ -1219,8 +1230,8 @@ func (s buckSort) Less(i, j int) bool {
 // 2^(2^-n) is less or equal the provided bucketFactor.
 //
 // Special cases:
-//     - bucketFactor <= 1: panics.
-//     - bucketFactor < 2^(2^-8) (but > 1): still returns 8.
+//   - bucketFactor <= 1: panics.
+//   - bucketFactor < 2^(2^-8) (but > 1): still returns 8.
 func pickSparseSchema(bucketFactor float64) int32 {
 	if bucketFactor <= 1 {
 		panic(fmt.Errorf("bucketFactor %f is <=1", bucketFactor))
@@ -1346,13 +1357,55 @@ func findSmallestKey(m *sync.Map) int {
 }
 
 func getLe(key int, schema int32) float64 {
+	// Here a bit of context about the behavior for the last bucket counting
+	// regular numbers (called simply "last bucket" below) and the bucket
+	// counting observations of ±Inf (called "inf bucket" below, with a key
+	// one higher than that of the "last bucket"):
+	//
+	// If we apply the usual formula to the last bucket, its upper bound
+	// would be calculated as +Inf. The reason is that the max possible
+	// regular float64 number (math.MaxFloat64) doesn't coincide with one of
+	// the calculated bucket boundaries. So the calculated boundary has to
+	// be larger than math.MaxFloat64, and the only float64 larger than
+	// math.MaxFloat64 is +Inf. However, we want to count actual
+	// observations of ±Inf in the inf bucket. Therefore, we have to treat
+	// the upper bound of the last bucket specially and set it to
+	// math.MaxFloat64. (The upper bound of the inf bucket, with its key
+	// being one higher than that of the last bucket, naturally comes out as
+	// +Inf by the usual formula. So that's fine.)
+	//
+	// math.MaxFloat64 has a frac of 0.9999999999999999 and an exp of
+	// 1024. If there were a float64 number following math.MaxFloat64, it
+	// would have a frac of 1.0 and an exp of 1024, or equivalently a frac
+	// of 0.5 and an exp of 1025. However, since frac must be smaller than
+	// 1, and exp must be smaller than 1025, either representation overflows
+	// a float64. (Which, in turn, is the reason that math.MaxFloat64 is the
+	// largest possible float64. Q.E.D.) However, the formula for
+	// calculating the upper bound from the idx and schema of the last
+	// bucket results in precisely that. It is either frac=1.0 & exp=1024
+	// (for schema < 0) or frac=0.5 & exp=1025 (for schema >=0). (This is,
+	// by the way, a power of two where the exponent itself is a power of
+	// two, 2¹⁰ in fact, which coinicides with a bucket boundary in all
+	// schemas.) So these are the special cases we have to catch below.
 	if schema < 0 {
-		return math.Ldexp(1, key<<(-schema))
+		exp := key << -schema
+		if exp == 1024 {
+			// This is the last bucket before the overflow bucket
+			// (for ±Inf observations). Return math.MaxFloat64 as
+			// explained above.
+			return math.MaxFloat64
+		}
+		return math.Ldexp(1, exp)
 	}
 
 	fracIdx := key & ((1 << schema) - 1)
 	frac := sparseBounds[schema][fracIdx]
 	exp := (key >> schema) + 1
+	if frac == 0.5 && exp == 1025 {
+		// This is the last bucket before the overflow bucket (for ±Inf
+		// observations). Return math.MaxFloat64 as explained above.
+		return math.MaxFloat64
+	}
 	return math.Ldexp(frac, exp)
 }
 
