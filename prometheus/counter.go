@@ -140,12 +140,12 @@ func (c *counter) get() float64 {
 }
 
 func (c *counter) Write(out *dto.Metric) error {
-	val := c.get()
 
 	var exemplar *dto.Exemplar
 	if e := c.exemplar.Load(); e != nil {
 		exemplar = e.(*dto.Exemplar)
 	}
+	val := c.get()
 
 	return populateMetric(CounterValue, val, c.labelPairs, exemplar, out)
 }
