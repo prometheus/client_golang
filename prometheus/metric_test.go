@@ -81,12 +81,12 @@ func TestWithExemplarsMetric(t *testing.T) {
 
 		infBucket := metric.GetHistogram().Bucket[len(metric.GetHistogram().Bucket)-1]
 
-		if upperBound := infBucket.GetUpperBound(); upperBound != math.Inf(1) {
-			t.Errorf("want %v, got %v", math.Inf(1), upperBound)
+		if want, got := infBucket.GetUpperBound(), math.Inf(1); want != got {
+			t.Errorf("want %v, got %v", want, got)
 		}
 
-		if cumulativeCount := infBucket.GetCumulativeCount(); cumulativeCount != 4711 {
-			t.Errorf("want %v, got %v", 4711, cumulativeCount)
+		if want, got := infBucket.GetCumulativeCount(), uint64(4711); want != got {
+			t.Errorf("want %v, got %v", want, got)
 		}
 	})
 }
