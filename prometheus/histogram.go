@@ -217,18 +217,22 @@ var sparseBounds = [][]float64{
 // }
 
 // A Histogram counts individual observations from an event or sample stream in
-// configurable buckets. Similar to a summary, it also provides a sum of
+// configurable buckets. Similar to a Summary, it also provides a sum of
 // observations and an observation count.
 //
 // On the Prometheus server, quantiles can be calculated from a Histogram using
-// the histogram_quantile function in the query language.
+// the histogram_quantile PromQL function.
 //
-// Note that Histograms, in contrast to Summaries, can be aggregated with the
-// Prometheus query language (see the documentation for detailed
-// procedures). However, Histograms require the user to pre-define suitable
-// buckets, and they are in general less accurate. The Observe method of a
-// Histogram has a very low performance overhead in comparison with the Observe
-// method of a Summary.
+// Note that Histograms, in contrast to Summaries, can be aggregated in PromQL
+// (see the documentation for detailed procedures). However, Histograms require
+// the user to pre-define suitable buckets, and they are in general less
+// accurate. (Both problems are addressed by the experimental Native
+// Histograms. To use them, configure so-called sparse buckets in the
+// HistogramOpts. They also require a Prometheus server v2.40+ with the
+// corresponding feature flag enabled.)
+//
+// The Observe method of a Histogram has a very low performance overhead in
+// comparison with the Observe method of a Summary.
 //
 // To create Histogram instances, use NewHistogram.
 type Histogram interface {
@@ -238,7 +242,8 @@ type Histogram interface {
 	// Observe adds a single observation to the histogram. Observations are
 	// usually positive or zero. Negative observations are accepted but
 	// prevent current versions of Prometheus from properly detecting
-	// counter resets in the sum of observations. See
+	// counter resets in the sum of observations. (The experimental Native
+	// Histograms handle negative observations properly.) See
 	// https://prometheus.io/docs/practices/histograms/#count-and-sum-of-observations
 	// for details.
 	Observe(float64)
@@ -261,14 +266,19 @@ var DefBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 // which is a bucket boundary at all possible resolutions.
 const DefSparseBucketsZeroThreshold = 2.938735877055719e-39
 
+// SparseBucketsZeroThresholdZero can be used as SparseBucketsZeroThreshold in
+// the HistogramOpts to create a zero bucket of width zero, i.e. a zero bucket
+// that only receives observations of precisely zero.
+const SparseBucketsZeroThresholdZero = -1
+
 var errBucketLabelNotAllowed = fmt.Errorf(
 	"%q is not allowed as label name in histograms", bucketLabel,
 )
 
-// LinearBuckets creates 'count' buckets, each 'width' wide, where the lowest
-// bucket has an upper bound of 'start'. The final +Inf bucket is not counted
-// and not included in the returned slice. The returned slice is meant to be
-// used for the Buckets field of HistogramOpts.
+// LinearBuckets creates 'count' regular buckets, each 'width' wide, where the
+// lowest bucket has an upper bound of 'start'. The final +Inf bucket is not
+// counted and not included in the returned slice. The returned slice is meant
+// to be used for the Buckets field of HistogramOpts.
 //
 // The function panics if 'count' is zero or negative.
 func LinearBuckets(start, width float64, count int) []float64 {
@@ -283,11 +293,11 @@ func LinearBuckets(start, width float64, count int) []float64 {
 	return buckets
 }
 
-// ExponentialBuckets creates 'count' buckets, where the lowest bucket has an
-// upper bound of 'start' and each following bucket's upper bound is 'factor'
-// times the previous bucket's upper bound. The final +Inf bucket is not counted
-// and not included in the returned slice. The returned slice is meant to be
-// used for the Buckets field of HistogramOpts.
+// ExponentialBuckets creates 'count' regular buckets, where the lowest bucket
+// has an upper bound of 'start' and each following bucket's upper bound is
+// 'factor' times the previous bucket's upper bound. The final +Inf bucket is
+// not counted and not included in the returned slice. The returned slice is
+// meant to be used for the Buckets field of HistogramOpts.
 //
 // The function panics if 'count' is 0 or negative, if 'start' is 0 or negative,
 // or if 'factor' is less than or equal 1.
@@ -382,20 +392,21 @@ type HistogramOpts struct {
 	Buckets []float64
 
 	// If SparseBucketsFactor is greater than one, sparse buckets are used
-	// (in addition to the regular buckets, if defined above). A histogram
-	// with sparse buckets will be ingested as a native histogram by a
-	// Prometheus server with that feature enable. Sparse buckets are
-	// exponential buckets covering the whole float64 range (with the
-	// exception of the “zero” bucket, see SparseBucketsZeroThreshold
-	// below). From any one bucket to the next, the width of the bucket
-	// grows by a constant factor. SparseBucketsFactor provides an upper
-	// bound for this factor (exception see below). The smaller
-	// SparseBucketsFactor, the more buckets will be used and thus the more
-	// costly the histogram will become. A generally good trade-off between
-	// cost and accuracy is a value of 1.1 (each bucket is at most 10% wider
-	// than the previous one), which will result in each power of two
-	// divided into 8 buckets (e.g. there will be 8 buckets between 1 and 2,
-	// same as between 2 and 4, and 4 and 8, etc.).
+	// (in addition to the regular buckets, if defined above). A Histogram
+	// with sparse buckets will be ingested as a Native Histogram by a
+	// Prometheus server with that feature enabled (requires Prometheus
+	// v2.40+). Sparse buckets are exponential buckets covering the whole
+	// float64 range (with the exception of the “zero” bucket, see
+	// SparseBucketsZeroThreshold below). From any one bucket to the next,
+	// the width of the bucket grows by a constant
+	// factor. SparseBucketsFactor provides an upper bound for this factor
+	// (exception see below). The smaller SparseBucketsFactor, the more
+	// buckets will be used and thus the more costly the histogram will
+	// become. A generally good trade-off between cost and accuracy is a
+	// value of 1.1 (each bucket is at most 10% wider than the previous
+	// one), which will result in each power of two divided into 8 buckets
+	// (e.g. there will be 8 buckets between 1 and 2, same as between 2 and
+	// 4, and 4 and 8, etc.).
 	//
 	// Details about the actually used factor: The factor is calculated as
 	// 2^(2^n), where n is an integer number between (and including) -8 and
@@ -405,28 +416,38 @@ type HistogramOpts struct {
 	// SparseBucketsFactor is greater than 1 but smaller than 2^(2^-8), then
 	// the actually used factor is still 2^(2^-8) even though it is larger
 	// than the provided SparseBucketsFactor.
+	//
+	// NOTE: Native Histograms are still an experimental feature. Their
+	// behavior might still change without a major version
+	// bump. Subsequently, all SparseBucket... options here might still
+	// change their behavior or name (or might completely disappear) without
+	// a major version bump.
 	SparseBucketsFactor float64
 	// All observations with an absolute value of less or equal
 	// SparseBucketsZeroThreshold are accumulated into a “zero” bucket. For
 	// best results, this should be close to a bucket boundary. This is
 	// usually the case if picking a power of two. If
 	// SparseBucketsZeroThreshold is left at zero,
-	// DefSparseBucketsZeroThreshold is used as the threshold. If it is set
-	// to a negative value, a threshold of zero is used, i.e. only
-	// observations of precisely zero will go into the zero
-	// bucket. (TODO(beorn7): That's obviously weird and just a consequence
-	// of making the zero value of HistogramOpts meaningful. Has to be
-	// solved more elegantly in the final version.)
+	// DefSparseBucketsZeroThreshold is used as the threshold. To configure
+	// a zero bucket with an actual threshold of zero (i.e. only
+	// observations of precisely zero will go into the zero bucket), set
+	// SparseBucketsZeroThreshold to the SparseBucketsZeroThresholdZero
+	// constant (or any negative float value).
 	SparseBucketsZeroThreshold float64
 
 	// The remaining fields define a strategy to limit the number of
 	// populated sparse buckets. If SparseBucketsMaxNumber is left at zero,
-	// the number of buckets is not limited. Otherwise, once the provided
-	// number is exceeded, the following strategy is enacted: First, if the
-	// last reset (or the creation) of the histogram is at least
-	// SparseBucketsMinResetDuration ago, then the whole histogram is reset
-	// to its initial state (including regular buckets). If less time has
-	// passed, or if SparseBucketsMinResetDuration is zero, no reset is
+	// the number of buckets is not limited. (Note that this might lead to
+	// unbounded memory consumption if the values observed by the Histogram
+	// are sufficiently wide-spread. In particular, this could be used as a
+	// DoS attack vector. Where the observed values depend on external
+	// inputs, it is highly recommended to set a SparseBucketsMaxNumber.)
+	// Once the set SparseBucketsMaxNumber is exceeded, the following
+	// strategy is enacted: First, if the last reset (or the creation) of
+	// the histogram is at least SparseBucketsMinResetDuration ago, then the
+	// whole histogram is reset to its initial state (including regular
+	// buckets). If less time has passed, or if
+	// SparseBucketsMinResetDuration is zero, no reset is
 	// performed. Instead, the zero threshold is increased sufficiently to
 	// reduce the number of buckets to or below SparseBucketsMaxNumber, but
 	// not to more than SparseBucketsMaxZeroThreshold. Thus, if
