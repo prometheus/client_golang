@@ -53,10 +53,17 @@ func main() {
 			},
 			[]string{"service"},
 		)
-		// The same as above, but now as a histogram, and only for the normal
-		// distribution. The buckets are targeted to the parameters of the
-		// normal distribution, with 20 buckets centered on the mean, each
-		// half-sigma wide.
+		// The same as above, but now as a histogram, and only for the
+		// normal distribution. The histogram features both conventional
+		// buckets as well as sparse buckets, the latter needed for the
+		// experimental native histograms (ingested by a Prometheus
+		// server v2.40 with the corresponding feature flag
+		// enabled). The conventional buckets are targeted to the
+		// parameters of the normal distribution, with 20 buckets
+		// centered on the mean, each half-sigma wide. The sparse
+		// buckets are always centered on zero, with a growth factor of
+		// one bucket to the text of (at most) 1.1. (The precise factor
+		// is 2^2^-3 = 1.0905077...)
 		rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:                "rpc_durations_histogram_seconds",
 			Help:                "RPC latency distributions.",
