@@ -188,9 +188,9 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		return desc.constLabelPairs
 	}
 	labelPairs := make([]*dto.LabelPair, 0, totalLen)
-	for i, n := range desc.variableLabels {
+	for i, l := range desc.variableLabels {
 		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
+			Name:  proto.String(l.Name),
 			Value: proto.String(labelValues[i]),
 		})
 	}
