@@ -65,10 +65,10 @@ func main() {
 		// one bucket to the text of (at most) 1.1. (The precise factor
 		// is 2^2^-3 = 1.0905077...)
 		rpcDurationsHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:                "rpc_durations_histogram_seconds",
-			Help:                "RPC latency distributions.",
-			Buckets:             prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
-			SparseBucketsFactor: 1.1,
+			Name:                        "rpc_durations_histogram_seconds",
+			Help:                        "RPC latency distributions.",
+			Buckets:                     prometheus.LinearBuckets(*normMean-5**normDomain, .5**normDomain, 20),
+			NativeHistogramBucketFactor: 1.1,
 		})
 	)
 

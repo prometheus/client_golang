@@ -656,13 +656,13 @@ func TestSparseHistogram(t *testing.T) {
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
 			his := NewHistogram(HistogramOpts{
-				Name:                          "name",
-				Help:                          "help",
-				SparseBucketsFactor:           s.factor,
-				SparseBucketsZeroThreshold:    s.zeroThreshold,
-				SparseBucketsMaxNumber:        s.maxBuckets,
-				SparseBucketsMinResetDuration: s.minResetDuration,
-				SparseBucketsMaxZeroThreshold: s.maxZeroThreshold,
+				Name:                            "name",
+				Help:                            "help",
+				NativeHistogramBucketFactor:     s.factor,
+				NativeHistogramZeroThreshold:    s.zeroThreshold,
+				NativeHistogramMaxBucketNumber:  s.maxBuckets,
+				NativeHistogramMinResetDuration: s.minResetDuration,
+				NativeHistogramMaxZeroThreshold: s.maxZeroThreshold,
 			})
 			ts := time.Now().Add(30 * time.Second)
 			now := func() time.Time {
@@ -702,13 +702,13 @@ func TestSparseHistogramConcurrency(t *testing.T) {
 		end.Add(concLevel)
 
 		his := NewHistogram(HistogramOpts{
-			Name:                          "test_sparse_histogram",
-			Help:                          "This help is sparse.",
-			SparseBucketsFactor:           1.05,
-			SparseBucketsZeroThreshold:    0.0000001,
-			SparseBucketsMaxNumber:        50,
-			SparseBucketsMinResetDuration: time.Hour, // Comment out to test for totals below.
-			SparseBucketsMaxZeroThreshold: 0.001,
+			Name:                            "test_sparse_histogram",
+			Help:                            "This help is sparse.",
+			NativeHistogramBucketFactor:     1.05,
+			NativeHistogramZeroThreshold:    0.0000001,
+			NativeHistogramMaxBucketNumber:  50,
+			NativeHistogramMinResetDuration: time.Hour, // Comment out to test for totals below.
+			NativeHistogramMaxZeroThreshold: 0.001,
 		})
 
 		ts := time.Now().Add(30 * time.Second).Unix()
