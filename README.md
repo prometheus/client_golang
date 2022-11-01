@@ -69,3 +69,22 @@ See the [contributing guidelines](CONTRIBUTING.md) and the
 [Community section](http://prometheus.io/community/) of the homepage.
 
 `clint_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.
+
+### For Maintainers: Release Process
+
+To cut minor version:
+
+1. Create new branch `release-<major>.<minor>` on top of main commit you want to cut version from and push it.
+2. Create new branch on top of release branch.
+3. Change `VERSION` file.
+4. Update `CHANGELOG` (only user-impacting changes to mention).
+5. Create PR, get it reviewed.
+6. Once merged, create release for `release-<major>.<minor>` tag on GitHub with `<version> / <date>` title.
+7. Announce on prometheus-announce mailing list, slack and Twitter.
+8. Merge release branch back to main using "merge without squashing" approach (!).
+
+To cut patch version:
+
+1. Create branch on top of release branch you want to use. 
+2. Cherry-pick fixes from main or add commits to fix critical bugs only for that patch release.
+3. Follow steps 3-8 as above.
