@@ -72,19 +72,21 @@ See the [contributing guidelines](CONTRIBUTING.md) and the
 
 ### For Maintainers: Release Process
 
-To cut minor version:
+To cut a minor version:
 
-1. Create new branch `release-<major>.<minor>` on top of main commit you want to cut version from and push it.
-2. Create new branch on top of release branch.
-3. Change `VERSION` file.
+1. Create a new branch `release-<major>.<minor>` on top of the `main` commit you want to cut the version from and push it.
+2. Create a new branch on top of the release branch, e.g. `<yourname>/cut-<major>.<minor>.<patch>`,
+3. Change the `VERSION` file.
 4. Update `CHANGELOG` (only user-impacting changes to mention).
-5. Create PR, get it reviewed.
-6. Once merged, create release for `release-<major>.<minor>` tag on GitHub with `<version> / <date>` title.
-7. Announce on prometheus-announce mailing list, slack and Twitter.
-8. Merge release branch back to main using "merge without squashing" approach (!).
+5. Create PR, and get it reviewed.
+6. Once merged, create a release with the `release-<major>.<minor>` tag on GitHub with the `<version> / <date>` title.
+7. Announce on the prometheus-announce mailing list, slack and Twitter.
+8. Merge the release branch back to the `main` using the "merge without squashing" approach (!).
 
-To cut patch version:
+> NOTE: In case of merge conflicts, you can checkout the release branch in a new branch, e.g. <yourname>/resolve-conflicts`, fix the merge problems there, and then do a PR into main from the new branch. In that way, you still get all the commits in the release branch back into `main`, but leave the release branch alone.
 
-1. Create branch on top of release branch you want to use. 
-2. Cherry-pick fixes from main or add commits to fix critical bugs only for that patch release.
+To cut the patch version:
+
+1. Create a branch on top of the release branch you want to use.
+2. Cherry-pick the fixes from the `main` branch (or add new commits) to fix critical bugs for that patch release.
 3. Follow steps 3-8 as above.
