@@ -29,6 +29,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/prometheus/client_golang/prometheus/internal"
+
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -356,13 +358,12 @@ func TestBuckets(t *testing.T) {
 
 	got = ExponentialBucketsRange(1, 100, 10)
 	want = []float64{
-		1.0, 1.6681005372000588, 2.782559402207125,
-		4.641588833612779, 7.742636826811273, 12.915496650148842,
-		21.544346900318846, 35.93813663804629, 59.94842503189414,
-		100.00000000000007,
+		1.0, 1.6681, 2.7825, 4.6415, 7.7426, 12.9154, 21.5443,
+		35.9381, 59.9484, 100.0000,
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("exponential buckets range: got %v, want %v", got, want)
+	const epsilon = 0.0001
+	if !internal.AlmostEqualFloat64s(got, want, epsilon) {
+		t.Errorf("exponential buckets range: got %v, want %v (epsilon %f)", got, want, epsilon)
 	}
 }
 
