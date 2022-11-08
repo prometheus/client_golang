@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 1.14.0 / 2022-11-08
+
+* [FEATURE] Add Support for Native Histograms. #1150
+* [CHANGE] Extend `prometheus.Registry` to implement `prometheus.Collector` interface. #1103
+
 ## 1.13.1 / 2022-11-01
 
 * [BUGFIX] Fix race condition with Exemplar in Counter. #1146
