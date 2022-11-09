@@ -57,7 +57,7 @@ func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metric
 		// parameters of the normal distribution, with 20 buckets
 		// centered on the mean, each half-sigma wide. The sparse
 		// buckets are always centered on zero, with a growth factor of
-		// one bucket to the text of (at most) 1.1. (The precise factor
+		// one bucket to the next of (at most) 1.1. (The precise factor
 		// is 2^2^-3 = 1.0905077...)
 		rpcDurationsHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:                        "rpc_durations_histogram_seconds",
