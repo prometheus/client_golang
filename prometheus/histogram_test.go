@@ -470,7 +470,7 @@ func TestHistogramExemplar(t *testing.T) {
 	}
 }
 
-func TestSparseHistogram(t *testing.T) {
+func TestNativeHistogram(t *testing.T) {
 	scenarios := []struct {
 		name             string
 		observations     []float64 // With simulated interval of 1m.
@@ -686,7 +686,7 @@ func TestSparseHistogram(t *testing.T) {
 	}
 }
 
-func TestSparseHistogramConcurrency(t *testing.T) {
+func TestNativeHistogramConcurrency(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
@@ -703,7 +703,7 @@ func TestSparseHistogramConcurrency(t *testing.T) {
 		end.Add(concLevel)
 
 		his := NewHistogram(HistogramOpts{
-			Name:                            "test_sparse_histogram",
+			Name:                            "test_native_histogram",
 			Help:                            "This help is sparse.",
 			NativeHistogramBucketFactor:     1.05,
 			NativeHistogramZeroThreshold:    0.0000001,
