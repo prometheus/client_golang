@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"log"
 	"net/http"
 
@@ -30,6 +31,12 @@ func main() {
 
 	// Create non-global registry.
 	reg := prometheus.NewRegistry()
+
+	// Add go runtime metrics and process collectors
+	reg.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
