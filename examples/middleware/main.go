@@ -1,4 +1,4 @@
-// Copyright 2015 The Prometheus Authors
+// Copyright 2022 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,34 +11,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A minimal example of how to include Prometheus instrumentation.
+// Simple example of auto-instrumentation by using an HTTP Middleware with relevant metrics.
+
 package main
 
 import (
-	"flag"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"log"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/jessicalins/instrumentation-practices-examples/middleware/httpmiddleware"
 )
 
-var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
-
 func main() {
-	flag.Parse()
-
 	// Create non-global registry.
-	reg := prometheus.NewRegistry()
+	registry := prometheus.NewRegistry()
 
 	// Add go runtime metrics and process collectors.
-	reg.MustRegister(
+	registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
 	// Expose /metrics HTTP endpoint using the created custom registry.
-	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
-	log.Fatal(http.ListenAndServe(*addr, nil))
+	http.Handle(
+		"/metrics",
+		httpmiddleware.New(
+			registry, nil).
+			WrapHandler("/metrics", promhttp.HandlerFor(
+				registry,
+				promhttp.HandlerOpts{}),
+			))
+
+	log.Fatalln(http.ListenAndServe(":8080", nil))
 }
