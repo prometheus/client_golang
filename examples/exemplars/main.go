@@ -35,10 +35,10 @@ func main() {
 		Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
 	})
 
-	// Create non-global registry
+	// Create non-global registry.
 	registry := prometheus.NewRegistry()
 
-	// Add go runtime metrics and process collectors
+	// Add go runtime metrics and process collectors.
 	registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
@@ -47,7 +47,7 @@ func main() {
 
 	go func() {
 		for {
-			// Record fictional latency
+			// Record fictional latency.
 			now := time.Now()
 			requestDurations.(prometheus.ExemplarObserver).ObserveWithExemplar(
 				time.Since(now).Seconds(), prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},

@@ -27,10 +27,10 @@ import (
 )
 
 func main() {
-	// Create non-global registry
+	// Create non-global registry.
 	registry := prometheus.NewRegistry()
 
-	// Add go runtime metrics and process collectors
+	// Add go runtime metrics and process collectors.
 	registry.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
