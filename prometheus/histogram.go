@@ -544,16 +544,12 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	}
 	// Finally we know the final length of h.upperBounds and can make buckets
 	// for both counts as well as exemplars:
-	h.counts[0] = &histogramCounts{
-		buckets:                          make([]uint64, len(h.upperBounds)),
-		nativeHistogramZeroThresholdBits: math.Float64bits(h.nativeHistogramZeroThreshold),
-		nativeHistogramSchema:            h.nativeHistogramSchema,
-	}
-	h.counts[1] = &histogramCounts{
-		buckets:                          make([]uint64, len(h.upperBounds)),
-		nativeHistogramZeroThresholdBits: math.Float64bits(h.nativeHistogramZeroThreshold),
-		nativeHistogramSchema:            h.nativeHistogramSchema,
-	}
+	h.counts[0] = &histogramCounts{buckets: make([]uint64, len(h.upperBounds))}
+	atomic.StoreUint64(&h.counts[0].nativeHistogramZeroThresholdBits, math.Float64bits(h.nativeHistogramZeroThreshold))
+	atomic.StoreInt32(&h.counts[0].nativeHistogramSchema, h.nativeHistogramSchema)
+	h.counts[1] = &histogramCounts{buckets: make([]uint64, len(h.upperBounds))}
+	atomic.StoreUint64(&h.counts[1].nativeHistogramZeroThresholdBits, math.Float64bits(h.nativeHistogramZeroThreshold))
+	atomic.StoreInt32(&h.counts[1].nativeHistogramSchema, h.nativeHistogramSchema)
 	h.exemplars = make([]atomic.Value, len(h.upperBounds)+1)
 
 	h.init(h) // Init self-collection.
