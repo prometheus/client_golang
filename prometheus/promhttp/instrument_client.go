@@ -63,6 +63,10 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
+	if next == nil {
+		next = http.DefaultTransport
+	}
+
 	rtOpts := defaultOptions()
 	for _, o := range opts {
 		o.apply(rtOpts)
@@ -105,6 +109,10 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // Note that this method is only guaranteed to never observe negative durations
 // if used with Go1.9+.
 func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
+	if next == nil {
+		next = http.DefaultTransport
+	}
+
 	rtOpts := defaultOptions()
 	for _, o := range opts {
 		o.apply(rtOpts)
@@ -161,6 +169,10 @@ type InstrumentTrace struct {
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
 func InstrumentRoundTripperTrace(it *InstrumentTrace, next http.RoundTripper) RoundTripperFunc {
+	if next == nil {
+		next = http.DefaultTransport
+	}
+
 	return func(r *http.Request) (*http.Response, error) {
 		start := time.Now()
 

@@ -97,7 +97,7 @@ func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry)
 	client.Transport = InstrumentRoundTripperInFlight(inFlightGauge,
 		InstrumentRoundTripperCounter(counter,
 			InstrumentRoundTripperTrace(trace,
-				InstrumentRoundTripperDuration(histVec, http.DefaultTransport, opts...),
+				InstrumentRoundTripperDuration(histVec, client.Transport, opts...),
 			),
 			opts...),
 	)
@@ -369,17 +369,14 @@ func ExampleInstrumentRoundTripperDuration() {
 		},
 	}
 
-	// Wrap the default RoundTripper with middleware.
-	roundTripper := InstrumentRoundTripperInFlight(inFlightGauge,
+	// Wrap the client's RoundTripper with middleware.
+	client.Transport = InstrumentRoundTripperInFlight(inFlightGauge,
 		InstrumentRoundTripperCounter(counter,
 			InstrumentRoundTripperTrace(trace,
-				InstrumentRoundTripperDuration(histVec, http.DefaultTransport),
+				InstrumentRoundTripperDuration(histVec, client.Transport),
 			),
 		),
 	)
-
-	// Set the RoundTripper on our client.
-	client.Transport = roundTripper
 
 	resp, err := client.Get("http://google.com")
 	if err != nil {
