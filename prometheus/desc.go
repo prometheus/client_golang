@@ -14,7 +14,6 @@
 package prometheus
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
