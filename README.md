@@ -68,7 +68,7 @@ The `extraction` and `text` packages are now contained in
 See the [contributing guidelines](CONTRIBUTING.md) and the
 [Community section](http://prometheus.io/community/) of the homepage.
 
-`clint_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.
+`client_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.
 
 ### For Maintainers: Release Process
 
