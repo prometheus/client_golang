@@ -294,9 +294,9 @@ func ExampleRegister() {
 
 	// Output:
 	// taskCounter registered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [worker_id]} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [{worker_id <nil>}]} has different label names or a different help string
 	// taskCounter unregistered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [worker_id]} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [{worker_id <nil>}]} has different label names or a different help string
 	// taskCounterVec registered.
 	// Worker initialization failed: inconsistent label cardinality: expected 1 label values but got 2 in []string{"42", "spurious arg"}
 	// notMyCounter is nil.

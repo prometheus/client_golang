@@ -962,7 +962,7 @@ func checkDescConsistency(
 	copy(lpsFromDesc, desc.constLabelPairs)
 	for _, l := range desc.variableLabels {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l),
+			Name: proto.String(l.Name),
 		})
 	}
 	if len(lpsFromDesc) != len(dtoMetric.Label) {

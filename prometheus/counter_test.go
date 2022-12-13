@@ -102,7 +102,7 @@ func TestCounterVecGetMetricWithInvalidLabelValues(t *testing.T) {
 			Name: "test",
 		}, []string{"a"})
 
-		labelValues := make([]string, len(test.labels))
+		labelValues := make([]string, 0, len(test.labels))
 		for _, val := range test.labels {
 			labelValues = append(labelValues, val)
 		}
