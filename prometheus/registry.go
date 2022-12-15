@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -931,6 +932,10 @@ func checkMetricConsistency(
 		h.WriteString(lp.GetName())
 		h.Write(separatorByteSlice)
 		h.WriteString(lp.GetValue())
+		h.Write(separatorByteSlice)
+	}
+	if dtoMetric.TimestampMs != nil {
+		h.WriteString(strconv.FormatInt(*(dtoMetric.TimestampMs), 10))
 		h.Write(separatorByteSlice)
 	}
 	hSum := h.Sum64()

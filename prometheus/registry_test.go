@@ -1288,3 +1288,48 @@ func ExampleRegistry_grouping() {
 		}(i)
 	}
 }
+
+type customCollector struct {
+	collectFunc func(ch chan<- prometheus.Metric)
+}
+
+func (co *customCollector) Describe(_ chan<- *prometheus.Desc) {}
+
+func (co *customCollector) Collect(ch chan<- prometheus.Metric) {
+	co.collectFunc(ch)
+}
+
+// TestCheckMetricConsistency
+func TestCheckMetricConsistency(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	timestamp := time.Now()
+
+	desc := prometheus.NewDesc("metric_a", "", nil, nil)
+	metric := prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1)
+
+	validCollector := &customCollector{
+		collectFunc: func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.NewMetricWithTimestamp(timestamp.Add(-1*time.Minute), metric)
+			ch <- prometheus.NewMetricWithTimestamp(timestamp, metric)
+		},
+	}
+	reg.MustRegister(validCollector)
+	_, err := reg.Gather()
+	if err != nil {
+		t.Error("metric validation should succeed:", err)
+	}
+	reg.Unregister(validCollector)
+
+	invalidCollector := &customCollector{
+		collectFunc: func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.NewMetricWithTimestamp(timestamp, metric)
+			ch <- prometheus.NewMetricWithTimestamp(timestamp, metric)
+		},
+	}
+	reg.MustRegister(invalidCollector)
+	_, err = reg.Gather()
+	if err == nil {
+		t.Error("metric validation should return an error")
+	}
+	reg.Unregister(invalidCollector)
+}
