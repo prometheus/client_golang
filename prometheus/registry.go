@@ -26,14 +26,12 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/cespare/xxhash/v2"
-	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
-	"github.com/golang/protobuf/proto"
-	"github.com/prometheus/common/expfmt"
-
-	dto "github.com/prometheus/client_model/go"
-
 	"github.com/prometheus/client_golang/prometheus/internal"
+
+	"github.com/cespare/xxhash/v2"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
