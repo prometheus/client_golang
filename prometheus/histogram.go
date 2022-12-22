@@ -22,10 +22,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // nativeHistogramBounds for the frac of observed values. Only relevant for

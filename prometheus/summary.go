@@ -22,11 +22,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/beorn7/perks/quantile"
-	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/beorn7/perks/quantile"
+	"google.golang.org/protobuf/proto"
 )
 
 // quantileLabel is used for the label that defines the quantile in a

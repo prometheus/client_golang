@@ -19,9 +19,6 @@ import (
 	"strings"
 	"testing"
 
-	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -304,10 +301,10 @@ func TestWrap(t *testing.T) {
 				var want, got []string
 
 				for i, mf := range wantMF {
-					want = append(want, fmt.Sprintf("%3d: %s", i, proto.MarshalTextString(mf)))
+					want = append(want, fmt.Sprintf("%3d: %s", i, mf))
 				}
 				for i, mf := range gotMF {
-					got = append(got, fmt.Sprintf("%3d: %s", i, proto.MarshalTextString(mf)))
+					got = append(got, fmt.Sprintf("%3d: %s", i, mf))
 				}
 
 				t.Fatalf(
