@@ -10,8 +10,8 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0
-	github.com/prometheus/procfs v0.8.0
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
+	github.com/prometheus/procfs v0.9.0
+	golang.org/x/sys v0.3.0
 	google.golang.org/protobuf v1.28.1
 )
 
