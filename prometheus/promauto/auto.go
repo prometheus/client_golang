@@ -173,7 +173,9 @@ func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 // prometheus.DefaultRegisterer. If the registration fails, NewCounterVec
 // panics.
 func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
-	return With(prometheus.DefaultRegisterer).NewCounterVec(opts, labelNames)
+	v := With(prometheus.DefaultRegisterer).NewCounterVec(opts, labelNames)
+	v.WithLabelValues(labelNames...)
+	return v
 }
 
 // NewCounterFunc works like the function of the same name in the prometheus
@@ -195,7 +197,9 @@ func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 // package but it automatically registers the GaugeVec with the
 // prometheus.DefaultRegisterer. If the registration fails, NewGaugeVec panics.
 func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
-	return With(prometheus.DefaultRegisterer).NewGaugeVec(opts, labelNames)
+	v := With(prometheus.DefaultRegisterer).NewGaugeVec(opts, labelNames)
+	v.WithLabelValues(labelNames...)
+	return v
 }
 
 // NewGaugeFunc works like the function of the same name in the prometheus
@@ -217,7 +221,9 @@ func NewSummary(opts prometheus.SummaryOpts) prometheus.Summary {
 // prometheus.DefaultRegisterer. If the registration fails, NewSummaryVec
 // panics.
 func NewSummaryVec(opts prometheus.SummaryOpts, labelNames []string) *prometheus.SummaryVec {
-	return With(prometheus.DefaultRegisterer).NewSummaryVec(opts, labelNames)
+	v := With(prometheus.DefaultRegisterer).NewSummaryVec(opts, labelNames)
+	v.WithLabelValues(labelNames...)
+	return v
 }
 
 // NewHistogram works like the function of the same name in the prometheus
@@ -232,7 +238,9 @@ func NewHistogram(opts prometheus.HistogramOpts) prometheus.Histogram {
 // prometheus.DefaultRegisterer. If the registration fails, NewHistogramVec
 // panics.
 func NewHistogramVec(opts prometheus.HistogramOpts, labelNames []string) *prometheus.HistogramVec {
-	return With(prometheus.DefaultRegisterer).NewHistogramVec(opts, labelNames)
+	v := With(prometheus.DefaultRegisterer).NewHistogramVec(opts, labelNames)
+	v.WithLabelValues(labelNames...)
+	return v
 }
 
 // NewUntypedFunc works like the function of the same name in the prometheus
@@ -275,6 +283,7 @@ func (f Factory) NewCounterVec(opts prometheus.CounterOpts, labelNames []string)
 	if f.r != nil {
 		f.r.MustRegister(c)
 	}
+	c.WithLabelValues(labelNames...)
 	return c
 }
 
@@ -307,6 +316,7 @@ func (f Factory) NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *pr
 	if f.r != nil {
 		f.r.MustRegister(g)
 	}
+	g.WithLabelValues(labelNames...)
 	return g
 }
 
@@ -339,6 +349,7 @@ func (f Factory) NewSummaryVec(opts prometheus.SummaryOpts, labelNames []string)
 	if f.r != nil {
 		f.r.MustRegister(s)
 	}
+	s.WithLabelValues(labelNames...)
 	return s
 }
 
@@ -361,6 +372,7 @@ func (f Factory) NewHistogramVec(opts prometheus.HistogramOpts, labelNames []str
 	if f.r != nil {
 		f.r.MustRegister(h)
 	}
+	h.WithLabelValues(labelNames...)
 	return h
 }
 
