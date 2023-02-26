@@ -44,7 +44,7 @@
 //
 //	func Random() {
 //		for {
-//	    	histogram.Observe(rand.NormFloat64())
+//			histogram.Observe(rand.NormFloat64())
 //		}
 //	}
 //
