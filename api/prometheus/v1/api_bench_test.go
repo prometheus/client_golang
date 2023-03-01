@@ -23,33 +23,84 @@ import (
 	"github.com/prometheus/common/model"
 )
 
-func generateData(timeseries, datapoints int) model.Matrix {
-	m := make(model.Matrix, 0)
-
+func generateData(timeseries, datapoints int) (floatMatrix, histogramMatrix model.Matrix) {
 	for i := 0; i < timeseries; i++ {
 		lset := map[model.LabelName]model.LabelValue{
 			model.MetricNameLabel: model.LabelValue("timeseries_" + strconv.Itoa(i)),
+			"foo":                 "bar",
 		}
-		now := model.Now()
-		values := make([]model.SamplePair, datapoints)
+		now := model.Time(1677587274055)
+		floats := make([]model.SamplePair, datapoints)
+		histograms := make([]model.SampleHistogramPair, datapoints)
 
 		for x := datapoints; x > 0; x-- {
-			values[x-1] = model.SamplePair{
+			f := float64(x)
+			floats[x-1] = model.SamplePair{
 				// Set the time back assuming a 15s interval. Since this is used for
 				// Marshal/Unmarshal testing the actual interval doesn't matter.
 				Timestamp: now.Add(time.Second * -15 * time.Duration(x)),
-				Value:     model.SampleValue(float64(x)),
+				Value:     model.SampleValue(f),
+			}
+			histograms[x-1] = model.SampleHistogramPair{
+				Timestamp: now.Add(time.Second * -15 * time.Duration(x)),
+				Histogram: &model.SampleHistogram{
+					Count: model.FloatString(13.5 * f),
+					Sum:   model.FloatString(.1 * f),
+					Buckets: model.HistogramBuckets{
+						{
+							Boundaries: 1,
+							Lower:      -4870.992343051145,
+							Upper:      -4466.7196729968955,
+							Count:      model.FloatString(1 * f),
+						},
+						{
+							Boundaries: 1,
+							Lower:      -861.0779292198035,
+							Upper:      -789.6119426088657,
+							Count:      model.FloatString(2 * f),
+						},
+						{
+							Boundaries: 1,
+							Lower:      -558.3399591246119,
+							Upper:      -512,
+							Count:      model.FloatString(3 * f),
+						},
+						{
+							Boundaries: 0,
+							Lower:      2048,
+							Upper:      2233.3598364984477,
+							Count:      model.FloatString(1.5 * f),
+						},
+						{
+							Boundaries: 0,
+							Lower:      2896.3093757400984,
+							Upper:      3158.4477704354626,
+							Count:      model.FloatString(2.5 * f),
+						},
+						{
+							Boundaries: 0,
+							Lower:      4466.7196729968955,
+							Upper:      4870.992343051145,
+							Count:      model.FloatString(3.5 * f),
+						},
+					},
+				},
 			}
 		}
 
-		ss := &model.SampleStream{
+		fss := &model.SampleStream{
 			Metric: model.Metric(lset),
-			Values: values,
+			Values: floats,
+		}
+		hss := &model.SampleStream{
+			Metric:     model.Metric(lset),
+			Histograms: histograms,
 		}
 
-		m = append(m, ss)
+		floatMatrix = append(floatMatrix, fss)
+		histogramMatrix = append(histogramMatrix, hss)
 	}
-	return m
+	return
 }
 
 func BenchmarkSamplesJsonSerialization(b *testing.B) {
@@ -57,27 +108,46 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 		b.Run(strconv.Itoa(timeseriesCount), func(b *testing.B) {
 			for _, datapointCount := range []int{10, 100, 1000} {
 				b.Run(strconv.Itoa(datapointCount), func(b *testing.B) {
-					data := generateData(timeseriesCount, datapointCount)
+					floats, histograms := generateData(timeseriesCount, datapointCount)
 
-					dataBytes, err := json.Marshal(data)
+					floatBytes, err := json.Marshal(floats)
+					if err != nil {
+						b.Fatalf("Error marshaling: %v", err)
+					}
+					histogramBytes, err := json.Marshal(histograms)
 					if err != nil {
 						b.Fatalf("Error marshaling: %v", err)
 					}
 
 					b.Run("marshal", func(b *testing.B) {
-						b.Run("encoding/json", func(b *testing.B) {
+						b.Run("encoding/json/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := json.Marshal(data); err != nil {
+								if _, err := json.Marshal(floats); err != nil {
 									b.Fatal(err)
 								}
 							}
 						})
-
-						b.Run("jsoniter", func(b *testing.B) {
+						b.Run("jsoniter/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := jsoniter.Marshal(data); err != nil {
+								if _, err := jsoniter.Marshal(floats); err != nil {
+									b.Fatal(err)
+								}
+							}
+						})
+						b.Run("encoding/json/histograms", func(b *testing.B) {
+							b.ReportAllocs()
+							for i := 0; i < b.N; i++ {
+								if _, err := json.Marshal(histograms); err != nil {
+									b.Fatal(err)
+								}
+							}
+						})
+						b.Run("jsoniter/histograms", func(b *testing.B) {
+							b.ReportAllocs()
+							for i := 0; i < b.N; i++ {
+								if _, err := jsoniter.Marshal(histograms); err != nil {
 									b.Fatal(err)
 								}
 							}
@@ -85,21 +155,38 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 					})
 
 					b.Run("unmarshal", func(b *testing.B) {
-						b.Run("encoding/json", func(b *testing.B) {
+						b.Run("encoding/json/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := json.Unmarshal(dataBytes, &m); err != nil {
+								if err := json.Unmarshal(floatBytes, &m); err != nil {
 									b.Fatal(err)
 								}
 							}
 						})
-
-						b.Run("jsoniter", func(b *testing.B) {
+						b.Run("jsoniter/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := jsoniter.Unmarshal(dataBytes, &m); err != nil {
+								if err := jsoniter.Unmarshal(floatBytes, &m); err != nil {
+									b.Fatal(err)
+								}
+							}
+						})
+						b.Run("encoding/json/histograms", func(b *testing.B) {
+							b.ReportAllocs()
+							var m model.Matrix
+							for i := 0; i < b.N; i++ {
+								if err := json.Unmarshal(histogramBytes, &m); err != nil {
+									b.Fatal(err)
+								}
+							}
+						})
+						b.Run("jsoniter/histograms", func(b *testing.B) {
+							b.ReportAllocs()
+							var m model.Matrix
+							for i := 0; i < b.N; i++ {
+								if err := jsoniter.Unmarshal(histogramBytes, &m); err != nil {
 									b.Fatal(err)
 								}
 							}
