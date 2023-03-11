@@ -41,6 +41,9 @@ type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
 
+	// Bearer token to set
+	Token string
+
 	// Client is used by the Client to drive HTTP requests. If not provided,
 	// a new one based on the provided RoundTripper (or DefaultRoundTripper) will be used.
 	Client *http.Client
@@ -95,12 +98,14 @@ func NewClient(cfg Config) (Client, error) {
 
 	return &httpClient{
 		endpoint: u,
+		token:    cfg.Token,
 		client:   cfg.client(),
 	}, nil
 }
 
 type httpClient struct {
 	endpoint *url.URL
+	token    string
 	client   http.Client
 }
 
@@ -121,6 +126,9 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if ctx != nil {
 		req = req.WithContext(ctx)
+	}
+	if c.token != "" {
+		req.Header.Add("Authorization", "Bearer "+c.token)
 	}
 	resp, err := c.client.Do(req)
 	defer func() {
