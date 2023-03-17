@@ -47,16 +47,16 @@ workflows:
     jobs:
       # Refer to README.md for the currently supported versions.
       - test:
-          name: go-1-17
-          go_version: "1.17"
-          run_lint: true
-      - test:
           name: go-1-18
           go_version: "1.18"
           run_lint: true
       - test:
           name: go-1-19
           go_version: "1.19"
+          run_lint: true
+      - test:
+          name: go-1-20
+          go_version: "1.20"
           run_lint: true
           # Style and unused/missing packages are only checked against
           # the latest supported Go version.
