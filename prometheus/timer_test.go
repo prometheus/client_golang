@@ -14,7 +14,10 @@
 package prometheus
 
 import (
+	"reflect"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -40,6 +43,54 @@ func TestTimerObserve(t *testing.T) {
 	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
 		t.Errorf("want %d observations for histogram, got %d", want, got)
 	}
+	m.Reset()
+	sum.Write(m)
+	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for summary, got %d", want, got)
+	}
+	m.Reset()
+	gauge.Write(m)
+	if got := m.GetGauge().GetValue(); got <= 0 {
+		t.Errorf("want value > 0 for gauge, got %f", got)
+	}
+}
+
+func TestTimerObserveWithExemplar(t *testing.T) {
+	var (
+		exemplar = Labels{"foo": "bar"}
+		his      = NewHistogram(HistogramOpts{Name: "test_histogram"})
+		sum      = NewSummary(SummaryOpts{Name: "test_summary"})
+		gauge    = NewGauge(GaugeOpts{Name: "test_gauge"})
+	)
+
+	func() {
+		hisTimer := NewTimer(his)
+		sumTimer := NewTimer(sum)
+		gaugeTimer := NewTimer(ObserverFunc(gauge.Set))
+		defer hisTimer.ObserveDurationWithExemplar(exemplar)
+		// Gauges and summaries does not implement ExemplarObserver, so we expect them to ignore exemplar.
+		defer sumTimer.ObserveDurationWithExemplar(exemplar)
+		defer gaugeTimer.ObserveDurationWithExemplar(exemplar)
+	}()
+
+	m := &dto.Metric{}
+	his.Write(m)
+	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+		t.Errorf("want %d observations for histogram, got %d", want, got)
+	}
+	var got []*dto.LabelPair
+	for _, b := range m.GetHistogram().GetBucket() {
+		if b.Exemplar != nil {
+			got = b.Exemplar.GetLabel()
+			break
+		}
+	}
+
+	want := []*dto.LabelPair{{Name: proto.String("foo"), Value: proto.String("bar")}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("expected %v exemplar labels, got %v", want, got)
+	}
+
 	m.Reset()
 	sum.Write(m)
 	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
