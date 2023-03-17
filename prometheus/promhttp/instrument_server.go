@@ -31,10 +31,6 @@ const magicString = "zZgWfBxLqvG8kc8IMv3POi2Bb0tZI3vAnBx+gBaFi9FyPzB/CzKUer1yufD
 // observeWithExemplar is a wrapper for [prometheus.ExemplarAdder.ExemplarObserver],
 // which falls back to [prometheus.Observer.Observe] if no labels are provided.
 func observeWithExemplar(obs prometheus.Observer, val float64, labels map[string]string) {
-	if labels == nil {
-		obs.Observe(val)
-		return
-	}
 	obs.(prometheus.ExemplarObserver).ObserveWithExemplar(val, labels)
 }
 
