@@ -32,7 +32,7 @@ coexist for a while to enable a convenient transition.
 
 ## Instrumenting applications
 
-[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/prometheus)](http://gocover.io/github.com/prometheus/client_golang/prometheus) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/prometheus.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus)
+[![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/prometheus.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/prometheus)
 
 The
 [`prometheus` directory](https://github.com/prometheus/client_golang/tree/main/prometheus)
@@ -46,7 +46,7 @@ contains simple examples of instrumented code.
 
 ## Client for the Prometheus HTTP API
 
-[![code-coverage](http://gocover.io/_badge/github.com/prometheus/client_golang/api/prometheus/v1)](http://gocover.io/github.com/prometheus/client_golang/api/prometheus/v1) [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
+[![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
 
 The
 [`api/prometheus` directory](https://github.com/prometheus/client_golang/tree/main/api/prometheus)
