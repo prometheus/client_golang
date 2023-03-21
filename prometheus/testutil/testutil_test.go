@@ -341,7 +341,7 @@ func TestScrapeAndCompareWithMultipleExpected(t *testing.T) {
 		# HELP some_total2 A value that represents a counter.
 		# TYPE some_total2 counter
 
-		some_total2{ label1 = "value1" } 1
+		some_total2{ label2 = "value2" } 1
 	`
 
 	expectedReader := strings.NewReader(expected)
