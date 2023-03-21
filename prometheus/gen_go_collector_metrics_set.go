@@ -50,7 +50,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	gv, err := version.NewVersion(strings.TrimPrefix(toolVersion, "go"))
+
+	toolVersion = strings.Split(strings.TrimPrefix(toolVersion, "go"), " ")[0]
+	gv, err := version.NewVersion(toolVersion)
 	if err != nil {
 		log.Fatal(err)
 	}

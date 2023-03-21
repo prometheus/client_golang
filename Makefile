@@ -20,7 +20,7 @@ test: deps common-test
 test-short: deps common-test-short
 
 .PHONY: generate-go-collector-test-files
-VERSIONS := 1.17 1.18 1.19
+VERSIONS := 1.17 1.18 1.19 1.20
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
     	docker run --rm -v $(PWD):/workspace -w /workspace golang:$$GO_VERSION go run prometheus/gen_go_collector_metrics_set.go; \
