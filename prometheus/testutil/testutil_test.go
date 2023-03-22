@@ -331,6 +331,31 @@ func TestScrapeAndCompare(t *testing.T) {
 	}
 }
 
+func TestScrapeAndCompareWithMultipleExpected(t *testing.T) {
+	const expected = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+
+		# HELP some_total2 A value that represents a counter.
+		# TYPE some_total2 counter
+
+		some_total2{ label2 = "value2" } 1
+	`
+
+	expectedReader := strings.NewReader(expected)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
+
+	if err := ScrapeAndCompare(ts.URL, expectedReader, "some_total2"); err != nil {
+		t.Errorf("unexpected scraping result:\n%s", err)
+	}
+}
+
 func TestScrapeAndCompareFetchingFail(t *testing.T) {
 	err := ScrapeAndCompare("some_url", strings.NewReader("some expectation"), "some_total")
 	if err == nil {
