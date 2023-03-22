@@ -949,8 +949,12 @@ func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime,
 		q.Add("match[]", m)
 	}
 
-	q.Set("start", formatTime(startTime))
-	q.Set("end", formatTime(endTime))
+	if !startTime.IsZero() {
+		q.Set("start", formatTime(startTime))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", formatTime(endTime))
+	}
 
 	u.RawQuery = q.Encode()
 
@@ -1017,8 +1021,12 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
 	q := u.Query()
-	q.Set("start", formatTime(startTime))
-	q.Set("end", formatTime(endTime))
+	if !startTime.IsZero() {
+		q.Set("start", formatTime(startTime))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", formatTime(endTime))
+	}
 	for _, m := range matches {
 		q.Add("match[]", m)
 	}
@@ -1040,8 +1048,12 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time) (model.LabelValues, Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	q := u.Query()
-	q.Set("start", formatTime(startTime))
-	q.Set("end", formatTime(endTime))
+	if !startTime.IsZero() {
+		q.Set("start", formatTime(startTime))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", formatTime(endTime))
+	}
 	for _, m := range matches {
 		q.Add("match[]", m)
 	}
@@ -1139,8 +1151,12 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTi
 		q.Add("match[]", m)
 	}
 
-	q.Set("start", formatTime(startTime))
-	q.Set("end", formatTime(endTime))
+	if !startTime.IsZero() {
+		q.Set("start", formatTime(startTime))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", formatTime(endTime))
+	}
 
 	u.RawQuery = q.Encode()
 
@@ -1300,8 +1316,12 @@ func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime, e
 	q := u.Query()
 
 	q.Set("query", query)
-	q.Set("start", formatTime(startTime))
-	q.Set("end", formatTime(endTime))
+	if !startTime.IsZero() {
+		q.Set("start", formatTime(startTime))
+	}
+	if !endTime.IsZero() {
+		q.Set("end", formatTime(endTime))
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
