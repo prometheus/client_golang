@@ -13,8 +13,7 @@ Copyright 2013-2015 Blake Mizerany, Björn Rabenstein
 See https://github.com/beorn7/perks/blob/master/README.md for license details.
 
 Go support for Protocol Buffers - Google's data interchange format
-http://github.com/golang/protobuf/
-Copyright 2010 The Go Authors
+https://pkg.go.dev/google.golang.org/protobuf
 See source code for license details.
 
 Support for streaming Protocol Buffer messages for the Go language (golang).
