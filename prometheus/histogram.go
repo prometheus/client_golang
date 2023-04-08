@@ -428,12 +428,12 @@ type HistogramOpts struct {
 	// a major version bump.
 	NativeHistogramBucketFactor float64
 	// All observations with an absolute value of less or equal
-	// NativeHistogramZeroThreshold are accumulated into a “zero”
-	// bucket. For best results, this should be close to a bucket
-	// boundary. This is usually the case if picking a power of two. If
+	// NativeHistogramZeroThreshold are accumulated into a “zero” bucket.
+	// For best results, this should be close to a bucket boundary. This is
+	// usually the case if picking a power of two. If
 	// NativeHistogramZeroThreshold is left at zero,
-	// DefSparseBucketsZeroThreshold is used as the threshold. To configure
-	// a zero bucket with an actual threshold of zero (i.e. only
+	// DefNativeHistogramZeroThreshold is used as the threshold. To
+	// configure a zero bucket with an actual threshold of zero (i.e. only
 	// observations of precisely zero will go into the zero bucket), set
 	// NativeHistogramZeroThreshold to the NativeHistogramZeroThresholdZero
 	// constant (or any negative float value).
@@ -446,23 +446,28 @@ type HistogramOpts struct {
 	// Histogram are sufficiently wide-spread. In particular, this could be
 	// used as a DoS attack vector. Where the observed values depend on
 	// external inputs, it is highly recommended to set a
-	// NativeHistogramMaxBucketNumber.)  Once the set
+	// NativeHistogramMaxBucketNumber.) Once the set
 	// NativeHistogramMaxBucketNumber is exceeded, the following strategy is
-	// enacted: First, if the last reset (or the creation) of the histogram
-	// is at least NativeHistogramMinResetDuration ago, then the whole
-	// histogram is reset to its initial state (including regular
-	// buckets). If less time has passed, or if
-	// NativeHistogramMinResetDuration is zero, no reset is
-	// performed. Instead, the zero threshold is increased sufficiently to
-	// reduce the number of buckets to or below
-	// NativeHistogramMaxBucketNumber, but not to more than
-	// NativeHistogramMaxZeroThreshold. Thus, if
-	// NativeHistogramMaxZeroThreshold is already at or below the current
-	// zero threshold, nothing happens at this step. After that, if the
-	// number of buckets still exceeds NativeHistogramMaxBucketNumber, the
-	// resolution of the histogram is reduced by doubling the width of the
-	// sparse buckets (up to a growth factor between one bucket to the next
-	// of 2^(2^4) = 65536, see above).
+	// enacted:
+	//  - First, if the last reset (or the creation) of the histogram is at
+	//    least NativeHistogramMinResetDuration ago, then the whole
+	//    histogram is reset to its initial state (including regular
+	//    buckets).
+	//  - If less time has passed, or if NativeHistogramMinResetDuration is
+	//    zero, no reset is performed. Instead, the zero threshold is
+	//    increased sufficiently to reduce the number of buckets to or below
+	//    NativeHistogramMaxBucketNumber, but not to more than
+	//    NativeHistogramMaxZeroThreshold. Thus, if
+	//    NativeHistogramMaxZeroThreshold is already at or below the current
+	//    zero threshold, nothing happens at this step.
+	//  - After that, if the number of buckets still exceeds
+	//    NativeHistogramMaxBucketNumber, the resolution of the histogram is
+	//    reduced by doubling the width of the sparse buckets (up to a
+	//    growth factor between one bucket to the next of 2^(2^4) = 65536,
+	//    see above).
+	//  - Any increased zero threshold or reduced resolution is reset back
+	//    to their original values once NativeHistogramMinResetDuration has
+	//    passed (since the last reset or the creation of the histogram).
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
@@ -854,13 +859,16 @@ func (h *histogram) limitBuckets(counts *histogramCounts, value float64, bucket 
 	h.doubleBucketWidth(hotCounts, coldCounts)
 }
 
-// maybeReset resests the whole histogram if at least h.nativeHistogramMinResetDuration
+// maybeReset resets the whole histogram if at least h.nativeHistogramMinResetDuration
 // has been passed. It returns true if the histogram has been reset. The caller
 // must have locked h.mtx.
-func (h *histogram) maybeReset(hot, cold *histogramCounts, coldIdx uint64, value float64, bucket int) bool {
+func (h *histogram) maybeReset(
+	hot, cold *histogramCounts, coldIdx uint64, value float64, bucket int,
+) bool {
 	// We are using the possibly mocked h.now() rather than
 	// time.Since(h.lastResetTime) to enable testing.
-	if h.nativeHistogramMinResetDuration == 0 || h.now().Sub(h.lastResetTime) < h.nativeHistogramMinResetDuration {
+	if h.nativeHistogramMinResetDuration == 0 ||
+		h.now().Sub(h.lastResetTime) < h.nativeHistogramMinResetDuration {
 		return false
 	}
 	// Completely reset coldCounts.
