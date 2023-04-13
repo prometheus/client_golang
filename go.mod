@@ -6,7 +6,7 @@ require (
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/davecgh/go-spew v1.1.1
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.3
 	github.com/json-iterator/go v1.1.12
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.41.0
