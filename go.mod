@@ -9,7 +9,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/json-iterator/go v1.1.12
 	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/common v0.41.0
+	github.com/prometheus/common v0.42.0
 	github.com/prometheus/procfs v0.9.0
 	golang.org/x/sys v0.6.0
 	google.golang.org/protobuf v1.30.0
