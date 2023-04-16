@@ -346,7 +346,7 @@ func TestAPIs(t *testing.T) {
 		{
 			do:        doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
 			res:       []string{"val1", "val2"},
 		},
@@ -354,7 +354,7 @@ func TestAPIs(t *testing.T) {
 			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inRes:      []string{"val1", "val2"},
 			inWarnings: []string{"a"},
-			reqMethod:  "GET",
+			reqMethod:  "POST",
 			reqPath:    "/api/v1/labels",
 			res:        []string{"val1", "val2"},
 		},
@@ -362,7 +362,7 @@ func TestAPIs(t *testing.T) {
 		{
 			do:        doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inErr:     fmt.Errorf("some error"),
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
 			err:       errors.New("some error"),
 		},
@@ -370,14 +370,14 @@ func TestAPIs(t *testing.T) {
 			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
-			reqMethod:  "GET",
+			reqMethod:  "POST",
 			reqPath:    "/api/v1/labels",
 			err:        errors.New("some error"),
 		},
 		{
 			do:        doLabelNames([]string{"up"}, testTime.Add(-100*time.Hour), testTime),
 			inRes:     []string{"val1", "val2"},
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
 			res:       []string{"val1", "val2"},
 		},
@@ -430,7 +430,7 @@ func TestAPIs(t *testing.T) {
 					"instance": "localhost:9090",
 				},
 			},
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/series",
 			res: []model.LabelSet{
 				{
@@ -451,7 +451,7 @@ func TestAPIs(t *testing.T) {
 				},
 			},
 			inWarnings: []string{"a"},
-			reqMethod:  "GET",
+			reqMethod:  "POST",
 			reqPath:    "/api/v1/series",
 			res: []model.LabelSet{
 				{
@@ -465,7 +465,7 @@ func TestAPIs(t *testing.T) {
 		{
 			do:        doSeries("up", testTime.Add(-time.Minute), testTime),
 			inErr:     fmt.Errorf("some error"),
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/series",
 			err:       errors.New("some error"),
 		},
@@ -474,7 +474,7 @@ func TestAPIs(t *testing.T) {
 			do:         doSeries("up", testTime.Add(-time.Minute), testTime),
 			inErr:      fmt.Errorf("some error"),
 			inWarnings: []string{"a"},
-			reqMethod:  "GET",
+			reqMethod:  "POST",
 			reqPath:    "/api/v1/series",
 			err:        errors.New("some error"),
 		},
@@ -1149,7 +1149,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/query_exemplars",
 			inErr:     errors.New("some error"),
 			err:       errors.New("some error"),
@@ -1157,7 +1157,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
-			reqMethod: "GET",
+			reqMethod: "POST",
 			reqPath:   "/api/v1/query_exemplars",
 			inRes: []interface{}{
 				map[string]interface{}{
