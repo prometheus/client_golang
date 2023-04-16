@@ -1031,13 +1031,7 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 		q.Add("match[]", m)
 	}
 
-	u.RawQuery = q.Encode()
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	_, body, w, err := h.client.Do(ctx, req)
+	_, body, w, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
 		return nil, w, err
 	}
@@ -1158,14 +1152,7 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTi
 		q.Set("end", formatTime(endTime))
 	}
 
-	u.RawQuery = q.Encode()
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	_, body, warnings, err := h.client.Do(ctx, req)
+	_, body, warnings, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -1322,14 +1309,8 @@ func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime, e
 	if !endTime.IsZero() {
 		q.Set("end", formatTime(endTime))
 	}
-	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, err := h.client.DoGetFallback(ctx, u, q)
 	if err != nil {
 		return nil, err
 	}
