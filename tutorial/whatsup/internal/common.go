@@ -15,7 +15,10 @@ package internal
 
 import (
 	"flag"
+	"fmt"
+	"net"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -37,10 +40,62 @@ type Config struct {
 	TraceSamplingRatio float64 `yaml:"TraceSamplingRatio,omitempty"`
 }
 
+func isWSL() bool {
+	b, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+
+	if strings.Contains(string(b), "WSL") {
+		return true
+	}
+
+	return false
+}
+
+func getInterfaceIpv4Addr(interfaceName string) (addr string, err error) {
+	var (
+		ief      *net.Interface
+		addrs    []net.Addr
+		ipv4Addr net.IP
+	)
+
+	if ief, err = net.InterfaceByName(interfaceName); err != nil {
+		return "", err
+	}
+
+	if addrs, err = ief.Addrs(); err != nil {
+		return "", err
+	}
+
+	for _, addr := range addrs {
+		if ipv4Addr = addr.(*net.IPNet).IP.To4(); ipv4Addr != nil {
+			break
+		}
+	}
+
+	if ipv4Addr == nil {
+		return "", fmt.Errorf("interface %s does not have an ipv4 address", interfaceName)
+	}
+
+	return ipv4Addr.String(), nil
+}
+
 func whatsupAddr(defAddress string) string {
 	if a := os.Getenv("HOSTADDR"); a != "" {
 		return a + ":" + WhatsupPort
 	}
+
+	// use eth0 IP address if running WSL, return default if check fails
+	if isWSL() {
+		a, err := getInterfaceIpv4Addr("eth0")
+		if err != nil {
+			return defAddress
+		}
+
+		return a + ":" + WhatsupPort
+	}
+
 	return defAddress
 }
 
