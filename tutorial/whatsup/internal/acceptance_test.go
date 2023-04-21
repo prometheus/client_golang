@@ -27,7 +27,7 @@ import (
 )
 
 func TestAcceptance(t *testing.T) {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%v/metrics", WhatsupPort))
+	resp, err := http.Get(whatsupAddr(fmt.Sprintf("http://localhost:%v", WhatsupPort)) + "/metrics")
 	testutil.Ok(t, err)
 	defer resp.Body.Close()
 

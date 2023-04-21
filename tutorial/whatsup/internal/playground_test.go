@@ -19,6 +19,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,16 +72,25 @@ func TestPlayground(t *testing.T) {
 	testutil.Ok(t, prom.SetConfig(prometheusConfig(map[string]string{
 		"prometheus": prom.InternalEndpoint("http"),
 		"jaeger":     jaeger.InternalEndpoint("http.metrics"),
-		"whatsup":    fmt.Sprintf("host.docker.internal:%v", WhatsupPort),
+		"whatsup":    whatsupAddr(fmt.Sprintf("host.docker.internal:%v", WhatsupPort)),
 	})))
 	// Due to VM based docker setups (e.g. MacOS), file sharing can be slower - do more sighups just in case (noops if all good)
 	prom.Exec(e2e.NewCommand("kill", "-SIGHUP", "1"))
 	prom.Exec(e2e.NewCommand("kill", "-SIGHUP", "1"))
 
 	// Best effort.
-	fmt.Println(e2einteractive.OpenInBrowser("http://" + jaeger.Endpoint("http.front")))
-	fmt.Println(e2einteractive.OpenInBrowser("http://" + prom.Endpoint("http")))
+	fmt.Println(e2einteractive.OpenInBrowser(convertToExternal("http://" + jaeger.Endpoint("http.front"))))
+	fmt.Println(e2einteractive.OpenInBrowser(convertToExternal("http://" + prom.Endpoint("http"))))
 	testutil.Ok(t, e2einteractive.RunUntilEndpointHitWithPort(19920))
+}
+
+func convertToExternal(endpoint string) string {
+	a := os.Getenv("HOSTADDR")
+	if a == "" {
+		return endpoint
+	}
+	// YOLO, fix and test.
+	return fmt.Sprintf("%v:%v", a, strings.Split(endpoint, ":")[2])
 }
 
 func prometheusConfig(jobToScrapeTargetAddress map[string]string) promconfig.Config {
