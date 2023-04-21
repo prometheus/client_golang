@@ -37,6 +37,13 @@ type Config struct {
 	TraceSamplingRatio float64 `yaml:"TraceSamplingRatio,omitempty"`
 }
 
+func whatsupAddr(defAddress string) string {
+	if a := os.Getenv("HOSTADDR"); a != "" {
+		return a + ":" + WhatsupPort
+	}
+	return defAddress
+}
+
 func ParseOptions(args []string) (Config, error) {
 	c := Config{}
 
