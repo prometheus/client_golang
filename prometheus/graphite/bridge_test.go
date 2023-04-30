@@ -19,9 +19,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -438,13 +436,12 @@ type mockGraphite struct {
 
 func ExampleBridge() {
 	b, err := NewBridge(&Config{
-		URL:           "graphite.example.org:3099",
-		Gatherer:      prometheus.DefaultGatherer,
-		Prefix:        "prefix",
-		Interval:      15 * time.Second,
-		Timeout:       10 * time.Second,
-		ErrorHandling: AbortOnError,
-		Logger:        log.New(os.Stdout, "graphite bridge: ", log.Lshortfile),
+		URL:          "graphite.example.org:3099",
+		Gatherer:     prometheus.DefaultGatherer,
+		Prefix:       "prefix",
+		Interval:     15 * time.Second,
+		Timeout:      10 * time.Second,
+		ErrorHandler: func(err error) {},
 	})
 	if err != nil {
 		panic(err)
@@ -466,4 +463,35 @@ func ExampleBridge() {
 
 	// Start pushing metrics to Graphite in the Run() loop.
 	b.Run(ctx)
+}
+
+func TestErrorHandler(t *testing.T) {
+	var internalError error
+	c := &Config{
+		URL:          "graphite.example.org:3099",
+		Gatherer:     prometheus.DefaultGatherer,
+		Prefix:       "prefix",
+		Interval:     5 * time.Second,
+		Timeout:      2 * time.Second,
+		ErrorHandler: func(err error) { internalError = err },
+	}
+	b, err := NewBridge(c)
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a Context to control stopping the Run() loop that pushes
+	// metrics to Graphite. Multiplied by 2, because we need Run to be executed at least one time.
+	ctx, cancel := context.WithTimeout(context.Background(), c.Interval*2)
+	defer cancel()
+
+	// Start pushing metrics to Graphite in the Run() loop.
+	b.Run(ctx)
+
+	// There are obviously no hosts like "graphite.example.com" available during the tests.
+	expError := fmt.Errorf("dial tcp: lookup graphite.example.org: no such host")
+
+	if internalError.Error() != expError.Error() {
+		t.Fatalf("Expected: '%s', actual: '%s'", expError, internalError)
+	}
 }

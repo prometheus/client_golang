@@ -38,19 +38,11 @@ const (
 	millisecondsPerSecond = 1000
 )
 
-// HandlerErrorHandling defines how a Handler serving metrics will handle
-// errors.
-type HandlerErrorHandling int
+// ErrorHandler is a function that handles errors
+type ErrorHandler func(err error)
 
-// These constants cause handlers serving metrics to behave as described if
-// errors are encountered.
-const (
-	// Ignore errors and try to push as many metrics to Graphite as possible.
-	ContinueOnError HandlerErrorHandling = iota
-
-	// Abort the push to Graphite upon the first error encountered.
-	AbortOnError
-)
+// DefaultErrorHandler skips received errors
+var DefaultErrorHandler = func(err error) {}
 
 // Config defines the Graphite bridge config.
 type Config struct {
@@ -72,13 +64,8 @@ type Config struct {
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
 	Gatherer prometheus.Gatherer
 
-	// The logger that messages are written to. Defaults to no logging.
-	Logger Logger
-
-	// ErrorHandling defines how errors are handled. Note that errors are
-	// logged regardless of the configured ErrorHandling provided Logger
-	// is not nil.
-	ErrorHandling HandlerErrorHandling
+	// ErrorHandler defines how errors are handled.
+	ErrorHandler ErrorHandler
 }
 
 // Bridge pushes metrics to the configured Graphite server.
@@ -89,17 +76,9 @@ type Bridge struct {
 	interval time.Duration
 	timeout  time.Duration
 
-	errorHandling HandlerErrorHandling
-	logger        Logger
+	errorHandler ErrorHandler
 
 	g prometheus.Gatherer
-}
-
-// Logger is the minimal interface Bridge needs for logging. Note that
-// log.Logger from the standard library implements this interface, and it is
-// easy to implement by custom loggers, if they don't do so already anyway.
-type Logger interface {
-	Println(v ...interface{})
 }
 
 // NewBridge returns a pointer to a new Bridge struct.
@@ -119,10 +98,6 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.g = c.Gatherer
 	}
 
-	if c.Logger != nil {
-		b.logger = c.Logger
-	}
-
 	if c.Prefix != "" {
 		b.prefix = c.Prefix
 	}
@@ -140,7 +115,7 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.timeout = c.Timeout
 	}
 
-	b.errorHandling = c.ErrorHandling
+	b.errorHandler = c.ErrorHandler
 
 	return b, nil
 }
@@ -153,9 +128,7 @@ func (b *Bridge) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := b.Push(); err != nil && b.logger != nil {
-				b.logger.Println("error pushing to Graphite:", err)
-			}
+			b.errorHandler(b.Push())
 		case <-ctx.Done():
 			return
 		}
@@ -165,17 +138,12 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
-	if err != nil || len(mfs) == 0 {
-		switch b.errorHandling {
-		case AbortOnError:
-			return err
-		case ContinueOnError:
-			if b.logger != nil {
-				b.logger.Println("continue on error:", err)
-			}
-		default:
-			panic("unrecognized error handling value")
-		}
+	if err != nil {
+		return err
+	}
+
+	if len(mfs) == 0 {
+		return nil
 	}
 
 	conn, err := net.DialTimeout("tcp", b.url, b.timeout)
