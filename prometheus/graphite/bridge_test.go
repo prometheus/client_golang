@@ -490,7 +490,6 @@ func TestErrorHandler(t *testing.T) {
 
 	// There are obviously no hosts like "graphite.example.com" available during the tests.
 	expError := fmt.Errorf("dial tcp: lookup graphite.example.org: no such host")
-
 	if internalError.Error() != expError.Error() {
 		t.Fatalf("Expected: '%s', actual: '%s'", expError, internalError)
 	}
