@@ -468,7 +468,7 @@ func ExampleBridge() {
 func TestErrorHandler(t *testing.T) {
 	var internalError error
 	c := &Config{
-		URL:          "",
+		URL:          "localhost",
 		Gatherer:     prometheus.DefaultGatherer,
 		Prefix:       "prefix",
 		Interval:     5 * time.Second,
@@ -488,8 +488,8 @@ func TestErrorHandler(t *testing.T) {
 	// Start pushing metrics to Graphite in the Run() loop.
 	b.Run(ctx)
 
-	// We haven't specified tcp address
-	expError := fmt.Errorf("dial tcp: missing address")
+	// We haven't specified port
+	expError := fmt.Errorf("dial tcp: address localhost: missing port in address")
 	if internalError.Error() != expError.Error() {
 		t.Fatalf("Expected: '%s', actual: '%s'", expError, internalError)
 	}
