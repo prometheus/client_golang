@@ -468,7 +468,7 @@ func ExampleBridge() {
 func TestErrorHandler(t *testing.T) {
 	var internalError error
 	c := &Config{
-		URL:          "graphite.example.org:3099",
+		URL:          "",
 		Gatherer:     prometheus.DefaultGatherer,
 		Prefix:       "prefix",
 		Interval:     5 * time.Second,
@@ -488,8 +488,8 @@ func TestErrorHandler(t *testing.T) {
 	// Start pushing metrics to Graphite in the Run() loop.
 	b.Run(ctx)
 
-	// There are obviously no hosts like "graphite.example.com" available during the tests.
-	expError := fmt.Errorf("dial tcp: lookup graphite.example.org: no such host")
+	// We haven't specified tcp address
+	expError := fmt.Errorf("dial tcp: missing address")
 	if internalError.Error() != expError.Error() {
 		t.Fatalf("Expected: '%s', actual: '%s'", expError, internalError)
 	}
