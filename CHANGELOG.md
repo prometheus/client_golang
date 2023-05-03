@@ -4,6 +4,11 @@
 
 ## What's Changed
 
+* [BUGFIX] Fixed promhttp.Instrument* handlers wrongly trying to attach exemplar to unsupported metrics (e.g. summary), \
+causing panics #1253
+
+## What's Changed
+
 * [BUGFIX] Fix issue with atomic variables on ppc64le #1171
 * [BUGFIX] Support for multiple samples within same metric #1181
 * [BUGFIX] Bump golang.org/x/text to v0.3.8 to mitigate CVE-2022-32149 #1187
