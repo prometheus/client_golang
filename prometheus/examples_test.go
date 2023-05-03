@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	//nolint:staticcheck // Ignore SA1019. Need to keep deprecated package for compatibility.
-	"github.com/golang/protobuf/proto"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
@@ -321,25 +319,10 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// summary: <
-	//   sample_count: 1000
-	//   sample_sum: 29969.50000000001
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 31.1
-	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 41.3
-	//   >
-	//   quantile: <
-	//     quantile: 0.99
-	//     value: 41.9
-	//   >
-	// >
+	// summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > >
 }
 
 func ExampleSummaryVec() {
@@ -371,78 +354,10 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(proto.MarshalTextString(metricFamilies[0]))
+	fmt.Println(metricFamilies[0].String())
 
 	// Output:
-	// name: "pond_temperature_celsius"
-	// help: "The temperature of the frog pond."
-	// type: SUMMARY
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "leiopelma-hochstetteri"
-	//   >
-	//   summary: <
-	//     sample_count: 0
-	//     sample_sum: 0
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: nan
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: nan
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: nan
-	//     >
-	//   >
-	// >
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "lithobates-catesbeianus"
-	//   >
-	//   summary: <
-	//     sample_count: 1000
-	//     sample_sum: 31956.100000000017
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: 32.4
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: 41.4
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: 41.9
-	//     >
-	//   >
-	// >
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "litoria-caerulea"
-	//   >
-	//   summary: <
-	//     sample_count: 1000
-	//     sample_sum: 29969.50000000001
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: 31.1
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: 41.3
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: 41.9
-	//     >
-	//   >
-	// >
+	// name:"pond_temperature_celsius" help:"The temperature of the frog pond." type:SUMMARY metric:<label:<name:"species" value:"leiopelma-hochstetteri" > summary:<sample_count:0 sample_sum:0 quantile:<quantile:0.5 value:nan > quantile:<quantile:0.9 value:nan > quantile:<quantile:0.99 value:nan > > > metric:<label:<name:"species" value:"lithobates-catesbeianus" > summary:<sample_count:1000 sample_sum:31956.100000000017 quantile:<quantile:0.5 value:32.4 > quantile:<quantile:0.9 value:41.4 > quantile:<quantile:0.99 value:41.9 > > > metric:<label:<name:"species" value:"litoria-caerulea" > summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > > >
 }
 
 func ExampleNewConstSummary() {
@@ -466,33 +381,10 @@ func ExampleNewConstSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// label: <
-	//   name: "code"
-	//   value: "200"
-	// >
-	// label: <
-	//   name: "method"
-	//   value: "get"
-	// >
-	// label: <
-	//   name: "owner"
-	//   value: "example"
-	// >
-	// summary: <
-	//   sample_count: 4711
-	//   sample_sum: 403.34
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 42.3
-	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 323.3
-	//   >
-	// >
+	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > summary:<sample_count:4711 sample_sum:403.34 quantile:<quantile:0.5 value:42.3 > quantile:<quantile:0.9 value:323.3 > >
 }
 
 func ExampleHistogram() {
@@ -512,33 +404,10 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// histogram: <
-	//   sample_count: 1000
-	//   sample_sum: 29969.50000000001
-	//   bucket: <
-	//     cumulative_count: 192
-	//     upper_bound: 20
-	//   >
-	//   bucket: <
-	//     cumulative_count: 366
-	//     upper_bound: 25
-	//   >
-	//   bucket: <
-	//     cumulative_count: 501
-	//     upper_bound: 30
-	//   >
-	//   bucket: <
-	//     cumulative_count: 638
-	//     upper_bound: 35
-	//   >
-	//   bucket: <
-	//     cumulative_count: 816
-	//     upper_bound: 40
-	//   >
-	// >
+	// histogram:<sample_count:1000 sample_sum:29969.50000000001 bucket:<cumulative_count:192 upper_bound:20 > bucket:<cumulative_count:366 upper_bound:25 > bucket:<cumulative_count:501 upper_bound:30 > bucket:<cumulative_count:638 upper_bound:35 > bucket:<cumulative_count:816 upper_bound:40 > >
 }
 
 func ExampleNewConstHistogram() {
@@ -562,41 +431,10 @@ func ExampleNewConstHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// label: <
-	//   name: "code"
-	//   value: "200"
-	// >
-	// label: <
-	//   name: "method"
-	//   value: "get"
-	// >
-	// label: <
-	//   name: "owner"
-	//   value: "example"
-	// >
-	// histogram: <
-	//   sample_count: 4711
-	//   sample_sum: 403.34
-	//   bucket: <
-	//     cumulative_count: 121
-	//     upper_bound: 25
-	//   >
-	//   bucket: <
-	//     cumulative_count: 2403
-	//     upper_bound: 50
-	//   >
-	//   bucket: <
-	//     cumulative_count: 3221
-	//     upper_bound: 100
-	//   >
-	//   bucket: <
-	//     cumulative_count: 4233
-	//     upper_bound: 200
-	//   >
-	// >
+	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 > bucket:<cumulative_count:2403 upper_bound:50 > bucket:<cumulative_count:3221 upper_bound:100 > bucket:<cumulative_count:4233 upper_bound:200 > >
 }
 
 func ExampleNewConstHistogram_WithExemplar() {
@@ -631,81 +469,10 @@ func ExampleNewConstHistogram_WithExemplar() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// label: <
-	//   name: "code"
-	//   value: "200"
-	// >
-	// label: <
-	//   name: "method"
-	//   value: "get"
-	// >
-	// label: <
-	//   name: "owner"
-	//   value: "example"
-	// >
-	// histogram: <
-	//   sample_count: 4711
-	//   sample_sum: 403.34
-	//   bucket: <
-	//     cumulative_count: 121
-	//     upper_bound: 25
-	//     exemplar: <
-	//       label: <
-	//         name: "testName"
-	//         value: "testVal"
-	//       >
-	//       value: 24
-	//       timestamp: <
-	//         seconds: 1136214245
-	//       >
-	//     >
-	//   >
-	//   bucket: <
-	//     cumulative_count: 2403
-	//     upper_bound: 50
-	//     exemplar: <
-	//       label: <
-	//         name: "testName"
-	//         value: "testVal"
-	//       >
-	//       value: 42
-	//       timestamp: <
-	//         seconds: 1136214245
-	//       >
-	//     >
-	//   >
-	//   bucket: <
-	//     cumulative_count: 3221
-	//     upper_bound: 100
-	//     exemplar: <
-	//       label: <
-	//         name: "testName"
-	//         value: "testVal"
-	//       >
-	//       value: 89
-	//       timestamp: <
-	//         seconds: 1136214245
-	//       >
-	//     >
-	//   >
-	//   bucket: <
-	//     cumulative_count: 4233
-	//     upper_bound: 200
-	//     exemplar: <
-	//       label: <
-	//         name: "testName"
-	//         value: "testVal"
-	//       >
-	//       value: 157
-	//       timestamp: <
-	//         seconds: 1136214245
-	//       >
-	//     >
-	//   >
-	// >
+	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 exemplar:<label:<name:"testName" value:"testVal" > value:24 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:2403 upper_bound:50 exemplar:<label:<name:"testName" value:"testVal" > value:42 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:3221 upper_bound:100 exemplar:<label:<name:"testName" value:"testVal" > value:89 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:4233 upper_bound:200 exemplar:<label:<name:"testName" value:"testVal" > value:157 timestamp:<seconds:1136214245 > > > >
 }
 
 func ExampleAlreadyRegisteredError() {
@@ -858,11 +625,8 @@ func ExampleNewMetricWithTimestamp() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(metric.String())
 
 	// Output:
-	// gauge: <
-	//   value: 298.15
-	// >
-	// timestamp_ms: 1257894000012
+	// gauge:<value:298.15 > timestamp_ms:1257894000012
 }
