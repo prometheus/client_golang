@@ -1,7 +1,7 @@
 version: 2.1
 orbs:
   go: circleci/go@1.7.1
-  prometheus: prometheus/prometheus@0.16.0
+  prometheus: prometheus/prometheus@0.17.1
 jobs:
   test:
     parameters:
