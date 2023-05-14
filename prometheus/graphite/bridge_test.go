@@ -19,7 +19,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net"
+	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -436,12 +438,13 @@ type mockGraphite struct {
 
 func ExampleBridge() {
 	b, err := NewBridge(&Config{
-		URL:          "graphite.example.org:3099",
-		Gatherer:     prometheus.DefaultGatherer,
-		Prefix:       "prefix",
-		Interval:     15 * time.Second,
-		Timeout:      10 * time.Second,
-		ErrorHandler: func(err error) {},
+		URL:           "graphite.example.org:3099",
+		Gatherer:      prometheus.DefaultGatherer,
+		Prefix:        "prefix",
+		Interval:      15 * time.Second,
+		Timeout:       10 * time.Second,
+		ErrorHandling: AbortOnError,
+		Logger:        log.New(os.Stdout, "graphite bridge: ", log.Lshortfile),
 	})
 	if err != nil {
 		panic(err)
@@ -465,32 +468,47 @@ func ExampleBridge() {
 	b.Run(ctx)
 }
 
-func TestErrorHandler(t *testing.T) {
-	var internalError error
-	c := &Config{
-		URL:          "localhost",
-		Gatherer:     prometheus.DefaultGatherer,
-		Prefix:       "prefix",
-		Interval:     5 * time.Second,
-		Timeout:      2 * time.Second,
-		ErrorHandler: func(err error) { internalError = err },
+func TestErrorHandling(t *testing.T) {
+	var testCases = []struct {
+		errorHandling    HandlerErrorHandling
+		receivedError    error
+		interceptedError error
+	}{
+		{
+			errorHandling:    ContinueOnError,
+			receivedError:    nil,
+			interceptedError: nil,
+		},
+		{
+			errorHandling:    AbortOnError,
+			receivedError:    &net.OpError{},
+			interceptedError: nil,
+		},
+		{
+			errorHandling:    CallbackOnError,
+			receivedError:    nil,
+			interceptedError: &net.OpError{},
+		},
 	}
-	b, err := NewBridge(c)
-	if err != nil {
-		panic(err)
-	}
 
-	// Create a Context to control stopping the Run() loop that pushes
-	// metrics to Graphite. Multiplied by 2, because we need Run to be executed at least one time.
-	ctx, cancel := context.WithTimeout(context.Background(), c.Interval*2)
-	defer cancel()
+	for _, testCase := range testCases {
+		var interceptedError error
+		c := &Config{
+			URL:               "localhost",
+			ErrorHandling:     testCase.errorHandling,
+			ErrorCallbackFunc: func(err error) { interceptedError = err },
+		}
+		b, err := NewBridge(c)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	// Start pushing metrics to Graphite in the Run() loop.
-	b.Run(ctx)
-
-	// We haven't specified port
-	expError := fmt.Errorf("dial tcp: address localhost: missing port in address")
-	if internalError.Error() != expError.Error() {
-		t.Fatalf("Expected: '%s', actual: '%s'", expError, internalError)
+		receivedError := b.Push()
+		if reflect.TypeOf(receivedError) != reflect.TypeOf(testCase.receivedError) {
+			t.Errorf("expected to receive: %T, received: %T", testCase.receivedError, receivedError)
+		}
+		if reflect.TypeOf(interceptedError) != reflect.TypeOf(testCase.interceptedError) {
+			t.Errorf("expected to intercept: %T, intercepted: %T", testCase.interceptedError, interceptedError)
+		}
 	}
 }

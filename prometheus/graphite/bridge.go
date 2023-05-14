@@ -38,11 +38,22 @@ const (
 	millisecondsPerSecond = 1000
 )
 
-// ErrorHandler is a function that handles errors
-type ErrorHandler func(err error)
+// HandlerErrorHandling defines how a Handler serving metrics will handle
+// errors.
+type HandlerErrorHandling int
 
-// DefaultErrorHandler skips received errors
-var DefaultErrorHandler = func(err error) {}
+// These constants cause handlers serving metrics to behave as described if
+// errors are encountered.
+const (
+	// Ignore errors and try to push as many metrics to Graphite as possible.
+	ContinueOnError HandlerErrorHandling = iota
+
+	// Abort the push to Graphite upon the first error encountered.
+	AbortOnError
+
+	// Execute callback function on error.
+	CallbackOnError
+)
 
 // Config defines the Graphite bridge config.
 type Config struct {
@@ -64,8 +75,16 @@ type Config struct {
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
 	Gatherer prometheus.Gatherer
 
-	// ErrorHandler defines how errors are handled.
-	ErrorHandler ErrorHandler
+	// The logger that messages are written to. Defaults to no logging.
+	Logger Logger
+
+	// ErrorHandling defines how errors are handled. Note that errors are
+	// logged regardless of the configured ErrorHandling provided Logger
+	// is not nil.
+	ErrorHandling HandlerErrorHandling
+
+	// ErrorCallbackFunc is a callback function that can be executed when error is occurred
+	ErrorCallbackFunc CallbackFunc
 }
 
 // Bridge pushes metrics to the configured Graphite server.
@@ -76,10 +95,22 @@ type Bridge struct {
 	interval time.Duration
 	timeout  time.Duration
 
-	errorHandler ErrorHandler
+	errorHandling     HandlerErrorHandling
+	errorCallbackFunc CallbackFunc
+	logger            Logger
 
 	g prometheus.Gatherer
 }
+
+// Logger is the minimal interface Bridge needs for logging. Note that
+// log.Logger from the standard library implements this interface, and it is
+// easy to implement by custom loggers, if they don't do so already anyway.
+type Logger interface {
+	Println(v ...interface{})
+}
+
+// CallbackFunc is a special type for callback functions
+type CallbackFunc func(error)
 
 // NewBridge returns a pointer to a new Bridge struct.
 func NewBridge(c *Config) (*Bridge, error) {
@@ -96,6 +127,10 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.g = prometheus.DefaultGatherer
 	} else {
 		b.g = c.Gatherer
+	}
+
+	if c.Logger != nil {
+		b.logger = c.Logger
 	}
 
 	if c.Prefix != "" {
@@ -115,7 +150,11 @@ func NewBridge(c *Config) (*Bridge, error) {
 		b.timeout = c.Timeout
 	}
 
-	b.errorHandler = c.ErrorHandler
+	b.errorHandling = c.ErrorHandling
+
+	if c.ErrorCallbackFunc != nil {
+		b.errorCallbackFunc = c.ErrorCallbackFunc
+	}
 
 	return b, nil
 }
@@ -128,7 +167,9 @@ func (b *Bridge) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			b.errorHandler(b.Push())
+			if err := b.Push(); err != nil && b.logger != nil {
+				b.logger.Println("error pushing to Graphite:", err)
+			}
 		case <-ctx.Done():
 			return
 		}
@@ -137,11 +178,27 @@ func (b *Bridge) Run(ctx context.Context) {
 
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
+	err := b.push()
+	switch b.errorHandling {
+	case AbortOnError:
+		return err
+	case ContinueOnError:
+		if b.logger != nil {
+			b.logger.Println("continue on error:", err)
+		}
+	case CallbackOnError:
+		if b.errorCallbackFunc != nil {
+			b.errorCallbackFunc(err)
+		}
+	}
+	return nil
+}
+
+func (b *Bridge) push() error {
 	mfs, err := b.g.Gather()
 	if err != nil {
 		return err
 	}
-
 	if len(mfs) == 0 {
 		return nil
 	}
