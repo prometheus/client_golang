@@ -42,8 +42,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -376,7 +377,7 @@ type HandlerOpts struct {
 	// counters (e.g. OpenTelemetry) or generally _created timestamp estimation per
 	// scrape target.
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
-	//       exposition format.
+	// exposition format.
 	ProcessStartTime time.Time
 }
 
