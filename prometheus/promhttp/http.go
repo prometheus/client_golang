@@ -53,12 +53,6 @@ const (
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
 
-var processStartTime time.Time
-
-func init() {
-	processStartTime = time.Now()
-}
-
 var gzipPool = sync.Pool{
 	New: func() interface{} {
 		return gzip.NewWriter(nil)
@@ -128,8 +122,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 	}
 
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
-		if opts.EnableProcessStartTimeHeader {
-			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(processStartTime.Unix(), 10))
+		if !opts.ProcessStartTime.IsZero() {
+			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(opts.ProcessStartTime.Unix(), 10))
 		}
 		if inFlightSem != nil {
 			select {
@@ -376,12 +370,14 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
-	// ProcessUnixTime allows setting process start time (unix timestamp integer) value that will be
-	// exposed with "Process-Start-Time-Unix" response header along with the metrics payload. 
-	// This allow callers to have efficient transformations to cumulative counters (e.g. OpenTelemetry) or
-	// generally _created timestamp estimation per scrape target.
-	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus exposition format.
-	ProcessStartTimeUnix int64
+	// ProcessStartTime allows setting process start timevalue that will be exposed
+	// with "Process-Start-Time-Unix" response header along with the metrics
+	// payload. This allow callers to have efficient transformations to cumulative
+	// counters (e.g. OpenTelemetry) or generally _created timestamp estimation per
+	// scrape target.
+	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
+	//       exposition format.
+	ProcessStartTime time.Time
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
