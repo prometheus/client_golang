@@ -15,16 +15,16 @@ package prometheus_test
 
 import (
 	"expvar"
-	"fmt"
-	"sort"
 	"strings"
+	"testing"
 
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
-func ExampleNewExpvarCollector() {
+func TestExampleNewExpvarCollector(t *testing.T) {
 	expvarCollector := prometheus.NewExpvarCollector(map[string]*prometheus.Desc{
 		"memstats": prometheus.NewDesc(
 			"expvar_memstats",
@@ -70,7 +70,6 @@ func ExampleNewExpvarCollector() {
 	// "http-request-count": {"200": {"POST": 11, "GET": 212}, "404": {"POST": 3, "GET": 13}}
 
 	// Let's see what the scrape would yield, but exclude the memstats metrics.
-	metricStrings := []string{}
 	metric := dto.Metric{}
 	metricChan := make(chan prometheus.Metric)
 	go func() {
@@ -79,19 +78,20 @@ func ExampleNewExpvarCollector() {
 	}()
 	for m := range metricChan {
 		if !strings.Contains(m.Desc().String(), "expvar_memstats") {
-			metric.Reset()
 			m.Write(&metric)
-			metricStrings = append(metricStrings, metric.String())
 		}
 	}
-	sort.Strings(metricStrings)
-	for _, s := range metricStrings {
-		fmt.Println(strings.TrimRight(s, " "))
+
+	want := `label:{name:"code" value:"200"} label:{name:"method" value:"GET"} untyped:{value:212}`
+
+	if err := testutil.CompareProtoAndMetric(want, &metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
+
 	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"GET" > untyped:<value:212 >
-	// label:<name:"code" value:"200" > label:<name:"method" value:"POST" > untyped:<value:11 >
-	// label:<name:"code" value:"404" > label:<name:"method" value:"GET" > untyped:<value:13 >
-	// label:<name:"code" value:"404" > label:<name:"method" value:"POST" > untyped:<value:3 >
-	// untyped:<value:42 >
+	// label:{name:"code" value:"200"} label:{name:"method" value:"GET"} untyped:{value:212}
+	// label:{name:"code" value:"200"} label:{name:"method" value:"POST"} untyped:{value:11}
+	// label:{name:"code" value:"404"} label:{name:"method" value:"GET"} untyped:{value:13}
+	// label:{name:"code" value:"404"} label:{name:"method" value:"POST"} untyped:{value:3}
+	// untyped:{value:42}
 }

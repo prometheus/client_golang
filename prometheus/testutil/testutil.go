@@ -45,11 +45,12 @@ import (
 	"reflect"
 
 	"github.com/davecgh/go-spew/spew"
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 // ToFloat64 collects all Metrics from the provided Collector. It expects that
@@ -340,4 +341,64 @@ func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFam
 		}
 	}
 	return filtered
+}
+
+// CompareProtoAndMetric compares a text proto to a MetricFamily.
+//
+// It jumps through a few hoops because the current protobuf
+// implementation is deliberately creating an unstable formatting for the text
+// representation. So this takes the text representation of the expected
+// MetricFamily and unmarshals it into a proto message object first. Then it
+// marshals both the expected and the got proto message into a binary protobuf,
+// which it then compares.
+func CompareProtoAndMetric(wantText string, got *dto.Metric) error {
+	want := &dto.Metric{}
+	err := prototext.Unmarshal([]byte(wantText), want)
+	if err != nil {
+		return fmt.Errorf("unexpected error unmarshaling Metric text %v", wantText)
+	}
+	wantProto, err := proto.Marshal(want)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling Metric %v", want)
+	}
+
+	gotProto, err := proto.Marshal(got)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling Metric %v", got)
+	}
+
+	if bytes.Compare(wantProto, gotProto) != 0 {
+		return fmt.Errorf("Wanted Metric %v, got %v.", want, got)
+	}
+	return nil
+}
+
+// CompareProtoAndMetricFamily compares a text proto to a MetricFamily.
+//
+// It jumps through a few hoops because the current protobuf
+// implementation is deliberately creating an unstable formatting for the text
+// representation. So this takes the text representation of the expected
+// MetricFamily and unmarshals it into a proto message object first. Then it
+// marshals both the expected and the got proto message into a binary protobuf,
+// which it then compares.
+func CompareProtoAndMetricFamily(wantText string, got *dto.MetricFamily) error {
+	want := &dto.MetricFamily{}
+	err := prototext.Unmarshal([]byte(wantText), want)
+	if err != nil {
+		return fmt.Errorf("unexpected error unmarshaling MetricFamily text %v", wantText)
+	}
+	wantProto, err := proto.Marshal(want)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling MetricFamily %v", want)
+	}
+
+	gotProto, err := proto.Marshal(got)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling MetricFamily %v", got)
+	}
+
+	if bytes.Compare(wantProto, gotProto) != 0 {
+		return fmt.Errorf("Wanted MetricFamily %v, got %v.", want, got)
+	}
+	return nil
 }

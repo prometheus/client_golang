@@ -14,7 +14,9 @@
 package prometheus
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -22,6 +24,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -251,4 +254,34 @@ func MustNewMetricWithExemplars(m Metric, exemplars ...Exemplar) Metric {
 		panic(err)
 	}
 	return ret
+}
+
+// compareProtoAndMetric compares a text proto to a Metric.
+//
+// It jumps through a few hoops because the current protobuf
+// implementation is deliberately creating an unstable formatting for the text
+// representation. So this takes the text representation of the expected
+// Metric and unmarshals it into a proto message object first. Then it
+// marshals both the expected and the got proto message into a binary protobuf,
+// which it then compares.
+func compareProtoAndMetric(wantText string, got *dto.Metric) error {
+	want := &dto.Metric{}
+	err := prototext.Unmarshal([]byte(wantText), want)
+	if err != nil {
+		return fmt.Errorf("unexpected error unmarshaling Metric text %v", wantText)
+	}
+	wantProto, err := proto.Marshal(want)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling Metric %v", want)
+	}
+
+	gotProto, err := proto.Marshal(got)
+	if err != nil {
+		return fmt.Errorf("unexpected error marshaling Metric %v", got)
+	}
+
+	if bytes.Compare(wantProto, gotProto) != 0 {
+		return fmt.Errorf("Wanted Metric %v, got %v.", want, got)
+	}
+	return nil
 }

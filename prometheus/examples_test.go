@@ -21,13 +21,16 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"testing"
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func ExampleGauge() {
@@ -302,7 +305,7 @@ func ExampleRegister() {
 	// taskCounterForWorker2001 registered.
 }
 
-func ExampleSummary() {
+func TestExampleSummary(t *testing.T) {
 	temps := prometheus.NewSummary(prometheus.SummaryOpts{
 		Name:       "pond_temperature_celsius",
 		Help:       "The temperature of the frog pond.",
@@ -319,13 +322,32 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(metric.String())
 
-	// Output:
-	// summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > >
+	want := `
+	summary:  {
+	  sample_count:  1000
+	  sample_sum:  29969.50000000001
+	  quantile:  {
+	    quantile:  0.5
+	    value:  31.1
+	  }
+	  quantile:  {
+	    quantile:  0.9
+	    value:  41.3
+	  }
+	  quantile:  {
+	    quantile:  0.99
+	    value:  41.9
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
-func ExampleSummaryVec() {
+func TestExampleSummaryVec(t *testing.T) {
 	temps := prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:       "pond_temperature_celsius",
@@ -354,13 +376,86 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(metricFamilies[0].String())
+	fmt.Println(prototext.Format(metricFamilies[0]))
 
-	// Output:
-	// name:"pond_temperature_celsius" help:"The temperature of the frog pond." type:SUMMARY metric:<label:<name:"species" value:"leiopelma-hochstetteri" > summary:<sample_count:0 sample_sum:0 quantile:<quantile:0.5 value:nan > quantile:<quantile:0.9 value:nan > quantile:<quantile:0.99 value:nan > > > metric:<label:<name:"species" value:"lithobates-catesbeianus" > summary:<sample_count:1000 sample_sum:31956.100000000017 quantile:<quantile:0.5 value:32.4 > quantile:<quantile:0.9 value:41.4 > quantile:<quantile:0.99 value:41.9 > > > metric:<label:<name:"species" value:"litoria-caerulea" > summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > > >
+	want := `
+	name: "pond_temperature_celsius"
+	help: "The temperature of the frog pond."
+	type: SUMMARY
+	metric: {
+	  label: {
+	    name: "species"
+	    value: "leiopelma-hochstetteri"
+	  }
+	  summary: {
+	    sample_count: 0
+	    sample_sum: 0
+	    quantile: {
+	      quantile: 0.5
+	      value: nan
+	    }
+	    quantile: {
+	      quantile: 0.9
+	      value: nan
+	    }
+	    quantile: {
+	      quantile: 0.99
+	      value: nan
+	    }
+	  }
+	}
+	metric: {
+	  label: {
+	    name: "species"
+	    value: "lithobates-catesbeianus"
+	  }
+	  summary: {
+	    sample_count: 1000
+	    sample_sum: 31956.100000000017
+	    quantile: {
+	      quantile: 0.5
+	      value: 32.4
+	    }
+	    quantile: {
+	      quantile: 0.9
+	      value: 41.4
+	    }
+	    quantile: {
+	      quantile: 0.99
+	      value: 41.9
+	    }
+	  }
+	}
+	metric: {
+	  label: {
+	    name: "species"
+	    value: "litoria-caerulea"
+	  }
+	  summary: {
+	    sample_count: 1000
+	    sample_sum: 29969.50000000001
+	    quantile: {
+	      quantile: 0.5
+	      value: 31.1
+	    }
+	    quantile: {
+	      quantile: 0.9
+	      value: 41.3
+	    }
+	    quantile: {
+	      quantile: 0.99
+	      value: 41.9
+	    }
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetricFamily(want, metricFamilies[0]); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
-func ExampleNewConstSummary() {
+func TestExampleNewConstSummary(t *testing.T) {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
@@ -381,13 +476,41 @@ func ExampleNewConstSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(metric.String())
+	fmt.Println(prototext.Format(metric))
 
-	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > summary:<sample_count:4711 sample_sum:403.34 quantile:<quantile:0.5 value:42.3 > quantile:<quantile:0.9 value:323.3 > >
+	want := `
+	label:  {
+	  name:  "code"
+	  value:  "200"
+	}
+	label:  {
+	  name:  "method"
+	  value:  "get"
+	}
+	label:  {
+	  name:  "owner"
+	  value:  "example"
+	}
+	summary:  {
+	  sample_count:  4711
+	  sample_sum:  403.34
+	  quantile:  {
+	    quantile:  0.5
+	    value:  42.3
+	  }
+	  quantile:  {
+	    quantile:  0.9
+	    value:  323.3
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
-func ExampleHistogram() {
+func TestExampleHistogram(t *testing.T) {
 	temps := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pond_temperature_celsius",
 		Help:    "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
@@ -404,13 +527,41 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(metric.String())
+	fmt.Println(prototext.Format(metric))
 
-	// Output:
-	// histogram:<sample_count:1000 sample_sum:29969.50000000001 bucket:<cumulative_count:192 upper_bound:20 > bucket:<cumulative_count:366 upper_bound:25 > bucket:<cumulative_count:501 upper_bound:30 > bucket:<cumulative_count:638 upper_bound:35 > bucket:<cumulative_count:816 upper_bound:40 > >
+	want := `
+	histogram: {
+	  sample_count: 1000
+	  sample_sum: 29969.50000000001
+	  bucket: {
+	    cumulative_count: 192
+	    upper_bound: 20
+	  }
+	  bucket: {
+	    cumulative_count: 366
+	    upper_bound: 25
+	  }
+	  bucket: {
+	    cumulative_count: 501
+	    upper_bound: 30
+	  }
+	  bucket: {
+	    cumulative_count: 638
+	    upper_bound: 35
+	  }
+	  bucket: {
+	    cumulative_count: 816
+	    upper_bound: 40
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
-func ExampleNewConstHistogram() {
+func TestExampleNewConstHistogram(t *testing.T) {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
@@ -431,13 +582,49 @@ func ExampleNewConstHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(metric.String())
+	fmt.Println(prototext.Format(metric))
 
-	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 > bucket:<cumulative_count:2403 upper_bound:50 > bucket:<cumulative_count:3221 upper_bound:100 > bucket:<cumulative_count:4233 upper_bound:200 > >
+	want := `
+	label: {
+	  name: "code"
+	  value: "200"
+	}
+	label: {
+	  name: "method"
+	  value: "get"
+	}
+	label:  {
+	  name: "owner"
+	  value: "example"
+	}
+	histogram:  {
+	  sample_count: 4711
+	  sample_sum: 403.34
+	  bucket: {
+	    cumulative_count: 121
+	    upper_bound: 25
+	  }
+	  bucket: {
+	    cumulative_count: 2403
+	    upper_bound: 50
+	  }
+	  bucket: {
+	    cumulative_count: 3221
+	    upper_bound: 100
+	  }
+	  bucket: {
+	    cumulative_count: 4233
+	    upper_bound: 200
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
-func ExampleNewConstHistogram_WithExemplar() {
+func TestExampleNewConstHistogram_WithExemplar(t *testing.T) {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
@@ -469,10 +656,86 @@ func ExampleNewConstHistogram_WithExemplar() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(metric.String())
+	fmt.Println(prototext.Format(metric))
 
-	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 exemplar:<label:<name:"testName" value:"testVal" > value:24 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:2403 upper_bound:50 exemplar:<label:<name:"testName" value:"testVal" > value:42 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:3221 upper_bound:100 exemplar:<label:<name:"testName" value:"testVal" > value:89 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:4233 upper_bound:200 exemplar:<label:<name:"testName" value:"testVal" > value:157 timestamp:<seconds:1136214245 > > > >
+	want := `
+	label: {
+	  name: "code"
+	  value: "200"
+	}
+	label: {
+	  name: "method"
+	  value: "get"
+	}
+	label: {
+	  name: "owner"
+	  value: "example"
+	}
+	histogram: {
+	  sample_count: 4711
+	  sample_sum: 403.34
+	  bucket: {
+	    cumulative_count: 121
+	    upper_bound: 25
+	    exemplar: {
+	      label: {
+	        name: "testName"
+	        value: "testVal"
+	      }
+	      value: 24
+	      timestamp: {
+	        seconds: 1136214245
+	      }
+	    }
+	  }
+	  bucket: {
+	    cumulative_count: 2403
+	    upper_bound: 50
+	    exemplar: {
+	      label: {
+	        name: "testName"
+	        value: "testVal"
+	      }
+	      value: 42
+	      timestamp: {
+	        seconds: 1136214245
+	      }
+	    }
+	  }
+	  bucket: {
+	    cumulative_count: 3221
+	    upper_bound: 100
+	    exemplar: {
+	      label: {
+	        name: "testName"
+	        value: "testVal"
+	      }
+	      value: 89
+	      timestamp: {
+	        seconds: 1136214245
+	      }
+	    }
+	  }
+	  bucket: {
+	    cumulative_count: 4233
+	    upper_bound: 200
+	    exemplar: {
+	      label: {
+	        name: "testName"
+	        value: "testVal"
+	      }
+	      value: 157
+	      timestamp: {
+	        seconds: 1136214245
+	      }
+	    }
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
 
 func ExampleAlreadyRegisteredError() {
@@ -589,7 +852,7 @@ temperature_kelvin 4.5
 	// temperature_kelvin{location="outside"} 273.14
 	// temperature_kelvin{location="somewhere else"} 4.5
 	// ----------
-	// collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
+	// collected metric "temperature_kelvin" { label:{name:"location" value:"outside"} gauge:{value:265.3}} was collected before with the same name and label values
 	// # HELP humidity_percent Humidity in %.
 	// # TYPE humidity_percent gauge
 	// humidity_percent{location="inside"} 33.2
@@ -601,7 +864,7 @@ temperature_kelvin 4.5
 	// temperature_kelvin{location="outside"} 273.14
 }
 
-func ExampleNewMetricWithTimestamp() {
+func TestExampleNewMetricWithTimestamp(t *testing.T) {
 	desc := prometheus.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
@@ -625,8 +888,16 @@ func ExampleNewMetricWithTimestamp() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(metric.String())
+	fmt.Println(prototext.Format(metric))
 
-	// Output:
-	// gauge:<value:298.15 > timestamp_ms:1257894000012
+	want := `
+	gauge: {
+	  value: 298.15
+	}
+	timestamp_ms: 1257894000012
+	`
+
+	if err := testutil.CompareProtoAndMetric(want, metric); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }

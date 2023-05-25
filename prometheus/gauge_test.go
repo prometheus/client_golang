@@ -177,8 +177,10 @@ func TestGaugeFunc(t *testing.T) {
 	m := &dto.Metric{}
 	gf.Write(m)
 
-	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > gauge:<value:3.1415 > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	want := `label:{name:"a" value:"1"} label:{name:"b" value:"2"} gauge:{value:3.1415}`
+
+	if err := compareProtoAndMetric(want, m); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
 }
 

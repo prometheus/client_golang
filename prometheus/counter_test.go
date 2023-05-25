@@ -61,8 +61,10 @@ func TestCounterAdd(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > counter:<value:67.42 > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	want := `label:{name:"a" value:"1"} label:{name:"b" value:"2"} counter:{value:67.42}`
+
+	if err := compareProtoAndMetric(want, m); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
 }
 
@@ -164,8 +166,10 @@ func TestCounterAddInf(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := `counter:<value:inf > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	want := `counter:{value:inf}`
+
+	if err := compareProtoAndMetric(want, m); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
 }
 
@@ -188,8 +192,10 @@ func TestCounterAddLarge(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := fmt.Sprintf("counter:<value:%0.16e > ", large), m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	want := fmt.Sprintf("counter:{value:%0.16e}", large)
+
+	if err := compareProtoAndMetric(want, m); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
 }
 
@@ -210,8 +216,10 @@ func TestCounterAddSmall(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := fmt.Sprintf("counter:<value:%0.0e > ", small), m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	want := fmt.Sprintf("counter:{value:%0.0e}", small)
+
+	if err := compareProtoAndMetric(want, m); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
 	}
 }
 

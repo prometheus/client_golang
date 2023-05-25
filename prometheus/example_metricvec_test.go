@@ -14,13 +14,13 @@
 package prometheus_test
 
 import (
-	"fmt"
+	"testing"
 
 	"google.golang.org/protobuf/proto"
 
-	dto "github.com/prometheus/client_model/go"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // Info implements an info pseudo-metric, which is modeled as a Gauge that
@@ -106,7 +106,7 @@ func (v *InfoVec) MustCurryWith(labels prometheus.Labels) *InfoVec {
 	return vec
 }
 
-func ExampleMetricVec() {
+func TestExampleMetricVec(t *testing.T) {
 	infoVec := NewInfoVec(
 		"library_version_info",
 		"Versions of the libraries used in this binary.",
@@ -126,8 +126,40 @@ func ExampleMetricVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(metricFamilies[0].String())
 
-	// Output:
-	// name:"library_version_info" help:"Versions of the libraries used in this binary." type:GAUGE metric:<label:<name:"library" value:"k8s.io/client-go" > label:<name:"version" value:"0.18.8" > gauge:<value:1 > > metric:<label:<name:"library" value:"prometheus/client_golang" > label:<name:"version" value:"1.7.1" > gauge:<value:1 > >
+	want := `
+	name: "library_version_info"
+	help: "Versions of the libraries used in this binary."
+	type: GAUGE
+	metric: {
+	  label: {
+	    name: "library"
+	    value: "k8s.io/client-go"
+	  }
+	  label: {
+	    name: "version"
+	    value: "0.18.8"
+	  }
+	  gauge: {
+	    value: 1
+	  }
+	}
+	metric: {
+	  label: {
+	    name: "library"
+	    value: "prometheus/client_golang"
+	  }
+	  label: {
+	    name: "version"
+	    value: "1.7.1"
+	  }
+	  gauge: {
+	    value: 1
+	  }
+	}
+	`
+
+	if err := testutil.CompareProtoAndMetricFamily(want, metricFamilies[0]); err != nil {
+		t.Errorf("Summary didn't match: %s", err)
+	}
 }
