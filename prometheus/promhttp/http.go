@@ -50,7 +50,7 @@ const (
 	contentTypeHeader      = "Content-Type"
 	contentEncodingHeader  = "Content-Encoding"
 	acceptEncodingHeader   = "Accept-Encoding"
-	processStartTimeHeader = "Process-Start-Time"
+	processStartTimeHeader = "Process-Start-Time-Unix"
 )
 
 var processStartTime time.Time
@@ -376,15 +376,12 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
-	// If true, a process start time header is added to the response along
-	// with the metrics payload. This is useful because you receive the headers
-	// prior to the response body, and for large responses, this allows the
-	// scraping agent to stream metrics using the process start time to
-	// correctly offset counter metrics. The alternative is to use the metric
-	// process_start_time_seconds, which unfortunately tends to fall at the end
-	// of the response body, requiring the scraping agent to buffer the entire
-	// body in memory until process_start_time_seconds is reached.
-	EnableProcessStartTimeHeader bool
+	// ProcessUnixTime allows setting process start time (unix timestamp integer) value that will be
+	// exposed with "Process-Start-Time-Unix" response header along with the metrics payload. 
+	// This allow callers to have efficient transformations to cumulative counters (e.g. OpenTelemetry) or
+	// generally _created timestamp estimation per scrape target.
+	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus exposition format.
+	ProcessStartTimeUnix int64
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
