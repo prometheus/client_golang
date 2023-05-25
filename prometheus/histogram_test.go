@@ -513,13 +513,13 @@ func TestNativeHistogram(t *testing.T) {
 		{
 			name: "factor 17 results in schema -2",
 			observations: []float64{
-				0.0156251, 0.0625, 0.1, 0.25, // Bucket -1: (0.015625, 0.25]
-				0.5, 1, // Bucket 0: (0.0625, 1]
+				0.0156251, 0.0625, // Bucket -1: (0.015625, 0.0625]
+				0.1, 0.25, 0.5, 1, // Bucket 0: (0.0625, 1]
 				1.5, 2, 3, 3.5, 5, 6, 7, // Bucket 1: (1, 16]
 				33.33, // Bucket 2: (16, 256]
 			},
 			factor: 17,
-			want:   `sample_count:14 sample_sum:63.2581251 schema:-2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:-1 length:4 > positive_delta:4 positive_delta:-2 positive_delta:5 positive_delta:-6 `,
+			want:   `sample_count:14 sample_sum:63.2581251 schema:-2 zero_threshold:2.938735877055719e-39 zero_count:0 positive_span:<offset:-1 length:4 > positive_delta:2 positive_delta:2 positive_delta:3 positive_delta:-6 `,
 		},
 		{
 			name:         "negative buckets",

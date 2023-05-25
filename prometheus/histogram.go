@@ -639,8 +639,8 @@ func (hc *histogramCounts) observe(v float64, bucket int, doSparse bool) {
 			if frac == 0.5 {
 				key--
 			}
-			div := 1 << -schema
-			key = (key + div - 1) / div
+			offset := (1 << -schema) - 1
+			key = (key + offset) >> -schema
 		}
 		if isInf {
 			key++
