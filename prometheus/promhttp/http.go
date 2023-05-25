@@ -37,20 +37,27 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/prometheus/common/expfmt"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 )
 
 const (
-	contentTypeHeader     = "Content-Type"
-	contentEncodingHeader = "Content-Encoding"
-	acceptEncodingHeader  = "Accept-Encoding"
+	contentTypeHeader      = "Content-Type"
+	contentEncodingHeader  = "Content-Encoding"
+	acceptEncodingHeader   = "Accept-Encoding"
+	processStartTimeHeader = "Process-Start-Time"
 )
+
+var processStartTime time.Time
+
+func init() {
+	processStartTime = time.Now()
+}
 
 var gzipPool = sync.Pool{
 	New: func() interface{} {
@@ -121,6 +128,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 	}
 
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
+		if opts.EnableProcessStartTimeHeader {
+			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(processStartTime.Unix(), 10))
+		}
 		if inFlightSem != nil {
 			select {
 			case inFlightSem <- struct{}{}: // All good, carry on.
@@ -366,6 +376,15 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
+	// If true, a process start time header is added to the response along
+	// with the metrics payload. This is useful because you receive the headers
+	// prior to the response body, and for large responses, this allows the
+	// scraping agent to stream metrics using the process start time to
+	// correctly offset counter metrics. The alternative is to use the metric
+	// process_start_time_seconds, which unfortunately tends to fall at the end
+	// of the response body, requiring the scraping agent to buffer the entire
+	// body in memory until process_start_time_seconds is reached.
+	EnableProcessStartTimeHeader bool
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
