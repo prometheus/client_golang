@@ -904,6 +904,13 @@ func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(stri
 	})
 }
 
+func BenchmarkMetricVecWithBasic(b *testing.B) {
+	benchmarkMetricVecWith(b, Labels{
+		"l1": "onevalue",
+		"l2": "twovalue",
+	})
+}
+
 func BenchmarkMetricVecWithLabelValuesBasic(b *testing.B) {
 	benchmarkMetricVecWithLabelValues(b, map[string][]string{
 		"l1": {"onevalue"},
@@ -946,6 +953,27 @@ func benchmarkMetricVecWithLabelValuesCardinality(b *testing.B, nkeys, nvalues i
 	}
 
 	benchmarkMetricVecWithLabelValues(b, labels)
+}
+
+func benchmarkMetricVecWith(b *testing.B, labels map[string]string) {
+	var keys []string
+	for k := range labels {
+		keys = append(keys, k)
+	}
+
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		keys,
+	)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		vec.With(labels)
+	}
 }
 
 func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string) {
