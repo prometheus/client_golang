@@ -15,8 +15,6 @@ jobs:
     strategy:
       matrix:
         go_version: ["1.18", "1.19", "1.20"]
-        run_lint: [true, true, true]
-        run_style_and_unused: [false, false, true]
 
     steps:
       - name: Checkout code
@@ -40,9 +38,8 @@ jobs:
           CI: true
 
       - name: Run lint
-        if: ${{ matrix.run_lint == true && startsWith(matrix.go_version, '1.') }}
         run: make lint
 
       - name: Run style and unused
-        if: ${{ matrix.run_style_and_unused == true && matrix.go_version == '1.20' }}
+        if: ${{ matrix.go_version == '1.20' }}
         run: make style unused
