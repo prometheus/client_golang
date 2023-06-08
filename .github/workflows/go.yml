@@ -1,15 +1,15 @@
-name: Test and Lint
-
+---
+name: Go
 on:
+  pull_request:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+      - 'release-*'
 
 jobs:
   test:
+    name: Tests
     runs-on: ubuntu-latest
 
     strategy:
