@@ -1,0 +1,45 @@
+name: Test and Lint
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go_version: ["1.18", "1.19", "1.20"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go ${{ matrix.go_version }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go_version }}
+
+      - name: Cache Go modules
+        id: cache
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: v1-go${{ matrix.go_version }}
+
+      - name: Run tests and check license
+        run: make check_license test
+        env:
+          CI: true
+
+      - name: Run lint
+        run: make lint
+
+      - name: Run style and unused
+        if: ${{ matrix.go_version == '1.20' }}
+        run: make style unused
