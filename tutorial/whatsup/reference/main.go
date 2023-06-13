@@ -31,6 +31,8 @@ import (
 	"github.com/efficientgo/core/errcapture"
 	"github.com/efficientgo/core/errors"
 	"github.com/oklog/run"
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,7 +40,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/client_golang/tutorial/internal"
-	"github.com/prometheus/common/model"
 )
 
 func main() {

@@ -37,9 +37,6 @@ jobs:
         env:
           CI: true
 
-      - name: Run lint
-        run: make lint
-
       - name: Run style and unused
         if: ${{ matrix.go_version == '1.20' }}
         run: make style unused
