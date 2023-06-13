@@ -1,7 +1,7 @@
 # Prometheus Go client library
 
-[![CI](https://github.com/prometheus/client_golang/actions/workflows/ci.yml/badge.svg)](https://github.com/prometheus/client_golang/actions/workflows/ci.yml)
-[[![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
+[![CI](https://github.com/prometheus/client_golang/actions/workflows/go.yml/badge.svg)](https://github.com/prometheus/client_golang/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang.svg)](https://pkg.go.dev/github.com/prometheus/client_golang)
 [![Slack](https://img.shields.io/badge/join%20slack-%23prometheus--client_golang-brightgreen.svg)](https://slack.cncf.io/)
 
@@ -79,7 +79,7 @@ To cut a minor version:
 3. Change the `VERSION` file.
 4. Update `CHANGELOG` (only user-impacting changes to mention).
 5. Create PR, and get it reviewed.
-6. Once merged, create a release with the `release-<major>.<minor>` tag on GitHub with the `<version> / <date>` title.
+6. Once merged, create a release with the `release-<major>.<minor>` tag on GitHub with the `<version>` title.
 7. Announce on the prometheus-announce mailing list, slack and Twitter.
 8. Merge the release branch back to the `main` using the "merge without squashing" approach (!).
 

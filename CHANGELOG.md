@@ -1,13 +1,11 @@
 ## Unreleased
 
-## 1.15.0 / 2023-04-13
-
-## What's Changed
+## 1.15.1 / 2023-05-3
 
 * [BUGFIX] Fixed promhttp.Instrument* handlers wrongly trying to attach exemplar to unsupported metrics (e.g. summary), \
 causing panics #1253
 
-## What's Changed
+## 1.15.0 / 2023-04-13
 
 * [BUGFIX] Fix issue with atomic variables on ppc64le #1171
 * [BUGFIX] Support for multiple samples within same metric #1181

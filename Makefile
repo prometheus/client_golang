@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+include .bingo/Variables.mk
 include Makefile.common
 
 .PHONY: test
@@ -26,3 +27,7 @@ generate-go-collector-test-files:
     	docker run --rm -v $(PWD):/workspace -w /workspace golang:$$GO_VERSION go run prometheus/gen_go_collector_metrics_set.go; \
 		mv -f go_collector_metrics* prometheus; \
     done
+
+.PHONY: fmt
+fmt: common-format
+	$(GOIMPORTS) -local github.com/prometheus/client_golang -w .
