@@ -20,6 +20,10 @@ on:
   schedule:
     - cron: '31 21 * * 6'
 
+# Minimal permissions to be inherited by any job that don't declare it's own permissions
+permissions:
+  contents: read
+
 jobs:
   analyze:
     name: Analyze
