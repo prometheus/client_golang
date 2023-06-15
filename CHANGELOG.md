@@ -1,26 +1,35 @@
 ## Unreleased
 
+## 1.16.0 / 2023-06-15
+
+* [BUGFIX] api: Switch to POST for LabelNames, Series, and QueryExemplars. #1252
+* [BUGFIX] api: Fix undefined execution order in return statements. #1260
+* [BUGFIX] native histograms: Fix bug in bucket key calculation. #1279
+* [ENHANCEMENT] Reduce constrainLabels allocations for all metrics. #1272
+* [ENHANCEMENT] promhttp: Add process start time header for scrape efficiency. #1278
+* [ENHANCEMENT] promlint: Improve metricUnits runtime. #1286
+
 ## 1.15.1 / 2023-05-3
 
 * [BUGFIX] Fixed promhttp.Instrument* handlers wrongly trying to attach exemplar to unsupported metrics (e.g. summary), \
-causing panics #1253
+causing panics. #1253
 
 ## 1.15.0 / 2023-04-13
 
-* [BUGFIX] Fix issue with atomic variables on ppc64le #1171
-* [BUGFIX] Support for multiple samples within same metric #1181
-* [BUGFIX] Bump golang.org/x/text to v0.3.8 to mitigate CVE-2022-32149 #1187
-* [ENHANCEMENT] Add exemplars and middleware examples #1173
-* [ENHANCEMENT] Add more context to "duplicate label names" error to enable debugging #1177
-* [ENHANCEMENT] Add constrained labels and constrained variant for all MetricVecs #1151
-* [ENHANCEMENT] Moved away from deprecated github.com/golang/protobuf package #1183
-* [ENHANCEMENT] Add possibility to dynamically get label values for http instrumentation #1066
-* [ENHANCEMENT] Add ability to Pusher to add custom headers #1218
-* [ENHANCEMENT] api: Extend and improve efficiency of json-iterator usage #1225
-* [ENHANCEMENT] Added (official) support for go 1.20 #1234
-* [ENHANCEMENT] timer: Added support for exemplars #1233
-* [ENHANCEMENT] Filter expected metrics as well in CollectAndCompare #1143
-* [ENHANCEMENT] :warning: Only set start/end if time is not Zero. This breaks compatibility in experimental api package. If you strictly depend on empty time.Time as actual value, the behavior is now changed #1238
+* [BUGFIX] Fix issue with atomic variables on ppc64le. #1171
+* [BUGFIX] Support for multiple samples within same metric. #1181
+* [BUGFIX] Bump golang.org/x/text to v0.3.8 to mitigate CVE-2022-32149. #1187
+* [ENHANCEMENT] Add exemplars and middleware examples. #1173
+* [ENHANCEMENT] Add more context to "duplicate label names" error to enable debugging. #1177
+* [ENHANCEMENT] Add constrained labels and constrained variant for all MetricVecs. #1151
+* [ENHANCEMENT] Moved away from deprecated github.com/golang/protobuf package. #1183
+* [ENHANCEMENT] Add possibility to dynamically get label values for http instrumentation. #1066
+* [ENHANCEMENT] Add ability to Pusher to add custom headers. #1218
+* [ENHANCEMENT] api: Extend and improve efficiency of json-iterator usage. #1225
+* [ENHANCEMENT] Added (official) support for go 1.20. #1234
+* [ENHANCEMENT] timer: Added support for exemplars. #1233
+* [ENHANCEMENT] Filter expected metrics as well in CollectAndCompare. #1143
+* [ENHANCEMENT] :warning: Only set start/end if time is not Zero. This breaks compatibility in experimental api package. If you strictly depend on empty time.Time as actual value, the behavior is now changed. #1238
 
 ## 1.14.0 / 2022-11-08
 
