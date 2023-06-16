@@ -128,11 +128,11 @@ func TestHandlerErrorHandling(t *testing.T) {
 		t.Fatalf("unexpected number of done invokes, want 0, got %d", got)
 	}
 
-	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
+	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantErrorBody := `An error has occurred while serving metrics:
 
-error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: []}: collect error
+error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantOKBody1 := `# HELP name docstring
 # TYPE name counter

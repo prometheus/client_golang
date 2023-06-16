@@ -499,12 +499,12 @@ func NewHistogram(opts HistogramOpts) Histogram {
 }
 
 func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogram {
-	if len(desc.variableLabels) != len(labelValues) {
-		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.labelNames(), labelValues))
+	if len(desc.variableLabels.names) != len(labelValues) {
+		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, labelValues))
 	}
 
-	for _, n := range desc.variableLabels {
-		if n.Name == bucketLabel {
+	for _, n := range desc.variableLabels.names {
+		if n == bucketLabel {
 			panic(errBucketLabelNotAllowed)
 		}
 	}
@@ -1230,7 +1230,7 @@ func NewConstHistogram(
 	if desc.err != nil {
 		return nil, desc.err
 	}
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
 		return nil, err
 	}
 	return &constHistogram{

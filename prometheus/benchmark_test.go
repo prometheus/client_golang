@@ -18,18 +18,94 @@ import (
 	"testing"
 )
 
-func BenchmarkCounterWithLabelValues(b *testing.B) {
-	m := NewCounterVec(
-		CounterOpts{
-			Name: "benchmark_counter",
-			Help: "A counter to benchmark it.",
-		},
-		[]string{"one", "two", "three"},
-	)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.WithLabelValues("eins", "zwei", "drei").Inc()
+func BenchmarkCounter(b *testing.B) {
+	type fns []func(*CounterVec) Counter
+
+	twoConstraint := func(_ string) string {
+		return "two"
+	}
+
+	deLV := func(m *CounterVec) Counter {
+		return m.WithLabelValues("eins", "zwei", "drei")
+	}
+	frLV := func(m *CounterVec) Counter {
+		return m.WithLabelValues("une", "deux", "trois")
+	}
+	nlLV := func(m *CounterVec) Counter {
+		return m.WithLabelValues("een", "twee", "drie")
+	}
+
+	deML := func(m *CounterVec) Counter {
+		return m.With(Labels{"two": "zwei", "one": "eins", "three": "drei"})
+	}
+	frML := func(m *CounterVec) Counter {
+		return m.With(Labels{"two": "deux", "one": "une", "three": "trois"})
+	}
+	nlML := func(m *CounterVec) Counter {
+		return m.With(Labels{"two": "twee", "one": "een", "three": "drie"})
+	}
+
+	deLabels := Labels{"two": "zwei", "one": "eins", "three": "drei"}
+	dePML := func(m *CounterVec) Counter {
+		return m.With(deLabels)
+	}
+	frLabels := Labels{"two": "deux", "one": "une", "three": "trois"}
+	frPML := func(m *CounterVec) Counter {
+		return m.With(frLabels)
+	}
+	nlLabels := Labels{"two": "twee", "one": "een", "three": "drie"}
+	nlPML := func(m *CounterVec) Counter {
+		return m.With(nlLabels)
+	}
+
+	table := []struct {
+		name       string
+		constraint LabelConstraint
+		counters   fns
+	}{
+		{"With Label Values", nil, fns{deLV}},
+		{"With Label Values and Constraint", twoConstraint, fns{deLV}},
+		{"With triple Label Values", nil, fns{deLV, frLV, nlLV}},
+		{"With triple Label Values and Constraint", twoConstraint, fns{deLV, frLV, nlLV}},
+		{"With repeated Label Values", nil, fns{deLV, deLV}},
+		{"With repeated Label Values and Constraint", twoConstraint, fns{deLV, deLV}},
+		{"With Mapped Labels", nil, fns{deML}},
+		{"With Mapped Labels and Constraint", twoConstraint, fns{deML}},
+		{"With triple Mapped Labels", nil, fns{deML, frML, nlML}},
+		{"With triple Mapped Labels and Constraint", twoConstraint, fns{deML, frML, nlML}},
+		{"With repeated Mapped Labels", nil, fns{deML, deML}},
+		{"With repeated Mapped Labels and Constraint", twoConstraint, fns{deML, deML}},
+		{"With Prepared Mapped Labels", nil, fns{dePML}},
+		{"With Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML}},
+		{"With triple Prepared Mapped Labels", nil, fns{dePML, frPML, nlPML}},
+		{"With triple Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML, frPML, nlPML}},
+		{"With repeated Prepared Mapped Labels", nil, fns{dePML, dePML}},
+		{"With repeated Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML, dePML}},
+	}
+
+	for _, t := range table {
+		b.Run(t.name, func(b *testing.B) {
+			m := V2.NewCounterVec(
+				CounterVecOpts{
+					CounterOpts: CounterOpts{
+						Name: "benchmark_counter",
+						Help: "A counter to benchmark it.",
+					},
+					VariableLabels: ConstrainedLabels{
+						ConstrainedLabel{Name: "one"},
+						ConstrainedLabel{Name: "two", Constraint: t.constraint},
+						ConstrainedLabel{Name: "three"},
+					},
+				},
+			)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				for _, fn := range t.counters {
+					fn(m).Inc()
+				}
+			}
+		})
 	}
 }
 
@@ -54,37 +130,6 @@ func BenchmarkCounterWithLabelValuesConcurrent(b *testing.B) {
 		}()
 	}
 	wg.Wait()
-}
-
-func BenchmarkCounterWithMappedLabels(b *testing.B) {
-	m := NewCounterVec(
-		CounterOpts{
-			Name: "benchmark_counter",
-			Help: "A counter to benchmark it.",
-		},
-		[]string{"one", "two", "three"},
-	)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		m.With(Labels{"two": "zwei", "one": "eins", "three": "drei"}).Inc()
-	}
-}
-
-func BenchmarkCounterWithPreparedMappedLabels(b *testing.B) {
-	m := NewCounterVec(
-		CounterOpts{
-			Name: "benchmark_counter",
-			Help: "A counter to benchmark it.",
-		},
-		[]string{"one", "two", "three"},
-	)
-	b.ReportAllocs()
-	b.ResetTimer()
-	labels := Labels{"two": "zwei", "one": "eins", "three": "drei"}
-	for i := 0; i < b.N; i++ {
-		m.With(labels).Inc()
-	}
 }
 
 func BenchmarkCounterNoLabels(b *testing.B) {

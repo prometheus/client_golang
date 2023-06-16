@@ -963,9 +963,9 @@ func checkDescConsistency(
 	// Is the desc consistent with the content of the metric?
 	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
 	copy(lpsFromDesc, desc.constLabelPairs)
-	for _, l := range desc.variableLabels {
+	for _, l := range desc.variableLabels.names {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l.Name),
+			Name: proto.String(l),
 		})
 	}
 	if len(lpsFromDesc) != len(dtoMetric.Label) {

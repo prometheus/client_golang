@@ -105,7 +105,7 @@ func NewConstMetric(desc *Desc, valueType ValueType, value float64, labelValues 
 	if desc.err != nil {
 		return nil, desc.err
 	}
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
 		return nil, err
 	}
 
@@ -176,19 +176,19 @@ func populateMetric(
 // This function is only needed for custom Metric implementations. See MetricVec
 // example.
 func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
-	totalLen := len(desc.variableLabels) + len(desc.constLabelPairs)
+	totalLen := len(desc.variableLabels.names) + len(desc.constLabelPairs)
 	if totalLen == 0 {
 		// Super fast path.
 		return nil
 	}
-	if len(desc.variableLabels) == 0 {
+	if len(desc.variableLabels.names) == 0 {
 		// Moderately fast path.
 		return desc.constLabelPairs
 	}
 	labelPairs := make([]*dto.LabelPair, 0, totalLen)
-	for i, l := range desc.variableLabels {
+	for i, l := range desc.variableLabels.names {
 		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(l.Name),
+			Name:  proto.String(l),
 			Value: proto.String(labelValues[i]),
 		})
 	}
