@@ -7,6 +7,10 @@ on:
       - main
       - 'release-*'
 
+# Minimal permissions to be inherited by any job that don't declare it's own permissions
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Tests
