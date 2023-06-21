@@ -50,9 +50,6 @@ const (
 
 	// Abort the push to Graphite upon the first error encountered.
 	AbortOnError
-
-	// Execute callback function on error.
-	CallbackOnError
 )
 
 // Config defines the Graphite bridge config.
@@ -84,7 +81,7 @@ type Config struct {
 	ErrorHandling HandlerErrorHandling
 
 	// ErrorCallbackFunc is a callback function that can be executed when error is occurred
-	ErrorCallbackFunc CallbackFunc
+	ErrorCallbackFunc ErrorCallbackFunc
 }
 
 // Bridge pushes metrics to the configured Graphite server.
@@ -96,7 +93,7 @@ type Bridge struct {
 	timeout  time.Duration
 
 	errorHandling     HandlerErrorHandling
-	errorCallbackFunc CallbackFunc
+	errorCallbackFunc ErrorCallbackFunc
 	logger            Logger
 
 	g prometheus.Gatherer
@@ -109,8 +106,8 @@ type Logger interface {
 	Println(v ...interface{})
 }
 
-// CallbackFunc is a special type for callback functions
-type CallbackFunc func(error)
+// ErrorCallbackFunc is a special type for callback functions
+type ErrorCallbackFunc func(error)
 
 // NewBridge returns a pointer to a new Bridge struct.
 func NewBridge(c *Config) (*Bridge, error) {
@@ -179,16 +176,15 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	err := b.push()
+	if b.errorCallbackFunc != nil {
+		b.errorCallbackFunc(err)
+	}
 	switch b.errorHandling {
 	case AbortOnError:
 		return err
 	case ContinueOnError:
 		if b.logger != nil {
 			b.logger.Println("continue on error:", err)
-		}
-	case CallbackOnError:
-		if b.errorCallbackFunc != nil {
-			b.errorCallbackFunc(err)
 		}
 	}
 	return nil

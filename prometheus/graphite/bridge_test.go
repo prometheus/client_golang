@@ -477,16 +477,11 @@ func TestErrorHandling(t *testing.T) {
 		{
 			errorHandling:    ContinueOnError,
 			receivedError:    nil,
-			interceptedError: nil,
+			interceptedError: &net.OpError{},
 		},
 		{
 			errorHandling:    AbortOnError,
 			receivedError:    &net.OpError{},
-			interceptedError: nil,
-		},
-		{
-			errorHandling:    CallbackOnError,
-			receivedError:    nil,
 			interceptedError: &net.OpError{},
 		},
 	}
