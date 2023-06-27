@@ -188,12 +188,12 @@ func NewSummary(opts SummaryOpts) Summary {
 }
 
 func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
-	if len(desc.variableLabels) != len(labelValues) {
-		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.labelNames(), labelValues))
+	if len(desc.variableLabels.names) != len(labelValues) {
+		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, labelValues))
 	}
 
-	for _, n := range desc.variableLabels {
-		if n.Name == quantileLabel {
+	for _, n := range desc.variableLabels.names {
+		if n == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
@@ -737,7 +737,7 @@ func NewConstSummary(
 	if desc.err != nil {
 		return nil, desc.err
 	}
-	if err := validateLabelValues(labelValues, len(desc.variableLabels)); err != nil {
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
 		return nil, err
 	}
 	return &constSummary{
