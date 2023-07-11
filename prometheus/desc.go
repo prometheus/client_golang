@@ -205,3 +205,12 @@ func (d *Desc) String() string {
 		strings.Join(vlStrings, ","),
 	)
 }
+
+// VariableLabelNames returns the names of all variable labels of the descriptor.
+func (d *Desc) VariableLabelNames() []string {
+	if d.err != nil {
+		return []string{}
+	}
+
+	return append([]string{}, d.variableLabels.labelNames()...)
+}

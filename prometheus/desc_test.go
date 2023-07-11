@@ -28,3 +28,26 @@ func TestNewDescInvalidLabelValues(t *testing.T) {
 		t.Errorf("NewDesc: expected error because: %s", desc.err)
 	}
 }
+
+func TestDescGetVariableLabels(t *testing.T) {
+	desc := NewDesc(
+		"sample_label",
+		"sample label",
+		[]string{"a", "b"},
+		nil,
+	)
+
+	labels := desc.VariableLabelNames()
+
+	if len(labels) != 2 {
+		t.Errorf("Desc.VariableLabelNames: expected 2 variable label, got %d", len(labels))
+	}
+	if labels[0] != "a" {
+		t.Errorf("Desc.VariableLabelNames: expected variable label 'a', got %s", labels[0])
+	}
+
+	labels[0] = "c"
+	if desc.variableLabels.labelNames()[0] != "a" {
+		t.Errorf("Desc.VariableLabelNames: returned slice can mutate Desc properties")
+	}
+}
