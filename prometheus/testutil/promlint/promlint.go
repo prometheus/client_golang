@@ -35,6 +35,8 @@ type Linter struct {
 	// of them.
 	r   io.Reader
 	mfs []*dto.MetricFamily
+
+	customValidations []validations.Validation
 }
 
 // New creates a new Linter that reads an input stream of Prometheus metrics in
@@ -51,6 +53,14 @@ func NewWithMetricFamilies(mfs []*dto.MetricFamily) *Linter {
 	return &Linter{
 		mfs: mfs,
 	}
+}
+
+// AddCustomValidations adds custom validations to the linter.
+func (l *Linter) AddCustomValidations(vs ...validations.Validation) {
+	if l.customValidations == nil {
+		l.customValidations = make([]validations.Validation, 0, len(vs))
+	}
+	l.customValidations = append(l.customValidations, vs...)
 }
 
 // Lint performs a linting pass, returning a slice of Problems indicating any
@@ -72,11 +82,11 @@ func (l *Linter) Lint() ([]validations.Problem, error) {
 				return nil, err
 			}
 
-			problems = append(problems, lint(mf)...)
+			problems = append(problems, l.lint(mf)...)
 		}
 	}
 	for _, mf := range l.mfs {
-		problems = append(problems, lint(mf)...)
+		problems = append(problems, l.lint(mf)...)
 	}
 
 	// Ensure deterministic output.
@@ -91,10 +101,17 @@ func (l *Linter) Lint() ([]validations.Problem, error) {
 }
 
 // lint is the entry point for linting a single metric.
-func lint(mf *dto.MetricFamily) []validations.Problem {
+func (l *Linter) lint(mf *dto.MetricFamily) []validations.Problem {
 	var problems []validations.Problem
+
 	for _, fn := range validations.DefaultValidations {
 		problems = append(problems, fn(mf)...)
+	}
+
+	if l.customValidations != nil {
+		for _, fn := range l.customValidations {
+			problems = append(problems, fn(mf)...)
+		}
 	}
 
 	// TODO(mdlayher): lint rules for specific metrics types.
