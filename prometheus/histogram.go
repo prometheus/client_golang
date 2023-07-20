@@ -787,6 +787,16 @@ func (h *histogram) Write(out *dto.Metric) error {
 		his.ZeroCount = proto.Uint64(zeroBucket)
 		his.NegativeSpan, his.NegativeDelta = makeBuckets(&coldCounts.nativeHistogramBucketsNegative)
 		his.PositiveSpan, his.PositiveDelta = makeBuckets(&coldCounts.nativeHistogramBucketsPositive)
+
+		// Add a no-op span to a histogram without observations and with
+		// a zero threshold of zero. Otherwise, a native histogram would
+		// look like a classic histogram to scrapers.
+		if *his.ZeroThreshold == 0 && *his.ZeroCount == 0 && len(his.PositiveSpan) == 0 && len(his.NegativeSpan) == 0 {
+			his.PositiveSpan = []*dto.BucketSpan{{
+				Offset: proto.Int32(0),
+				Length: proto.Uint32(0),
+			}}
+		}
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
