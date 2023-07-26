@@ -486,6 +486,17 @@ func TestNativeHistogram(t *testing.T) {
 			want:         `sample_count:3 sample_sum:6 bucket:<cumulative_count:0 upper_bound:0.005 > bucket:<cumulative_count:0 upper_bound:0.01 > bucket:<cumulative_count:0 upper_bound:0.025 > bucket:<cumulative_count:0 upper_bound:0.05 > bucket:<cumulative_count:0 upper_bound:0.1 > bucket:<cumulative_count:0 upper_bound:0.25 > bucket:<cumulative_count:0 upper_bound:0.5 > bucket:<cumulative_count:1 upper_bound:1 > bucket:<cumulative_count:2 upper_bound:2.5 > bucket:<cumulative_count:3 upper_bound:5 > bucket:<cumulative_count:3 upper_bound:10 > `, // Has conventional buckets because there are no sparse buckets.
 		},
 		{
+			name:   "no observations",
+			factor: 1.1,
+			want:   `sample_count:0 sample_sum:0 schema:3 zero_threshold:2.938735877055719e-39 zero_count:0 `,
+		},
+		{
+			name:          "no observations and zero threshold of zero resulting in no-op span",
+			factor:        1.1,
+			zeroThreshold: NativeHistogramZeroThresholdZero,
+			want:          `sample_count:0 sample_sum:0 schema:3 zero_threshold:0 zero_count:0 positive_span:<offset:0 length:0 > `,
+		},
+		{
 			name:         "factor 1.1 results in schema 3",
 			observations: []float64{0, 1, 2, 3},
 			factor:       1.1,
