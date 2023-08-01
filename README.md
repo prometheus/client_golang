@@ -83,7 +83,7 @@ To cut a minor version:
 7. Announce on the prometheus-announce mailing list, slack and Twitter.
 8. Merge the release branch back to the `main` using the "merge without squashing" approach (!).
 
-> NOTE: In case of merge conflicts, you can checkout the release branch in a new branch, e.g. <yourname>/resolve-conflicts`, fix the merge problems there, and then do a PR into main from the new branch. In that way, you still get all the commits in the release branch back into `main`, but leave the release branch alone.
+> NOTE: In case of merge conflicts, you can checkout the release branch in a new branch, e.g. `<yourname>/resolve-conflicts`, fix the merge problems there, and then do a PR into main from the new branch. In that way, you still get all the commits in the release branch back into `main`, but leave the release branch alone.
 
 To cut the patch version:
 
