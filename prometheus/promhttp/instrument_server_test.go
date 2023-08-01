@@ -250,7 +250,7 @@ func TestLabels(t *testing.T) {
 	}{
 		"empty": {
 			varLabels:  []string{},
-			wantLabels: emptyLabels,
+			wantLabels: prometheus.Labels{},
 			reqMethod:  "GET",
 			respStatus: 200,
 			ok:         true,
