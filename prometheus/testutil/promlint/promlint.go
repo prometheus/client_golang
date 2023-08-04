@@ -21,8 +21,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-
-	"github.com/prometheus/client_golang/prometheus/testutil/promlint/validations"
 )
 
 // A Linter is a Prometheus metrics linter.  It identifies issues with metric
@@ -36,7 +34,7 @@ type Linter struct {
 	r   io.Reader
 	mfs []*dto.MetricFamily
 
-	customValidations []validations.Validation
+	customValidations []Validation
 }
 
 // New creates a new Linter that reads an input stream of Prometheus metrics in
@@ -56,9 +54,9 @@ func NewWithMetricFamilies(mfs []*dto.MetricFamily) *Linter {
 }
 
 // AddCustomValidations adds custom validations to the linter.
-func (l *Linter) AddCustomValidations(vs ...validations.Validation) {
+func (l *Linter) AddCustomValidations(vs ...Validation) {
 	if l.customValidations == nil {
-		l.customValidations = make([]validations.Validation, 0, len(vs))
+		l.customValidations = make([]Validation, 0, len(vs))
 	}
 	l.customValidations = append(l.customValidations, vs...)
 }
@@ -66,8 +64,8 @@ func (l *Linter) AddCustomValidations(vs ...validations.Validation) {
 // Lint performs a linting pass, returning a slice of Problems indicating any
 // issues found in the metrics stream. The slice is sorted by metric name
 // and issue description.
-func (l *Linter) Lint() ([]validations.Problem, error) {
-	var problems []validations.Problem
+func (l *Linter) Lint() ([]Problem, error) {
+	var problems []Problem
 
 	if l.r != nil {
 		d := expfmt.NewDecoder(l.r, expfmt.FmtText)
@@ -101,16 +99,22 @@ func (l *Linter) Lint() ([]validations.Problem, error) {
 }
 
 // lint is the entry point for linting a single metric.
-func (l *Linter) lint(mf *dto.MetricFamily) []validations.Problem {
-	var problems []validations.Problem
+func (l *Linter) lint(mf *dto.MetricFamily) []Problem {
+	var problems []Problem
 
-	for _, fn := range validations.DefaultValidations {
-		problems = append(problems, fn(mf)...)
+	for _, fn := range defaultValidations {
+		errs := fn(mf)
+		for _, err := range errs {
+			problems = append(problems, newProblem(mf, err.Error()))
+		}
 	}
 
 	if l.customValidations != nil {
 		for _, fn := range l.customValidations {
-			problems = append(problems, fn(mf)...)
+			errs := fn(mf)
+			for _, err := range errs {
+				problems = append(problems, newProblem(mf, err.Error()))
+			}
 		}
 	}
 

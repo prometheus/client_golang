@@ -13,15 +13,19 @@
 
 package validations
 
-import dto "github.com/prometheus/client_model/go"
+import (
+	"errors"
 
-// lintHelp detects issues related to the help text for a metric.
-func lintHelp(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+	dto "github.com/prometheus/client_model/go"
+)
+
+// LintHelp detects issues related to the help text for a metric.
+func LintHelp(mf *dto.MetricFamily) []error {
+	var problems []error
 
 	// Expect all metrics to have help text available.
 	if mf.Help == nil {
-		problems = append(problems, newProblem(mf, "no help text"))
+		problems = append(problems, errors.New("no help text"))
 	}
 
 	return problems

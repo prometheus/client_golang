@@ -14,6 +14,7 @@
 package validations
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -23,9 +24,9 @@ import (
 
 var camelCase = regexp.MustCompile(`[a-z][A-Z]`)
 
-// lintMetricUnits detects issues with metric unit names.
-func lintMetricUnits(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+// LintMetricUnits detects issues with metric unit names.
+func LintMetricUnits(mf *dto.MetricFamily) []error {
+	var problems []error
 
 	unit, base, ok := metricUnits(*mf.Name)
 	if !ok {
@@ -38,14 +39,14 @@ func lintMetricUnits(mf *dto.MetricFamily) []Problem {
 		return nil
 	}
 
-	problems = append(problems, newProblem(mf, fmt.Sprintf("use base unit %q instead of %q", base, unit)))
+	problems = append(problems, fmt.Errorf("use base unit %q instead of %q", base, unit))
 
 	return problems
 }
 
-// lintMetricTypeInName detects when metric types are included in the metric name.
-func lintMetricTypeInName(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+// LintMetricTypeInName detects when metric types are included in the metric name.
+func LintMetricTypeInName(mf *dto.MetricFamily) []error {
+	var problems []error
 	n := strings.ToLower(mf.GetName())
 
 	for i, t := range dto.MetricType_name {
@@ -55,45 +56,45 @@ func lintMetricTypeInName(mf *dto.MetricFamily) []Problem {
 
 		typename := strings.ToLower(t)
 		if strings.Contains(n, "_"+typename+"_") || strings.HasSuffix(n, "_"+typename) {
-			problems = append(problems, newProblem(mf, fmt.Sprintf(`metric name should not include type '%s'`, typename)))
+			problems = append(problems, fmt.Errorf(`metric name should not include type '%s'`, typename))
 		}
 	}
 	return problems
 }
 
-// lintReservedChars detects colons in metric names.
-func lintReservedChars(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+// LintReservedChars detects colons in metric names.
+func LintReservedChars(mf *dto.MetricFamily) []error {
+	var problems []error
 	if strings.Contains(mf.GetName(), ":") {
-		problems = append(problems, newProblem(mf, "metric names should not contain ':'"))
+		problems = append(problems, errors.New("metric names should not contain ':'"))
 	}
 	return problems
 }
 
-// lintCamelCase detects metric names and label names written in camelCase.
-func lintCamelCase(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+// LintCamelCase detects metric names and label names written in camelCase.
+func LintCamelCase(mf *dto.MetricFamily) []error {
+	var problems []error
 	if camelCase.FindString(mf.GetName()) != "" {
-		problems = append(problems, newProblem(mf, "metric names should be written in 'snake_case' not 'camelCase'"))
+		problems = append(problems, errors.New("metric names should be written in 'snake_case' not 'camelCase'"))
 	}
 
 	for _, m := range mf.GetMetric() {
 		for _, l := range m.GetLabel() {
 			if camelCase.FindString(l.GetName()) != "" {
-				problems = append(problems, newProblem(mf, "label names should be written in 'snake_case' not 'camelCase'"))
+				problems = append(problems, errors.New("label names should be written in 'snake_case' not 'camelCase'"))
 			}
 		}
 	}
 	return problems
 }
 
-// lintUnitAbbreviations detects abbreviated units in the metric name.
-func lintUnitAbbreviations(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+// LintUnitAbbreviations detects abbreviated units in the metric name.
+func LintUnitAbbreviations(mf *dto.MetricFamily) []error {
+	var problems []error
 	n := strings.ToLower(mf.GetName())
 	for _, s := range unitAbbreviations {
 		if strings.Contains(n, "_"+s+"_") || strings.HasSuffix(n, "_"+s) {
-			problems = append(problems, newProblem(mf, "metric names should not contain abbreviated units"))
+			problems = append(problems, errors.New("metric names should not contain abbreviated units"))
 		}
 	}
 	return problems

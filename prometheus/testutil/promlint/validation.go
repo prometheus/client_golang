@@ -11,21 +11,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package validations
+package promlint
 
 import (
 	dto "github.com/prometheus/client_model/go"
+
+	"github.com/prometheus/client_golang/prometheus/testutil/promlint/validations"
 )
 
-type Validation = func(mf *dto.MetricFamily) []Problem
+type Validation = func(mf *dto.MetricFamily) []error
 
-var DefaultValidations = []Validation{
-	lintHelp,
-	lintMetricUnits,
-	lintCounter,
-	lintHistogramSummaryReserved,
-	lintMetricTypeInName,
-	lintReservedChars,
-	lintCamelCase,
-	lintUnitAbbreviations,
+var defaultValidations = []Validation{
+	validations.LintHelp,
+	validations.LintMetricUnits,
+	validations.LintCounter,
+	validations.LintHistogramSummaryReserved,
+	validations.LintMetricTypeInName,
+	validations.LintReservedChars,
+	validations.LintCamelCase,
+	validations.LintUnitAbbreviations,
 }

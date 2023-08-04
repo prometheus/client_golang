@@ -14,21 +14,22 @@
 package validations
 
 import (
+	"errors"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
 
-// lintHistogramSummaryReserved detects when other types of metrics use names or labels
+// LintHistogramSummaryReserved detects when other types of metrics use names or labels
 // reserved for use by histograms and/or summaries.
-func lintHistogramSummaryReserved(mf *dto.MetricFamily) []Problem {
+func LintHistogramSummaryReserved(mf *dto.MetricFamily) []error {
 	// These rules do not apply to untyped metrics.
 	t := mf.GetType()
 	if t == dto.MetricType_UNTYPED {
 		return nil
 	}
 
-	var problems []Problem
+	var problems []error
 
 	isHistogram := t == dto.MetricType_HISTOGRAM
 	isSummary := t == dto.MetricType_SUMMARY
@@ -36,13 +37,13 @@ func lintHistogramSummaryReserved(mf *dto.MetricFamily) []Problem {
 	n := mf.GetName()
 
 	if !isHistogram && strings.HasSuffix(n, "_bucket") {
-		problems = append(problems, newProblem(mf, `non-histogram metrics should not have "_bucket" suffix`))
+		problems = append(problems, errors.New(`non-histogram metrics should not have "_bucket" suffix`))
 	}
 	if !isHistogram && !isSummary && strings.HasSuffix(n, "_count") {
-		problems = append(problems, newProblem(mf, `non-histogram and non-summary metrics should not have "_count" suffix`))
+		problems = append(problems, errors.New(`non-histogram and non-summary metrics should not have "_count" suffix`))
 	}
 	if !isHistogram && !isSummary && strings.HasSuffix(n, "_sum") {
-		problems = append(problems, newProblem(mf, `non-histogram and non-summary metrics should not have "_sum" suffix`))
+		problems = append(problems, errors.New(`non-histogram and non-summary metrics should not have "_sum" suffix`))
 	}
 
 	for _, m := range mf.GetMetric() {
@@ -50,10 +51,10 @@ func lintHistogramSummaryReserved(mf *dto.MetricFamily) []Problem {
 			ln := l.GetName()
 
 			if !isHistogram && ln == "le" {
-				problems = append(problems, newProblem(mf, `non-histogram metrics should not have "le" label`))
+				problems = append(problems, errors.New(`non-histogram metrics should not have "le" label`))
 			}
 			if !isSummary && ln == "quantile" {
-				problems = append(problems, newProblem(mf, `non-summary metrics should not have "quantile" label`))
+				problems = append(problems, errors.New(`non-summary metrics should not have "quantile" label`))
 			}
 		}
 	}

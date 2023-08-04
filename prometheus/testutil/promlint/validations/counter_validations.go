@@ -14,15 +14,16 @@
 package validations
 
 import (
+	"errors"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
 
-// lintCounter detects issues specific to counters, as well as patterns that should
+// LintCounter detects issues specific to counters, as well as patterns that should
 // only be used with counters.
-func lintCounter(mf *dto.MetricFamily) []Problem {
-	var problems []Problem
+func LintCounter(mf *dto.MetricFamily) []error {
+	var problems []error
 
 	isCounter := mf.GetType() == dto.MetricType_COUNTER
 	isUntyped := mf.GetType() == dto.MetricType_UNTYPED
@@ -30,9 +31,9 @@ func lintCounter(mf *dto.MetricFamily) []Problem {
 
 	switch {
 	case isCounter && !hasTotalSuffix:
-		problems = append(problems, newProblem(mf, `counter metrics should have "_total" suffix`))
+		problems = append(problems, errors.New(`counter metrics should have "_total" suffix`))
 	case !isUntyped && !isCounter && hasTotalSuffix:
-		problems = append(problems, newProblem(mf, `non-counter metrics should not have "_total" suffix`))
+		problems = append(problems, errors.New(`non-counter metrics should not have "_total" suffix`))
 	}
 
 	return problems
