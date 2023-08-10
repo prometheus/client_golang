@@ -15,11 +15,11 @@ package prometheus
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 // uncheckedCollector wraps a Collector but its Describe method yields no Desc.
@@ -297,21 +297,26 @@ func TestWrap(t *testing.T) {
 			if !s.gatherFails && err != nil {
 				t.Fatal("gathering failed:", err)
 			}
-			if !reflect.DeepEqual(gotMF, wantMF) {
-				var want, got []string
+			if len(wantMF) != len(gotMF) {
+				t.Fatalf("Expected %d metricFamilies, got %d", len(wantMF), len(gotMF))
+			}
+			for i := range gotMF {
+				if !proto.Equal(gotMF[i], wantMF[i]) {
+					var want, got []string
 
-				for i, mf := range wantMF {
-					want = append(want, fmt.Sprintf("%3d: %s", i, mf))
-				}
-				for i, mf := range gotMF {
-					got = append(got, fmt.Sprintf("%3d: %s", i, mf))
-				}
+					for i, mf := range wantMF {
+						want = append(want, fmt.Sprintf("%3d: %s", i, mf))
+					}
+					for i, mf := range gotMF {
+						got = append(got, fmt.Sprintf("%3d: %s", i, mf))
+					}
 
-				t.Fatalf(
-					"unexpected output of gathering:\n\nWANT:\n%s\n\nGOT:\n%s\n",
-					strings.Join(want, "\n"),
-					strings.Join(got, "\n"),
-				)
+					t.Fatalf(
+						"unexpected output of gathering:\n\nWANT:\n%s\n\nGOT:\n%s\n",
+						strings.Join(want, "\n"),
+						strings.Join(got, "\n"),
+					)
+				}
 			}
 		})
 	}

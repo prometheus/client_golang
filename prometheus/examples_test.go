@@ -319,10 +319,11 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(metric.String())
+
+	printlnNormalized(metric)
 
 	// Output:
-	// summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > >
+	// {"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}]}}
 }
 
 func ExampleSummaryVec() {
@@ -354,10 +355,10 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(metricFamilies[0].String())
+	printlnNormalized(metricFamilies[0])
 
 	// Output:
-	// name:"pond_temperature_celsius" help:"The temperature of the frog pond." type:SUMMARY metric:<label:<name:"species" value:"leiopelma-hochstetteri" > summary:<sample_count:0 sample_sum:0 quantile:<quantile:0.5 value:nan > quantile:<quantile:0.9 value:nan > quantile:<quantile:0.99 value:nan > > > metric:<label:<name:"species" value:"lithobates-catesbeianus" > summary:<sample_count:1000 sample_sum:31956.100000000017 quantile:<quantile:0.5 value:32.4 > quantile:<quantile:0.9 value:41.4 > quantile:<quantile:0.99 value:41.9 > > > metric:<label:<name:"species" value:"litoria-caerulea" > summary:<sample_count:1000 sample_sum:29969.50000000001 quantile:<quantile:0.5 value:31.1 > quantile:<quantile:0.9 value:41.3 > quantile:<quantile:0.99 value:41.9 > > >
+	// {"name":"pond_temperature_celsius","help":"The temperature of the frog pond.","type":"SUMMARY","metric":[{"label":[{"name":"species","value":"leiopelma-hochstetteri"}],"summary":{"sampleCount":"0","sampleSum":0,"quantile":[{"quantile":0.5,"value":"NaN"},{"quantile":0.9,"value":"NaN"},{"quantile":0.99,"value":"NaN"}]}},{"label":[{"name":"species","value":"lithobates-catesbeianus"}],"summary":{"sampleCount":"1000","sampleSum":31956.100000000017,"quantile":[{"quantile":0.5,"value":32.4},{"quantile":0.9,"value":41.4},{"quantile":0.99,"value":41.9}]}},{"label":[{"name":"species","value":"litoria-caerulea"}],"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}]}}]}
 }
 
 func ExampleNewConstSummary() {
@@ -381,10 +382,10 @@ func ExampleNewConstSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(metric.String())
+	printlnNormalized(metric)
 
 	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > summary:<sample_count:4711 sample_sum:403.34 quantile:<quantile:0.5 value:42.3 > quantile:<quantile:0.9 value:323.3 > >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}]}}
 }
 
 func ExampleHistogram() {
@@ -404,10 +405,10 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(metric.String())
+	printlnNormalized(metric)
 
 	// Output:
-	// histogram:<sample_count:1000 sample_sum:29969.50000000001 bucket:<cumulative_count:192 upper_bound:20 > bucket:<cumulative_count:366 upper_bound:25 > bucket:<cumulative_count:501 upper_bound:30 > bucket:<cumulative_count:638 upper_bound:35 > bucket:<cumulative_count:816 upper_bound:40 > >
+	// {"histogram":{"sampleCount":"1000","sampleSum":29969.50000000001,"bucket":[{"cumulativeCount":"192","upperBound":20},{"cumulativeCount":"366","upperBound":25},{"cumulativeCount":"501","upperBound":30},{"cumulativeCount":"638","upperBound":35},{"cumulativeCount":"816","upperBound":40}]}}
 }
 
 func ExampleNewConstHistogram() {
@@ -431,10 +432,10 @@ func ExampleNewConstHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(metric.String())
+	printlnNormalized(metric)
 
 	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 > bucket:<cumulative_count:2403 upper_bound:50 > bucket:<cumulative_count:3221 upper_bound:100 > bucket:<cumulative_count:4233 upper_bound:200 > >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}]}}
 }
 
 func ExampleNewConstHistogram_WithExemplar() {
@@ -469,10 +470,10 @@ func ExampleNewConstHistogram_WithExemplar() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(metric.String())
+	printlnNormalized(metric)
 
 	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"get" > label:<name:"owner" value:"example" > histogram:<sample_count:4711 sample_sum:403.34 bucket:<cumulative_count:121 upper_bound:25 exemplar:<label:<name:"testName" value:"testVal" > value:24 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:2403 upper_bound:50 exemplar:<label:<name:"testName" value:"testVal" > value:42 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:3221 upper_bound:100 exemplar:<label:<name:"testName" value:"testVal" > value:89 timestamp:<seconds:1136214245 > > > bucket:<cumulative_count:4233 upper_bound:200 exemplar:<label:<name:"testName" value:"testVal" > value:157 timestamp:<seconds:1136214245 > > > >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":24,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"2403","upperBound":50,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":42,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"3221","upperBound":100,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":89,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"4233","upperBound":200,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":157,"timestamp":"2006-01-02T15:04:05Z"}}]}}
 }
 
 func ExampleAlreadyRegisteredError() {
@@ -567,7 +568,13 @@ temperature_kelvin 4.5
 
 	gathering, err = gatherers.Gather()
 	if err != nil {
-		fmt.Println(err)
+		// We expect error collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
+		// We cannot assert it because of https://github.com/golang/protobuf/issues/1121
+		if strings.HasPrefix(err.Error(), `collected metric "temperature_kelvin" `) {
+			fmt.Println("Found duplicated metric `temperature_kelvin`")
+		} else {
+			fmt.Print(err)
+		}
 	}
 	// Note that still as many metrics as possible are returned:
 	out.Reset()
@@ -589,7 +596,7 @@ temperature_kelvin 4.5
 	// temperature_kelvin{location="outside"} 273.14
 	// temperature_kelvin{location="somewhere else"} 4.5
 	// ----------
-	// collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
+	// Found duplicated metric `temperature_kelvin`
 	// # HELP humidity_percent Humidity in %.
 	// # TYPE humidity_percent gauge
 	// humidity_percent{location="inside"} 33.2
@@ -625,8 +632,8 @@ func ExampleNewMetricWithTimestamp() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(metric.String())
+	printlnNormalized(metric)
 
 	// Output:
-	// gauge:<value:298.15 > timestamp_ms:1257894000012
+	// {"gauge":{"value":298.15},"timestampMs":"1257894000012"}
 }
