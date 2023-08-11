@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
@@ -43,9 +44,12 @@ func toMetricFamilies(cs ...Collector) []*dto.MetricFamily {
 }
 
 func TestWrap(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	simpleCnt := NewCounter(CounterOpts{
 		Name: "simpleCnt",
 		Help: "helpSimpleCnt",
+		now:  nowFn,
 	})
 	simpleCnt.Inc()
 
@@ -58,6 +62,7 @@ func TestWrap(t *testing.T) {
 	preCnt := NewCounter(CounterOpts{
 		Name: "pre_simpleCnt",
 		Help: "helpSimpleCnt",
+		now:  nowFn,
 	})
 	preCnt.Inc()
 
@@ -65,6 +70,7 @@ func TestWrap(t *testing.T) {
 		Name:        "simpleCnt",
 		Help:        "helpSimpleCnt",
 		ConstLabels: Labels{"foo": "bar"},
+		now:         nowFn,
 	})
 	barLabeledCnt.Inc()
 
@@ -72,6 +78,7 @@ func TestWrap(t *testing.T) {
 		Name:        "simpleCnt",
 		Help:        "helpSimpleCnt",
 		ConstLabels: Labels{"foo": "baz"},
+		now:         nowFn,
 	})
 	bazLabeledCnt.Inc()
 
@@ -79,6 +86,7 @@ func TestWrap(t *testing.T) {
 		Name:        "pre_simpleCnt",
 		Help:        "helpSimpleCnt",
 		ConstLabels: Labels{"foo": "bar"},
+		now:         nowFn,
 	})
 	labeledPreCnt.Inc()
 
@@ -86,6 +94,7 @@ func TestWrap(t *testing.T) {
 		Name:        "pre_simpleCnt",
 		Help:        "helpSimpleCnt",
 		ConstLabels: Labels{"foo": "bar", "dings": "bums"},
+		now:         nowFn,
 	})
 	twiceLabeledPreCnt.Inc()
 

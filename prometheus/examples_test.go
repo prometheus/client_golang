@@ -319,6 +319,8 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
+	// We remove CreatedTimestamp just to make sure the assert below works.
+	metric.Summary.CreatedTimestamp = nil
 
 	printlnNormalized(metric)
 
@@ -355,6 +357,11 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
+	// We remove CreatedTimestamp just to make sure the assert below works.
+	for _, m := range metricFamilies[0].Metric {
+		m.Summary.CreatedTimestamp = nil
+	}
+
 	printlnNormalized(metricFamilies[0])
 
 	// Output:
@@ -405,6 +412,9 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
+	// We remove CreatedTimestamp just to make sure the assert below works.
+	metric.Histogram.CreatedTimestamp = nil
+
 	printlnNormalized(metric)
 
 	// Output:
