@@ -26,6 +26,7 @@ import (
 
 	"github.com/beorn7/perks/quantile"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // quantileLabel is used for the label that defines the quantile in a
@@ -145,6 +146,8 @@ type SummaryOpts struct {
 	// is the internal buffer size of the underlying package
 	// "github.com/bmizerany/perks/quantile").
 	BufCap uint32
+
+	now func() time.Time // For testing, all constructors put time.Now() here.
 }
 
 // SummaryVecOpts bundles the options to create a SummaryVec metric.
@@ -222,6 +225,9 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		opts.BufCap = DefBufCap
 	}
 
+	if opts.now == nil {
+		opts.now = time.Now
+	}
 	if len(opts.Objectives) == 0 {
 		// Use the lock-free implementation of a Summary without objectives.
 		s := &noObjectivesSummary{
@@ -230,6 +236,7 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 			counts:     [2]*summaryCounts{{}, {}},
 		}
 		s.init(s) // Init self-collection.
+		s.createdTs = timestamppb.New(opts.now())
 		return s
 	}
 
@@ -259,6 +266,7 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 	sort.Float64s(s.sortedObjectives)
 
 	s.init(s) // Init self-collection.
+	s.createdTs = timestamppb.New(opts.now())
 	return s
 }
 
@@ -286,6 +294,8 @@ type summary struct {
 	headStream                       *quantile.Stream
 	headStreamIdx                    int
 	headStreamExpTime, hotBufExpTime time.Time
+
+	createdTs *timestamppb.Timestamp
 }
 
 func (s *summary) Desc() *Desc {
@@ -307,7 +317,9 @@ func (s *summary) Observe(v float64) {
 }
 
 func (s *summary) Write(out *dto.Metric) error {
-	sum := &dto.Summary{}
+	sum := &dto.Summary{
+		CreatedTimestamp: s.createdTs,
+	}
 	qs := make([]*dto.Quantile, 0, len(s.objectives))
 
 	s.bufMtx.Lock()
@@ -440,6 +452,8 @@ type noObjectivesSummary struct {
 	counts [2]*summaryCounts
 
 	labelPairs []*dto.LabelPair
+
+	createdTs *timestamppb.Timestamp
 }
 
 func (s *noObjectivesSummary) Desc() *Desc {
@@ -490,8 +504,9 @@ func (s *noObjectivesSummary) Write(out *dto.Metric) error {
 	}
 
 	sum := &dto.Summary{
-		SampleCount: proto.Uint64(count),
-		SampleSum:   proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		SampleCount:      proto.Uint64(count),
+		SampleSum:        proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		CreatedTimestamp: s.createdTs,
 	}
 
 	out.Summary = sum
@@ -681,6 +696,7 @@ type constSummary struct {
 	sum        float64
 	quantiles  map[float64]float64
 	labelPairs []*dto.LabelPair
+	createdTs  *timestamppb.Timestamp
 }
 
 func (s *constSummary) Desc() *Desc {
@@ -688,7 +704,9 @@ func (s *constSummary) Desc() *Desc {
 }
 
 func (s *constSummary) Write(out *dto.Metric) error {
-	sum := &dto.Summary{}
+	sum := &dto.Summary{
+		CreatedTimestamp: s.createdTs,
+	}
 	qs := make([]*dto.Quantile, 0, len(s.quantiles))
 
 	sum.SampleCount = proto.Uint64(s.count)

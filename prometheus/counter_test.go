@@ -298,3 +298,40 @@ func TestCounterExemplar(t *testing.T) {
 		t.Error("adding exemplar with oversized labels succeeded")
 	}
 }
+
+func TestCounterCreatedTimestamp(t *testing.T) {
+	now := time.Now()
+	counter := NewCounter(CounterOpts{
+		Name: "test",
+		Help: "test help",
+		now:  func() time.Time { return now },
+	})
+
+	var metric dto.Metric
+	if err := counter.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Counter.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Counter.CreatedTimestamp.AsTime().Unix())
+	}
+}
+
+func TestCounterVecCreatedTimestamp(t *testing.T) {
+	now := time.Now()
+	counterVec := NewCounterVec(CounterOpts{
+		Name: "test",
+		Help: "test help",
+		now:  func() time.Time { return now },
+	}, []string{"label"})
+	counter := counterVec.WithLabelValues("value")
+
+	var metric dto.Metric
+	if err := counter.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Counter.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Counter.CreatedTimestamp.AsTime().Unix())
+	}
+}
