@@ -725,7 +725,11 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 			}
 		}
 
-		if !bytes.Equal(scenario.out.body, writer.Body.Bytes()) {
+		var outMF dto.MetricFamily
+		var writerMF dto.MetricFamily
+		proto.Unmarshal(scenario.out.body, &outMF)
+		proto.Unmarshal(writer.Body.Bytes(), &writerMF)
+		if !proto.Equal(&outMF, &writerMF) {
 			t.Errorf(
 				"%d. expected body:\n%s\ngot body:\n%s\n",
 				i, scenario.out.body, writer.Body.Bytes(),

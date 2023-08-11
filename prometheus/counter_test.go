@@ -61,8 +61,15 @@ func TestCounterAdd(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > counter:<value:67.42 > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	expected := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: proto.String("a"), Value: proto.String("1")},
+			{Name: proto.String("b"), Value: proto.String("2")},
+		},
+		Counter: &dto.Counter{Value: proto.Float64(67.42)},
+	}
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
 	}
 }
 
@@ -164,8 +171,14 @@ func TestCounterAddInf(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := `counter:<value:inf > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	expected := &dto.Metric{
+		Counter: &dto.Counter{
+			Value: proto.Float64(math.Inf(1)),
+		},
+	}
+
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
 	}
 }
 
@@ -188,8 +201,14 @@ func TestCounterAddLarge(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := fmt.Sprintf("counter:<value:%0.16e > ", large), m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	expected := &dto.Metric{
+		Counter: &dto.Counter{
+			Value: proto.Float64(large),
+		},
+	}
+
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
 	}
 }
 
@@ -210,8 +229,14 @@ func TestCounterAddSmall(t *testing.T) {
 	m := &dto.Metric{}
 	counter.Write(m)
 
-	if expected, got := fmt.Sprintf("counter:<value:%0.0e > ", small), m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	expected := &dto.Metric{
+		Counter: &dto.Counter{
+			Value: proto.Float64(small),
+		},
+	}
+
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
 	}
 }
 

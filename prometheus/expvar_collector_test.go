@@ -81,17 +81,17 @@ func ExampleNewExpvarCollector() {
 		if !strings.Contains(m.Desc().String(), "expvar_memstats") {
 			metric.Reset()
 			m.Write(&metric)
-			metricStrings = append(metricStrings, metric.String())
+			metricStrings = append(metricStrings, protoToNormalizedJSON(&metric))
 		}
 	}
 	sort.Strings(metricStrings)
 	for _, s := range metricStrings {
-		fmt.Println(strings.TrimRight(s, " "))
+		fmt.Println(s)
 	}
 	// Output:
-	// label:<name:"code" value:"200" > label:<name:"method" value:"GET" > untyped:<value:212 >
-	// label:<name:"code" value:"200" > label:<name:"method" value:"POST" > untyped:<value:11 >
-	// label:<name:"code" value:"404" > label:<name:"method" value:"GET" > untyped:<value:13 >
-	// label:<name:"code" value:"404" > label:<name:"method" value:"POST" > untyped:<value:3 >
-	// untyped:<value:42 >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"GET"}],"untyped":{"value":212}}
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"POST"}],"untyped":{"value":11}}
+	// {"label":[{"name":"code","value":"404"},{"name":"method","value":"GET"}],"untyped":{"value":13}}
+	// {"label":[{"name":"code","value":"404"},{"name":"method","value":"POST"}],"untyped":{"value":3}}
+	// {"untyped":{"value":42}}
 }

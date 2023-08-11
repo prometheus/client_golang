@@ -14,8 +14,6 @@
 package prometheus_test
 
 import (
-	"fmt"
-
 	"google.golang.org/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
@@ -126,8 +124,8 @@ func ExampleMetricVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(metricFamilies[0].String())
+	printlnNormalized(metricFamilies[0])
 
 	// Output:
-	// name:"library_version_info" help:"Versions of the libraries used in this binary." type:GAUGE metric:<label:<name:"library" value:"k8s.io/client-go" > label:<name:"version" value:"0.18.8" > gauge:<value:1 > > metric:<label:<name:"library" value:"prometheus/client_golang" > label:<name:"version" value:"1.7.1" > gauge:<value:1 > >
+	// {"name":"library_version_info","help":"Versions of the libraries used in this binary.","type":"GAUGE","metric":[{"label":[{"name":"library","value":"k8s.io/client-go"},{"name":"version","value":"0.18.8"}],"gauge":{"value":1}},{"label":[{"name":"library","value":"prometheus/client_golang"},{"name":"version","value":"1.7.1"}],"gauge":{"value":1}}]}
 }
