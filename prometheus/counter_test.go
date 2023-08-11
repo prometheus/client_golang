@@ -26,10 +26,13 @@ import (
 )
 
 func TestCounterAdd(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	counter := NewCounter(CounterOpts{
 		Name:        "test",
 		Help:        "test help",
 		ConstLabels: Labels{"a": "1", "b": "2"},
+		now:         nowFn,
 	}).(*counter)
 	counter.Inc()
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
@@ -66,7 +69,10 @@ func TestCounterAdd(t *testing.T) {
 			{Name: proto.String("a"), Value: proto.String("1")},
 			{Name: proto.String("b"), Value: proto.String("2")},
 		},
-		Counter: &dto.Counter{Value: proto.Float64(67.42)},
+		Counter: &dto.Counter{
+			Value:            proto.Float64(67.42),
+			CreatedTimestamp: timestamppb.New(nowFn()),
+		},
 	}
 	if !proto.Equal(expected, m) {
 		t.Errorf("expected %q, got %q", expected, m)
@@ -139,9 +145,12 @@ func expectPanic(t *testing.T, op func(), errorMsg string) {
 }
 
 func TestCounterAddInf(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  nowFn,
 	}).(*counter)
 
 	counter.Inc()
@@ -173,7 +182,8 @@ func TestCounterAddInf(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(math.Inf(1)),
+			Value:            proto.Float64(math.Inf(1)),
+			CreatedTimestamp: timestamppb.New(nowFn()),
 		},
 	}
 
@@ -183,9 +193,12 @@ func TestCounterAddInf(t *testing.T) {
 }
 
 func TestCounterAddLarge(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  nowFn,
 	}).(*counter)
 
 	// large overflows the underlying type and should therefore be stored in valBits.
@@ -203,7 +216,8 @@ func TestCounterAddLarge(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(large),
+			Value:            proto.Float64(large),
+			CreatedTimestamp: timestamppb.New(nowFn()),
 		},
 	}
 
@@ -213,9 +227,12 @@ func TestCounterAddLarge(t *testing.T) {
 }
 
 func TestCounterAddSmall(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  nowFn,
 	}).(*counter)
 	small := 0.000000000001
 	counter.Add(small)
@@ -231,7 +248,8 @@ func TestCounterAddSmall(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(small),
+			Value:            proto.Float64(small),
+			CreatedTimestamp: timestamppb.New(nowFn()),
 		},
 	}
 

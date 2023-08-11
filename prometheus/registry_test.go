@@ -37,6 +37,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // uncheckedCollector wraps a Collector but its Describe method yields no Desc.
@@ -138,7 +139,8 @@ metric: <
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value:            proto.Float64(1),
+					CreatedTimestamp: timestamppb.New(time.Now()),
 				},
 			},
 			{
@@ -153,7 +155,8 @@ metric: <
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value:            proto.Float64(1),
+					CreatedTimestamp: timestamppb.New(time.Now()),
 				},
 			},
 		},

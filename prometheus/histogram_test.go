@@ -469,6 +469,8 @@ func TestHistogramExemplar(t *testing.T) {
 }
 
 func TestNativeHistogram(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
 	scenarios := []struct {
 		name             string
 		observations     []float64 // With simulated interval of 1m.
@@ -499,17 +501,19 @@ func TestNativeHistogram(t *testing.T) {
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(5)},
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(10)},
 				},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
 			name:   "no observations",
 			factor: 1.1,
 			want: &dto.Histogram{
-				SampleCount:   proto.Uint64(0),
-				SampleSum:     proto.Float64(0),
-				Schema:        proto.Int32(3),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
-				ZeroCount:     proto.Uint64(0),
+				SampleCount:      proto.Uint64(0),
+				SampleSum:        proto.Float64(0),
+				Schema:           proto.Int32(3),
+				ZeroThreshold:    proto.Float64(2.938735877055719e-39),
+				ZeroCount:        proto.Uint64(0),
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -525,6 +529,7 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(0)},
 				},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -542,7 +547,8 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(7), Length: proto.Uint32(1)},
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
 				},
-				PositiveDelta: []int64{1, 0, 0},
+				PositiveDelta:    []int64{1, 0, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -558,7 +564,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -581,7 +588,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-2), Length: proto.Uint32(6)},
 				},
-				PositiveDelta: []int64{2, 0, 0, 2, -1, -2},
+				PositiveDelta:    []int64{2, 0, 0, 2, -1, -2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -602,7 +610,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-1), Length: proto.Uint32(4)},
 				},
-				PositiveDelta: []int64{2, 2, 3, -6},
+				PositiveDelta:    []int64{2, 2, 3, -6},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -618,7 +627,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				NegativeDelta: []int64{1, -1, 2, -2, 2},
+				NegativeDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -638,7 +648,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -659,7 +670,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
 				},
-				PositiveDelta: []int64{2},
+				PositiveDelta:    []int64{2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -675,7 +687,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -692,7 +705,8 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 					{Offset: proto.Int32(4092), Length: proto.Uint32(1)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2, -1},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2, -1},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -712,7 +726,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -729,7 +744,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, -1, 2, -2, 2},
+				PositiveDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -746,7 +762,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				PositiveDelta: []int64{1, 2, -1, -2, 1},
+				PositiveDelta:    []int64{1, 2, -1, -2, 1},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -764,7 +781,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(1), Length: proto.Uint32(7)},
 				},
-				PositiveDelta: []int64{1, 1, -2, 2, -2, 0, 1},
+				PositiveDelta:    []int64{1, 1, -2, 2, -2, 0, 1},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -782,7 +800,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
 				},
-				PositiveDelta: []int64{2, -2, 2, -2, 0, 1, 0},
+				PositiveDelta:    []int64{2, -2, 2, -2, 0, 1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -801,7 +820,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
-				PositiveDelta: []int64{1, 0},
+				PositiveDelta:    []int64{1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -818,7 +838,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				NegativeDelta: []int64{1, -1, 2, -2, 2},
+				NegativeDelta:    []int64{1, -1, 2, -2, 2},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -835,7 +856,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
-				NegativeDelta: []int64{1, 2, -1, -2, 1},
+				NegativeDelta:    []int64{1, 2, -1, -2, 1},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -853,7 +875,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(1), Length: proto.Uint32(7)},
 				},
-				NegativeDelta: []int64{1, 1, -2, 2, -2, 0, 1},
+				NegativeDelta:    []int64{1, 1, -2, 2, -2, 0, 1},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -871,7 +894,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
 				},
-				NegativeDelta: []int64{2, -2, 2, -2, 0, 1, 0},
+				NegativeDelta:    []int64{2, -2, 2, -2, 0, 1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -890,7 +914,8 @@ func TestNativeHistogram(t *testing.T) {
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
-				NegativeDelta: []int64{1, 0},
+				NegativeDelta:    []int64{1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -908,7 +933,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
-				PositiveDelta: []int64{1, 0},
+				PositiveDelta:    []int64{1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 		{
@@ -927,7 +953,8 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
-				PositiveDelta: []int64{1, 0},
+				PositiveDelta:    []int64{1, 0},
+				CreatedTimestamp: timestamppb.New(nowFn()),
 			},
 		},
 	}
@@ -942,6 +969,7 @@ func TestNativeHistogram(t *testing.T) {
 				NativeHistogramMaxBucketNumber:  s.maxBuckets,
 				NativeHistogramMinResetDuration: s.minResetDuration,
 				NativeHistogramMaxZeroThreshold: s.maxZeroThreshold,
+				now:                             nowFn,
 			})
 			ts := time.Now().Add(30 * time.Second)
 			now := func() time.Time {
