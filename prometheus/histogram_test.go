@@ -1152,3 +1152,44 @@ func TestGetLe(t *testing.T) {
 		}
 	}
 }
+
+func TestHistogramCreatedTimestamp(t *testing.T) {
+	now := time.Now()
+
+	histogram := NewHistogram(HistogramOpts{
+		Name:    "test",
+		Help:    "test help",
+		Buckets: []float64{1, 2, 3, 4},
+		now:     func() time.Time { return now },
+	})
+
+	var metric dto.Metric
+	if err := histogram.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Histogram.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Histogram.CreatedTimestamp.AsTime().Unix())
+	}
+}
+
+func TestHistogramVecCreatedTimestamp(t *testing.T) {
+	now := time.Now()
+
+	histogramVec := NewHistogramVec(HistogramOpts{
+		Name:    "test",
+		Help:    "test help",
+		Buckets: []float64{1, 2, 3, 4},
+		now:     func() time.Time { return now },
+	}, []string{"label"})
+	histogram := histogramVec.WithLabelValues("value").(Histogram)
+
+	var metric dto.Metric
+	if err := histogram.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Histogram.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Histogram.CreatedTimestamp.AsTime().Unix())
+	}
+}

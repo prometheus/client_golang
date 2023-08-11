@@ -25,6 +25,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // nativeHistogramBounds for the frac of observed values. Only relevant for
@@ -471,6 +472,8 @@ type HistogramOpts struct {
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
+
+	now func() time.Time // For testing, all constructors put time.Now() here.
 }
 
 // HistogramVecOpts bundles the options to create a HistogramVec metric.
@@ -568,7 +571,11 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	atomic.StoreInt32(&h.counts[1].nativeHistogramSchema, h.nativeHistogramSchema)
 	h.exemplars = make([]atomic.Value, len(h.upperBounds)+1)
 
+	if opts.now == nil {
+		opts.now = time.Now
+	}
 	h.init(h) // Init self-collection.
+	h.createdTs = timestamppb.New(opts.now())
 	return h
 }
 
@@ -707,8 +714,9 @@ type histogram struct {
 	nativeHistogramMaxBuckets       uint32
 	nativeHistogramMinResetDuration time.Duration
 	lastResetTime                   time.Time // Protected by mtx.
+	createdTs                       *timestamppb.Timestamp
 
-	now func() time.Time // To mock out time.Now() for testing.
+	now func() time.Time // For testing, all constructors put time.Now() here.
 }
 
 func (h *histogram) Desc() *Desc {
@@ -747,9 +755,10 @@ func (h *histogram) Write(out *dto.Metric) error {
 	waitForCooldown(count, coldCounts)
 
 	his := &dto.Histogram{
-		Bucket:      make([]*dto.Bucket, len(h.upperBounds)),
-		SampleCount: proto.Uint64(count),
-		SampleSum:   proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		Bucket:           make([]*dto.Bucket, len(h.upperBounds)),
+		SampleCount:      proto.Uint64(count),
+		SampleSum:        proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		CreatedTimestamp: h.createdTs,
 	}
 	out.Histogram = his
 	out.Label = h.labelPairs
@@ -1194,6 +1203,7 @@ type constHistogram struct {
 	sum        float64
 	buckets    map[float64]uint64
 	labelPairs []*dto.LabelPair
+	createdTs  *timestamppb.Timestamp
 }
 
 func (h *constHistogram) Desc() *Desc {
@@ -1201,7 +1211,9 @@ func (h *constHistogram) Desc() *Desc {
 }
 
 func (h *constHistogram) Write(out *dto.Metric) error {
-	his := &dto.Histogram{}
+	his := &dto.Histogram{
+		CreatedTimestamp: h.createdTs,
+	}
 
 	buckets := make([]*dto.Bucket, 0, len(h.buckets))
 

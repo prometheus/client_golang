@@ -16,6 +16,10 @@ package prometheus
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestNewConstMetricInvalidLabelValues(t *testing.T) {
@@ -52,5 +56,58 @@ func TestNewConstMetricInvalidLabelValues(t *testing.T) {
 		if _, err := NewConstMetric(metricDesc, CounterValue, 0.3, "\xFF"); err == nil {
 			t.Errorf("NewConstMetric: expected error because: %s", test.desc)
 		}
+	}
+}
+
+func TestNewConstMetricWithCreatedTimestamp(t *testing.T) {
+	now := time.Now()
+	testCases := []struct {
+		desc             string
+		metricType       ValueType
+		createdTimestamp time.Time
+		expecErr         bool
+		expectedCt       *timestamppb.Timestamp
+	}{
+		{
+			desc:             "gauge with CT",
+			metricType:       GaugeValue,
+			createdTimestamp: now,
+			expecErr:         true,
+			expectedCt:       nil,
+		},
+		{
+			desc:             "counter with CT",
+			metricType:       CounterValue,
+			createdTimestamp: now,
+			expecErr:         false,
+			expectedCt:       timestamppb.New(now),
+		},
+	}
+
+	for _, test := range testCases {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			metricDesc := NewDesc(
+				"sample_value",
+				"sample value",
+				nil,
+				nil,
+			)
+			m, err := NewConstMetricWithCreatedTimestamp(metricDesc, test.metricType, float64(1), test.createdTimestamp)
+			if test.expecErr && err == nil {
+				t.Errorf("Expected error is test %s, got no err", test.desc)
+			}
+			if !test.expecErr && err != nil {
+				t.Errorf("Didn't expect error in test %s, got %s", test.desc, err.Error())
+			}
+
+			if test.expectedCt != nil {
+				var metric dto.Metric
+				m.Write(&metric)
+				if metric.Counter.CreatedTimestamp.AsTime() != test.expectedCt.AsTime() {
+					t.Errorf("Expected timestamp %v, got %v", test.expectedCt, &metric.Counter.CreatedTimestamp)
+				}
+			}
+		})
 	}
 }

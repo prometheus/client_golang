@@ -420,3 +420,78 @@ func getBounds(vars []float64, q, ε float64) (min, max float64) {
 	}
 	return
 }
+
+func TestSummaryCreatedTimestamp(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		objectives map[float64]float64
+	}{
+		{
+			desc: "summary with objectives",
+			objectives: map[float64]float64{
+				1.0: 1.0,
+			},
+		},
+		{
+			desc:       "no objectives summary",
+			objectives: nil,
+		},
+	}
+	now := time.Now()
+	for _, test := range testCases {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			summary := NewSummary(SummaryOpts{
+				Name:       "test",
+				Help:       "test help",
+				Objectives: test.objectives,
+				now:        func() time.Time { return now },
+			})
+
+			var metric dto.Metric
+			summary.Write(&metric)
+
+			if metric.Summary.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+				t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Summary.CreatedTimestamp.AsTime().Unix())
+			}
+		})
+	}
+}
+
+func TestSummaryVecCreatedTimestamp(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		objectives map[float64]float64
+	}{
+		{
+			desc: "summary with objectives",
+			objectives: map[float64]float64{
+				1.0: 1.0,
+			},
+		},
+		{
+			desc:       "no objectives summary",
+			objectives: nil,
+		},
+	}
+	now := time.Now()
+	for _, test := range testCases {
+		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			summaryVec := NewSummaryVec(SummaryOpts{
+				Name:       "test",
+				Help:       "test help",
+				Objectives: test.objectives,
+				now:        func() time.Time { return now },
+			},
+				[]string{"label"})
+			summary := summaryVec.WithLabelValues("value").(Summary)
+			var metric dto.Metric
+			summary.Write(&metric)
+
+			if metric.Summary.CreatedTimestamp.AsTime().Unix() != now.Unix() {
+				t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Summary.CreatedTimestamp.AsTime().Unix())
+			}
+		})
+	}
+}
