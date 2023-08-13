@@ -413,8 +413,8 @@ type HistogramOpts struct {
 	// and 2, same as between 2 and 4, and 4 and 8, etc.).
 	//
 	// Details about the actually used factor: The factor is calculated as
-	// 2^(2^n), where n is an integer number between (and including) -8 and
-	// 4. n is chosen so that the resulting factor is the largest that is
+	// 2^(2^-n), where n is an integer number between (and including) -4 and
+	// 8. n is chosen so that the resulting factor is the largest that is
 	// still smaller or equal to NativeHistogramBucketFactor. Note that the
 	// smallest possible factor is therefore approx. 1.00271 (i.e. 2^(2^-8)
 	// ). If NativeHistogramBucketFactor is greater than 1 but smaller than
