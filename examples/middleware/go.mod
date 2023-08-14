@@ -1,6 +1,6 @@
 module github.com/jessicalins/instrumentation-practices-examples/middleware
 
-go 1.17
+go 1.19
 
 require github.com/prometheus/client_golang v1.13.1
 
