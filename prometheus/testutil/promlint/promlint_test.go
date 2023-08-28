@@ -587,18 +587,18 @@ tsdb_compaction_duration_count 69
 		{
 			name: "summary with le label",
 			in: `
-# HELP go_gc_duration_seconds A summary of the GC invocation durations.
-# TYPE go_gc_duration_seconds summary
-go_gc_duration_seconds{quantile="0",le="0.01"} 4.2365e-05
-go_gc_duration_seconds{quantile="0.25",le="0.01"} 8.1492e-05
-go_gc_duration_seconds{quantile="0.5",le="0.01"} 0.000100656
-go_gc_duration_seconds{quantile="0.75",le="0.01"} 0.000113913
-go_gc_duration_seconds{quantile="1",le="0.01"} 0.021754305
-go_gc_duration_seconds_sum 1.769429004
-go_gc_duration_seconds_count 5962
+# HELP go.gc_duration_seconds A summary of the GC invocation durations.
+# TYPE go.gc_duration_seconds summary
+go.gc_duration_seconds{quantile="0",le="0.01"} 4.2365e-05
+go.gc_duration_seconds{quantile="0.25",le="0.01"} 8.1492e-05
+go.gc_duration_seconds{quantile="0.5",le="0.01"} 0.000100656
+go.gc_duration_seconds{quantile="0.75",le="0.01"} 0.000113913
+go.gc_duration_seconds{quantile="1",le="0.01"} 0.021754305
+go.gc_duration_seconds_sum 1.769429004
+go.gc_duration_seconds_count 5962
 `,
 			problems: []promlint.Problem{{
-				Metric: "go_gc_duration_seconds",
+				Metric: "go.gc_duration_seconds",
 				Text:   `non-histogram metrics should not have "le" label`,
 			}},
 		},
@@ -626,15 +626,15 @@ tsdb_compaction_duration_count 69
 		{
 			name: "summary OK",
 			in: `
-# HELP go_gc_duration_seconds A summary of the GC invocation durations.
-# TYPE go_gc_duration_seconds summary
-go_gc_duration_seconds{quantile="0"} 4.2365e-05
-go_gc_duration_seconds{quantile="0.25"} 8.1492e-05
-go_gc_duration_seconds{quantile="0.5"} 0.000100656
-go_gc_duration_seconds{quantile="0.75"} 0.000113913
-go_gc_duration_seconds{quantile="1"} 0.021754305
-go_gc_duration_seconds_sum 1.769429004
-go_gc_duration_seconds_count 5962
+# HELP go.gc_duration_seconds A summary of the GC invocation durations.
+# TYPE go.gc_duration_seconds summary
+go.gc_duration_seconds{quantile="0"} 4.2365e-05
+go.gc_duration_seconds{quantile="0.25"} 8.1492e-05
+go.gc_duration_seconds{quantile="0.5"} 0.000100656
+go.gc_duration_seconds{quantile="0.75"} 0.000113913
+go.gc_duration_seconds{quantile="1"} 0.021754305
+go.gc_duration_seconds_sum 1.769429004
+go.gc_duration_seconds_count 5962
 `,
 		},
 	}
