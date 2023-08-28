@@ -224,7 +224,7 @@ func newBaseGoCollector() baseGoCollector {
 			"Number of OS threads created.",
 			nil, nil),
 		gcDesc: NewDesc(
-			"go_gc_duration_seconds",
+			"go.gc_duration_seconds",
 			"A summary of the pause duration of garbage collection cycles.",
 			nil, nil),
 		gcLastTimeDesc: NewDesc(
@@ -232,7 +232,7 @@ func newBaseGoCollector() baseGoCollector {
 			"Number of seconds since 1970 of last garbage collection.",
 			nil, nil),
 		goInfoDesc: NewDesc(
-			"go_info",
+			"go.info",
 			"Information about the Go environment.",
 			nil, Labels{"version": runtime.Version()}),
 	}
