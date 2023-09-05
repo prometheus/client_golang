@@ -587,7 +587,6 @@ tsdb_compaction_duration_count 69
 		{
 			name: "summary with le label",
 			in: `
-# HELP go.gc_duration_seconds A summary of the GC invocation durations.
 # TYPE go.gc_duration_seconds summary
 go.gc_duration_seconds{quantile="0",le="0.01"} 4.2365e-05
 go.gc_duration_seconds{quantile="0.25",le="0.01"} 8.1492e-05
@@ -626,7 +625,6 @@ tsdb_compaction_duration_count 69
 		{
 			name: "summary OK",
 			in: `
-# HELP go.gc_duration_seconds A summary of the GC invocation durations.
 # TYPE go.gc_duration_seconds summary
 go.gc_duration_seconds{quantile="0"} 4.2365e-05
 go.gc_duration_seconds{quantile="0.25"} 8.1492e-05

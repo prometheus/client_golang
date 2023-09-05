@@ -94,9 +94,10 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		help:           help,
 		variableLabels: variableLabels.compile(),
 	}
-	// if !model.IsValidMetricName(model.LabelValue(fqName)) {
-	// 	d.err = fmt.Errorf("%q is not a valid metric name", fqName)
-	// 	return d
+	// if !model.IsValidMetricName(model.LabelValue (fqName)) {
+	// 	// d.err = fmt.Errorf("%q is not a valid metric name", fqName)
+	// 	// return d
+	// 	fqName = fmt.Sprintf(`"%s"`, fqName)
 	// }
 	// labelValues contains the label values of const labels (in order of
 	// their sorted label names) plus the fqName (at position 0).

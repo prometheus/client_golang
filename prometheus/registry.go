@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -682,7 +683,13 @@ func processMetric(
 		}
 	} else { // New name.
 		metricFamily = &dto.MetricFamily{}
-		metricFamily.Name = proto.String(desc.fqName)
+		fqName := desc.fqName
+		debug.PrintStack()
+		// if !model.IsValidMetricName(model.LabelValue(fqName)) {
+		// 	fqName = fmt.Sprintf(`"%s"`, fqName)
+		// 	fmt.Printf("adding quotes I hope: %s\n", fqName)
+		// }
+		metricFamily.Name = proto.String(fqName)
 		metricFamily.Help = proto.String(desc.help)
 		// TODO(beorn7): Simplify switch once Desc has type.
 		switch {

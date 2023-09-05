@@ -30,3 +30,5 @@ require (
 )
 
 exclude github.com/prometheus/client_golang v1.12.1
+
+replace github.com/prometheus/common => /home/owilliams/src/third_party/common
