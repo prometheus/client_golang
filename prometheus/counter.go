@@ -115,7 +115,8 @@ type counter struct {
 	labelPairs []*dto.LabelPair
 	exemplar   atomic.Value // Containing nil or a *dto.Exemplar.
 
-	now func() time.Time // For testing, all constructors put time.Now() here.
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 func (c *counter) Desc() *Desc {
@@ -165,9 +166,7 @@ func (c *counter) Write(out *dto.Metric) error {
 		exemplar = e.(*dto.Exemplar)
 	}
 	val := c.get()
-
-	ct := c.createdTs.AsTime()
-	return populateMetric(CounterValue, val, c.labelPairs, exemplar, out, &ct)
+	return populateMetric(CounterValue, val, c.labelPairs, exemplar, out, c.createdTs)
 }
 
 func (c *counter) updateExemplar(v float64, l Labels) {
@@ -215,7 +214,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
 			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: time.Now}
+			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
 			result.init(result) // Init self-collection.
 			result.createdTs = timestamppb.New(opts.now())
 			return result

@@ -147,7 +147,8 @@ type SummaryOpts struct {
 	// "github.com/bmizerany/perks/quantile").
 	BufCap uint32
 
-	now func() time.Time // For testing, all constructors put time.Now() here.
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 // SummaryVecOpts bundles the options to create a SummaryVec metric.
@@ -252,7 +253,7 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		coldBuf:        make([]float64, 0, opts.BufCap),
 		streamDuration: opts.MaxAge / time.Duration(opts.AgeBuckets),
 	}
-	s.headStreamExpTime = time.Now().Add(s.streamDuration)
+	s.headStreamExpTime = opts.now().Add(s.streamDuration)
 	s.hotBufExpTime = s.headStreamExpTime
 
 	for i := uint32(0); i < opts.AgeBuckets; i++ {

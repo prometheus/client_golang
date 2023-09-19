@@ -61,7 +61,8 @@ func TestNewConstMetricInvalidLabelValues(t *testing.T) {
 
 func TestNewConstMetricWithCreatedTimestamp(t *testing.T) {
 	now := time.Now()
-	testCases := []struct {
+
+	for _, tcase := range []struct {
 		desc             string
 		metricType       ValueType
 		createdTimestamp time.Time
@@ -82,30 +83,27 @@ func TestNewConstMetricWithCreatedTimestamp(t *testing.T) {
 			expecErr:         false,
 			expectedCt:       timestamppb.New(now),
 		},
-	}
-
-	for _, test := range testCases {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
+	} {
+		t.Run(tcase.desc, func(t *testing.T) {
 			metricDesc := NewDesc(
 				"sample_value",
 				"sample value",
 				nil,
 				nil,
 			)
-			m, err := NewConstMetricWithCreatedTimestamp(metricDesc, test.metricType, float64(1), test.createdTimestamp)
-			if test.expecErr && err == nil {
-				t.Errorf("Expected error is test %s, got no err", test.desc)
+			m, err := NewConstMetricWithCreatedTimestamp(metricDesc, tcase.metricType, float64(1), tcase.createdTimestamp)
+			if tcase.expecErr && err == nil {
+				t.Errorf("Expected error is test %s, got no err", tcase.desc)
 			}
-			if !test.expecErr && err != nil {
-				t.Errorf("Didn't expect error in test %s, got %s", test.desc, err.Error())
+			if !tcase.expecErr && err != nil {
+				t.Errorf("Didn't expect error in test %s, got %s", tcase.desc, err.Error())
 			}
 
-			if test.expectedCt != nil {
+			if tcase.expectedCt != nil {
 				var metric dto.Metric
 				m.Write(&metric)
-				if metric.Counter.CreatedTimestamp.AsTime() != test.expectedCt.AsTime() {
-					t.Errorf("Expected timestamp %v, got %v", test.expectedCt, &metric.Counter.CreatedTimestamp)
+				if metric.Counter.CreatedTimestamp.AsTime() != tcase.expectedCt.AsTime() {
+					t.Errorf("Expected timestamp %v, got %v", tcase.expectedCt, &metric.Counter.CreatedTimestamp)
 				}
 			}
 		})

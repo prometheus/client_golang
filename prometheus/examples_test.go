@@ -153,6 +153,22 @@ func ExampleCounterVec() {
 	httpReqs.DeleteLabelValues("200", "GET")
 	// Same thing with the more verbose Labels syntax.
 	httpReqs.Delete(prometheus.Labels{"method": "GET", "code": "200"})
+
+	// Just for demonstration, let's check the state of the counter vector
+	// by registering it with a custom registry and then let it collect the
+	// metrics.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(httpReqs)
+
+	metricFamilies, err := reg.Gather()
+	if err != nil || len(metricFamilies) != 1 {
+		panic("unexpected behavior of custom test registry")
+	}
+
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
+
+	// Output:
+	// {"name":"http_requests_total","help":"How many HTTP requests processed, partitioned by status code and HTTP method.","type":"COUNTER","metric":[{"label":[{"name":"code","value":"404"},{"name":"method","value":"POST"}],"counter":{"value":42,"createdTimestamp":"1970-01-01T00:00:10Z"}}]}
 }
 
 func ExampleRegister() {
@@ -319,13 +335,11 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	// We remove CreatedTimestamp just to make sure the assert below works.
-	metric.Summary.CreatedTimestamp = nil
 
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(sanitizeMetric(metric)))
 
 	// Output:
-	// {"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}]}}
+	// {"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}}
 }
 
 func ExampleSummaryVec() {
@@ -357,15 +371,11 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	// We remove CreatedTimestamp just to make sure the assert below works.
-	for _, m := range metricFamilies[0].Metric {
-		m.Summary.CreatedTimestamp = nil
-	}
 
-	printlnNormalized(metricFamilies[0])
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
 
 	// Output:
-	// {"name":"pond_temperature_celsius","help":"The temperature of the frog pond.","type":"SUMMARY","metric":[{"label":[{"name":"species","value":"leiopelma-hochstetteri"}],"summary":{"sampleCount":"0","sampleSum":0,"quantile":[{"quantile":0.5,"value":"NaN"},{"quantile":0.9,"value":"NaN"},{"quantile":0.99,"value":"NaN"}]}},{"label":[{"name":"species","value":"lithobates-catesbeianus"}],"summary":{"sampleCount":"1000","sampleSum":31956.100000000017,"quantile":[{"quantile":0.5,"value":32.4},{"quantile":0.9,"value":41.4},{"quantile":0.99,"value":41.9}]}},{"label":[{"name":"species","value":"litoria-caerulea"}],"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}]}}]}
+	// {"name":"pond_temperature_celsius","help":"The temperature of the frog pond.","type":"SUMMARY","metric":[{"label":[{"name":"species","value":"leiopelma-hochstetteri"}],"summary":{"sampleCount":"0","sampleSum":0,"quantile":[{"quantile":0.5,"value":"NaN"},{"quantile":0.9,"value":"NaN"},{"quantile":0.99,"value":"NaN"}],"createdTimestamp":"1970-01-01T00:00:10Z"}},{"label":[{"name":"species","value":"lithobates-catesbeianus"}],"summary":{"sampleCount":"1000","sampleSum":31956.100000000017,"quantile":[{"quantile":0.5,"value":32.4},{"quantile":0.9,"value":41.4},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}},{"label":[{"name":"species","value":"litoria-caerulea"}],"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}}]}
 }
 
 func ExampleNewConstSummary() {
@@ -389,7 +399,7 @@ func ExampleNewConstSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
 	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}]}}
@@ -412,13 +422,11 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	// We remove CreatedTimestamp just to make sure the assert below works.
-	metric.Histogram.CreatedTimestamp = nil
 
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(sanitizeMetric(metric)))
 
 	// Output:
-	// {"histogram":{"sampleCount":"1000","sampleSum":29969.50000000001,"bucket":[{"cumulativeCount":"192","upperBound":20},{"cumulativeCount":"366","upperBound":25},{"cumulativeCount":"501","upperBound":30},{"cumulativeCount":"638","upperBound":35},{"cumulativeCount":"816","upperBound":40}]}}
+	// {"histogram":{"sampleCount":"1000","sampleSum":29969.50000000001,"bucket":[{"cumulativeCount":"192","upperBound":20},{"cumulativeCount":"366","upperBound":25},{"cumulativeCount":"501","upperBound":30},{"cumulativeCount":"638","upperBound":35},{"cumulativeCount":"816","upperBound":40}],"createdTimestamp":"1970-01-01T00:00:10Z"}}
 }
 
 func ExampleNewConstHistogram() {
@@ -442,7 +450,7 @@ func ExampleNewConstHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
 	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}]}}
@@ -480,7 +488,7 @@ func ExampleNewConstHistogram_WithExemplar() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
 	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":24,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"2403","upperBound":50,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":42,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"3221","upperBound":100,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":89,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"4233","upperBound":200,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":157,"timestamp":"2006-01-02T15:04:05Z"}}]}}
@@ -642,7 +650,7 @@ func ExampleNewMetricWithTimestamp() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	printlnNormalized(metric)
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
 	// {"gauge":{"value":298.15},"timestampMs":"1257894000012"}
