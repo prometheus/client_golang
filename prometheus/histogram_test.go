@@ -416,8 +416,8 @@ func TestHistogramExemplar(t *testing.T) {
 		Name:    "test",
 		Help:    "test help",
 		Buckets: []float64{1, 2, 3, 4},
+		now:     func() time.Time { return now },
 	}).(*histogram)
-	histogram.now = func() time.Time { return now }
 
 	ts := timestamppb.New(now)
 	if err := ts.CheckValid(); err != nil {
@@ -470,7 +470,7 @@ func TestHistogramExemplar(t *testing.T) {
 
 func TestNativeHistogram(t *testing.T) {
 	now := time.Now()
-	nowFn := func() time.Time { return now }
+
 	scenarios := []struct {
 		name             string
 		observations     []float64 // With simulated interval of 1m.
@@ -501,7 +501,7 @@ func TestNativeHistogram(t *testing.T) {
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(5)},
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(10)},
 				},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -513,7 +513,7 @@ func TestNativeHistogram(t *testing.T) {
 				Schema:           proto.Int32(3),
 				ZeroThreshold:    proto.Float64(2.938735877055719e-39),
 				ZeroCount:        proto.Uint64(0),
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -529,7 +529,7 @@ func TestNativeHistogram(t *testing.T) {
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(0)},
 				},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -548,7 +548,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
 				},
 				PositiveDelta:    []int64{1, 0, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -565,7 +565,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -589,7 +589,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(-2), Length: proto.Uint32(6)},
 				},
 				PositiveDelta:    []int64{2, 0, 0, 2, -1, -2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -611,7 +611,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(-1), Length: proto.Uint32(4)},
 				},
 				PositiveDelta:    []int64{2, 2, 3, -6},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -628,7 +628,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				NegativeDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -649,7 +649,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -671,7 +671,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
 				},
 				PositiveDelta:    []int64{2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -688,7 +688,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -706,7 +706,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(4092), Length: proto.Uint32(1)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2, -1},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -727,7 +727,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -745,7 +745,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -763,7 +763,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				PositiveDelta:    []int64{1, 2, -1, -2, 1},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -782,7 +782,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(1), Length: proto.Uint32(7)},
 				},
 				PositiveDelta:    []int64{1, 1, -2, 2, -2, 0, 1},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -801,7 +801,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
 				},
 				PositiveDelta:    []int64{2, -2, 2, -2, 0, 1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -821,7 +821,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
 				PositiveDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now.Add(8 * time.Minute)), // We expect reset to happen after 8 observations.
 			},
 		},
 		{
@@ -839,7 +839,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				NegativeDelta:    []int64{1, -1, 2, -2, 2},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -857,7 +857,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
 				},
 				NegativeDelta:    []int64{1, 2, -1, -2, 1},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -876,7 +876,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(1), Length: proto.Uint32(7)},
 				},
 				NegativeDelta:    []int64{1, 1, -2, 2, -2, 0, 1},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -895,7 +895,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
 				},
 				NegativeDelta:    []int64{2, -2, 2, -2, 0, 1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now),
 			},
 		},
 		{
@@ -915,7 +915,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
 				NegativeDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now.Add(8 * time.Minute)), // We expect reset to happen after 8 observations.
 			},
 		},
 		{
@@ -934,7 +934,7 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
 				PositiveDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now.Add(10 * time.Minute)), // We expect reset to happen after 9 minutes.
 			},
 		},
 		{
@@ -954,13 +954,15 @@ func TestNativeHistogram(t *testing.T) {
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
 				},
 				PositiveDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(nowFn()),
+				CreatedTimestamp: timestamppb.New(now.Add(10 * time.Minute)), // We expect reset to happen after 9 minutes.
 			},
 		},
 	}
 
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
+			ts := now
+
 			his := NewHistogram(HistogramOpts{
 				Name:                            "name",
 				Help:                            "help",
@@ -969,13 +971,10 @@ func TestNativeHistogram(t *testing.T) {
 				NativeHistogramMaxBucketNumber:  s.maxBuckets,
 				NativeHistogramMinResetDuration: s.minResetDuration,
 				NativeHistogramMaxZeroThreshold: s.maxZeroThreshold,
-				now:                             nowFn,
+				now:                             func() time.Time { return ts },
 			})
-			ts := time.Now().Add(30 * time.Second)
-			now := func() time.Time {
-				return ts
-			}
-			his.(*histogram).now = now
+
+			ts = ts.Add(time.Minute)
 			for _, o := range s.observations {
 				his.Observe(o)
 				ts = ts.Add(time.Minute)
@@ -1000,6 +999,8 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 	rand.Seed(42)
 
 	it := func(n uint32) bool {
+		ts := time.Now().Add(30 * time.Second).Unix()
+
 		mutations := int(n%1e4 + 1e4)
 		concLevel := int(n%5 + 1)
 		total := mutations * concLevel
@@ -1016,13 +1017,10 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 			NativeHistogramMaxBucketNumber:  50,
 			NativeHistogramMinResetDuration: time.Hour, // Comment out to test for totals below.
 			NativeHistogramMaxZeroThreshold: 0.001,
+			now: func() time.Time {
+				return time.Unix(atomic.LoadInt64(&ts), 0)
+			},
 		})
-
-		ts := time.Now().Add(30 * time.Second).Unix()
-		now := func() time.Time {
-			return time.Unix(atomic.LoadInt64(&ts), 0)
-		}
-		his.(*histogram).now = now
 
 		allVars := make([]float64, total)
 		var sampleSum float64
@@ -1220,4 +1218,42 @@ func TestHistogramVecCreatedTimestamp(t *testing.T) {
 	if metric.Histogram.CreatedTimestamp.AsTime().Unix() != now.Unix() {
 		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Histogram.CreatedTimestamp.AsTime().Unix())
 	}
+}
+
+func TestHistogramVecCreatedTimestampWithDeletes(t *testing.T) {
+	now := time.Now()
+
+	histogramVec := NewHistogramVec(HistogramOpts{
+		Name:    "test",
+		Help:    "test help",
+		Buckets: []float64{1, 2, 3, 4},
+		now:     func() time.Time { return now },
+	}, []string{"label"})
+
+	// First use of "With" should populate CT.
+	histogramVec.WithLabelValues("1")
+	expected := map[string]time.Time{"1": now}
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
+
+	// Two more labels at different times.
+	histogramVec.WithLabelValues("2")
+	expected["2"] = now
+
+	now = now.Add(1 * time.Hour)
+
+	histogramVec.WithLabelValues("3")
+	expected["3"] = now
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
+
+	// Recreate metric instance should reset created timestamp to now.
+	histogramVec.DeleteLabelValues("1")
+	histogramVec.WithLabelValues("1")
+	expected["1"] = now
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
 }

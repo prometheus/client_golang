@@ -81,7 +81,7 @@ func ExampleNewExpvarCollector() {
 		if !strings.Contains(m.Desc().String(), "expvar_memstats") {
 			metric.Reset()
 			m.Write(&metric)
-			metricStrings = append(metricStrings, protoToNormalizedJSON(&metric))
+			metricStrings = append(metricStrings, toNormalizedJSON(&metric))
 		}
 	}
 	sort.Strings(metricStrings)

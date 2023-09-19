@@ -473,7 +473,8 @@ type HistogramOpts struct {
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
 
-	now func() time.Time // For testing, all constructors put time.Now() here.
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 // HistogramVecOpts bundles the options to create a HistogramVec metric.
@@ -522,6 +523,10 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		}
 	}
 
+	if opts.now == nil {
+		opts.now = time.Now
+	}
+
 	h := &histogram{
 		desc:                            desc,
 		upperBounds:                     opts.Buckets,
@@ -529,8 +534,8 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		nativeHistogramMaxBuckets:       opts.NativeHistogramMaxBucketNumber,
 		nativeHistogramMaxZeroThreshold: opts.NativeHistogramMaxZeroThreshold,
 		nativeHistogramMinResetDuration: opts.NativeHistogramMinResetDuration,
-		lastResetTime:                   time.Now(),
-		now:                             time.Now,
+		lastResetTime:                   opts.now(),
+		now:                             opts.now,
 	}
 	if len(h.upperBounds) == 0 && opts.NativeHistogramBucketFactor <= 1 {
 		h.upperBounds = DefBuckets
@@ -571,11 +576,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 	atomic.StoreInt32(&h.counts[1].nativeHistogramSchema, h.nativeHistogramSchema)
 	h.exemplars = make([]atomic.Value, len(h.upperBounds)+1)
 
-	if opts.now == nil {
-		opts.now = time.Now
-	}
 	h.init(h) // Init self-collection.
-	h.createdTs = timestamppb.New(opts.now())
 	return h
 }
 
@@ -713,10 +714,11 @@ type histogram struct {
 	nativeHistogramMaxZeroThreshold float64
 	nativeHistogramMaxBuckets       uint32
 	nativeHistogramMinResetDuration time.Duration
-	lastResetTime                   time.Time // Protected by mtx.
-	createdTs                       *timestamppb.Timestamp
+	// lastResetTime is protected by mtx. It is also used as created timestamp.
+	lastResetTime time.Time
 
-	now func() time.Time // For testing, all constructors put time.Now() here.
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 func (h *histogram) Desc() *Desc {
@@ -758,7 +760,7 @@ func (h *histogram) Write(out *dto.Metric) error {
 		Bucket:           make([]*dto.Bucket, len(h.upperBounds)),
 		SampleCount:      proto.Uint64(count),
 		SampleSum:        proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
-		CreatedTimestamp: h.createdTs,
+		CreatedTimestamp: timestamppb.New(h.lastResetTime),
 	}
 	out.Histogram = his
 	out.Label = h.labelPairs

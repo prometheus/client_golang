@@ -144,11 +144,11 @@ func NewConstMetricWithCreatedTimestamp(desc *Desc, valueType ValueType, value f
 	case CounterValue:
 		break
 	default:
-		return nil, errors.New("Created timestamps are only supported for counters")
+		return nil, errors.New("created timestamps are only supported for counters")
 	}
 
 	metric := &dto.Metric{}
-	if err := populateMetric(valueType, value, MakeLabelPairs(desc, labelValues), nil, metric, &ct); err != nil {
+	if err := populateMetric(valueType, value, MakeLabelPairs(desc, labelValues), nil, metric, timestamppb.New(ct)); err != nil {
 		return nil, err
 	}
 
@@ -191,15 +191,11 @@ func populateMetric(
 	labelPairs []*dto.LabelPair,
 	e *dto.Exemplar,
 	m *dto.Metric,
-	createdTimestamp *time.Time,
+	ct *timestamppb.Timestamp,
 ) error {
 	m.Label = labelPairs
 	switch t {
 	case CounterValue:
-		var ct *timestamppb.Timestamp
-		if createdTimestamp != nil {
-			ct = timestamppb.New(*createdTimestamp)
-		}
 		m.Counter = &dto.Counter{Value: proto.Float64(v), Exemplar: e, CreatedTimestamp: ct}
 	case GaugeValue:
 		m.Gauge = &dto.Gauge{Value: proto.Float64(v)}

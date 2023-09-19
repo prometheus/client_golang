@@ -26,10 +26,13 @@ import (
 )
 
 func TestSummaryWithDefaultObjectives(t *testing.T) {
+	now := time.Now()
+
 	reg := NewRegistry()
 	summaryWithDefaultObjectives := NewSummary(SummaryOpts{
 		Name: "default_objectives",
 		Help: "Test help.",
+		now:  func() time.Time { return now },
 	})
 	if err := reg.Register(summaryWithDefaultObjectives); err != nil {
 		t.Error(err)
@@ -41,6 +44,10 @@ func TestSummaryWithDefaultObjectives(t *testing.T) {
 	}
 	if len(m.GetSummary().Quantile) != 0 {
 		t.Error("expected no objectives in summary")
+	}
+
+	if !m.Summary.CreatedTimestamp.AsTime().Equal(now) {
+		t.Errorf("expected created timestamp %s, got %s", now, m.Summary.CreatedTimestamp.AsTime())
 	}
 }
 
@@ -421,77 +428,49 @@ func getBounds(vars []float64, q, ε float64) (min, max float64) {
 	return
 }
 
-func TestSummaryCreatedTimestamp(t *testing.T) {
-	testCases := []struct {
+func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {
+	for _, tcase := range []struct {
 		desc       string
 		objectives map[float64]float64
 	}{
-		{
-			desc: "summary with objectives",
-			objectives: map[float64]float64{
-				1.0: 1.0,
-			},
-		},
-		{
-			desc:       "no objectives summary",
-			objectives: nil,
-		},
-	}
-	now := time.Now()
-	for _, test := range testCases {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
-			summary := NewSummary(SummaryOpts{
-				Name:       "test",
-				Help:       "test help",
-				Objectives: test.objectives,
-				now:        func() time.Time { return now },
-			})
-
-			var metric dto.Metric
-			summary.Write(&metric)
-
-			if metric.Summary.CreatedTimestamp.AsTime().Unix() != now.Unix() {
-				t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Summary.CreatedTimestamp.AsTime().Unix())
-			}
-		})
-	}
-}
-
-func TestSummaryVecCreatedTimestamp(t *testing.T) {
-	testCases := []struct {
-		desc       string
-		objectives map[float64]float64
-	}{
-		{
-			desc: "summary with objectives",
-			objectives: map[float64]float64{
-				1.0: 1.0,
-			},
-		},
-		{
-			desc:       "no objectives summary",
-			objectives: nil,
-		},
-	}
-	now := time.Now()
-	for _, test := range testCases {
-		test := test
-		t.Run(test.desc, func(t *testing.T) {
+		{desc: "summary with objectives", objectives: map[float64]float64{1.0: 1.0}},
+		{desc: "no objectives summary", objectives: nil},
+	} {
+		now := time.Now()
+		t.Run(tcase.desc, func(t *testing.T) {
 			summaryVec := NewSummaryVec(SummaryOpts{
 				Name:       "test",
 				Help:       "test help",
-				Objectives: test.objectives,
+				Objectives: tcase.objectives,
 				now:        func() time.Time { return now },
-			},
-				[]string{"label"})
-			summary := summaryVec.WithLabelValues("value").(Summary)
-			var metric dto.Metric
-			summary.Write(&metric)
+			}, []string{"label"})
 
-			if metric.Summary.CreatedTimestamp.AsTime().Unix() != now.Unix() {
-				t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Summary.CreatedTimestamp.AsTime().Unix())
-			}
+			// First use of "With" should populate CT.
+			summaryVec.WithLabelValues("1")
+			expected := map[string]time.Time{"1": now}
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Two more labels at different times.
+			summaryVec.WithLabelValues("2")
+			expected["2"] = now
+
+			now = now.Add(1 * time.Hour)
+
+			summaryVec.WithLabelValues("3")
+			expected["3"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Recreate metric instance should reset created timestamp to now.
+			summaryVec.DeleteLabelValues("1")
+			summaryVec.WithLabelValues("1")
+			expected["1"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
 		})
 	}
 }

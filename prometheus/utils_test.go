@@ -15,21 +15,42 @@ package prometheus_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// printlnNormalized is a helper function to compare proto messages in json format.
-// Without removing brittle, we can't assert that two proto messages in json/text format are equal.
-// Read more in https://github.com/golang/protobuf/issues/1121
-func printlnNormalized(m proto.Message) {
-	fmt.Println(protoToNormalizedJSON(m))
+// sanitizeMetric injects expected fake created timestamp value "1970-01-01T00:00:10Z",
+// so we can compare it in examples. It modifies metric in-place, the returned pointer
+// is for convenience.
+func sanitizeMetric(metric *dto.Metric) *dto.Metric {
+	if metric.Counter != nil && metric.Counter.CreatedTimestamp != nil {
+		metric.Counter.CreatedTimestamp = timestamppb.New(time.Unix(10, 0))
+	}
+	if metric.Summary != nil && metric.Summary.CreatedTimestamp != nil {
+		metric.Summary.CreatedTimestamp = timestamppb.New(time.Unix(10, 0))
+	}
+	if metric.Histogram != nil && metric.Histogram.CreatedTimestamp != nil {
+		metric.Histogram.CreatedTimestamp = timestamppb.New(time.Unix(10, 0))
+	}
+	return metric
 }
 
-// protoToNormalizedJSON works as printlnNormalized, but returns the string instead of printing.
-func protoToNormalizedJSON(m proto.Message) string {
+// sanitizeMetricFamily is like sanitizeMetric, but for multiple metrics.
+func sanitizeMetricFamily(f *dto.MetricFamily) *dto.MetricFamily {
+	for _, m := range f.Metric {
+		sanitizeMetric(m)
+	}
+	return f
+}
+
+// toNormalizedJSON removes fake random space from proto JSON original marshaller.
+// It is required, so we can compare proto messages in json format.
+// Read more in https://github.com/golang/protobuf/issues/1121
+func toNormalizedJSON(m proto.Message) string {
 	mAsJSON, err := protojson.Marshal(m)
 	if err != nil {
 		panic(err)
