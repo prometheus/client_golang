@@ -230,7 +230,7 @@ func TestCollectAndCompareHistogram(t *testing.T) {
 		case *prometheus.HistogramVec:
 			collector.WithLabelValues("test").Observe(input.observation)
 		default:
-			t.Fatalf("unsuported collector tested")
+			t.Fatalf("unsupported collector tested")
 
 		}
 
