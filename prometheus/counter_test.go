@@ -382,7 +382,7 @@ func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricTyp
 		}
 
 		if !gotTs.Equal(ct) {
-			t.Errorf("expected created timestamp for counter with label value %q: %s, got %s", val, ct, gotTs)
+			t.Errorf("expected created timestamp for %s with label value %q: %s, got %s", typ, val, ct, gotTs)
 		}
 	}
 }
