@@ -26,10 +26,13 @@ import (
 )
 
 func TestSummaryWithDefaultObjectives(t *testing.T) {
+	now := time.Now()
+
 	reg := NewRegistry()
 	summaryWithDefaultObjectives := NewSummary(SummaryOpts{
 		Name: "default_objectives",
 		Help: "Test help.",
+		now:  func() time.Time { return now },
 	})
 	if err := reg.Register(summaryWithDefaultObjectives); err != nil {
 		t.Error(err)
@@ -41,6 +44,10 @@ func TestSummaryWithDefaultObjectives(t *testing.T) {
 	}
 	if len(m.GetSummary().Quantile) != 0 {
 		t.Error("expected no objectives in summary")
+	}
+
+	if !m.Summary.CreatedTimestamp.AsTime().Equal(now) {
+		t.Errorf("expected created timestamp %s, got %s", now, m.Summary.CreatedTimestamp.AsTime())
 	}
 }
 
@@ -419,4 +426,51 @@ func getBounds(vars []float64, q, ε float64) (min, max float64) {
 		max = vars[upper-1]
 	}
 	return
+}
+
+func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {
+	for _, tcase := range []struct {
+		desc       string
+		objectives map[float64]float64
+	}{
+		{desc: "summary with objectives", objectives: map[float64]float64{1.0: 1.0}},
+		{desc: "no objectives summary", objectives: nil},
+	} {
+		now := time.Now()
+		t.Run(tcase.desc, func(t *testing.T) {
+			summaryVec := NewSummaryVec(SummaryOpts{
+				Name:       "test",
+				Help:       "test help",
+				Objectives: tcase.objectives,
+				now:        func() time.Time { return now },
+			}, []string{"label"})
+
+			// First use of "With" should populate CT.
+			summaryVec.WithLabelValues("1")
+			expected := map[string]time.Time{"1": now}
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Two more labels at different times.
+			summaryVec.WithLabelValues("2")
+			expected["2"] = now
+
+			now = now.Add(1 * time.Hour)
+
+			summaryVec.WithLabelValues("3")
+			expected["3"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Recreate metric instance should reset created timestamp to now.
+			summaryVec.DeleteLabelValues("1")
+			summaryVec.WithLabelValues("1")
+			expected["1"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+		})
+	}
 }

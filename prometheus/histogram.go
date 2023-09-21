@@ -25,6 +25,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // nativeHistogramBounds for the frac of observed values. Only relevant for
@@ -471,6 +472,9 @@ type HistogramOpts struct {
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
+
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 // HistogramVecOpts bundles the options to create a HistogramVec metric.
@@ -519,6 +523,10 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		}
 	}
 
+	if opts.now == nil {
+		opts.now = time.Now
+	}
+
 	h := &histogram{
 		desc:                            desc,
 		upperBounds:                     opts.Buckets,
@@ -526,8 +534,8 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		nativeHistogramMaxBuckets:       opts.NativeHistogramMaxBucketNumber,
 		nativeHistogramMaxZeroThreshold: opts.NativeHistogramMaxZeroThreshold,
 		nativeHistogramMinResetDuration: opts.NativeHistogramMinResetDuration,
-		lastResetTime:                   time.Now(),
-		now:                             time.Now,
+		lastResetTime:                   opts.now(),
+		now:                             opts.now,
 	}
 	if len(h.upperBounds) == 0 && opts.NativeHistogramBucketFactor <= 1 {
 		h.upperBounds = DefBuckets
@@ -706,9 +714,11 @@ type histogram struct {
 	nativeHistogramMaxZeroThreshold float64
 	nativeHistogramMaxBuckets       uint32
 	nativeHistogramMinResetDuration time.Duration
-	lastResetTime                   time.Time // Protected by mtx.
+	// lastResetTime is protected by mtx. It is also used as created timestamp.
+	lastResetTime time.Time
 
-	now func() time.Time // To mock out time.Now() for testing.
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
 }
 
 func (h *histogram) Desc() *Desc {
@@ -747,9 +757,10 @@ func (h *histogram) Write(out *dto.Metric) error {
 	waitForCooldown(count, coldCounts)
 
 	his := &dto.Histogram{
-		Bucket:      make([]*dto.Bucket, len(h.upperBounds)),
-		SampleCount: proto.Uint64(count),
-		SampleSum:   proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		Bucket:           make([]*dto.Bucket, len(h.upperBounds)),
+		SampleCount:      proto.Uint64(count),
+		SampleSum:        proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))),
+		CreatedTimestamp: timestamppb.New(h.lastResetTime),
 	}
 	out.Histogram = his
 	out.Label = h.labelPairs
@@ -1194,6 +1205,7 @@ type constHistogram struct {
 	sum        float64
 	buckets    map[float64]uint64
 	labelPairs []*dto.LabelPair
+	createdTs  *timestamppb.Timestamp
 }
 
 func (h *constHistogram) Desc() *Desc {
@@ -1201,7 +1213,9 @@ func (h *constHistogram) Desc() *Desc {
 }
 
 func (h *constHistogram) Write(out *dto.Metric) error {
-	his := &dto.Histogram{}
+	his := &dto.Histogram{
+		CreatedTimestamp: h.createdTs,
+	}
 
 	buckets := make([]*dto.Bucket, 0, len(h.buckets))
 
