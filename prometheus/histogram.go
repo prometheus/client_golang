@@ -392,7 +392,7 @@ type HistogramOpts struct {
 	// zero, it is replaced by default buckets. The default buckets are
 	// DefBuckets if no buckets for a native histogram (see below) are used,
 	// otherwise the default is no buckets. (In other words, if you want to
-	// use both reguler buckets and buckets for a native histogram, you have
+	// use both regular buckets and buckets for a native histogram, you have
 	// to define the regular buckets here explicitly.)
 	Buckets []float64
 
@@ -484,7 +484,7 @@ type HistogramVecOpts struct {
 	HistogramOpts
 
 	// VariableLabels are used to partition the metric vector by the given set
-	// of labels. Each label value will be constrained with the optional Contraint
+	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
 }
@@ -896,7 +896,7 @@ func (h *histogram) maybeReset(
 	h.resetCounts(cold)
 	// Repeat the latest observation to not lose it completely.
 	cold.observe(value, bucket, true)
-	// Make coldCounts the new hot counts while ressetting countAndHotIdx.
+	// Make coldCounts the new hot counts while resetting countAndHotIdx.
 	n := atomic.SwapUint64(&h.countAndHotIdx, (coldIdx<<63)+1)
 	count := n & ((1 << 63) - 1)
 	waitForCooldown(count, hot)
@@ -1356,7 +1356,7 @@ func makeBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 		// Multiple spans with only small gaps in between are probably
 		// encoded more efficiently as one larger span with a few empty
 		// buckets. Needs some research to find the sweet spot. For now,
-		// we assume that gaps of one ore two buckets should not create
+		// we assume that gaps of one or two buckets should not create
 		// a new span.
 		iDelta := int32(i - nextI)
 		if n == 0 || iDelta > 2 {

@@ -1441,7 +1441,7 @@ func TestAPIClientDo(t *testing.T) {
 				}
 			} else {
 				if warnings != nil {
-					t.Fatalf("unexpexted warnings: %v", warnings)
+					t.Fatalf("unexpected warnings: %v", warnings)
 				}
 			}
 

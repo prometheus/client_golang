@@ -67,7 +67,7 @@ type CounterVecOpts struct {
 	CounterOpts
 
 	// VariableLabels are used to partition the metric vector by the given set
-	// of labels. Each label value will be constrained with the optional Contraint
+	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
 }

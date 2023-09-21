@@ -548,7 +548,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			goroutineBudget--
 			runtime.Gosched()
 		}
-		// Once both checkedMetricChan and uncheckdMetricChan are closed
+		// Once both checkedMetricChan and uncheckedMetricChan are closed
 		// and drained, the contraption above will nil out cmc and umc,
 		// and then we can leave the collect loop here.
 		if cmc == nil && umc == nil {

@@ -1104,7 +1104,7 @@ type collidingCollector struct {
 	a, b, c, d prometheus.Collector
 }
 
-// Describe satisifies part of the prometheus.Collector interface.
+// Describe satisfies part of the prometheus.Collector interface.
 func (m *collidingCollector) Describe(desc chan<- *prometheus.Desc) {
 	m.a.Describe(desc)
 	m.b.Describe(desc)
@@ -1112,7 +1112,7 @@ func (m *collidingCollector) Describe(desc chan<- *prometheus.Desc) {
 	m.d.Describe(desc)
 }
 
-// Collect satisifies part of the prometheus.Collector interface.
+// Collect satisfies part of the prometheus.Collector interface.
 func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
 	m.a.Collect(metric)
 	m.b.Collect(metric)

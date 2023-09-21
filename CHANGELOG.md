@@ -295,7 +295,7 @@ _This release removes all previously deprecated features, resulting in the break
 * [BUGFIX] Fixed goroutine leaks. #236 #472
 * [BUGFIX] Fixed an error message for exponential histogram buckets. #467
 * [BUGFIX] Fixed data race writing to the metric map. #401
-* [BUGFIX] API client: Decode JSON on a 4xx respons but do not on 204
+* [BUGFIX] API client: Decode JSON on a 4xx response but do not on 204
   responses. #476 #414
 
 ## 0.8.0 / 2016-08-17
