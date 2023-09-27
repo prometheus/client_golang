@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 1.17.0 / 2023-09-27
+
+* [CHANGE] Minimum required go version is now 1.19 (we also test client_golang against new 1.21 version). #1325
+* [FEATURE] Add support for Created Timestamps in Counters, Summaries and Historams. #1313
+* [ENHANCEMENT] Enable detection of a native histogram without observations. #1314
+
 ## 1.16.0 / 2023-06-15
 
 * [BUGFIX] api: Switch to POST for LabelNames, Series, and QueryExemplars. #1252
