@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 1.17.0 / 2023-09-27
+
+* [CHANGE] Minimum required go version is now 1.19 (we also test client_golang against new 1.21 version). #1325
+* [FEATURE] Add support for Created Timestamps in Counters, Summaries and Historams. #1313
+* [ENHANCEMENT] Enable detection of a native histogram without observations. #1314
+
 ## 1.16.0 / 2023-06-15
 
 * [BUGFIX] api: Switch to POST for LabelNames, Series, and QueryExemplars. #1252
@@ -295,7 +301,7 @@ _This release removes all previously deprecated features, resulting in the break
 * [BUGFIX] Fixed goroutine leaks. #236 #472
 * [BUGFIX] Fixed an error message for exponential histogram buckets. #467
 * [BUGFIX] Fixed data race writing to the metric map. #401
-* [BUGFIX] API client: Decode JSON on a 4xx respons but do not on 204
+* [BUGFIX] API client: Decode JSON on a 4xx response but do not on 204
   responses. #476 #414
 
 ## 0.8.0 / 2016-08-17
