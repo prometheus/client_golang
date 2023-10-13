@@ -925,16 +925,16 @@ func TestNativeHistogram(t *testing.T) {
 			maxBuckets:       4,
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
-				SampleCount:   proto.Uint64(2),
-				SampleSum:     proto.Float64(7),
+				SampleCount:   proto.Uint64(3),
+				SampleSum:     proto.Float64(12.1),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
-					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
+					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
 				},
-				PositiveDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(now.Add(10 * time.Minute)), // We expect reset to happen after 9 minutes.
+				PositiveDelta:    []int64{1, 0, -1, 1},
+				CreatedTimestamp: timestamppb.New(now.Add(9 * time.Minute)), // We expect reset to happen after 8 minutes.
 			},
 		},
 		{
@@ -945,23 +945,27 @@ func TestNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
-				SampleCount:   proto.Uint64(2),
-				SampleSum:     proto.Float64(7),
+				SampleCount:   proto.Uint64(3),
+				SampleSum:     proto.Float64(12.1),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
-					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
+					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
 				},
-				PositiveDelta:    []int64{1, 0},
-				CreatedTimestamp: timestamppb.New(now.Add(10 * time.Minute)), // We expect reset to happen after 9 minutes.
+				PositiveDelta:    []int64{1, 0, -1, 1},
+				CreatedTimestamp: timestamppb.New(now.Add(9 * time.Minute)), // We expect reset to happen after 8 minutes.
 			},
 		},
 	}
 
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
-			ts := now
+			var (
+				ts         = now
+				funcToCall func()
+				whenToCall time.Duration
+			)
 
 			his := NewHistogram(HistogramOpts{
 				Name:                            "name",
@@ -972,12 +976,22 @@ func TestNativeHistogram(t *testing.T) {
 				NativeHistogramMinResetDuration: s.minResetDuration,
 				NativeHistogramMaxZeroThreshold: s.maxZeroThreshold,
 				now:                             func() time.Time { return ts },
+				afterFunc: func(d time.Duration, f func()) *time.Timer {
+					funcToCall = f
+					whenToCall = d
+					return nil
+				},
 			})
 
 			ts = ts.Add(time.Minute)
 			for _, o := range s.observations {
 				his.Observe(o)
 				ts = ts.Add(time.Minute)
+				whenToCall -= time.Minute
+				if funcToCall != nil && whenToCall <= 0 {
+					funcToCall()
+					funcToCall = nil
+				}
 			}
 			m := &dto.Metric{}
 			if err := his.Write(m); err != nil {
