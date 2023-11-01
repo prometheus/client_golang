@@ -655,3 +655,27 @@ func ExampleNewMetricWithTimestamp() {
 	// Output:
 	// {"gauge":{"value":298.15},"timestampMs":"1257894000012"}
 }
+
+func ExampleNewConstMetricWithCreatedTimestamp() {
+	// Here we have a metric that is reported by an external system.
+	// Besides providing the value, the external system also provides the
+	// timestamp when the metric was created.
+	desc := prometheus.NewDesc(
+		"time_since_epoch_seconds",
+		"Current epoch time in seconds.",
+		nil, nil,
+	)
+
+	timeSinceEpochReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)
+	epoch := time.Unix(0, 0).UTC()
+	s := prometheus.MustNewConstMetricWithCreatedTimestamp(
+		desc, prometheus.CounterValue, float64(timeSinceEpochReportedByExternalSystem.Unix()), epoch,
+	)
+
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"counter":{"value":1257894000,"createdTimestamp":"1970-01-01T00:00:00Z"}}
+}
