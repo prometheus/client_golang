@@ -7,7 +7,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/json-iterator/go v1.1.12
-	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16
+	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.44.0
 	github.com/prometheus/procfs v0.12.0
 	golang.org/x/sys v0.13.0
