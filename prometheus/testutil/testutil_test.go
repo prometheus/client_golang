@@ -168,6 +168,26 @@ func TestCollectAndCompareNoLabel(t *testing.T) {
 	}
 }
 
+func TestCollectAndCompareNoHelp(t *testing.T) {
+	const metadata = `
+		# TYPE some_total counter
+	`
+
+	c := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "some_total",
+	})
+	c.Inc()
+
+	expected := `
+
+		some_total 1
+	`
+
+	if err := CollectAndCompare(c, strings.NewReader(metadata+expected), "some_total"); err != nil {
+		t.Errorf("unexpected collecting result:\n%s", err)
+	}
+}
+
 func TestCollectAndCompareHistogram(t *testing.T) {
 	inputs := []struct {
 		name        string
