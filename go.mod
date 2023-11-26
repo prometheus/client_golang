@@ -30,3 +30,7 @@ require (
 )
 
 exclude github.com/prometheus/client_golang v1.12.1
+
+replace github.com/prometheus/common => github.com/vesari/common v0.0.0-20231121140958-784d3aad4c30
+
+replace github.com/prometheus/client_model => github.com/vesari/client_model v0.0.0-20231118150741-19723af61627

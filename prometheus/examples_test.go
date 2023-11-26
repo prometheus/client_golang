@@ -308,9 +308,9 @@ func ExampleRegister() {
 
 	// Output:
 	// taskCounter registered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", unit: "", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
 	// taskCounter unregistered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", unit: "", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
 	// taskCounterVec registered.
 	// Worker initialization failed: inconsistent label cardinality: expected 1 label values but got 2 in []string{"42", "spurious arg"}
 	// notMyCounter is nil.
@@ -382,6 +382,7 @@ func ExampleNewConstSummary() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -433,6 +434,7 @@ func ExampleNewConstHistogram() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -460,6 +462,7 @@ func ExampleNewConstHistogram_WithExemplar() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -630,6 +633,7 @@ func ExampleNewMetricWithTimestamp() {
 	desc := prometheus.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
+		"kelvin",
 		nil, nil,
 	)
 
@@ -663,6 +667,7 @@ func ExampleNewConstMetricWithCreatedTimestamp() {
 	desc := prometheus.NewDesc(
 		"time_since_epoch_seconds",
 		"Current epoch time in seconds.",
+		"seconds",
 		nil, nil,
 	)
 

@@ -372,6 +372,9 @@ type HistogramOpts struct {
 	// string.
 	Help string
 
+	// Unit provides the unit of this Histogram.
+	Unit string
+
 	// ConstLabels are used to attach fixed labels to this metric. Metrics
 	// with the same fully-qualified name must have the same label names in
 	// their ConstLabels.
@@ -503,6 +506,7 @@ func NewHistogram(opts HistogramOpts) Histogram {
 		NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
+			opts.Unit,
 			nil,
 			opts.ConstLabels,
 		),
@@ -1127,6 +1131,7 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)

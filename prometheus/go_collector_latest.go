@@ -215,6 +215,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 				NewDesc(
 					BuildFQName(namespace, subsystem, name),
 					d.Description.Description,
+					"",
 					nil,
 					nil,
 				),

@@ -196,6 +196,7 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 			return &Desc{
 				fqName:          desc.fqName,
 				help:            desc.help,
+				unit:            desc.unit,
 				variableLabels:  desc.variableLabels,
 				constLabelPairs: desc.constLabelPairs,
 				err:             fmt.Errorf("attempted wrapping with already existing label name %q", ln),
@@ -204,7 +205,7 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 		constLabels[ln] = lv
 	}
 	// NewDesc will do remaining validations.
-	newDesc := V2.NewDesc(prefix+desc.fqName, desc.help, desc.variableLabels, constLabels)
+	newDesc := V2.NewDesc(prefix+desc.fqName, desc.help, desc.unit, desc.variableLabels, constLabels)
 	// Propagate errors if there was any. This will override any errer
 	// created by NewDesc above, i.e. earlier errors get precedence.
 	if desc.err != nil {

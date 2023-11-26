@@ -68,36 +68,43 @@ func NewProcessCollector(opts ProcessCollectorOpts) Collector {
 		cpuTotal: NewDesc(
 			ns+"process_cpu_seconds_total",
 			"Total user and system CPU time spent in seconds.",
+			"seconds",
 			nil, nil,
 		),
 		openFDs: NewDesc(
 			ns+"process_open_fds",
 			"Number of open file descriptors.",
+			"",
 			nil, nil,
 		),
 		maxFDs: NewDesc(
 			ns+"process_max_fds",
 			"Maximum number of open file descriptors.",
+			"",
 			nil, nil,
 		),
 		vsize: NewDesc(
 			ns+"process_virtual_memory_bytes",
 			"Virtual memory size in bytes.",
+			"bytes",
 			nil, nil,
 		),
 		maxVsize: NewDesc(
 			ns+"process_virtual_memory_max_bytes",
 			"Maximum amount of virtual memory available in bytes.",
+			"bytes",
 			nil, nil,
 		),
 		rss: NewDesc(
 			ns+"process_resident_memory_bytes",
 			"Resident memory size in bytes.",
+			"bytes",
 			nil, nil,
 		),
 		startTime: NewDesc(
 			ns+"process_start_time_seconds",
 			"Start time of the process since unix epoch in seconds.",
+			"seconds",
 			nil, nil,
 		),
 	}
