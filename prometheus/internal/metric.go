@@ -83,19 +83,16 @@ func (s MetricSorter) Less(i, j int) bool {
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
+	result := make([]*dto.MetricFamily, 0, len(metricFamiliesByName))
 	for _, mf := range metricFamiliesByName {
-		sort.Sort(MetricSorter(mf.Metric))
-	}
-	names := make([]string, 0, len(metricFamiliesByName))
-	for name, mf := range metricFamiliesByName {
-		if len(mf.Metric) > 0 {
-			names = append(names, name)
+		if len(mf.Metric) == 0 {
+			continue
 		}
+		sort.Sort(MetricSorter(mf.Metric))
+		result = append(result, mf)
 	}
-	sort.Strings(names)
-	result := make([]*dto.MetricFamily, 0, len(names))
-	for _, name := range names {
-		result = append(result, metricFamiliesByName[name])
-	}
+	sort.Slice(result, func(i, j int) bool {
+		return *result[i].Name < *result[j].Name
+	})
 	return result
 }
