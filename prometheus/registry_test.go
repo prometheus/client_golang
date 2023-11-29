@@ -37,6 +37,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // uncheckedCollector wraps a Collector but its Describe method yields no Desc.
@@ -138,7 +139,8 @@ metric: <
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value:            proto.Float64(1),
+					CreatedTimestamp: timestamppb.New(time.Now()),
 				},
 			},
 			{
@@ -153,7 +155,8 @@ metric: <
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(1),
+					Value:            proto.Float64(1),
+					CreatedTimestamp: timestamppb.New(time.Now()),
 				},
 			},
 		},
@@ -1101,7 +1104,7 @@ type collidingCollector struct {
 	a, b, c, d prometheus.Collector
 }
 
-// Describe satisifies part of the prometheus.Collector interface.
+// Describe satisfies part of the prometheus.Collector interface.
 func (m *collidingCollector) Describe(desc chan<- *prometheus.Desc) {
 	m.a.Describe(desc)
 	m.b.Describe(desc)
@@ -1109,7 +1112,7 @@ func (m *collidingCollector) Describe(desc chan<- *prometheus.Desc) {
 	m.d.Describe(desc)
 }
 
-// Collect satisifies part of the prometheus.Collector interface.
+// Collect satisfies part of the prometheus.Collector interface.
 func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
 	m.a.Collect(metric)
 	m.b.Collect(metric)

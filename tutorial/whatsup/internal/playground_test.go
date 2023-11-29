@@ -36,7 +36,7 @@ import (
 )
 
 func TestPlayground(t *testing.T) {
-	// NOTE: Only one run at the time will work due to statics ports used.
+	// NOTE: Only one run at the time will work due to static ports used.
 
 	e, err := e2e.New(e2e.WithVerbose())
 	testutil.Ok(t, err)

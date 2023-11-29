@@ -120,7 +120,7 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 				name := goMetrics[i].Desc().fqName
 
 				if _, ok := tcase.expectedFQNameSet[name]; !ok {
-					t.Errorf("found unpexpected metric %s", name)
+					t.Errorf("found unexpected metric %s", name)
 					continue
 				}
 			}

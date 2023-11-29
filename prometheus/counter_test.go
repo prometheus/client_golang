@@ -26,10 +26,13 @@ import (
 )
 
 func TestCounterAdd(t *testing.T) {
+	now := time.Now()
+
 	counter := NewCounter(CounterOpts{
 		Name:        "test",
 		Help:        "test help",
 		ConstLabels: Labels{"a": "1", "b": "2"},
+		now:         func() time.Time { return now },
 	}).(*counter)
 	counter.Inc()
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
@@ -66,7 +69,10 @@ func TestCounterAdd(t *testing.T) {
 			{Name: proto.String("a"), Value: proto.String("1")},
 			{Name: proto.String("b"), Value: proto.String("2")},
 		},
-		Counter: &dto.Counter{Value: proto.Float64(67.42)},
+		Counter: &dto.Counter{
+			Value:            proto.Float64(67.42),
+			CreatedTimestamp: timestamppb.New(now),
+		},
 	}
 	if !proto.Equal(expected, m) {
 		t.Errorf("expected %q, got %q", expected, m)
@@ -139,9 +145,12 @@ func expectPanic(t *testing.T, op func(), errorMsg string) {
 }
 
 func TestCounterAddInf(t *testing.T) {
+	now := time.Now()
+
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  func() time.Time { return now },
 	}).(*counter)
 
 	counter.Inc()
@@ -173,7 +182,8 @@ func TestCounterAddInf(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(math.Inf(1)),
+			Value:            proto.Float64(math.Inf(1)),
+			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
 
@@ -183,9 +193,12 @@ func TestCounterAddInf(t *testing.T) {
 }
 
 func TestCounterAddLarge(t *testing.T) {
+	now := time.Now()
+
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  func() time.Time { return now },
 	}).(*counter)
 
 	// large overflows the underlying type and should therefore be stored in valBits.
@@ -203,7 +216,8 @@ func TestCounterAddLarge(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(large),
+			Value:            proto.Float64(large),
+			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
 
@@ -213,10 +227,14 @@ func TestCounterAddLarge(t *testing.T) {
 }
 
 func TestCounterAddSmall(t *testing.T) {
+	now := time.Now()
+
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  func() time.Time { return now },
 	}).(*counter)
+
 	small := 0.000000000001
 	counter.Add(small)
 	if expected, got := small, math.Float64frombits(counter.valBits); expected != got {
@@ -231,7 +249,8 @@ func TestCounterAddSmall(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value: proto.Float64(small),
+			Value:            proto.Float64(small),
+			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
 
@@ -246,8 +265,8 @@ func TestCounterExemplar(t *testing.T) {
 	counter := NewCounter(CounterOpts{
 		Name: "test",
 		Help: "test help",
+		now:  func() time.Time { return now },
 	}).(*counter)
-	counter.now = func() time.Time { return now }
 
 	ts := timestamppb.New(now)
 	if err := ts.CheckValid(); err != nil {
@@ -296,5 +315,74 @@ func TestCounterExemplar(t *testing.T) {
 	}
 	if addExemplarWithOversizedLabels() == nil {
 		t.Error("adding exemplar with oversized labels succeeded")
+	}
+}
+
+func TestCounterVecCreatedTimestampWithDeletes(t *testing.T) {
+	now := time.Now()
+
+	counterVec := NewCounterVec(CounterOpts{
+		Name: "test",
+		Help: "test help",
+		now:  func() time.Time { return now },
+	}, []string{"label"})
+
+	// First use of "With" should populate CT.
+	counterVec.WithLabelValues("1")
+	expected := map[string]time.Time{"1": now}
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+
+	// Two more labels at different times.
+	counterVec.WithLabelValues("2")
+	expected["2"] = now
+
+	now = now.Add(1 * time.Hour)
+
+	counterVec.WithLabelValues("3")
+	expected["3"] = now
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+
+	// Recreate metric instance should reset created timestamp to now.
+	counterVec.DeleteLabelValues("1")
+	counterVec.WithLabelValues("1")
+	expected["1"] = now
+
+	now = now.Add(1 * time.Hour)
+	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+}
+
+func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricType, ctsPerLabelValue map[string]time.Time) {
+	t.Helper()
+
+	for val, ct := range ctsPerLabelValue {
+		var metric dto.Metric
+		m, err := vec.GetMetricWithLabelValues(val)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := m.Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+
+		var gotTs time.Time
+		switch typ {
+		case dto.MetricType_COUNTER:
+			gotTs = metric.Counter.CreatedTimestamp.AsTime()
+		case dto.MetricType_HISTOGRAM:
+			gotTs = metric.Histogram.CreatedTimestamp.AsTime()
+		case dto.MetricType_SUMMARY:
+			gotTs = metric.Summary.CreatedTimestamp.AsTime()
+		default:
+			t.Fatalf("unknown metric type %v", typ)
+		}
+
+		if !gotTs.Equal(ct) {
+			t.Errorf("expected created timestamp for %s with label value %q: %s, got %s", typ, val, ct, gotTs)
+		}
 	}
 }
