@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -159,6 +158,7 @@ type Gatherer interface {
 	// expose an incomplete result and instead disregard the returned
 	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
+	UTF8Names() bool
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -187,12 +187,26 @@ func Unregister(c Collector) bool {
 	return DefaultRegisterer.Unregister(c)
 }
 
-// GathererFunc turns a function into a Gatherer.
-type GathererFunc func() ([]*dto.MetricFamily, error)
+// gathererFunc turns a function into a Gatherer.
+type gathererFunc struct {
+	f         func() ([]*dto.MetricFamily, error)
+	utf8Names bool
+}
+
+func NewGathererFunc(f func() ([]*dto.MetricFamily, error), utf8Names bool) Gatherer {
+	return gathererFunc{
+		f:         f,
+		utf8Names: utf8Names,
+	}
+}
 
 // Gather implements Gatherer.
-func (gf GathererFunc) Gather() ([]*dto.MetricFamily, error) {
-	return gf()
+func (gf gathererFunc) Gather() ([]*dto.MetricFamily, error) {
+	return gf.f()
+}
+
+func (gf gathererFunc) UTF8Names() bool {
+	return gf.utf8Names
 }
 
 // AlreadyRegisteredError is returned by the Register method if the Collector to
@@ -265,6 +279,11 @@ type Registry struct {
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+	utf8Names             bool
+}
+
+func (r *Registry) UTF8Names() bool {
+	return r.utf8Names
 }
 
 // Register implements Registerer.
@@ -503,6 +522,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				registeredDescIDs,
+				r.utf8Names,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -513,6 +533,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				nil,
+				r.utf8Names,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -530,6 +551,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						registeredDescIDs,
+						r.utf8Names,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -540,6 +562,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						nil,
+						r.utf8Names,
 					))
 				}
 				break
@@ -622,6 +645,7 @@ func processMetric(
 	metricFamiliesByName map[string]*dto.MetricFamily,
 	metricHashes map[uint64]struct{},
 	registeredDescIDs map[uint64]struct{},
+	utf8Names bool,
 ) error {
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
@@ -705,7 +729,7 @@ func processMetric(
 		}
 		metricFamiliesByName[desc.fqName] = metricFamily
 	}
-	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes); err != nil {
+	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes, utf8Names); err != nil {
 		return err
 	}
 	if registeredDescIDs != nil {
@@ -741,6 +765,14 @@ func processMetric(
 // inconsistent Metrics are dropped. Invalid parts of the MetricFamilies
 // (e.g. syntactically invalid metric or label names) will go undetected.
 type Gatherers []Gatherer
+
+func (gs Gatherers) UTF8Names() bool {
+	// just the first
+	if len(gs) == 0 {
+		return false
+	}
+	return gs[0].UTF8Names()
+}
 
 // Gather implements Gatherer.
 func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
@@ -791,7 +823,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
 			for _, m := range mf.Metric {
-				if err := checkMetricConsistency(existingMF, m, metricHashes); err != nil {
+				if err := checkMetricConsistency(existingMF, m, metricHashes, g.UTF8Names()); err != nil {
 					errs = append(errs, err)
 					continue
 				}
@@ -870,6 +902,7 @@ func checkMetricConsistency(
 	metricFamily *dto.MetricFamily,
 	dtoMetric *dto.Metric,
 	metricHashes map[uint64]struct{},
+	utf8Names bool,
 ) error {
 	name := metricFamily.GetName()
 
@@ -894,7 +927,7 @@ func checkMetricConsistency(
 				name, dtoMetric, labelName,
 			)
 		}
-		if !checkLabelName(labelName) {
+		if !checkLabelName(labelName, utf8Names) {
 			return fmt.Errorf(
 				"collected metric %q { %s} has a label with an invalid name: %s",
 				name, dtoMetric, labelName,
