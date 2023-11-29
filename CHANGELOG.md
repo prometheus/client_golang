@@ -157,7 +157,7 @@ causing panics. #1253
 
 ## 1.4.0 / 2020-01-27
 
-* [CHANGE] Go collector: Improve doc string for `go.gc_duration_seconds`. #702
+* [CHANGE] Go collector: Improve doc string for `go_gc_duration_seconds`. #702
 * [FEATURE] Support a subset of OpenMetrics, including exemplars. Needs opt-in via `promhttp.HandlerOpts`. **EXPERIMENTAL** #706
 * [FEATURE] Add `testutil.CollectAndCount`. #703
 

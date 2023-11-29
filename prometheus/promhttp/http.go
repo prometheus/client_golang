@@ -141,7 +141,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		defer done()
 		if err != nil {
 			if opts.ErrorLog != nil {
-				opts.ErrorLog.Println("error gathering metrics???:", err)
+				opts.ErrorLog.Println("error gathering metrics:", err)
 			}
 			errCnt.WithLabelValues("gathering").Inc()
 			switch opts.ErrorHandling {

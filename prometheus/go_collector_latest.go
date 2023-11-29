@@ -196,7 +196,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	sampleBuf := make([]metrics.Sample, 0, len(exposedDescriptions)+len(opt.RuntimeMetricSumForHist)+len(rmNamesForMemStatsMetrics))
 	sampleMap := make(map[string]*metrics.Sample, len(exposedDescriptions))
 	for _, d := range exposedDescriptions {
-		namespace, subsystem, name, ok := internal.RuntimeMetricsToProm(&d.Description)
+		namespace, subsystem, name, ok := internal.RuntimeMetricsToProm(&d.Description, opt.UTF8Names)
 		if !ok {
 			// Just ignore this metric; we can't do anything with it here.
 			// If a user decides to use the latest version of Go, we don't want

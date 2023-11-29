@@ -29,4 +29,5 @@ type GoCollectorOptions struct {
 	DisableMemStatsLikeMetrics bool
 	RuntimeMetricSumForHist    map[string]string
 	RuntimeMetricRules         []GoCollectorRule
+	UTF8Names                  bool
 }

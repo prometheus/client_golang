@@ -139,7 +139,7 @@ func withMemoryMetrics() []string {
 
 func withSchedulerMetrics() []string {
 	return []string{
-		"go.gc_duration_seconds",
+		"go_gc_duration_seconds",
 		"go_goroutines",
 		"go_info",
 		"go_memstats_last_gc_time_seconds",

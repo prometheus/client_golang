@@ -157,6 +157,12 @@ func WithGoCollections(flags GoCollectionOption) func(options *internal.GoCollec
 	}
 }
 
+func WithGoCollectorUTF8Names(enabled bool) func(options *internal.GoCollectorOptions) {
+	return func(o *internal.GoCollectorOptions) {
+		o.UTF8Names = enabled
+	}
+}
+
 // NewGoCollector returns a collector that exports metrics about the current Go
 // process using debug.GCStats (base metrics) and runtime/metrics (both in MemStats style and new ones).
 func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) prometheus.Collector {

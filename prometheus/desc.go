@@ -20,6 +20,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -59,7 +60,7 @@ type Desc struct {
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
-	dimHash uint64
+	dimHash   uint64
 	utf8Names bool
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
@@ -95,11 +96,10 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		help:           help,
 		variableLabels: variableLabels.compile(),
 	}
-	// if !model.IsValidMetricName(model.LabelValue (fqName)) {
-	// 	// d.err = fmt.Errorf("%q is not a valid metric name", fqName)
-	// 	// return d
-	// 	fqName = fmt.Sprintf(`"%s"`, fqName)
-	// }
+	if !model.IsValidMetricName(model.LabelValue(fqName), d.utf8Names) {
+		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
+		return d
+	}
 	// labelValues contains the label values of const labels (in order of
 	// their sorted label names) plus the fqName (at position 0).
 	labelValues := make([]string, 1, len(constLabels)+1)

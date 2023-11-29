@@ -321,7 +321,7 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 		expFQName, ok := expectedRuntimeMetrics[rmName]
 		if !ok {
 			t.Errorf("found new runtime/metrics metric %s", rmName)
-			_, _, _, ok := internal.RuntimeMetricsToProm(&descs[i])
+			_, _, _, ok := internal.RuntimeMetricsToProm(&descs[i], false)
 			if !ok {
 				t.Errorf("new metric has name that can't be converted, or has an unsupported Kind")
 			}

@@ -79,7 +79,7 @@ func TestRuntimeMetricsToProm(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		ns, ss, n, ok := RuntimeMetricsToProm(&test.got)
+		ns, ss, n, ok := RuntimeMetricsToProm(&test.got, false)
 		name := ns + "_" + ss + "_" + n
 		if test.expect == "" && ok {
 			t.Errorf("bad input expected a bad output: input %s, got %s", test.got.Name, name)
