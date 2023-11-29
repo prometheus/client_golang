@@ -112,3 +112,7 @@ func withSchedulerMetrics() []string {
 		"go_sched_latencies_seconds",
 	})
 }
+
+func withDebugMetrics() []string {
+	return withBaseMetrics([]string{})
+}
