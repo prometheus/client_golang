@@ -382,7 +382,7 @@ func ExampleNewConstSummary() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
-		"seconds",
+		"",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -434,7 +434,7 @@ func ExampleNewConstHistogram() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"seconds",
+		"",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -462,7 +462,7 @@ func ExampleNewConstHistogram_WithExemplar() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"seconds",
+		"",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -633,7 +633,7 @@ func ExampleNewMetricWithTimestamp() {
 	desc := prometheus.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
-		"kelvin",
+		"",
 		nil, nil,
 	)
 
@@ -667,7 +667,7 @@ func ExampleNewConstMetricWithCreatedTimestamp() {
 	desc := prometheus.NewDesc(
 		"time_since_epoch_seconds",
 		"Current epoch time in seconds.",
-		"seconds",
+		"",
 		nil, nil,
 	)
 
