@@ -10,7 +10,7 @@ require (
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.45.0
 	github.com/prometheus/procfs v0.12.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.14.0
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -22,15 +22,15 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	golang.org/x/net v0.17.0 // indirect
-	golang.org/x/oauth2 v0.12.0 // indirect
-	golang.org/x/text v0.13.0 // indirect
+	golang.org/x/net v0.18.0 // indirect
+	golang.org/x/oauth2 v0.14.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 exclude github.com/prometheus/client_golang v1.12.1
 
-replace github.com/prometheus/common => github.com/vesari/common v0.0.0-20231121140958-784d3aad4c30
+replace github.com/prometheus/common => github.com/vesari/common v0.0.0-20231202155551-b16280ec87cf
 
-replace github.com/prometheus/client_model => github.com/vesari/client_model v0.0.0-20231118150741-19723af61627
+replace github.com/prometheus/client_model => github.com/vesari/client_model v0.0.0-20231202151802-003f160da988
