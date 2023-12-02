@@ -215,7 +215,8 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 				NewDesc(
 					BuildFQName(namespace, subsystem, name),
 					d.Description.Description,
-					"",
+					// TODO(vesari): can we assume that this is a suitable unit?
+					unit,
 					nil,
 					nil,
 				),
