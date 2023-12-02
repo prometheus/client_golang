@@ -382,7 +382,7 @@ func ExampleNewConstSummary() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
-		"",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -410,7 +410,8 @@ func ExampleHistogram() {
 	temps := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pond_temperature_celsius",
 		Help:    "The temperature of the frog pond.", // Sorry, we can't measure how badly it smells.
-		Buckets: prometheus.LinearBuckets(20, 5, 5),  // 5 buckets, each 5 centigrade wide.
+		Unit:    "celsius",
+		Buckets: prometheus.LinearBuckets(20, 5, 5), // 5 buckets, each 5 centigrade wide.
 	})
 
 	// Simulate some observations.
@@ -434,7 +435,7 @@ func ExampleNewConstHistogram() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -462,7 +463,7 @@ func ExampleNewConstHistogram_WithExemplar() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"",
+		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
 	)
@@ -633,7 +634,7 @@ func ExampleNewMetricWithTimestamp() {
 	desc := prometheus.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
-		"",
+		"kelvin",
 		nil, nil,
 	)
 
@@ -667,7 +668,7 @@ func ExampleNewConstMetricWithCreatedTimestamp() {
 	desc := prometheus.NewDesc(
 		"time_since_epoch_seconds",
 		"Current epoch time in seconds.",
-		"",
+		"seconds",
 		nil, nil,
 	)
 

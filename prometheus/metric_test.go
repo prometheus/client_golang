@@ -45,7 +45,7 @@ func TestWithExemplarsMetric(t *testing.T) {
 	t.Run("histogram", func(t *testing.T) {
 		// Create a constant histogram from values we got from a 3rd party telemetry system.
 		h := MustNewConstHistogram(
-			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", "", nil, nil),
+			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", "seconds", nil, nil),
 			4711, 403.34,
 			// Four buckets, but we expect five as the +Inf bucket will be created if we see value outside of those buckets.
 			map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},

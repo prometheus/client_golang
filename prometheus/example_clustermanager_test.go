@@ -72,7 +72,7 @@ var (
 	ramUsageDesc = prometheus.NewDesc(
 		"clustermanager_ram_usage_bytes",
 		"RAM usage as reported to the cluster manager.",
-		"",
+		"bytes",
 		[]string{"host"}, nil,
 	)
 )
