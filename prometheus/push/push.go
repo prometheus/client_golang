@@ -75,7 +75,6 @@ type Pusher struct {
 
 	gatherers  prometheus.Gatherers
 	registerer prometheus.Registerer
-	utf8Names  bool
 
 	client             HTTPDoer
 	header             http.Header
@@ -183,7 +182,7 @@ func (p *Pusher) Error() error {
 // For convenience, this method returns a pointer to the Pusher itself.
 func (p *Pusher) Grouping(name, value string) *Pusher {
 	if p.error == nil {
-		if !model.LabelName(name).IsValid(p.utf8Names) {
+		if !model.LabelName(name).IsValid() {
 			p.error = fmt.Errorf("grouping label has invalid name: %s", name)
 			return p
 		}

@@ -552,7 +552,7 @@ temperature_kelvin{location="somewhere else"} 4.5
 
 	gatherers := prometheus.Gatherers{
 		reg,
-		prometheus.NewGathererFunc(parseText, false),
+		prometheus.GathererFunc(parseText),
 	}
 
 	gathering, err := gatherers.Gather()

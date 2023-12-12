@@ -15,6 +15,8 @@ package prometheus
 
 import (
 	"testing"
+
+	"github.com/prometheus/common/model"
 )
 
 func TestNewDescInvalidLabelValues(t *testing.T) {
@@ -26,5 +28,19 @@ func TestNewDescInvalidLabelValues(t *testing.T) {
 	)
 	if desc.err == nil {
 		t.Errorf("NewDesc: expected error because: %s", desc.err)
+	}
+}
+
+func TestNewDescUTF8(t *testing.T) {
+	model.NameValidationScheme = model.UTF8Validation
+	desc := NewDesc(
+		"sample.label",
+		"sample label",
+		nil,
+		Labels{"a": "whatever"},
+	)
+	model.NameValidationScheme = model.LegacyValidation
+	if desc.err != nil {
+		t.Errorf("NewDesc: expected no error but got: %s", desc.err)
 	}
 }

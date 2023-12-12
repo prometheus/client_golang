@@ -253,7 +253,7 @@ func newExemplar(value float64, ts time.Time, l Labels) (*dto.Exemplar, error) {
 	labelPairs := make([]*dto.LabelPair, 0, len(l))
 	var runes int
 	for name, value := range l {
-		if !checkLabelName(name, false) {
+		if !checkLabelName(name) {
 			return nil, fmt.Errorf("exemplar label name %q is invalid", name)
 		}
 		runes += utf8.RuneCountInString(name)

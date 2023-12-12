@@ -36,7 +36,7 @@ import (
 // package exports a name with characters outside the valid Prometheus metric name
 // character set. This is theoretically possible, but should never happen in practice.
 // Still, don't rely on it.
-func RuntimeMetricsToProm(d *metrics.Description, utf8Names bool) (string, string, string, bool) {
+func RuntimeMetricsToProm(d *metrics.Description) (string, string, string, bool) {
 	namespace := "go"
 
 	comp := strings.SplitN(d.Name, ":", 2)
@@ -66,7 +66,7 @@ func RuntimeMetricsToProm(d *metrics.Description, utf8Names bool) (string, strin
 		name += "_total"
 	}
 
-	valid := model.IsValidMetricName(model.LabelValue(namespace+"_"+subsystem+"_"+name), utf8Names)
+	valid := model.IsValidMetricName(model.LabelValue(namespace + "_" + subsystem + "_" + name))
 	switch d.Kind {
 	case metrics.KindUint64:
 	case metrics.KindFloat64:

@@ -60,8 +60,7 @@ type Desc struct {
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
-	dimHash   uint64
-	utf8Names bool
+	dimHash uint64
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
@@ -96,7 +95,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		help:           help,
 		variableLabels: variableLabels.compile(),
 	}
-	if !model.IsValidMetricName(model.LabelValue(fqName), d.utf8Names) {
+	if !model.IsValidMetricName(model.LabelValue(fqName)) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
 		return d
 	}
@@ -108,7 +107,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	labelNameSet := map[string]struct{}{}
 	// First add only the const label names and sort them...
 	for labelName := range constLabels {
-		if !checkLabelName(labelName, d.utf8Names) {
+		if !checkLabelName(labelName) {
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", labelName, fqName)
 			return d
 		}
@@ -130,7 +129,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	// cannot be in a regular label name. That prevents matching the label
 	// dimension with a different mix between preset and variable labels.
 	for _, label := range d.variableLabels.names {
-		if !checkLabelName(label, d.utf8Names) {
+		if !checkLabelName(label) {
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", label, fqName)
 			return d
 		}
