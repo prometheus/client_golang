@@ -92,7 +92,7 @@ func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) 
 		result = append(result, mf)
 	}
 	sort.Slice(result, func(i, j int) bool {
-		return *result[i].Name < *result[j].Name
+		return result[i].GetName() < result[j].GetName()
 	})
 	return result
 }
