@@ -36,18 +36,14 @@ var DefaultRoundTripper http.RoundTripper = &http.Transport{
 	TLSHandshakeTimeout: 10 * time.Second,
 }
 
-type HttpClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 // Config defines configuration parameters for a new client.
 type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
 
 	// Client is used by the Client to drive HTTP requests. If not provided,
-	// a new http.Client based on the provided RoundTripper (or DefaultRoundTripper) will be used.
-	Client HttpClient
+	// a new one based on the provided RoundTripper (or DefaultRoundTripper) will be used.
+	Client *http.Client
 
 	// RoundTripper is used by the Client to drive HTTP requests. If not
 	// provided, DefaultRoundTripper will be used.
@@ -61,13 +57,13 @@ func (cfg *Config) roundTripper() http.RoundTripper {
 	return cfg.RoundTripper
 }
 
-func (cfg *Config) client() HttpClient {
+func (cfg *Config) client() http.Client {
 	if cfg.Client == nil {
-		return &http.Client{
+		return http.Client{
 			Transport: cfg.roundTripper(),
 		}
 	}
-	return cfg.Client
+	return *cfg.Client
 }
 
 func (cfg *Config) validate() error {
@@ -105,7 +101,7 @@ func NewClient(cfg Config) (Client, error) {
 
 type httpClient struct {
 	endpoint *url.URL
-	client   HttpClient
+	client   http.Client
 }
 
 func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
