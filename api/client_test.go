@@ -105,7 +105,7 @@ func TestClientURL(t *testing.T) {
 
 		hclient := &httpClient{
 			endpoint: ep,
-			client:   &http.Client{Transport: DefaultRoundTripper},
+			client:   http.Client{Transport: DefaultRoundTripper},
 		}
 
 		u := hclient.URL(test.endpoint, test.args)
