@@ -277,6 +277,9 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 	if metricNames != nil {
 		got = filterMetrics(got, metricNames)
 		expected = filterMetrics(expected, metricNames)
+		if len(metricNames) > len(got) {
+			return fmt.Errorf("expected metrics name not found")
+		}
 	}
 
 	return compare(got, expected)
