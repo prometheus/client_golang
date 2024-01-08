@@ -278,7 +278,20 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 		got = filterMetrics(got, metricNames)
 		expected = filterMetrics(expected, metricNames)
 		if len(metricNames) > len(got) {
-			return fmt.Errorf("expected metrics name not found")
+			h := make(map[string]struct{})
+			for _, mf := range got {
+				if mf == nil {
+					continue
+				}
+				h[mf.GetName()] = struct{}{}
+			}
+			var missingMetricNames []string
+			for _, name := range metricNames {
+				if _, ok := h[name]; !ok {
+					missingMetricNames = append(missingMetricNames, name)
+				}
+			}
+			return fmt.Errorf("expected metric name(s) not found: %v", missingMetricNames)
 		}
 	}
 

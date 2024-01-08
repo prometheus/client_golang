@@ -379,7 +379,7 @@ func TestScrapeAndCompare(t *testing.T) {
 		some_total2{ label2 = "value2" } 1
 	`,
 			metricNames: []string{"some_total3"},
-			errPrefix:   "expected metrics name not found",
+			errPrefix:   "expected metric name(s) not found",
 			fail:        true,
 		},
 		"one of multiple expected metric names is not scraped": {
@@ -395,7 +395,7 @@ func TestScrapeAndCompare(t *testing.T) {
 		some_total2{ label2 = "value2" } 1
 	`,
 			metricNames: []string{"some_total1", "some_total3"},
-			errPrefix:   "expected metrics name not found",
+			errPrefix:   "expected metric name(s) not found",
 			fail:        true,
 		},
 	}
