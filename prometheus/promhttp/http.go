@@ -160,11 +160,15 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 
 		var contentType expfmt.Format
+		if req.Header != nil {
+			fmt.Println("NEGOTIATE content type received: ", req.Header)
+		}
 		if opts.EnableOpenMetrics {
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}
+		fmt.Println("NEGOTIATE deduced content type: ", contentType)
 		header := rsp.Header()
 		header.Set(contentTypeHeader, string(contentType))
 
@@ -207,6 +211,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 
 		for _, mf := range mfs {
+			// This is the place where the metric family is getting escaped on the receive side.
 			if handleError(enc.Encode(mf)) {
 				return
 			}
