@@ -1,5 +1,13 @@
 ## Unreleased
 
+## 1.18.0 / 2023-12-22
+
+* [FEATURE] promlint: Allow creation of custom metric validations. #1311
+* [FEATURE] Go programs using client_golang can be built in wasip1 OS. #1350
+* [BUGFIX] histograms: Add timer to reset ASAP after bucket limiting has happened. #1367
+* [BUGFIX] testutil: Fix comparison of metrics with empty Help strings. #1378
+* [ENHANCEMENT] Improved performance of `MetricVec.WithLabelValues(...)`. #1360
+
 ## 1.17.0 / 2023-09-27
 
 * [CHANGE] Minimum required go version is now 1.19 (we also test client_golang against new 1.21 version). #1325

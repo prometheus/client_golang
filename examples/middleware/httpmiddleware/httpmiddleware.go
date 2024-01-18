@@ -79,9 +79,7 @@ func (m *middleware) WrapHandler(handlerName string, handler http.Handler) http.
 				requestSize,
 				promhttp.InstrumentHandlerResponseSize(
 					responseSize,
-					http.HandlerFunc(func(writer http.ResponseWriter, r *http.Request) {
-						handler.ServeHTTP(writer, r)
-					}),
+					handler,
 				),
 			),
 		),
