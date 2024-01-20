@@ -7,7 +7,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/json-iterator/go v1.1.12
-	github.com/prometheus/client_model v0.5.0
+	github.com/prometheus/client_model v0.5.1-0.20231205151710-c26a8eea9e44
 	github.com/prometheus/common v0.46.0
 	github.com/prometheus/procfs v0.12.0
 	golang.org/x/sys v0.16.0
@@ -30,6 +30,4 @@ require (
 
 exclude github.com/prometheus/client_golang v1.12.1
 
-replace github.com/prometheus/common => github.com/vesari/common v0.0.0-20231202155551-b16280ec87cf
-
-replace github.com/prometheus/client_model => github.com/vesari/client_model v0.0.0-20231202151802-003f160da988
+replace github.com/prometheus/common => github.com/vesari/common v0.0.0-20240116093321-6b0e211556c7
