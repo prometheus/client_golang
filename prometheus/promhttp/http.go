@@ -180,7 +180,11 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			w = gz
 		}
 
-		enc := expfmt.NewEncoder(w, contentType)
+		OMopts := []expfmt.ToOpenMetricsOption{}
+		if opts.EnableOpenMetrics && opts.WithUnit {
+			OMopts = append(OMopts, expfmt.ToOpenMetricsWithUnit())
+		}
+		enc := expfmt.NewEncoder(w, contentType, OMopts...)
 
 		// handleError handles the error according to opts.ErrorHandling
 		// and returns true if we have to abort after the handling.
@@ -379,6 +383,8 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
+	// WithUnit: if true.... TODO: explain what it implies
+	WithUnit bool
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
