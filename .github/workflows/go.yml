@@ -31,7 +31,7 @@ jobs:
 
       - name: Cache Go modules
         id: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
           key: v1-go${{ matrix.go_version }}
