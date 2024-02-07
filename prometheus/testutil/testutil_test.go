@@ -331,8 +331,8 @@ func TestScrapeAndCompare(t *testing.T) {
 	scenarios := map[string]struct {
 		want        string
 		metricNames []string
-		errPrefix   string
-		fail        bool
+		// expectedErrPrefix if empty, means no fail is expected for the comparison.
+		expectedErrPrefix string
 	}{
 		"empty metric Names": {
 			want: `
@@ -378,9 +378,8 @@ func TestScrapeAndCompare(t *testing.T) {
 
 		some_total2{ label2 = "value2" } 1
 	`,
-			metricNames: []string{"some_total3"},
-			errPrefix:   "expected metric name(s) not found",
-			fail:        true,
+			metricNames:       []string{"some_total3"},
+			expectedErrPrefix: "expected metric name(s) not found",
 		},
 		"one of multiple expected metric names is not scraped": {
 			want: `
@@ -394,9 +393,8 @@ func TestScrapeAndCompare(t *testing.T) {
 
 		some_total2{ label2 = "value2" } 1
 	`,
-			metricNames: []string{"some_total1", "some_total3"},
-			errPrefix:   "expected metric name(s) not found",
-			fail:        true,
+			metricNames:       []string{"some_total1", "some_total3"},
+			expectedErrPrefix: "expected metric name(s) not found",
 		},
 	}
 	for name, scenario := range scenarios {
@@ -408,10 +406,10 @@ func TestScrapeAndCompare(t *testing.T) {
 			}))
 			defer ts.Close()
 			if err := ScrapeAndCompare(ts.URL, expectedReader, scenario.metricNames...); err != nil {
-				if !scenario.fail || !strings.HasPrefix(err.Error(), scenario.errPrefix) {
+				if scenario.expectedErrPrefix == "" || !strings.HasPrefix(err.Error(), scenario.expectedErrPrefix) {
 					t.Errorf("unexpected error happened: %s", err)
 				}
-			} else if scenario.fail {
+			} else if scenario.expectedErrPrefix != "" {
 				t.Errorf("expected an error but got nil")
 			}
 		})
