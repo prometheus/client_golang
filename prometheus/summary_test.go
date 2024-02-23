@@ -203,7 +203,7 @@ func TestSummaryConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
 	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	it := func(n uint32) bool {
@@ -284,7 +284,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
 	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	objSlice := make([]float64, 0, len(objMap))
