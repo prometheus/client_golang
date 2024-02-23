@@ -157,7 +157,7 @@ func TestHistogramConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -243,7 +243,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -1010,7 +1010,7 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
 
 	it := func(n uint32) bool {
 		ts := time.Now().Add(30 * time.Second).Unix()
