@@ -68,7 +68,7 @@ func (l *Linter) Lint() ([]Problem, error) {
 	var problems []Problem
 
 	if l.r != nil {
-		d := expfmt.NewDecoder(l.r, expfmt.FmtText)
+		d := expfmt.NewDecoder(l.r, expfmt.NewFormat(expfmt.TypeProtoText))
 
 		mf := &dto.MetricFamily{}
 		for {

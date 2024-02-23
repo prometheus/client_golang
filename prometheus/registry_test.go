@@ -92,7 +92,7 @@ func testHandler(t testing.TB) {
 		},
 	}
 	externalBuf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(externalBuf, expfmt.FmtProtoDelim)
+	enc := expfmt.NewEncoder(externalBuf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 	if err := enc.Encode(externalMetricFamily); err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ metric: <
 		},
 	}
 	buf := &bytes.Buffer{}
-	enc = expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	enc = expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 	if err := enc.Encode(expectedMetricFamily); err != nil {
 		t.Fatal(err)
 	}
