@@ -1,5 +1,12 @@
 ## Unreleased
 
+## 1.19.0 / 2023-02-27
+
+The module `prometheus/common v0.48.0` introduced a bug when used together with client_golang. If your project uses client_golang and you want to use `prometheus/common v0.48.0` or higher, please update client_golang to v1.19.0.
+
+* [CHANGE] Minimum required go version is now 1.20 (we also test client_golang against new 1.22 version). #1445 #1449
+* [FEATURE] collectors: Add version collector. #1422 #1427
+
 ## 1.18.0 / 2023-12-22
 
 * [FEATURE] promlint: Allow creation of custom metric validations. #1311
