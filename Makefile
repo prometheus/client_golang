@@ -21,12 +21,17 @@ test: deps common-test
 test-short: deps common-test-short
 
 .PHONY: generate-go-collector-test-files
-VERSIONS := 1.19 1.20 1.21
+VERSIONS := 1.20 1.21 1.22
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
-		docker run --rm -v $(PWD):/workspace -w /workspace golang:$$GO_VERSION go run prometheus/gen_go_collector_metrics_set.go; \
-		mv -f go_collector_metrics* prometheus; \
-		done
+		docker run \
+			--platform linux/amd64 \
+			--rm -v $(PWD):/workspace \
+			-w /workspace \
+			golang:$$GO_VERSION \
+			bash ./generate-go-collector.bash; \
+	done; \
+	go mod tidy
 
 .PHONY: fmt
 fmt: common-format

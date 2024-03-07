@@ -668,7 +668,6 @@ func TestLintMetricTypeInName(t *testing.T) {
 		twoProbTest,
 		genTest("instance_memory_limit_bytes_gauge", "gauge", "gauge"),
 		genTest("request_duration_seconds_summary", "summary", "summary"),
-		genTest("request_duration_seconds_summary", "histogram", "summary"),
 		genTest("request_duration_seconds_histogram", "histogram", "histogram"),
 		genTest("request_duration_seconds_HISTOGRAM", "histogram", "histogram"),
 

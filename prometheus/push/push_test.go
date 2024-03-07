@@ -84,7 +84,7 @@ func TestPush(t *testing.T) {
 	}
 
 	buf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	enc := expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 
 	for _, mf := range mfs {
 		if err := enc.Encode(mf); err != nil {
