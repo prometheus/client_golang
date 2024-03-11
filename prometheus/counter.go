@@ -209,7 +209,6 @@ func (c *counter) get() float64 {
 	if c.integerExposition {
 		return float64(ival % float64Mantissa)
 	}
-	// XXX atomics here are not strictly safe. ival and fval can be incremented elsewhere separately.
 	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	return fval + float64(ival)
 }
