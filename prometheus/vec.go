@@ -72,7 +72,8 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 // with a performance overhead (for creating and processing the Labels map).
 // See also the CounterVec example.
 func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
-	lvs = constrainLabelValues(m.desc, lvs, m.curry)
+	constrainedValues := make([]string, len(lvs))
+	lvs = constrainLabelValues(m.desc, lvs, constrainedValues, m.curry)
 
 	h, err := m.hashLabelValues(lvs)
 	if err != nil {
@@ -210,7 +211,8 @@ func (m *MetricVec) CurryWith(labels Labels) (*MetricVec, error) {
 // a wrapper around MetricVec, implementing a vector for a specific Metric
 // implementation, for example GaugeVec.
 func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
-	lvs = constrainLabelValues(m.desc, lvs, m.curry)
+	constrainedValues := make([]string, len(lvs))
+	lvs = constrainLabelValues(m.desc, lvs, constrainedValues, m.curry)
 	h, err := m.hashLabelValues(lvs)
 	if err != nil {
 		return nil, err
@@ -681,13 +683,14 @@ func constrainLabels(desc *Desc, labels Labels) (Labels, func()) {
 	}
 }
 
-func constrainLabelValues(desc *Desc, lvs []string, curry []curriedLabelValue) []string {
+// constrainLabelValues applies constraints to the label values, and updates in clvs
+// lvs and clvs must be of the same length.
+func constrainLabelValues(desc *Desc, lvs, clvs []string, curry []curriedLabelValue) []string {
 	if len(desc.variableLabels.labelConstraints) == 0 {
 		// Fast path when there's no constraints
 		return lvs
 	}
 
-	constrainedValues := make([]string, len(lvs))
 	var iCurry, iLVs int
 	for i := 0; i < len(lvs)+len(curry); i++ {
 		if iCurry < len(curry) && curry[iCurry].index == i {
@@ -696,14 +699,14 @@ func constrainLabelValues(desc *Desc, lvs []string, curry []curriedLabelValue) [
 		}
 
 		if i < len(desc.variableLabels.names) {
-			constrainedValues[iLVs] = desc.variableLabels.constrain(
+			clvs[iLVs] = desc.variableLabels.constrain(
 				desc.variableLabels.names[i],
 				lvs[iLVs],
 			)
 		} else {
-			constrainedValues[iLVs] = lvs[iLVs]
+			clvs[iLVs] = lvs[iLVs]
 		}
 		iLVs++
 	}
-	return constrainedValues
+	return clvs
 }
