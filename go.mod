@@ -2,8 +2,6 @@ module github.com/prometheus/client_golang
 
 go 1.21
 
-toolchain go1.22.0
-
 require (
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.2.0
