@@ -180,9 +180,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			w = gz
 		}
 
-		OMopts := []expfmt.ToOpenMetricsOption{}
+		OMopts := []expfmt.EncoderOption{}
 		if opts.EnableOpenMetrics && opts.WithUnit {
-			OMopts = append(OMopts, expfmt.ToOpenMetricsWithUnit())
+			OMopts = append(OMopts, expfmt.WithUnit())
 		}
 		enc := expfmt.NewEncoder(w, contentType, OMopts...)
 
