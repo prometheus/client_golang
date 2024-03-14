@@ -160,8 +160,12 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 
 		var contentType expfmt.Format
+		var encoderOpts []expfmt.EncoderOption
 		if opts.EnableOpenMetrics {
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
+			if opts.WithUnit {
+				encoderOpts = append(encoderOpts, expfmt.WithUnit())
+			}
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}
@@ -180,11 +184,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			w = gz
 		}
 
-		OMopts := []expfmt.EncoderOption{}
-		if opts.EnableOpenMetrics && opts.WithUnit {
-			OMopts = append(OMopts, expfmt.WithUnit())
-		}
-		enc := expfmt.NewEncoder(w, contentType, OMopts...)
+		enc := expfmt.NewEncoder(w, contentType, encoderOpts...)
 
 		// handleError handles the error according to opts.ErrorHandling
 		// and returns true if we have to abort after the handling.
@@ -383,7 +383,8 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
-	// WithUnit: if true.... TODO: explain what it implies
+	// If true, WithUnit adds the unit to the encoder options, ultimately allowing the
+	// unit into the final output, provided that EnableOpenMetrics is also true.
 	WithUnit bool
 }
 

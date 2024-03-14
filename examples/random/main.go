@@ -44,7 +44,6 @@ func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metric
 			prometheus.SummaryOpts{
 				Name:       "rpc_durations_seconds",
 				Help:       "RPC latency distributions.",
-				Unit:       "seconds",
 				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 			},
 			[]string{"service"},
@@ -63,7 +62,6 @@ func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metric
 		rpcDurationsHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:                        "rpc_durations_histogram_seconds",
 			Help:                        "RPC latency distributions.",
-			Unit:                        "seconds",
 			Buckets:                     prometheus.LinearBuckets(normMean-5*normDomain, .5*normDomain, 20),
 			NativeHistogramBucketFactor: 1.1,
 		}),
