@@ -472,6 +472,8 @@ type HistogramOpts struct {
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
+	NativeHistogramMaxExemplarCount uint32
+	NativeHistogramExemplarTTL      time.Duration
 
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
@@ -539,6 +541,8 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		nativeHistogramMaxBuckets:       opts.NativeHistogramMaxBucketNumber,
 		nativeHistogramMaxZeroThreshold: opts.NativeHistogramMaxZeroThreshold,
 		nativeHistogramMinResetDuration: opts.NativeHistogramMinResetDuration,
+		nativeHistogramMaxExemplarCount: opts.NativeHistogramMaxExemplarCount,
+		nativeHistogramExemplarTTL:      opts.NativeHistogramExemplarTTL,
 		lastResetTime:                   opts.now(),
 		now:                             opts.now,
 		afterFunc:                       opts.afterFunc,
@@ -556,6 +560,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 			h.nativeHistogramZeroThreshold = DefNativeHistogramZeroThreshold
 		} // Leave h.nativeHistogramZeroThreshold at 0 otherwise.
 		h.nativeHistogramSchema = pickSchema(opts.NativeHistogramBucketFactor)
+		h.nativeExemplars = newNativeExemplars(opts.NativeHistogramExemplarTTL, opts.NativeHistogramMaxExemplarCount)
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -732,6 +737,10 @@ type histogram struct {
 
 	// afterFunc is for testing purposes, by default it's time.AfterFunc.
 	afterFunc func(time.Duration, func()) *time.Timer
+
+	nativeExemplars                 *nativeExemplars
+	nativeHistogramMaxExemplarCount uint32
+	nativeHistogramExemplarTTL      time.Duration
 }
 
 func (h *histogram) Desc() *Desc {
@@ -820,6 +829,11 @@ func (h *histogram) Write(out *dto.Metric) error {
 				Offset: proto.Int32(0),
 				Length: proto.Uint32(0),
 			}}
+		}
+
+		his.Exemplars = make([]*dto.Exemplar, 0)
+		for e := range h.nativeExemplars.exemplars {
+			his.Exemplars = append(his.Exemplars, e)
 		}
 	}
 	addAndResetCounts(hotCounts, coldCounts)
@@ -1102,6 +1116,10 @@ func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 		panic(err)
 	}
 	h.exemplars[bucket].Store(e)
+	doSparse := h.nativeHistogramSchema > math.MinInt32 && !math.IsNaN(v)
+	if doSparse {
+		h.nativeExemplars.addExemplar(e)
+	}
 }
 
 // HistogramVec is a Collector that bundles a set of Histograms that all share the
@@ -1574,4 +1592,153 @@ func addAndResetCounts(hot, cold *histogramCounts) {
 	}
 	atomic.AddUint64(&hot.nativeHistogramZeroBucket, atomic.LoadUint64(&cold.nativeHistogramZeroBucket))
 	atomic.StoreUint64(&cold.nativeHistogramZeroBucket, 0)
+}
+
+type nativeExemplars struct {
+	exemplars                       map[*dto.Exemplar]*totalItem
+	nativeHistogramExemplarTTL      time.Duration
+	nativeHistogramMaxExemplarCount uint32
+	timeList                        *timeItem
+	logarithmList                   *logarithmItem
+}
+
+type totalItem struct {
+	timeItem      *timeItem
+	logarithmItem *logarithmItem
+}
+
+func newNativeExemplars(ttl time.Duration, count uint32) *nativeExemplars {
+	return &nativeExemplars{
+		nativeHistogramExemplarTTL:      ttl,
+		nativeHistogramMaxExemplarCount: count,
+		exemplars:                       make(map[*dto.Exemplar]*totalItem),
+		timeList:                        &timeItem{},
+		logarithmList:                   &logarithmItem{},
+	}
+}
+
+func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
+	var de *dto.Exemplar
+	if len(n.exemplars) >= int(n.nativeHistogramMaxExemplarCount) {
+		de = n.timeList.pickExemplar(e)
+		if time.Since(de.Timestamp.AsTime()) < n.nativeHistogramExemplarTTL {
+			de = n.logarithmList.pickExemplar(e)
+		}
+	}
+
+	if de != nil {
+		n.timeList.removeExemplar(n.exemplars[de].timeItem)
+		n.logarithmList.removeExemplar(n.exemplars[de].logarithmItem)
+
+		delete(n.exemplars, de)
+	}
+
+	t := &totalItem{}
+	t.timeItem = n.timeList.addExemplar(e)
+	t.logarithmItem = n.logarithmList.addExemplar(e)
+	n.exemplars[e] = t
+}
+
+type timeItem struct {
+	e         *dto.Exemplar
+	timestamp time.Time
+	next      *timeItem
+	prev      *timeItem
+}
+
+func (h *timeItem) addExemplar(e *dto.Exemplar) (t *timeItem) {
+	t = &timeItem{
+		e:         e,
+		timestamp: e.GetTimestamp().AsTime(),
+	}
+
+	// if the list is empty
+	i := h.next
+	prev := h
+	for i != nil {
+		if i.timestamp.After(t.timestamp) {
+			break
+		}
+		prev = i
+		i = i.next
+	}
+
+	if i != nil {
+		t.next = i
+		i.prev = t
+	}
+	t.prev = prev
+	prev.next = t
+	return t
+}
+
+func (h *timeItem) pickExemplar(e *dto.Exemplar) (p *dto.Exemplar) {
+	return h.next.e
+}
+
+func (h *timeItem) removeExemplar(d *timeItem) {
+	prev := d.prev
+	next := d.next
+	prev.next = next
+	if next != nil {
+		next.prev = prev
+	}
+}
+
+type logarithmItem struct {
+	e         *dto.Exemplar
+	logarithm float64
+	next      *logarithmItem
+	prev      *logarithmItem
+}
+
+func (h *logarithmItem) addExemplar(e *dto.Exemplar) (l *logarithmItem) {
+	l = &logarithmItem{
+		e:         e,
+		logarithm: math.Log2(e.GetValue()),
+	}
+
+	// if the list is empty
+	i := h.next
+	prev := h
+	for i != nil {
+		if l.logarithm < i.logarithm {
+			break
+		}
+		prev = i
+		i = i.next
+	}
+
+	if i != nil {
+		l.next = i
+		i.prev = l
+	}
+	l.prev = prev
+	prev.next = l
+	return l
+}
+
+func (h *logarithmItem) pickExemplar(e *dto.Exemplar) (p *dto.Exemplar) {
+	var minDiff float64 = -1
+	var logarithm = math.Log(e.GetValue())
+	i := h.next
+	for i != nil {
+		diff := math.Abs(i.logarithm - logarithm)
+		if minDiff < 0 || diff < minDiff {
+			p = i.e
+			minDiff = diff
+		}
+		i = i.next
+	}
+
+	return p
+}
+
+func (h *logarithmItem) removeExemplar(d *logarithmItem) {
+	prev := d.prev
+	next := d.next
+	prev.next = next
+	if next != nil {
+		next.prev = prev
+	}
 }
