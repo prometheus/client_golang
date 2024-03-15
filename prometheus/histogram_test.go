@@ -1273,7 +1273,6 @@ func TestHistogramVecCreatedTimestampWithDeletes(t *testing.T) {
 }
 
 func TestNativeHistogramExemplar(t *testing.T) {
-
 	histogram := NewHistogram(HistogramOpts{
 		Name:                            "test",
 		Help:                            "test help",
@@ -1359,5 +1358,4 @@ func TestNativeHistogramExemplar(t *testing.T) {
 			t.Errorf("the value is not in expected value")
 		}
 	}
-
 }

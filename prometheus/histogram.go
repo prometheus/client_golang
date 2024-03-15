@@ -1720,7 +1720,7 @@ func (h *logarithmItem) addExemplar(e *dto.Exemplar) (l *logarithmItem) {
 
 func (h *logarithmItem) pickExemplar(e *dto.Exemplar) (p *dto.Exemplar) {
 	var minDiff float64 = -1
-	var logarithm = math.Log(e.GetValue())
+	logarithm := math.Log(e.GetValue())
 	i := h.next
 	for i != nil {
 		diff := math.Abs(i.logarithm - logarithm)
