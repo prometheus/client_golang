@@ -1271,3 +1271,91 @@ func TestHistogramVecCreatedTimestampWithDeletes(t *testing.T) {
 	now = now.Add(1 * time.Hour)
 	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
 }
+
+func TestNativeHistogramExemplar(t *testing.T) {
+	histogram := NewHistogram(HistogramOpts{
+		Name:                            "test",
+		Help:                            "test help",
+		Buckets:                         []float64{1, 2, 3, 4},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxExemplarCount: 3,
+		NativeHistogramExemplarTTL:      10 * time.Second,
+	}).(*histogram)
+
+	// expectedExemplars := []*dto.Exemplar{
+	// 	{
+	// 		Label: []*dto.LabelPair{
+	// 			{Name: proto.String("id"), Value: proto.String("1")},
+	// 		},
+	// 		Value: proto.Float64(1),
+	// 	},
+	// 	{
+	// 		Label: []*dto.LabelPair{
+	// 			{Name: proto.String("id"), Value: proto.String("2")},
+	// 		},
+	// 		Value: proto.Float64(3),
+	// 	},
+	// 	{
+	// 		Label: []*dto.LabelPair{
+	// 			{Name: proto.String("id"), Value: proto.String("3")},
+	// 		},
+	// 		Value: proto.Float64(5),
+	// 	},
+	// }
+
+	histogram.ObserveWithExemplar(1, Labels{"id": "1"})
+	histogram.ObserveWithExemplar(3, Labels{"id": "1"})
+	histogram.ObserveWithExemplar(5, Labels{"id": "1"})
+
+	if len(histogram.nativeExemplars.exemplars) != 3 {
+		t.Errorf("the count of exemplars is not 3")
+	}
+
+	expectedValues := map[float64]struct{}{
+		1: {},
+		3: {},
+		5: {},
+	}
+
+	for _, e := range histogram.nativeExemplars.exemplars {
+		if _, ok := expectedValues[e.GetValue()]; !ok {
+			t.Errorf("the value is not in expected value")
+		}
+	}
+
+	histogram.ObserveWithExemplar(4, Labels{"id": "1"})
+
+	if len(histogram.nativeExemplars.exemplars) != 3 {
+		t.Errorf("the count of exemplars is not 3")
+	}
+
+	expectedValues = map[float64]struct{}{
+		1: {},
+		3: {},
+		4: {},
+	}
+
+	for _, e := range histogram.nativeExemplars.exemplars {
+		if _, ok := expectedValues[e.GetValue()]; !ok {
+			t.Errorf("the value is not in expected value")
+		}
+	}
+
+	time.Sleep(10 * time.Second)
+	histogram.ObserveWithExemplar(6, Labels{"id": "1"})
+
+	if len(histogram.nativeExemplars.exemplars) != 3 {
+		t.Errorf("the count of exemplars is not 3")
+	}
+
+	expectedValues = map[float64]struct{}{
+		6: {},
+		3: {},
+		4: {},
+	}
+	for _, e := range histogram.nativeExemplars.exemplars {
+		if _, ok := expectedValues[e.GetValue()]; !ok {
+			t.Errorf("the value is not in expected value")
+		}
+	}
+}

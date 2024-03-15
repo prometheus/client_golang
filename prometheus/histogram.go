@@ -472,6 +472,8 @@ type HistogramOpts struct {
 	NativeHistogramMaxBucketNumber  uint32
 	NativeHistogramMinResetDuration time.Duration
 	NativeHistogramMaxZeroThreshold float64
+	NativeHistogramMaxExemplarCount uint32
+	NativeHistogramExemplarTTL      time.Duration
 
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
@@ -556,6 +558,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 			h.nativeHistogramZeroThreshold = DefNativeHistogramZeroThreshold
 		} // Leave h.nativeHistogramZeroThreshold at 0 otherwise.
 		h.nativeHistogramSchema = pickSchema(opts.NativeHistogramBucketFactor)
+		h.nativeExemplars = newNativeExemplars(opts.NativeHistogramExemplarTTL, opts.NativeHistogramMaxExemplarCount)
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -732,6 +735,8 @@ type histogram struct {
 
 	// afterFunc is for testing purposes, by default it's time.AfterFunc.
 	afterFunc func(time.Duration, func()) *time.Timer
+
+	nativeExemplars nativeExemplars
 }
 
 func (h *histogram) Desc() *Desc {
@@ -821,6 +826,8 @@ func (h *histogram) Write(out *dto.Metric) error {
 				Length: proto.Uint32(0),
 			}}
 		}
+
+		his.Exemplars = append(his.Exemplars, h.nativeExemplars.exemplars...)
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
@@ -1102,6 +1109,10 @@ func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 		panic(err)
 	}
 	h.exemplars[bucket].Store(e)
+	doSparse := h.nativeHistogramSchema > math.MinInt32 && !math.IsNaN(v)
+	if doSparse {
+		h.nativeExemplars.addExemplar(e)
+	}
 }
 
 // HistogramVec is a Collector that bundles a set of Histograms that all share the
@@ -1574,4 +1585,59 @@ func addAndResetCounts(hot, cold *histogramCounts) {
 	}
 	atomic.AddUint64(&hot.nativeHistogramZeroBucket, atomic.LoadUint64(&cold.nativeHistogramZeroBucket))
 	atomic.StoreUint64(&cold.nativeHistogramZeroBucket, 0)
+}
+
+type nativeExemplars struct {
+	nativeHistogramExemplarTTL      time.Duration
+	nativeHistogramMaxExemplarCount uint32
+
+	exemplars []*dto.Exemplar
+
+	lock sync.Mutex
+}
+
+func newNativeExemplars(ttl time.Duration, count uint32) nativeExemplars {
+	return nativeExemplars{
+		nativeHistogramExemplarTTL:      ttl,
+		nativeHistogramMaxExemplarCount: count,
+		exemplars:                       make([]*dto.Exemplar, 0),
+		lock:                            sync.Mutex{},
+	}
+}
+
+func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	elogarithm := math.Log(e.GetValue())
+	if len(n.exemplars) == int(n.nativeHistogramMaxExemplarCount) {
+		// check if oldestIndex is beyond TTL,
+		// if so, find the oldest exemplar, and nearest exemplar
+		oldestTimestamp := time.Now()
+		oldestIndex := -1
+		nearestValue := -1.0
+		nearestIndex := -1
+
+		for i, exemplar := range n.exemplars {
+			if exemplar.Timestamp.AsTime().Before(oldestTimestamp) {
+				oldestTimestamp = exemplar.Timestamp.AsTime()
+				oldestIndex = i
+			}
+			logarithm := math.Log(exemplar.GetValue())
+			if nearestValue == -1 || math.Abs(elogarithm-logarithm) < nearestValue {
+				fmt.Printf("gap: %f", math.Abs(elogarithm-logarithm))
+				nearestValue = math.Abs(elogarithm - logarithm)
+				nearestIndex = i
+			}
+		}
+
+		if oldestIndex != -1 && time.Since(oldestTimestamp) > n.nativeHistogramExemplarTTL {
+			n.exemplars[oldestIndex] = e
+		} else {
+			n.exemplars[nearestIndex] = e
+		}
+		return
+	}
+
+	n.exemplars = append(n.exemplars, e)
 }
