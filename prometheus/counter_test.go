@@ -25,6 +25,51 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+func TestCounterAddExcess(t *testing.T) {
+	now := time.Now()
+	counter := NewCounter(CounterOpts{
+		Name:        "test",
+		Help:        "test help",
+		ConstLabels: Labels{"a": "1", "b": "2"},
+		now:         func() time.Time { return now },
+	}).(*counter)
+
+	counter.Add(1<<64 - 1)
+	if expected, got := uint64(1<<64-1), counter.valInt; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	// add 1 to value 1<<64-1 will cause an overflow, and then fail the test
+	// the Inc is ditto
+	counter.Add(1)
+	if expected, got := uint64(0), counter.valInt; expected == got {
+		t.Errorf("oops! overflow")
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	expected := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: proto.String("a"), Value: proto.String("1")},
+			{Name: proto.String("b"), Value: proto.String("2")},
+		},
+		Counter: &dto.Counter{
+			Value:            proto.Float64(1 << 64),
+			CreatedTimestamp: timestamppb.New(now),
+		},
+	}
+	if !proto.Equal(expected, m) {
+		t.Errorf("failed because the internal overflow")
+	}
+
+	// verify the overflow case
+	expected.Counter.Value = proto.Float64(0)
+	if proto.Equal(expected, m) {
+		t.Errorf("verify the overflow case")
+	}
+}
+
 func TestCounterAdd(t *testing.T) {
 	now := time.Now()
 
