@@ -35,12 +35,10 @@ func TestCounterAddExcess(t *testing.T) {
 	}).(*counter)
 
 	counter.Add(1<<64 - 1)
-	if expected, got := uint64(1<<64-1), counter.valInt; expected != got {
-		t.Errorf("Expected %d, got %d.", expected, got)
+	if expected, got := float64(1<<64-1), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
 	}
 
-	// add 1 to value 1<<64-1 will cause an overflow, and then fail the test
-	// the Inc is ditto
 	counter.Add(1)
 	if expected, got := uint64(0), counter.valInt; expected == got {
 		t.Errorf("oops! overflow")
