@@ -15,4 +15,6 @@ if [[ ! $current_version =~ $latest_version ]]; then
   echo "Updating go_versions.txt and generating Go Collector test files"
   sed -i "1i $latest_version" go_versions.txt
   make generate-go-collector-test-files
+else
+  echo "No new Go version detected. Current Go version is: $current_version"
 fi
