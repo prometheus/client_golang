@@ -117,3 +117,7 @@ func withSchedulerMetrics() []string {
 		"go_threads",
 	}
 }
+
+func withDebugMetrics() []string {
+	return []string{}
+}
