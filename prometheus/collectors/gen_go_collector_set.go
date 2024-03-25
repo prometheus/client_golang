@@ -36,8 +36,8 @@ import (
 )
 
 type metricGroup struct {
-	Name   string
-	Regex  *regexp.Regexp
+	Name    string
+	Regex   *regexp.Regexp
 	Metrics []string
 }
 
@@ -84,10 +84,10 @@ func main() {
 	// Generate code.
 	var buf bytes.Buffer
 	err = testFile.Execute(&buf, struct {
-		GoVersion    goVersion
+		GoVersion goVersion
 		Groups    []metricGroup
 	}{
-		GoVersion:    v,
+		GoVersion: v,
 		Groups:    groupedMetrics,
 	})
 	if err != nil {
@@ -135,8 +135,8 @@ func groupMetrics(metricsList []string) []metricGroup {
 			}
 		}
 
-		// Scheduler metrics is `shed` regex plus base metrics
-		// List of base metrics are taken from here: https://github.com/prometheus/client_golang/blob/main/prometheus/go_collector.go#L208
+		// Scheduler metrics is `sched` regex plus base metrics
+		// List of base metrics are taken from here: https://github.com/prometheus/client_golang/blob/26e3055e5133a9d64e8e5a07a7cf026875d5f55d/prometheus/go_collector.go#L208
 		if group.Name == "withSchedulerMetrics" {
 			baseMatrices := []string{
 				"go_gc_duration_seconds",
@@ -150,8 +150,8 @@ func groupMetrics(metricsList []string) []metricGroup {
 		sort.Strings(matchedMetrics)
 		if len(matchedMetrics) > 0 {
 			groupedMetrics = append(groupedMetrics, metricGroup{
-				Name: group.Name, 
-				Regex: group.Regex,
+				Name:    group.Name,
+				Regex:   group.Regex,
 				Metrics: matchedMetrics,
 			})
 		}

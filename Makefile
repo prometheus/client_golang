@@ -21,7 +21,7 @@ test: deps common-test
 test-short: deps common-test-short
 
 .PHONY: generate-go-collector-test-files
-file := go_versions.txt
+file := supported_go_versions.txt
 # take top 3 versions
 VERSIONS := $(shell cat ${file} | head -n 3)
 generate-go-collector-test-files:
