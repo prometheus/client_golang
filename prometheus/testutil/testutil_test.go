@@ -26,12 +26,12 @@ import (
 type untypedCollector struct{}
 
 func (u untypedCollector) Describe(c chan<- *prometheus.Desc) {
-	c <- prometheus.NewDesc("name", "help", nil, nil)
+	c <- prometheus.NewDesc("name", "help", "", nil, nil)
 }
 
 func (u untypedCollector) Collect(c chan<- prometheus.Metric) {
 	c <- prometheus.MustNewConstMetric(
-		prometheus.NewDesc("name", "help", nil, nil),
+		prometheus.NewDesc("name", "help", "", nil, nil),
 		prometheus.UntypedValue,
 		2001,
 	)

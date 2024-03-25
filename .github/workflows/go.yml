@@ -18,7 +18,7 @@ jobs:
 
     strategy:
       matrix:
-        go_version: ["1.20", "1.21", "1.22"]
+        go_version: ["1.21", "1.22"]
 
     steps:
       - name: Checkout code
@@ -42,5 +42,5 @@ jobs:
           CI: true
 
       - name: Run style and unused
-        if: ${{ matrix.go_version == '1.20' }}
+        if: ${{ matrix.go_version == '1.21' }}
         run: make style unused

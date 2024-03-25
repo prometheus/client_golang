@@ -21,6 +21,7 @@ func TestNewDescInvalidLabelValues(t *testing.T) {
 	desc := NewDesc(
 		"sample_label",
 		"sample label",
+		"",
 		nil,
 		Labels{"a": "\xFF"},
 	)

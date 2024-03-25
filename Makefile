@@ -21,7 +21,7 @@ test: deps common-test
 test-short: deps common-test-short
 
 .PHONY: generate-go-collector-test-files
-VERSIONS := 1.20 1.21 1.22
+VERSIONS := 1.21 1.22
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
 		docker run \

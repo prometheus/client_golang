@@ -1309,7 +1309,7 @@ func TestCheckMetricConsistency(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	timestamp := time.Now()
 
-	desc := prometheus.NewDesc("metric_a", "", nil, nil)
+	desc := prometheus.NewDesc("metric_a", "", "", nil, nil)
 	metric := prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1)
 
 	validCollector := &customCollector{
