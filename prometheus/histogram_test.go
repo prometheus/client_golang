@@ -1317,7 +1317,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		5: {},
 	}
 
-	for e := range histogram.nativeExemplars.exemplars {
+	for _, e := range histogram.nativeExemplars.exemplars {
 		if _, ok := expectedValues[e.GetValue()]; !ok {
 			t.Errorf("the value is not in expected value")
 		}
@@ -1331,11 +1331,11 @@ func TestNativeHistogramExemplar(t *testing.T) {
 
 	expectedValues = map[float64]struct{}{
 		1: {},
+		3: {},
 		4: {},
-		5: {},
 	}
 
-	for e := range histogram.nativeExemplars.exemplars {
+	for _, e := range histogram.nativeExemplars.exemplars {
 		if _, ok := expectedValues[e.GetValue()]; !ok {
 			t.Errorf("the value is not in expected value")
 		}
@@ -1350,10 +1350,10 @@ func TestNativeHistogramExemplar(t *testing.T) {
 
 	expectedValues = map[float64]struct{}{
 		6: {},
+		3: {},
 		4: {},
-		5: {},
 	}
-	for e := range histogram.nativeExemplars.exemplars {
+	for _, e := range histogram.nativeExemplars.exemplars {
 		if _, ok := expectedValues[e.GetValue()]; !ok {
 			t.Errorf("the value is not in expected value")
 		}

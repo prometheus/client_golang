@@ -541,8 +541,6 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		nativeHistogramMaxBuckets:       opts.NativeHistogramMaxBucketNumber,
 		nativeHistogramMaxZeroThreshold: opts.NativeHistogramMaxZeroThreshold,
 		nativeHistogramMinResetDuration: opts.NativeHistogramMinResetDuration,
-		nativeHistogramMaxExemplarCount: opts.NativeHistogramMaxExemplarCount,
-		nativeHistogramExemplarTTL:      opts.NativeHistogramExemplarTTL,
 		lastResetTime:                   opts.now(),
 		now:                             opts.now,
 		afterFunc:                       opts.afterFunc,
@@ -738,9 +736,7 @@ type histogram struct {
 	// afterFunc is for testing purposes, by default it's time.AfterFunc.
 	afterFunc func(time.Duration, func()) *time.Timer
 
-	nativeExemplars                 *nativeExemplars
-	nativeHistogramMaxExemplarCount uint32
-	nativeHistogramExemplarTTL      time.Duration
+	nativeExemplars nativeExemplars
 }
 
 func (h *histogram) Desc() *Desc {
@@ -831,10 +827,7 @@ func (h *histogram) Write(out *dto.Metric) error {
 			}}
 		}
 
-		his.Exemplars = make([]*dto.Exemplar, 0)
-		for e := range h.nativeExemplars.exemplars {
-			his.Exemplars = append(his.Exemplars, e)
-		}
+		his.Exemplars = append(his.Exemplars, h.nativeExemplars.exemplars...)
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
@@ -1595,150 +1588,56 @@ func addAndResetCounts(hot, cold *histogramCounts) {
 }
 
 type nativeExemplars struct {
-	exemplars                       map[*dto.Exemplar]*totalItem
 	nativeHistogramExemplarTTL      time.Duration
 	nativeHistogramMaxExemplarCount uint32
-	timeList                        *timeItem
-	logarithmList                   *logarithmItem
+
+	exemplars []*dto.Exemplar
+
+	lock sync.Mutex
 }
 
-type totalItem struct {
-	timeItem      *timeItem
-	logarithmItem *logarithmItem
-}
-
-func newNativeExemplars(ttl time.Duration, count uint32) *nativeExemplars {
-	return &nativeExemplars{
+func newNativeExemplars(ttl time.Duration, count uint32) nativeExemplars {
+	return nativeExemplars{
 		nativeHistogramExemplarTTL:      ttl,
 		nativeHistogramMaxExemplarCount: count,
-		exemplars:                       make(map[*dto.Exemplar]*totalItem),
-		timeList:                        &timeItem{},
-		logarithmList:                   &logarithmItem{},
+		exemplars:                       make([]*dto.Exemplar, 0),
+		lock:                            sync.Mutex{},
 	}
 }
 
 func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
-	var de *dto.Exemplar
-	if len(n.exemplars) >= int(n.nativeHistogramMaxExemplarCount) {
-		de = n.timeList.pickExemplar(e)
-		if time.Since(de.Timestamp.AsTime()) < n.nativeHistogramExemplarTTL {
-			de = n.logarithmList.pickExemplar(e)
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	elogarithm := math.Log(e.GetValue())
+	if len(n.exemplars) == int(n.nativeHistogramMaxExemplarCount) {
+		// check if oldestIndex is beyond TTL,
+		// if so, find the oldest exemplar, and nearest exemplar
+		oldestTimestamp := time.Now()
+		oldestIndex := -1
+		nearestValue := -1.0
+		nearestIndex := -1
+
+		for i, exemplar := range n.exemplars {
+			if exemplar.Timestamp.AsTime().Before(oldestTimestamp) {
+				oldestTimestamp = exemplar.Timestamp.AsTime()
+				oldestIndex = i
+			}
+			logarithm := math.Log(exemplar.GetValue())
+			if nearestValue == -1 || math.Abs(elogarithm-logarithm) < nearestValue {
+				fmt.Printf("gap: %f", math.Abs(elogarithm-logarithm))
+				nearestValue = math.Abs(elogarithm - logarithm)
+				nearestIndex = i
+			}
 		}
-	}
 
-	if de != nil {
-		n.timeList.removeExemplar(n.exemplars[de].timeItem)
-		n.logarithmList.removeExemplar(n.exemplars[de].logarithmItem)
-
-		delete(n.exemplars, de)
-	}
-
-	t := &totalItem{}
-	t.timeItem = n.timeList.addExemplar(e)
-	t.logarithmItem = n.logarithmList.addExemplar(e)
-	n.exemplars[e] = t
-}
-
-type timeItem struct {
-	e         *dto.Exemplar
-	timestamp time.Time
-	next      *timeItem
-	prev      *timeItem
-}
-
-func (h *timeItem) addExemplar(e *dto.Exemplar) (t *timeItem) {
-	t = &timeItem{
-		e:         e,
-		timestamp: e.GetTimestamp().AsTime(),
-	}
-
-	// if the list is empty
-	i := h.next
-	prev := h
-	for i != nil {
-		if i.timestamp.After(t.timestamp) {
-			break
+		if oldestIndex != -1 && time.Since(oldestTimestamp) > n.nativeHistogramExemplarTTL {
+			n.exemplars[oldestIndex] = e
+		} else {
+			n.exemplars[nearestIndex] = e
 		}
-		prev = i
-		i = i.next
+		return
 	}
 
-	if i != nil {
-		t.next = i
-		i.prev = t
-	}
-	t.prev = prev
-	prev.next = t
-	return t
-}
-
-func (h *timeItem) pickExemplar(e *dto.Exemplar) (p *dto.Exemplar) {
-	return h.next.e
-}
-
-func (h *timeItem) removeExemplar(d *timeItem) {
-	prev := d.prev
-	next := d.next
-	prev.next = next
-	if next != nil {
-		next.prev = prev
-	}
-}
-
-type logarithmItem struct {
-	e         *dto.Exemplar
-	logarithm float64
-	next      *logarithmItem
-	prev      *logarithmItem
-}
-
-func (h *logarithmItem) addExemplar(e *dto.Exemplar) (l *logarithmItem) {
-	l = &logarithmItem{
-		e:         e,
-		logarithm: math.Log2(e.GetValue()),
-	}
-
-	// if the list is empty
-	i := h.next
-	prev := h
-	for i != nil {
-		if l.logarithm < i.logarithm {
-			break
-		}
-		prev = i
-		i = i.next
-	}
-
-	if i != nil {
-		l.next = i
-		i.prev = l
-	}
-	l.prev = prev
-	prev.next = l
-	return l
-}
-
-func (h *logarithmItem) pickExemplar(e *dto.Exemplar) (p *dto.Exemplar) {
-	var minDiff float64 = -1
-	logarithm := math.Log(e.GetValue())
-	i := h.next
-	for i != nil {
-		diff := math.Abs(i.logarithm - logarithm)
-		if minDiff < 0 || diff < minDiff {
-			p = i.e
-			minDiff = diff
-		}
-		i = i.next
-	}
-
-	return p
-}
-
-func (h *logarithmItem) removeExemplar(d *logarithmItem) {
-	prev := d.prev
-	next := d.next
-	prev.next = next
-	if next != nil {
-		next.prev = prev
-	}
+	n.exemplars = append(n.exemplars, e)
 }
