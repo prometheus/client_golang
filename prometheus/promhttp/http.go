@@ -160,7 +160,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 
 		var contentType expfmt.Format
-		if opts.EnableOpenMetrics {
+		if opts.EnableOpenMetrics || opts.OpenMetricsOptions.Enable {
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
@@ -180,7 +180,12 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			w = gz
 		}
 
-		enc := expfmt.NewEncoder(w, contentType)
+		var enc expfmt.Encoder
+		if opts.OpenMetricsOptions.EnableCreatedTimestamps {
+			enc = expfmt.NewEncoder(w, contentType, expfmt.WithCreatedLines())
+		} else {
+			enc = expfmt.NewEncoder(w, contentType)
+		}
 
 		// handleError handles the error according to opts.ErrorHandling
 		// and returns true if we have to abort after the handling.
@@ -361,16 +366,11 @@ type HandlerOpts struct {
 	// away). Until the implementation is improved, it is recommended to
 	// implement a separate timeout in potentially slow Collectors.
 	Timeout time.Duration
-	// If true, the experimental OpenMetrics encoding is added to the
-	// possible options during content negotiation. Note that Prometheus
-	// 2.5.0+ will negotiate OpenMetrics as first priority. OpenMetrics is
-	// the only way to transmit exemplars. However, the move to OpenMetrics
-	// is not completely transparent. Most notably, the values of "quantile"
-	// labels of Summaries and "le" labels of Histograms are formatted with
-	// a trailing ".0" if they would otherwise look like integer numbers
-	// (which changes the identity of the resulting series on the Prometheus
-	// server).
+	// Deprecated: Use OpenMetricsOptions.Enable instead.
 	EnableOpenMetrics bool
+	// OpenMetricsOptions holds settings for the experimental OpenMetrics encoding.
+	// It can be used to enable OpenMetrics encoding and for setting extra options.
+	OpenMetricsOptions OpenMetricsOptions
 	// ProcessStartTime allows setting process start timevalue that will be exposed
 	// with "Process-Start-Time-Unix" response header along with the metrics
 	// payload. This allow callers to have efficient transformations to cumulative
@@ -379,6 +379,43 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
+}
+
+type OpenMetricsOptions struct {
+	// Enable specifies if the experimental OpenMetrics encoding is added to the
+	// possible options during content negotiation.
+	//
+	// Note that Prometheus 2.5.0+ might negotiate OpenMetrics Text format
+	// as first priority unless user uses custom scrape protocol prioritization or
+	// histograms feature is enabled (then Prometheus proto format is prioritized,
+	// which client_golang supports).
+	//
+	// Keep in mind that the move to OpenMetrics is not completely transparent. Most notably,
+	// the values of "quantile" labels of Summaries and "le" labels of Histograms are
+	// formatted with a trailing ".0" if they would otherwise look like integer numbers
+	// (which changes the identity of the resulting series on the Prometheus
+	// server).
+	//
+	// See other options in OpenMetricsOptions to learn how to enable some special
+	// features e.g. potentially dangerous created timestamp series.
+	Enable bool
+	// EnableCreatedTimestamps specifies if this handler should add, extra, synthetic
+	// Created Timestamps for counters, histograms and summaries, which for the current
+	// version of OpenMetrics are defined as extra series with the same name and "_created"
+	// suffix. See also the OpenMetrics specification for more details
+	// https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#counter-1
+	//
+	// Created timestamps are used to improve the accuracy of reset detection,
+	// but the way it's designed in OpenMetrics 1.0 it also dramatically increases cardinality
+	// if the scraper does not handle those metrics correctly (converting to created timestamp
+	// instead of leaving those series as-is). New OpenMetrics versions might improve
+	// this situation.
+	//
+	// Prometheus introduced the feature flag 'created-timestamp-zero-ingestion'
+	// in version 2.50.0, but only for the Prometheus protobuf format. Starting in
+	// future Prometheus version, the feature flag will be extended to the OpenMetrics
+	// text format, thus safe to be enabled to improve accuracy of counters in Prometheus.
+	EnableCreatedTimestamps bool
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
