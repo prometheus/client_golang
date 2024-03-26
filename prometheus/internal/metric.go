@@ -14,7 +14,9 @@
 package internal
 
 import (
+	"regexp"
 	"sort"
+	"strconv"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -46,6 +48,21 @@ func (s MetricSorter) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+func (s MetricSorter) compare(si, sj string) bool {
+	// When the number of devices exceeds two digits, a sorting error occurs.
+	// dealing with sorting problems, especially CPU sorting errors
+	re := regexp.MustCompile(`\d+$`)
+	if re.Match([]byte(si)) && re.Match([]byte(sj)) {
+		siCode := re.FindStringSubmatch(si)[0]
+		sjCode := re.FindStringSubmatch(sj)[0]
+		siValue, _ := strconv.Atoi(siCode)
+		sjValue, _ := strconv.Atoi(sjCode)
+		return siValue < sjValue
+	}
+	// Non-numeric identification device, use original sorting
+	return si < sj
+}
+
 func (s MetricSorter) Less(i, j int) bool {
 	if len(s[i].Label) != len(s[j].Label) {
 		// This should not happen. The metrics are
@@ -60,7 +77,7 @@ func (s MetricSorter) Less(i, j int) bool {
 		vi := lp.GetValue()
 		vj := s[j].Label[n].GetValue()
 		if vi != vj {
-			return vi < vj
+			return s.compare(vi, vj)
 		}
 	}
 
