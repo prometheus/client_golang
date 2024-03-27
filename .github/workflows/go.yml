@@ -7,6 +7,10 @@ on:
       - main
       - "release-*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
 # Minimal permissions to be inherited by any job that don't declare it's own permissions
 permissions:
   contents: read
