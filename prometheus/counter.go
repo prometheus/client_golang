@@ -128,7 +128,7 @@ type counter struct {
 //
 // note that if a part of addend is added on base but the left causes a rounding error,
 // we don't respect this case
-func addWithRoundingErrorChecking(base float64, addend float64) (float64, bool) {
+func addWithRoundingErrorChecking(base, addend float64) (float64, bool) {
 	if addend == 0 {
 		return base, false
 	}
