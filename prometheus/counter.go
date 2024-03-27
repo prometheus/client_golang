@@ -106,7 +106,11 @@ type counter struct {
 	// in the struct to guarantee alignment for atomic operations.
 	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
 	valBits uint64
-	valInt  uint64
+
+	// change is used to record the numbers which will lose if it adds with float64 directly,
+	// due to the rounding error of IEEE754 representation.
+	// we aggregate the values until it's large enough to conquer the rounding error
+	change uint64
 
 	selfCollector
 	desc *Desc
@@ -119,6 +123,20 @@ type counter struct {
 	now func() time.Time
 }
 
+// addWithRoundingErrorChecking adds the base and addend,
+// and returns the result and checks whether the addend is too small that causes a rounding error.
+//
+// note that if a part of addend is added on base but the left causes a rounding error,
+// we don't respect this case
+func addWithRoundingErrorChecking(base float64, addend float64) (float64, bool) {
+	if addend == 0 {
+		return base, false
+	}
+
+	sum := base + addend
+	return sum, sum == base
+}
+
 func (c *counter) Desc() *Desc {
 	return c.desc
 }
@@ -128,15 +146,42 @@ func (c *counter) Add(v float64) {
 		panic(errors.New("counter cannot decrease in value"))
 	}
 
-	ival := uint64(v)
-	if float64(ival) == v {
-		atomic.AddUint64(&c.valInt, ival)
-		return
-	}
-
 	for {
 		oldBits := atomic.LoadUint64(&c.valBits)
-		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
+
+		u := uint64(v)
+
+		// not the full value of v will be added into the float as a part of them might have rounding
+		// error as well, we don't respect this case(we don't have a proper way to handle it).
+		newF, hasRoundingErr := addWithRoundingErrorChecking(math.Float64frombits(oldBits), v)
+		if hasRoundingErr && v == float64(u) {
+			// we believe the float64(uint64(v)) is equal to v if it's an integer
+			// because it causes a rounding error,
+			// it doesn't equal only when v is a quite large number or it's a float
+
+			oldChange := atomic.LoadUint64(&c.change)
+			newF, isChangeSmall := addWithRoundingErrorChecking(math.Float64frombits(oldBits), float64(oldChange+u))
+
+			if isChangeSmall {
+				if atomic.CompareAndSwapUint64(&c.change, oldChange, oldChange+u) {
+					return
+				}
+				continue
+			}
+			newBits := math.Float64bits(newF)
+			if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
+				// todo: here we might lose some small values, but it's acceptable
+				// otherwise we have no way to avoid this using atomic
+				// mutex might be too heavy for our case here
+				atomic.StoreUint64(&c.change, 0)
+				return
+			}
+			// fail to update the change as another go routine changes it
+			continue
+		}
+
+		// we have no idea about the precision losing for float number
+		newBits := math.Float64bits(newF)
 		if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
 			return
 		}
@@ -149,12 +194,17 @@ func (c *counter) AddWithExemplar(v float64, e Labels) {
 }
 
 func (c *counter) Inc() {
-	atomic.AddUint64(&c.valInt, 1)
+	// to keep the efficiency, we still increase the change,
+	// and ignore the rare overflow case as only Inc and float with rounding error will use it
+	atomic.AddUint64(&c.change, 1)
 }
 
 func (c *counter) get() float64 {
 	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
-	ival := atomic.LoadUint64(&c.valInt)
+	ival := atomic.LoadUint64(&c.change)
+	// it's tolerated to lose precision for float during collection
+	// as this is unavoidable.
+	// what the client could do is try to keep those data for the future when losing precision
 	return fval + float64(ival)
 }
 

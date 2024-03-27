@@ -38,22 +38,22 @@ func TestCounterAdd(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 	counter.Add(42)
-	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 42.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(43), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
 	counter.Add(24.42)
-	if expected, got := 24.42, math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 42+24.42, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(43), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -157,7 +157,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -165,7 +165,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -173,7 +173,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(2), counter.valInt; expected != got {
+	if expected, got := uint64(2), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -207,7 +207,7 @@ func TestCounterAddLarge(t *testing.T) {
 	if expected, got := large, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -240,7 +240,7 @@ func TestCounterAddSmall(t *testing.T) {
 	if expected, got := small, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -384,5 +384,78 @@ func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricTyp
 		if !gotTs.Equal(ct) {
 			t.Errorf("expected created timestamp for %s with label value %q: %s, got %s", typ, val, ct, gotTs)
 		}
+	}
+}
+
+func Test_hasRoundingError(t *testing.T) {
+	// for reviewing, could use this online tool to convert decimal
+	// https://baseconvert.com/ieee-754-floating-point
+	tests := []struct {
+		name              string
+		base              float64
+		delta             float64
+		wantRoundingError bool
+		wantNumber        float64
+	}{
+		{
+			name:              "no rounding error",
+			base:              0,
+			delta:             1,
+			wantRoundingError: false,
+			wantNumber:        1,
+		},
+		{
+			name:              "no rounding error",
+			base:              1<<53 - 1,
+			delta:             1,
+			wantRoundingError: false,
+			wantNumber:        1 << 53,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 53,
+			delta:             1,
+			wantRoundingError: true,
+			wantNumber:        1 << 53,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 54,
+			delta:             1,
+			wantRoundingError: true,
+			wantNumber:        1 << 54,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 54,
+			delta:             3,
+			wantRoundingError: false,
+			wantNumber:        18014398509481988,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 64,
+			delta:             1000,
+			wantRoundingError: true,
+			wantNumber:        1 << 64,
+		},
+		{
+			name:              "no rounding error",
+			base:              1 << 64,
+			delta:             10000,
+			wantRoundingError: false,
+			wantNumber:        18446744073709559808,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expectNumber, hasRoundingErr := addWithRoundingErrorChecking(tt.base, tt.delta)
+			if expectNumber != tt.wantNumber {
+				t.Errorf("addWithRoundingErrorChecking() = %f, wantRoundingError %f", expectNumber, tt.wantNumber)
+			}
+			if hasRoundingErr != tt.wantRoundingError {
+				t.Errorf("addWithRoundingErrorChecking() = %v, wantRoundingError %v", hasRoundingErr, tt.wantRoundingError)
+			}
+		})
 	}
 }
