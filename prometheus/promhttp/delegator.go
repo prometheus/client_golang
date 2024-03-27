@@ -76,6 +76,10 @@ func (r *responseWriterDelegator) Write(b []byte) (int, error) {
 	return n, err
 }
 
+func (r *responseWriterDelegator) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
 type (
 	closeNotifierDelegator struct{ *responseWriterDelegator }
 	flusherDelegator       struct{ *responseWriterDelegator }
