@@ -1,0 +1,38 @@
+---
+name: Weekly Go Version Check and Metric Generation
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"  # Every Sunday at midnight UTC
+
+  workflow_dispatch:
+
+jobs:
+  update-go-versions:
+    name: Update Go Versions and Generate Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Execute bash script
+        run: bash check-go-version.bash
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "Update Go Collector metrics for new Go versions"
+          git push
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update Go Collector metrics for new Go versions"
+          title: "Update Go Collector metrics for new Go versions"
+          body: |
+            This pull request updates the list of supported Go versions and generates new Go Collector metrics
+          branch: "main"
+          base: "main"
