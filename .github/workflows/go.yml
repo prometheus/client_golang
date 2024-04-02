@@ -12,13 +12,29 @@ permissions:
   contents: read
 
 jobs:
+  supportedVersions:
+    name: Fetch supported Go versions
+    runs-on: ubuntu-latest
+    outputs:
+        supported_versions: ${{ steps.matrix.outputs.supported_versions }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Read supported_go_versions.txt
+        id: matrix
+        run: |
+            versions=$(cat supported_go_versions.txt)
+            matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
+            echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
+  
   test:
     name: Tests
     runs-on: ubuntu-latest
+    needs: supportedVersions
 
     strategy:
       matrix:
-        go_version: ["1.20", "1.21", "1.22"]
+        go_version: ${{ fromJSON(needs.supportedVersions.outputs.supported_versions) }}
 
     steps:
       - name: Checkout code
