@@ -16,10 +16,10 @@
 package main
 
 import (
-	"github.com/prometheus/client_golang/examples/middleware/httpmiddleware"
 	"log"
 	"net/http"
 
+	"github.com/prometheus/client_golang/examples/middleware/httpmiddleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
