@@ -4,9 +4,7 @@ name: Generate Metric files for new Go version
 on:
   workflow_dispatch:
   schedule:
-    # Runs weekly during month of February and August
-    # Reference: https://go.dev/wiki/Go-Release-Cycle
-    - cron: '0 0 * 2,8 1'
+    - cron: '0 0 1 * *'
 
 jobs:
   update-go-versions:
