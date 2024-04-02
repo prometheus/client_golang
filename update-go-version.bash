@@ -19,3 +19,4 @@ if [[ ! $current_version =~ $latest_version ]]; then
 else
   echo "No new Go version detected. Current Go version is: $current_version"
 fi
+
