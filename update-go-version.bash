@@ -10,11 +10,12 @@ current_version=$(cat supported_go_versions.txt | head -n 1)
 latest_version=$(get_latest_versions)
 
 # Check for new version of Go, and generate go collector test files
-# New Go version gets appended at top of supported_go_versions.txt, and only top 3 versions are supported
+# Add new Go version to supported_go_versions.txt, and remove the oldest version
 if [[ ! $current_version =~ $latest_version ]]; then
   echo "New Go version available: $latest_version"
   echo "Updating supported_go_versions.txt and generating Go Collector test files"
   sed -i "1i $latest_version" supported_go_versions.txt
+  sed -i '$d' supported_go_versions.txt
   make generate-go-collector-test-files
 else
   echo "No new Go version detected. Current Go version is: $current_version"
