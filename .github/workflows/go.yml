@@ -23,7 +23,7 @@ jobs:
       - name: Read supported_go_versions.txt
         id: matrix
         run: |
-            versions=$(head -n 3 supported_go_versions.txt)
+            versions=$(cat supported_go_versions.txt)
             matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
             echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
   
