@@ -22,8 +22,7 @@ test-short: deps common-test-short
 
 .PHONY: generate-go-collector-test-files
 file := supported_go_versions.txt
-# take top 3 versions
-VERSIONS := $(shell cat ${file} | head -n 3)
+VERSIONS := $(shell cat ${file})
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
 		docker run \
