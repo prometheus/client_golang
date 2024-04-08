@@ -135,18 +135,6 @@ func groupMetrics(metricsList []string) []metricGroup {
 			}
 		}
 
-		// Scheduler metrics is `sched` regex plus base metrics
-		// List of base metrics are taken from here: https://github.com/prometheus/client_golang/blob/26e3055e5133a9d64e8e5a07a7cf026875d5f55d/prometheus/go_collector.go#L208
-		if group.Name == "withSchedulerMetrics" {
-			baseMatrices := []string{
-				"go_gc_duration_seconds",
-				"go_goroutines",
-				"go_info",
-				"go_memstats_last_gc_time_seconds",
-				"go_threads",
-			}
-			matchedMetrics = append(matchedMetrics, baseMatrices...)
-		}
 		sort.Strings(matchedMetrics)
 		if len(matchedMetrics) > 0 {
 			groupedMetrics = append(groupedMetrics, metricGroup{
@@ -173,9 +161,6 @@ var testFile = template.Must(template.New("testFile").Funcs(map[string]interface
 	"nextVersion": func(version goVersion) string {
 		return (version + goVersion(1)).String()
 	},
-	"needsBaseMetrics": func(groupName string) bool {
-		return groupName == "withAllMetrics" || groupName == "withGCMetrics" || groupName == "withMemoryMetrics"
-	},
 }).Parse(`// Copyright 2022 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -196,19 +181,11 @@ package collectors
 
 {{- range .Groups }}
 func {{ .Name }}() []string {
-	{{- if needsBaseMetrics .Name }}
 	return withBaseMetrics([]string{
 		{{- range $metric := .Metrics }}
 			{{ $metric | printf "%q" }},
 		{{- end }}
 	})
-	{{- else }}
-	return []string{
-		{{- range $metric := .Metrics }}
-			{{ $metric | printf "%q" }},
-		{{- end }}
-	}
-	{{- end }}
 }
 {{ end }}
 `))

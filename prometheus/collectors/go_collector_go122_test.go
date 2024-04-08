@@ -149,11 +149,7 @@ func withMemoryMetrics() []string {
 }
 
 func withSchedulerMetrics() []string {
-	return []string{
-		"go_gc_duration_seconds",
-		"go_goroutines",
-		"go_info",
-		"go_memstats_last_gc_time_seconds",
+	return withBaseMetrics([]string{
 		"go_sched_gomaxprocs_threads",
 		"go_sched_goroutines_goroutines",
 		"go_sched_latencies_seconds",
@@ -161,12 +157,11 @@ func withSchedulerMetrics() []string {
 		"go_sched_pauses_stopping_other_seconds",
 		"go_sched_pauses_total_gc_seconds",
 		"go_sched_pauses_total_other_seconds",
-		"go_threads",
-	}
+	})
 }
 
 func withDebugMetrics() []string {
-	return []string{
+	return withBaseMetrics([]string{
 		"go_godebug_non_default_behavior_execerrdot_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
@@ -192,5 +187,5 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_x509usefallbackroots_events_total",
 		"go_godebug_non_default_behavior_x509usepolicies_events_total",
 		"go_godebug_non_default_behavior_zipinsecurepath_events_total",
-	}
+	})
 }
