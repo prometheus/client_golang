@@ -105,6 +105,11 @@ func TestGoCollectorAllowList(t *testing.T) {
 			rules:    []GoRuntimeMetricsRule{MetricsScheduler},
 			expected: withSchedulerMetrics(),
 		},
+		{
+			name:     "allow debug",
+			rules:    []GoRuntimeMetricsRule{MetricsDebug},
+			expected: withDebugMetrics(),
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
