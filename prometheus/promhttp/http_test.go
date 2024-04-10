@@ -331,3 +331,95 @@ func TestHandlerTimeout(t *testing.T) {
 
 	close(c.Block) // To not leak a goroutine.
 }
+
+func BenchmarkEncoding(b *testing.B) {
+	benchmarks := []struct {
+		name         string
+		encodingType string
+	}{
+		{
+			name:         "test with gzip encoding",
+			encodingType: "gzip",
+		},
+		{
+			name:         "test with zstd encoding",
+			encodingType: "zstd",
+		},
+		{
+			name:         "test with no encoding",
+			encodingType: "identity",
+		},
+	}
+	sizes := []struct {
+		name         string
+		metricCount  int
+		labelCount   int
+		labelLength  int
+		metricLength int
+	}{
+		{
+			name:         "small",
+			metricCount:  50,
+			labelCount:   5,
+			labelLength:  5,
+			metricLength: 5,
+		},
+		{
+			name:         "medium",
+			metricCount:  500,
+			labelCount:   10,
+			labelLength:  5,
+			metricLength: 10,
+		},
+		{
+			name:         "large",
+			metricCount:  5000,
+			labelCount:   10,
+			labelLength:  5,
+			metricLength: 10,
+		},
+		{
+			name:         "extra-large",
+			metricCount:  50000,
+			labelCount:   20,
+			labelLength:  5,
+			metricLength: 10,
+		},
+	}
+
+	for _, size := range sizes {
+		reg := prometheus.NewRegistry()
+		handler := HandlerFor(reg, HandlerOpts{})
+
+		// Generate Metrics
+		// Original source: https://github.com/prometheus-community/avalanche/blob/main/metrics/serve.go
+		labelKeys := make([]string, size.labelCount)
+		for idx := 0; idx < size.labelCount; idx++ {
+			labelKeys[idx] = fmt.Sprintf("label_key_%s_%v", strings.Repeat("k", size.labelLength), idx)
+		}
+		labelValues := make([]string, size.labelCount)
+		for idx := 0; idx < size.labelCount; idx++ {
+			labelValues[idx] = fmt.Sprintf("label_val_%s_%v", strings.Repeat("v", size.labelLength), idx)
+		}
+		metrics := make([]*prometheus.GaugeVec, size.metricCount)
+		for idx := 0; idx < size.metricCount; idx++ {
+			gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+				Name: fmt.Sprintf("avalanche_metric_%s_%v_%v", strings.Repeat("m", size.metricLength), 0, idx),
+				Help: "A tasty metric morsel",
+			}, append([]string{"series_id", "cycle_id"}, labelKeys...))
+			reg.MustRegister(gauge)
+			metrics[idx] = gauge
+		}
+
+		for _, benchmark := range benchmarks {
+			b.Run(benchmark.name+"_"+size.name, func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					writer := httptest.NewRecorder()
+					request, _ := http.NewRequest("GET", "/", nil)
+					request.Header.Add("Accept-Encoding", benchmark.encodingType)
+					handler.ServeHTTP(writer, request)
+				}
+			})
+		}
+	}
+}

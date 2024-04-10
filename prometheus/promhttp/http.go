@@ -38,12 +38,13 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/common/expfmt"
 
+	"github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,6 +54,8 @@ const (
 	acceptEncodingHeader   = "Accept-Encoding"
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
+
+var defaultEncodingOffers = []string{"gzip", "zstd"}
 
 var gzipPool = sync.Pool{
 	New: func() interface{} {
@@ -169,15 +172,42 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		header.Set(contentTypeHeader, string(contentType))
 
 		w := io.Writer(rsp)
-		if !opts.DisableCompression && gzipAccepted(req.Header) {
-			header.Set(contentEncodingHeader, "gzip")
-			gz := gzipPool.Get().(*gzip.Writer)
-			defer gzipPool.Put(gz)
+		if !opts.DisableCompression {
+			offers := defaultEncodingOffers
+			if len(opts.EncodingOffers) > 0 {
+				offers = opts.EncodingOffers
+			}
+			// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
+			compression := httputil.NegotiateContentEncoding(req, offers)
+			switch compression {
+			case "zstd":
+				header.Set(contentEncodingHeader, "zstd")
+				// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
+				z, err := zstd.NewWriter(rsp, zstd.WithEncoderLevel(zstd.SpeedFastest))
+				if err != nil {
+					return
+				}
 
-			gz.Reset(w)
-			defer gz.Close()
+				z.Reset(w)
+				defer z.Close()
 
-			w = gz
+				w = z
+			case "gzip":
+				header.Set(contentEncodingHeader, "gzip")
+				gz := gzipPool.Get().(*gzip.Writer)
+				defer gzipPool.Put(gz)
+
+				gz.Reset(w)
+				defer gz.Close()
+
+				w = gz
+			case "identity":
+				// This means the content is not encoded.
+			default:
+				// The content encoding was not implemented yet.
+				return
+			}
+
 		}
 
 		enc := expfmt.NewEncoder(w, contentType)
@@ -346,6 +376,9 @@ type HandlerOpts struct {
 	// If DisableCompression is true, the handler will never compress the
 	// response, even if requested by the client.
 	DisableCompression bool
+	// If DisableCompression is false, this option will allow to define the
+	// set of offered encoding algorithms.
+	EncodingOffers []string
 	// The number of concurrent HTTP requests is limited to
 	// MaxRequestsInFlight. Additional requests are responded to with 503
 	// Service Unavailable and a suitable message in the body. If
@@ -379,19 +412,6 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
-}
-
-// gzipAccepted returns whether the client will accept gzip-encoded content.
-func gzipAccepted(header http.Header) bool {
-	a := header.Get(acceptEncodingHeader)
-	parts := strings.Split(a, ",")
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "gzip" || strings.HasPrefix(part, "gzip;") {
-			return true
-		}
-	}
-	return false
 }
 
 // httpError removes any content-encoding header and then calls http.Error with
