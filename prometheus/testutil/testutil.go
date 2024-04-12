@@ -44,7 +44,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
@@ -264,6 +264,7 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 // The error contains the encoded text of both the desired and the actual
 // result.
 func compare(got, want []*dto.MetricFamily) error {
+
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for _, mf := range got {
@@ -277,7 +278,7 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
-	if diffErr := diff(wantBuf, gotBuf); diffErr != "" {
+	if diffErr := diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
 		return fmt.Errorf(diffErr)
 	}
 	return nil
@@ -300,31 +301,7 @@ func diff(expected, actual interface{}) string {
 		return ""
 	}
 
-	var e, a string
-	c := spew.ConfigState{
-		Indent:                  " ",
-		DisablePointerAddresses: true,
-		DisableCapacities:       true,
-		SortKeys:                true,
-	}
-	if et != reflect.TypeOf("") {
-		e = c.Sdump(expected)
-		a = c.Sdump(actual)
-	} else {
-		e = reflect.ValueOf(expected).String()
-		a = reflect.ValueOf(actual).String()
-	}
-
-	diff, _ := internal.GetUnifiedDiffString(internal.UnifiedDiff{
-		A:        internal.SplitLines(e),
-		B:        internal.SplitLines(a),
-		FromFile: "metric output does not match expectation; want",
-		FromDate: "",
-		ToFile:   "got:",
-		ToDate:   "",
-		Context:  1,
-	})
-
+	diff := cmp.Diff(expected, actual)
 	if diff == "" {
 		return ""
 	}

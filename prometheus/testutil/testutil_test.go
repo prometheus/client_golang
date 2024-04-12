@@ -305,20 +305,36 @@ func TestMetricNotFound(t *testing.T) {
 	expected := `
 		some_other_metric{label1="value1"} 1
 	`
+	/*
+	   	expectedError := `
+
+	   Diff:
+	   --- metric output does not match expectation; want
+	   +++ got:
+	   @@ -1,4 +1,4 @@
+	   -(bytes.Buffer) # HELP some_other_metric A value that represents a counter.
+	   -# TYPE some_other_metric counter
+	   -some_other_metric{label1="value1"} 1
+	   +(bytes.Buffer) # HELP some_total A value that represents a counter.
+	   +# TYPE some_total counter
+	   +some_total{label1="value1"} 1
+
+	   `
+	*/
 
 	expectedError := `
 
 Diff:
---- metric output does not match expectation; want
-+++ got:
-@@ -1,4 +1,4 @@
--(bytes.Buffer) # HELP some_other_metric A value that represents a counter.
--# TYPE some_other_metric counter
--some_other_metric{label1="value1"} 1
-+(bytes.Buffer) # HELP some_total A value that represents a counter.
-+# TYPE some_total counter
-+some_total{label1="value1"} 1
- 
+  (
+  	"""
+- 	# HELP some_total A value that represents a counter.
+- 	# TYPE some_total counter
+- 	some_total{label1="value1"} 1
++ 	# HELP some_other_metric A value that represents a counter.
++ 	# TYPE some_other_metric counter
++ 	some_other_metric{label1="value1"} 1
+  	"""
+  )
 `
 
 	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
