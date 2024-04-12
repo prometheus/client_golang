@@ -264,7 +264,6 @@ func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...str
 // The error contains the encoded text of both the desired and the actual
 // result.
 func compare(got, want []*dto.MetricFamily) error {
-
 	var gotBuf, wantBuf bytes.Buffer
 	enc := expfmt.NewEncoder(&gotBuf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for _, mf := range got {
