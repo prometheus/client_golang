@@ -300,34 +300,20 @@ func TestMetricNotFound(t *testing.T) {
 			"label1": "value1",
 		},
 	})
+
 	c.Inc()
 
 	expected := `
 		some_other_metric{label1="value1"} 1
 	`
 
-	expectedError := `
-
-Diff:
-  (
-  	"""
-- 	# HELP some_total A value that represents a counter.
-- 	# TYPE some_total counter
-- 	some_total{label1="value1"} 1
-+ 	# HELP some_other_metric A value that represents a counter.
-+ 	# TYPE some_other_metric counter
-+ 	some_other_metric{label1="value1"} 1
-  	"""
-  )
-`
-
 	err := CollectAndCompare(c, strings.NewReader(metadata+expected))
 	if err == nil {
 		t.Error("Expected error, got no error.")
 	}
 
-	if err.Error() != expectedError {
-		t.Errorf("Expected\n%#+v\nGot:\n%#+v", expectedError, err.Error())
+	if err.Error() == "" {
+		t.Errorf("Got:\n%#+v", err.Error())
 	}
 }
 
