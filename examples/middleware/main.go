@@ -19,11 +19,10 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/prometheus/client_golang/examples/middleware/httpmiddleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
-	"github.com/jessicalins/instrumentation-practices-examples/middleware/httpmiddleware"
 )
 
 func main() {

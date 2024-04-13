@@ -149,11 +149,7 @@ func withMemoryMetrics() []string {
 }
 
 func withSchedulerMetrics() []string {
-	return []string{
-		"go_gc_duration_seconds",
-		"go_goroutines",
-		"go_info",
-		"go_memstats_last_gc_time_seconds",
+	return withBaseMetrics([]string{
 		"go_sched_gomaxprocs_threads",
 		"go_sched_goroutines_goroutines",
 		"go_sched_latencies_seconds",
@@ -161,6 +157,35 @@ func withSchedulerMetrics() []string {
 		"go_sched_pauses_stopping_other_seconds",
 		"go_sched_pauses_total_gc_seconds",
 		"go_sched_pauses_total_other_seconds",
-		"go_threads",
-	}
+	})
+}
+
+func withDebugMetrics() []string {
+	return withBaseMetrics([]string{
+		"go_godebug_non_default_behavior_execerrdot_events_total",
+		"go_godebug_non_default_behavior_gocachehash_events_total",
+		"go_godebug_non_default_behavior_gocachetest_events_total",
+		"go_godebug_non_default_behavior_gocacheverify_events_total",
+		"go_godebug_non_default_behavior_gotypesalias_events_total",
+		"go_godebug_non_default_behavior_http2client_events_total",
+		"go_godebug_non_default_behavior_http2server_events_total",
+		"go_godebug_non_default_behavior_httplaxcontentlength_events_total",
+		"go_godebug_non_default_behavior_httpmuxgo121_events_total",
+		"go_godebug_non_default_behavior_installgoroot_events_total",
+		"go_godebug_non_default_behavior_jstmpllitinterp_events_total",
+		"go_godebug_non_default_behavior_multipartmaxheaders_events_total",
+		"go_godebug_non_default_behavior_multipartmaxparts_events_total",
+		"go_godebug_non_default_behavior_multipathtcp_events_total",
+		"go_godebug_non_default_behavior_panicnil_events_total",
+		"go_godebug_non_default_behavior_randautoseed_events_total",
+		"go_godebug_non_default_behavior_tarinsecurepath_events_total",
+		"go_godebug_non_default_behavior_tls10server_events_total",
+		"go_godebug_non_default_behavior_tlsmaxrsasize_events_total",
+		"go_godebug_non_default_behavior_tlsrsakex_events_total",
+		"go_godebug_non_default_behavior_tlsunsafeekm_events_total",
+		"go_godebug_non_default_behavior_x509sha1_events_total",
+		"go_godebug_non_default_behavior_x509usefallbackroots_events_total",
+		"go_godebug_non_default_behavior_x509usepolicies_events_total",
+		"go_godebug_non_default_behavior_zipinsecurepath_events_total",
+	})
 }
