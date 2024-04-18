@@ -44,7 +44,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/google/go-cmp/cmp"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
@@ -277,35 +276,10 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
-	if diffErr := diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
-		return fmt.Errorf(diffErr)
+	if diffErr := reflect.DeepEqual(gotBuf, wantBuf); !diffErr {
+		return fmt.Errorf("metrics diff")
 	}
 	return nil
-}
-
-// diff returns a diff of both values as long as both are of the same type and
-// are a struct, map, slice, array or string. Otherwise it returns an empty string.
-func diff(expected, actual interface{}) string {
-	if expected == nil || actual == nil {
-		return ""
-	}
-
-	et, ek := typeAndKind(expected)
-	at, _ := typeAndKind(actual)
-	if et != at {
-		return ""
-	}
-
-	if ek != reflect.Struct && ek != reflect.Map && ek != reflect.Slice && ek != reflect.Array && ek != reflect.String {
-		return ""
-	}
-
-	diff := cmp.Diff(expected, actual)
-	if diff == "" {
-		return ""
-	}
-
-	return "\n\nDiff:\n" + diff
 }
 
 // typeAndKind returns the type and kind of the given interface{}
