@@ -282,18 +282,6 @@ func compare(got, want []*dto.MetricFamily) error {
 	return nil
 }
 
-// typeAndKind returns the type and kind of the given interface{}
-func typeAndKind(v interface{}) (reflect.Type, reflect.Kind) {
-	t := reflect.TypeOf(v)
-	k := t.Kind()
-
-	if k == reflect.Ptr {
-		t = t.Elem()
-		k = t.Kind()
-	}
-	return t, k
-}
-
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
 	var filtered []*dto.MetricFamily
 	for _, m := range metrics {
