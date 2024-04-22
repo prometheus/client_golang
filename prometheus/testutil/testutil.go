@@ -47,10 +47,9 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
 
-	utildiff "github.com/prometheus/client_golang/prometheus/testutil/diff"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
+	"github.com/prometheus/client_golang/prometheus/testutil/diff"
 )
 
 // ToFloat64 collects all Metrics from the provided Collector. It expects that
@@ -277,7 +276,7 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
-	if diffErr := utildiff.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
+	if diffErr := diff.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
 		return fmt.Errorf(diffErr)
 	}
 	return nil
