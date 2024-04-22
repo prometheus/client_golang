@@ -43,10 +43,11 @@ import (
 	"io"
 	"net/http"
 
-	utildiff "github.com/prometheus/client_golang/prometheus/testutil/diff"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
+
+	utildiff "github.com/prometheus/client_golang/prometheus/testutil/diff"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
