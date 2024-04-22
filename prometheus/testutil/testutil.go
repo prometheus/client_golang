@@ -43,7 +43,7 @@ import (
 	"io"
 	"net/http"
 
-	godebug "github.com/kylelemons/godebug/diff"
+	utildiff "github.com/prometheus/client_golang/prometheus/testutil/diff"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
@@ -276,7 +276,7 @@ func compare(got, want []*dto.MetricFamily) error {
 			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
-	if diffErr := godebug.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
+	if diffErr := utildiff.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
 		return fmt.Errorf(diffErr)
 	}
 	return nil

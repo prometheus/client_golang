@@ -21,3 +21,8 @@ Support for streaming Protocol Buffer messages for the Go language (golang).
 https://github.com/matttproud/golang_protobuf_extensions
 Copyright 2013 Matt T. Proud
 Licensed under the Apache License, Version 2.0
+
+diff - a pretty-printed complete of a Go data structure
+https://github.com/kylelemons/godebug
+Copyright 2013 Google Inc.  All rights reserved.
+See source code for license details.
