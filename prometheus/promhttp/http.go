@@ -161,9 +161,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 
 		var contentType expfmt.Format
 		var encoderOpts []expfmt.EncoderOption
-		if opts.EnableOpenMetrics {
+		if opts.EnableOpenMetrics || opts.OpenMetricsOptions.Enable {
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
-			if opts.WithUnit {
+			if opts.OpenMetricsOptions.Enable {
 				encoderOpts = append(encoderOpts, expfmt.WithUnit())
 			}
 		} else {
@@ -375,6 +375,8 @@ type HandlerOpts struct {
 	// (which changes the identity of the resulting series on the Prometheus
 	// server).
 	EnableOpenMetrics bool
+
+	OpenMetricsOptions OpenMetricsOptions
 	// ProcessStartTime allows setting process start timevalue that will be exposed
 	// with "Process-Start-Time-Unix" response header along with the metrics
 	// payload. This allow callers to have efficient transformations to cumulative
@@ -383,9 +385,14 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
-	// If true, WithUnit adds the unit to the encoder options, ultimately allowing the
-	// unit into the final output, provided that EnableOpenMetrics is also true.
-	WithUnit bool
+}
+
+type OpenMetricsOptions struct {
+	Enable bool
+	// If true, EnableUnit adds the unit to the encoder options, ultimately allowing the
+	// unit into the final output, provided that either EnableOpenMetrics or
+	// OpenMetricsOptions.Enable is also true.
+	EnableUnit bool
 }
 
 // gzipAccepted returns whether the client will accept gzip-encoded content.
