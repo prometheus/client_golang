@@ -4,13 +4,13 @@ go 1.20
 
 require (
 	github.com/beorn7/perks v1.0.1
-	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/json-iterator/go v1.1.12
-	github.com/prometheus/client_model v0.6.0
-	github.com/prometheus/common v0.52.3
+	github.com/prometheus/client_model v0.6.1
+	github.com/prometheus/common v0.53.0
 	github.com/prometheus/procfs v0.13.0
-	golang.org/x/sys v0.18.0
-	google.golang.org/protobuf v1.33.0
+	golang.org/x/sys v0.19.0
+	google.golang.org/protobuf v1.34.0
 )
 
 require (
