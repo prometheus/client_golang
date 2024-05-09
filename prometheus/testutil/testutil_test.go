@@ -20,6 +20,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/prometheus/common/expfmt"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -429,5 +431,34 @@ func TestCollectAndCount(t *testing.T) {
 	}
 	if got, want := CollectAndCount(c, "some_other_total"), 0; got != want {
 		t.Errorf("unexpected metric count, got %d, want %d", got, want)
+	}
+}
+
+func TestCollectAndFormat(t *testing.T) {
+	const expected = `# HELP foo_bar A value that represents the number of bars in foo.
+# TYPE foo_bar counter
+foo_bar{fizz="bang"} 1
+`
+	c := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "foo_bar",
+			Help: "A value that represents the number of bars in foo.",
+		},
+		[]string{"fizz"},
+	)
+	c.WithLabelValues("bang").Inc()
+
+	got, err := CollectAndFormat(c, expfmt.TypeTextPlain, "foo_bar")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+
+	gotS := string(got)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+
+	if gotS != expected {
+		t.Errorf("unexpected metric output, got %q, expected %q", gotS, expected)
 	}
 }

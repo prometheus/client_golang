@@ -183,9 +183,8 @@ func ScrapeAndCompare(url string, expected io.Reader, metricNames ...string) err
 	return compareMetricFamilies(scraped, wanted, metricNames...)
 }
 
-// CollectAndCompare registers the provided Collector with a newly created
-// pedantic Registry. It then calls GatherAndCompare with that Registry and with
-// the provided metricNames.
+// CollectAndCompare collects the metrics identified by `metricNames` and compares them in the Prometheus text
+// exposition format to the data read from expected.
 func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
@@ -219,6 +218,31 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	}
 
 	return compareMetricFamilies(got, wanted, metricNames...)
+}
+
+// CollectAndFormat collects the metrics identified by `metricNames` and returns them in the given format.
+func CollectAndFormat(c prometheus.Collector, format expfmt.FormatType, metricNames ...string) ([]byte, error) {
+	reg := prometheus.NewPedanticRegistry()
+	if err := reg.Register(c); err != nil {
+		return nil, fmt.Errorf("registering collector failed: %w", err)
+	}
+
+	gotFiltered, err := reg.Gather()
+	if err != nil {
+		return nil, fmt.Errorf("gathering metrics failed: %w", err)
+	}
+
+	gotFiltered = filterMetrics(gotFiltered, metricNames)
+
+	var gotFormatted bytes.Buffer
+	enc := expfmt.NewEncoder(&gotFormatted, expfmt.NewFormat(format))
+	for _, mf := range gotFiltered {
+		if err := enc.Encode(mf); err != nil {
+			return nil, fmt.Errorf("encoding gathered metrics failed: %w", err)
+		}
+	}
+
+	return gotFormatted.Bytes(), nil
 }
 
 // convertReaderToMetricFamily would read from a io.Reader object and convert it to a slice of
