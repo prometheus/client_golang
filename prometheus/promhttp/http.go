@@ -389,7 +389,7 @@ type HandlerOpts struct {
 
 type OpenMetricsOptions struct {
 	Enable bool
-	// If true, EnableUnit adds the unit to the encoder options, ultimately allowing the
+	// EnableUnit adds the unit to the encoder options, ultimately allowing the
 	// unit into the final output, provided that either EnableOpenMetrics or
 	// OpenMetricsOptions.Enable is also true.
 	EnableUnit bool
