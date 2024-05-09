@@ -10,8 +10,8 @@ require (
 	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.48.0
 	github.com/prometheus/procfs v0.12.0
-	golang.org/x/sys v0.16.0
-	google.golang.org/protobuf v1.32.0
+	golang.org/x/sys v0.17.0
+	google.golang.org/protobuf v1.33.0
 )
 
 require (
