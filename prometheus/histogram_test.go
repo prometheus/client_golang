@@ -1314,7 +1314,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "remove exemplar with oldest timestamp, the removed index is smaller than inserted index",
 			addFunc: func(h *histogram) {
-				time.Sleep(10 * time.Second)
+				h.now = func() time.Time { return time.Now().Add(time.Second * 11) }
 				h.ObserveWithExemplar(6, Labels{"id": "1"})
 			},
 			expectedValues: []float64{0, 4, 6},
@@ -1324,14 +1324,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.addFunc(h)
-			if len(h.nativeExemplars.exemplars) != len(tc.expectedValues) {
-				t.Errorf("the count of exemplars is not %d", len(tc.expectedValues))
-			}
-			for i, e := range h.nativeExemplars.exemplars {
-				if e.GetValue() != tc.expectedValues[i] {
-					t.Errorf("the %dth exemplar value %v is not as expected: %v", i, e.GetValue(), tc.expectedValues[i])
-				}
-			}
+			compareNativeExemplarValues(t, h.nativeExemplars.exemplars, tc.expectedValues)
 		})
 	}
 
@@ -1385,14 +1378,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.addFunc(h)
-			if len(h.nativeExemplars.exemplars) != len(tc.expectedValues) {
-				t.Errorf("the count of exemplars is not %d", len(tc.expectedValues))
-			}
-			for i, e := range h.nativeExemplars.exemplars {
-				if e.GetValue() != tc.expectedValues[i] {
-					t.Errorf("the %dth exemplar value %v is not as expected: %v", i, e.GetValue(), tc.expectedValues[i])
-				}
-			}
+			compareNativeExemplarValues(t, h.nativeExemplars.exemplars, tc.expectedValues)
 		})
 	}
 
@@ -1425,14 +1411,18 @@ func TestNativeHistogramExemplar(t *testing.T) {
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.addFunc(h)
-			if len(h.nativeExemplars.exemplars) != len(tc.expectedValues) {
-				t.Errorf("the count of exemplars is not %d", len(tc.expectedValues))
-			}
-			for i, e := range h.nativeExemplars.exemplars {
-				if e.GetValue() != tc.expectedValues[i] {
-					t.Errorf("the %dth exemplar value %v is not as expected: %v", i, e.GetValue(), tc.expectedValues[i])
-				}
-			}
+			compareNativeExemplarValues(t, h.nativeExemplars.exemplars, tc.expectedValues)
 		})
+	}
+}
+
+func compareNativeExemplarValues(t *testing.T, exps []*dto.Exemplar, values []float64) {
+	if len(exps) != len(values) {
+		t.Errorf("the count of exemplars is not %d", len(values))
+	}
+	for i, e := range exps {
+		if e.GetValue() != values[i] {
+			t.Errorf("the %dth exemplar value %v is not as expected: %v", i, e.GetValue(), values[i])
+		}
 	}
 }

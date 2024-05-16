@@ -761,8 +761,9 @@ func (h *histogram) Observe(v float64) {
 	h.observe(v, h.findBucket(v))
 }
 
-// ObserveWithExemplar should not be called in high-frequency settings,
-// since it isn't lock-free for native histograms with configured exemplars.
+// ObserveWithExemplar should not be called in a high-frequency setting
+// for a native histogram with configured exemplars. For this case,
+// the implementation isn't lock-free and might suffer from lock contention.
 func (h *histogram) ObserveWithExemplar(v float64, e Labels) {
 	i := h.findBucket(v)
 	h.observe(v, i)
@@ -843,6 +844,8 @@ func (h *histogram) Write(out *dto.Metric) error {
 			}}
 		}
 
+		// If exemplars are not configured, the cap will be 0.
+		// So append is not needed in this case.
 		if cap(h.nativeExemplars.exemplars) > 0 {
 			h.nativeExemplars.Lock()
 			his.Exemplars = append(his.Exemplars, h.nativeExemplars.exemplars...)
@@ -1709,7 +1712,7 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		nIdx = len(n.exemplars)
 	}
 
-	if otIdx != -1 && time.Since(ot) > n.ttl {
+	if otIdx != -1 && e.Timestamp.AsTime().Sub(ot) > n.ttl {
 		rIdx = otIdx
 	} else {
 		// In the previous for loop, when calculating the closest pair of exemplars,
