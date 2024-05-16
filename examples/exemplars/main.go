@@ -32,6 +32,7 @@ func main() {
 	requestDurations := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "http_request_duration_seconds",
 		Help:    "A histogram of the HTTP request durations in seconds.",
+		Unit:    "seconds",
 		Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
 	})
 
@@ -61,7 +62,10 @@ func main() {
 		"/metrics", promhttp.HandlerFor(
 			registry,
 			promhttp.HandlerOpts{
-				EnableOpenMetrics: true,
+				OpenMetricsOptions: promhttp.OpenMetricsOptions{
+					Enable:     true,
+					EnableUnit: true,
+				},
 			}),
 	)
 	// To test: curl -H 'Accept: application/openmetrics-text' localhost:8080/metrics

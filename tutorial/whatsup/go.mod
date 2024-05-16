@@ -1,6 +1,6 @@
 module github.com/prometheus/client_golang/tutorial
 
-go 1.20
+go 1.21
 
 require (
 	github.com/bwplotka/tracing-go v0.0.0-20230421061608-abdf862ceccd

@@ -46,46 +46,55 @@ func NewDBStatsCollector(db *sql.DB, dbName string) prometheus.Collector {
 		maxOpenConnections: prometheus.NewDesc(
 			fqName("max_open_connections"),
 			"Maximum number of open connections to the database.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		openConnections: prometheus.NewDesc(
 			fqName("open_connections"),
 			"The number of established connections both in use and idle.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		inUseConnections: prometheus.NewDesc(
 			fqName("in_use_connections"),
 			"The number of connections currently in use.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		idleConnections: prometheus.NewDesc(
 			fqName("idle_connections"),
 			"The number of idle connections.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		waitCount: prometheus.NewDesc(
 			fqName("wait_count_total"),
 			"The total number of connections waited for.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		waitDuration: prometheus.NewDesc(
 			fqName("wait_duration_seconds_total"),
 			"The total time blocked waiting for a new connection.",
+			"seconds",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		maxIdleClosed: prometheus.NewDesc(
 			fqName("max_idle_closed_total"),
 			"The total number of connections closed due to SetMaxIdleConns.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		maxIdleTimeClosed: prometheus.NewDesc(
 			fqName("max_idle_time_closed_total"),
 			"The total number of connections closed due to SetConnMaxIdleTime.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 		maxLifetimeClosed: prometheus.NewDesc(
 			fqName("max_lifetime_closed_total"),
 			"The total number of connections closed due to SetConnMaxLifetime.",
+			"",
 			nil, prometheus.Labels{"db_name": dbName},
 		),
 	}

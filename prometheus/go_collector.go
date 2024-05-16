@@ -29,6 +29,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("alloc_bytes"),
 				"Number of bytes allocated and still in use.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Alloc) },
@@ -37,6 +38,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("alloc_bytes_total"),
 				"Total number of bytes allocated, even if freed.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.TotalAlloc) },
@@ -45,6 +47,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("sys_bytes"),
 				"Number of bytes obtained from system.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Sys) },
@@ -53,6 +56,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("lookups_total"),
 				"Total number of pointer lookups.",
+				"",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Lookups) },
@@ -61,6 +65,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mallocs_total"),
 				"Total number of mallocs.",
+				"",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Mallocs) },
@@ -69,6 +74,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("frees_total"),
 				"Total number of frees.",
+				"",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Frees) },
@@ -77,6 +83,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_alloc_bytes"),
 				"Number of heap bytes allocated and still in use.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapAlloc) },
@@ -85,6 +92,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_sys_bytes"),
 				"Number of heap bytes obtained from system.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapSys) },
@@ -93,6 +101,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_idle_bytes"),
 				"Number of heap bytes waiting to be used.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapIdle) },
@@ -101,6 +110,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_inuse_bytes"),
 				"Number of heap bytes that are in use.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapInuse) },
@@ -109,6 +119,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_released_bytes"),
 				"Number of heap bytes released to OS.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapReleased) },
@@ -117,6 +128,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("heap_objects"),
 				"Number of allocated objects.",
+				"",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapObjects) },
@@ -125,6 +137,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("stack_inuse_bytes"),
 				"Number of bytes in use by the stack allocator.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.StackInuse) },
@@ -133,6 +146,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("stack_sys_bytes"),
 				"Number of bytes obtained from system for stack allocator.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.StackSys) },
@@ -141,6 +155,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mspan_inuse_bytes"),
 				"Number of bytes in use by mspan structures.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.MSpanInuse) },
@@ -149,6 +164,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mspan_sys_bytes"),
 				"Number of bytes used for mspan structures obtained from system.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.MSpanSys) },
@@ -157,6 +173,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mcache_inuse_bytes"),
 				"Number of bytes in use by mcache structures.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.MCacheInuse) },
@@ -165,6 +182,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mcache_sys_bytes"),
 				"Number of bytes used for mcache structures obtained from system.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.MCacheSys) },
@@ -173,6 +191,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("buck_hash_sys_bytes"),
 				"Number of bytes used by the profiling bucket hash table.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.BuckHashSys) },
@@ -181,6 +200,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("gc_sys_bytes"),
 				"Number of bytes used for garbage collection system metadata.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.GCSys) },
@@ -189,6 +209,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("other_sys_bytes"),
 				"Number of bytes used for other system allocations.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.OtherSys) },
@@ -197,6 +218,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("next_gc_bytes"),
 				"Number of heap bytes when next garbage collection will take place.",
+				"bytes",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.NextGC) },
@@ -218,22 +240,27 @@ func newBaseGoCollector() baseGoCollector {
 		goroutinesDesc: NewDesc(
 			"go_goroutines",
 			"Number of goroutines that currently exist.",
+			"",
 			nil, nil),
 		threadsDesc: NewDesc(
 			"go_threads",
 			"Number of OS threads created.",
+			"",
 			nil, nil),
 		gcDesc: NewDesc(
 			"go_gc_duration_seconds",
 			"A summary of the pause duration of garbage collection cycles.",
+			"seconds",
 			nil, nil),
 		gcLastTimeDesc: NewDesc(
 			"go_memstats_last_gc_time_seconds",
 			"Number of seconds since 1970 of last garbage collection.",
+			"seconds",
 			nil, nil),
 		goInfoDesc: NewDesc(
 			"go_info",
 			"Information about the Go environment.",
+			"",
 			nil, Labels{"version": runtime.Version()}),
 	}
 }

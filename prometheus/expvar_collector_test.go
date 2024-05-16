@@ -29,16 +29,19 @@ func ExampleNewExpvarCollector() {
 		"memstats": prometheus.NewDesc(
 			"expvar_memstats",
 			"All numeric memstats as one metric family. Not a good role-model, actually... ;-)",
+			"",
 			[]string{"type"}, nil,
 		),
 		"lone-int": prometheus.NewDesc(
 			"expvar_lone_int",
 			"Just an expvar int as an example.",
+			"",
 			nil, nil,
 		),
 		"http-request-map": prometheus.NewDesc(
 			"expvar_http_request_total",
 			"How many http requests processed, partitioned by status code and http method.",
+			"",
 			[]string{"code", "method"}, nil,
 		),
 	})

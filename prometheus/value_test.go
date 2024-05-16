@@ -45,6 +45,7 @@ func TestNewConstMetricInvalidLabelValues(t *testing.T) {
 		metricDesc := NewDesc(
 			"sample_value",
 			"sample value",
+			"",
 			[]string{"a"},
 			Labels{},
 		)
@@ -88,6 +89,7 @@ func TestNewConstMetricWithCreatedTimestamp(t *testing.T) {
 			metricDesc := NewDesc(
 				"sample_value",
 				"sample value",
+				"",
 				nil,
 				nil,
 			)
