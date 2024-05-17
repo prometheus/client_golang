@@ -332,22 +332,89 @@ func TestHandlerTimeout(t *testing.T) {
 	close(c.Block) // To not leak a goroutine.
 }
 
-func BenchmarkEncoding(b *testing.B) {
-	benchmarks := []struct {
-		name         string
-		encodingType string
+func TestGetWriter(t *testing.T) {
+	testCases := []struct {
+		name                string
+		disableCompression  bool
+		offeredCompressions []Compression
+		acceptEncoding      string
+		expectedCompression string
+		err                 error
 	}{
 		{
-			name:         "test with gzip encoding",
-			encodingType: "gzip",
+			name:                "test without compression enabled",
+			disableCompression:  true,
+			offeredCompressions: defaultCompressionFormats,
+			acceptEncoding:      "",
+			expectedCompression: "identity",
+			err:                 nil,
 		},
 		{
-			name:         "test with zstd encoding",
-			encodingType: "zstd",
+			name:                "test with compression enabled with empty accept-encoding header",
+			disableCompression:  false,
+			offeredCompressions: defaultCompressionFormats,
+			acceptEncoding:      "",
+			expectedCompression: "identity",
+			err:                 nil,
 		},
 		{
-			name:         "test with no encoding",
-			encodingType: "identity",
+			name:                "test with gzip compression requested",
+			disableCompression:  false,
+			offeredCompressions: defaultCompressionFormats,
+			acceptEncoding:      "gzip",
+			expectedCompression: "gzip",
+			err:                 nil,
+		},
+		{
+			name:                "test with gzip, zstd compression requested",
+			disableCompression:  false,
+			offeredCompressions: defaultCompressionFormats,
+			acceptEncoding:      "gzip,zstd",
+			expectedCompression: "gzip",
+			err:                 nil,
+		},
+		{
+			name:                "test with zstd, gzip compression requested",
+			disableCompression:  false,
+			offeredCompressions: defaultCompressionFormats,
+			acceptEncoding:      "zstd,gzip",
+			expectedCompression: "gzip",
+			err:                 nil,
+		},
+	}
+
+	for _, test := range testCases {
+		request, _ := http.NewRequest("GET", "/", nil)
+		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
+		rr := httptest.NewRecorder()
+		_, err := GetWriter(request, rr, test.disableCompression, test.offeredCompressions)
+
+		if !errors.Is(err, test.err) {
+			t.Errorf("got error: %v, expected: %v", err, test.err)
+		}
+
+		if rr.Header().Get(contentEncodingHeader) != test.expectedCompression {
+			t.Errorf("got different compression type: %v, expected: %v", rr.Header().Get(contentEncodingHeader), test.expectedCompression)
+		}
+	}
+}
+
+func BenchmarkCompression(b *testing.B) {
+	benchmarks := []struct {
+		name            string
+		compressionType string
+	}{
+		{
+			name:            "test with gzip compression",
+			compressionType: "gzip",
+		},
+		{
+			name:            "test with zstd compression",
+			compressionType: "zstd",
+		},
+		{
+			name:            "test with no compression",
+			compressionType: "identity",
 		},
 	}
 	sizes := []struct {
@@ -416,7 +483,7 @@ func BenchmarkEncoding(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					writer := httptest.NewRecorder()
 					request, _ := http.NewRequest("GET", "/", nil)
-					request.Header.Add("Accept-Encoding", benchmark.encodingType)
+					request.Header.Add("Accept-Encoding", benchmark.compressionType)
 					handler.ServeHTTP(writer, request)
 				}
 			})

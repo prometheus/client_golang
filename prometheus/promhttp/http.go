@@ -55,7 +55,25 @@ const (
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
 
-var defaultEncodingOffers = []string{"gzip", "zstd"}
+type Compression int
+
+const (
+	Identity Compression = iota
+	Gzip
+	Zstd
+)
+
+var compressions = [...]string{
+	"identity",
+	"gzip",
+	"zstd",
+}
+
+func (c Compression) String() string {
+	return compressions[c]
+}
+
+var defaultCompressionFormats = []Compression{Identity, Gzip, Zstd}
 
 var gzipPool = sync.Pool{
 	New: func() interface{} {
@@ -168,46 +186,13 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}
-		header := rsp.Header()
-		header.Set(contentTypeHeader, string(contentType))
+		rsp.Header().Set(contentTypeHeader, string(contentType))
 
-		w := io.Writer(rsp)
-		if !opts.DisableCompression {
-			offers := defaultEncodingOffers
-			if len(opts.EncodingOffers) > 0 {
-				offers = opts.EncodingOffers
+		w, err := GetWriter(req, rsp, opts.DisableCompression, opts.OfferedCompressions)
+		if err != nil {
+			if opts.ErrorLog != nil {
+				opts.ErrorLog.Println("error getting writer", err)
 			}
-			// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
-			compression := httputil.NegotiateContentEncoding(req, offers)
-			switch compression {
-			case "zstd":
-				header.Set(contentEncodingHeader, "zstd")
-				// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
-				z, err := zstd.NewWriter(rsp, zstd.WithEncoderLevel(zstd.SpeedFastest))
-				if err != nil {
-					return
-				}
-
-				z.Reset(w)
-				defer z.Close()
-
-				w = z
-			case "gzip":
-				header.Set(contentEncodingHeader, "gzip")
-				gz := gzipPool.Get().(*gzip.Writer)
-				defer gzipPool.Put(gz)
-
-				gz.Reset(w)
-				defer gz.Close()
-
-				w = gz
-			case "identity":
-				// This means the content is not encoded.
-			default:
-				// The content encoding was not implemented yet.
-				return
-			}
-
 		}
 
 		enc := expfmt.NewEncoder(w, contentType)
@@ -373,12 +358,19 @@ type HandlerOpts struct {
 	// no effect on the HTTP status code because ErrorHandling is set to
 	// ContinueOnError.
 	Registry prometheus.Registerer
-	// If DisableCompression is true, the handler will never compress the
-	// response, even if requested by the client.
+	// DisableCompression disables the response encoding (compression) and
+	// encoding negotiation. If true, the handler will
+	// never compress the response, even if requested
+	// by the client and the OfferedCompressions field is ignored.
 	DisableCompression bool
-	// If DisableCompression is false, this option will allow to define the
-	// set of offered encoding algorithms.
-	EncodingOffers []string
+	// OfferedCompressions is a set of encodings (compressions) handler will
+	// try to offer when negotiating with the client. This defaults to zstd,
+	// gzip and identity.
+	// NOTE: If handler can't agree on the encodings with the client or
+	// caller using unsupported or empty encodings in OfferedCompressions,
+	// handler always fallbacks to no compression (identity), for
+	// compatibility reasons. In such cases ErrorLog will be used if set.
+	OfferedCompressions []Compression
 	// The number of concurrent HTTP requests is limited to
 	// MaxRequestsInFlight. Additional requests are responded to with 503
 	// Service Unavailable and a suitable message in the body. If
@@ -425,4 +417,50 @@ func httpError(rsp http.ResponseWriter, err error) {
 		"An error has occurred while serving metrics:\n\n"+err.Error(),
 		http.StatusInternalServerError,
 	)
+}
+
+func GetWriter(r *http.Request, rsp http.ResponseWriter, disableCompression bool, offeredCompressions []Compression) (io.Writer, error) {
+	w := io.Writer(rsp)
+	rsp.Header().Set(contentEncodingHeader, "identity")
+	if !disableCompression {
+		offers := defaultCompressionFormats
+		if len(offeredCompressions) > 0 {
+			offers = offeredCompressions
+		}
+		var compressions []string
+		for _, comp := range offers {
+			compressions = append(compressions, comp.String())
+		}
+		// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
+		compression := httputil.NegotiateContentEncoding(r, compressions)
+		switch compression {
+		case "zstd":
+			rsp.Header().Set(contentEncodingHeader, "zstd")
+			// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
+			z, err := zstd.NewWriter(rsp, zstd.WithEncoderLevel(zstd.SpeedFastest))
+			if err != nil {
+				return nil, err
+			}
+
+			z.Reset(w)
+			defer z.Close()
+
+			w = z
+		case "gzip":
+			rsp.Header().Set(contentEncodingHeader, "gzip")
+			gz := gzipPool.Get().(*gzip.Writer)
+			defer gzipPool.Put(gz)
+
+			gz.Reset(w)
+			defer gz.Close()
+
+			w = gz
+		case "identity":
+			// This means the content is not compressed.
+		default:
+			// The content encoding was not implemented yet.
+			return w, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
+		}
+	}
+	return w, nil
 }
