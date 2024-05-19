@@ -1,0 +1,28 @@
+---
+name: PR-auto-labeler
+
+on: 
+  pull_request_target:
+    types: [labeled, unlabeled, opened, edited, synchronize]
+
+permissions:
+  # Setting up permissions in the workflow to limit the scope of what it can do. Optional!
+  contents: read # the config file
+  issues: write # for labeling issues (on: issues)
+  pull-requests: write # for labeling pull requests (on: pull_request_target or on: pull_request)
+  statuses: write # to generate status
+  checks: write # to generate status
+    
+jobs:
+
+  labeler:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check Labels
+      id: labeler
+      uses: jimschubert/labeler-action@v1
+      with:
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+# Adjust the configuration in /.github/labeler.yml
