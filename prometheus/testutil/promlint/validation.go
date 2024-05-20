@@ -25,6 +25,7 @@ var defaultValidations = []Validation{
 	validations.LintHelp,
 	validations.LintMetricUnits,
 	validations.LintCounter,
+	validations.LintGauge,
 	validations.LintHistogramSummaryReserved,
 	validations.LintMetricTypeInName,
 	validations.LintReservedChars,
