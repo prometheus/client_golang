@@ -31,17 +31,15 @@ In this section, provide a clear and concise description of what your PR does. T
 
 Indicate the type of PR by adding one of the following options:
 
-- /kind chore
-- /kind cleanup
-- /kind fix
-- /kind bugfix
-- /kind enhancement
-- /kind feature
-- /kind feat
-- /kind docs
-- /kind NONE
+- `/kind fix`
+- `/kind bugfix`
+- `/kind enhancement`
+- `/kind feature`
+- `/kind feat`
+- `/kind docs`
+- `/kind release-note-none`
 
-If this change should not appear in the changelog, use `/kind NONE`.
+If this change should not appear in the changelog, use `/kind release-note-none`.
 
 ### Changelog Entry
 
