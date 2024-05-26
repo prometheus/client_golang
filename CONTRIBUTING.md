@@ -36,11 +36,39 @@ Indicate the type of PR by adding one of the following options:
 - `/kind enhancement`
 - `/kind feature`
 - `/kind feat`
-- `/kind docs`
+- `/kind change`
 - `/kind release-note-none`
 
 If this change should not appear in the changelog, use `/kind release-note-none`.
 
+Example 1:
+```
+  ### What type of PR is this?
+  /kind feature
+```
+
+Example 2:
+```
+  ### What type of PR is this?
+  /kind release-note-none
+```
+
 ### Changelog Entry
 
 Include a brief summary of your change for the changelog. This helps users understand what has been modified, added, or fixed in the project. If your change should not appear in the changelog, write `NONE`. Make sure to add only user-facing changes.
+
+Example 1:
+```
+	### Changelog Entry
+	```release-note
+	api: Switch to POST for `LabelNames`.
+	```
+```
+
+Example 2:
+```
+	### Changelog Entry
+	```release-note
+	NONE
+	```
+```
