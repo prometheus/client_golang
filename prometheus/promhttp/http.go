@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +46,8 @@ import (
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
 const (
@@ -88,6 +91,13 @@ func Handler() http.Handler {
 // kind of instrumentation as it is used by the Handler function.
 func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 	return HandlerForTransactional(prometheus.ToTransactionalGatherer(reg), opts)
+}
+
+// HandlerWithAllowlist remove metrics whose name can't match with metricNameMatcher
+func HandlerWithAllowlist(metricNameMatcher *regexp.Regexp) http.Handler {
+	return InstrumentMetricHandler(
+		prometheus.DefaultRegisterer, HandlerFor(&FilteredGatherer{gather: prometheus.DefaultGatherer, metricNameMatcher: metricNameMatcher}, HandlerOpts{}),
+	)
 }
 
 // HandlerForTransactional is like HandlerFor, but it uses transactional gather, which
@@ -405,4 +415,25 @@ func httpError(rsp http.ResponseWriter, err error) {
 		"An error has occurred while serving metrics:\n\n"+err.Error(),
 		http.StatusInternalServerError,
 	)
+}
+
+type FilteredGatherer struct {
+	gather            prometheus.Gatherer
+	metricNameMatcher *regexp.Regexp
+}
+
+func (f *FilteredGatherer) Gather() ([]*dto.MetricFamily, error) {
+	results := []*dto.MetricFamily{}
+	metrics, err := f.gather.Gather()
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range metrics {
+
+		if f.metricNameMatcher.MatchString(*m.Name) {
+			results = append(results, m)
+		}
+
+	}
+	return results, nil
 }
