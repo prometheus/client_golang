@@ -7,12 +7,14 @@ CURR_DIR=$(pwd)
 VERSION=$(cat VERSION)
 TAG_NAME="v${VERSION}"
 
+PREVIOUS_VERSION=$(git show HEAD~1:VERSION)
+
 MANUAL_START_SHA=$1
 MANUAL_END_SHA=$2
 
 # Get the start SHA based on the tag, if not manually provided
 if [ -z "$MANUAL_START_SHA" ]; then
-  START_SHA=$(git rev-list -n 1 "${TAG_NAME}")
+  START_SHA=$(git rev-list -n 1 "v${PREVIOUS_VERSION}")
 else
   START_SHA=$MANUAL_START_SHA
 fi

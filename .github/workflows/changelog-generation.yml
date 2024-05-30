@@ -31,11 +31,12 @@ jobs:
         id: tag_name
         run: |
           echo "tag_name=$(cat VERSION)" >> $GITHUB_ENV
+          echo "prev_tag_name=$(git show HEAD~1:VERSION)" >> $GITHUB_ENV
 
       - name: Get Base SHA from Tag
         id: base_sha
         run: |
-          echo "base_sha=$(git rev-list -n 1 "v${{ env.tag_name }}")" >> $GITHUB_ENV
+          echo "base_sha=$(git rev-list -n 1 "v${{ env.prev_tag_name }}")" >> $GITHUB_ENV
         continue-on-error: true
 
       - name: Create Pull Request
