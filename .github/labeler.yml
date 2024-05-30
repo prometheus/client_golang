@@ -1,0 +1,34 @@
+# Config file for pr-auto-label workflow
+
+# enable auto-labeler on issues, prs, or both.
+enable:
+  prs: true
+
+# Labels is an object where:
+# - keys are labels
+# - values are objects of { include: [ pattern ], exclude: [ pattern ] }
+#    - pattern must be a valid regex, and is applied globally to
+#      title + description of issues and/or prs (see enabled config above)
+#    - 'include' patterns will associate a label if any of these patterns match
+#    - 'exclude' patterns will ignore this label if any of these patterns match
+labels:
+  'kind/BUGFIX':
+    include:
+      - '/kind (fix|bugfix)'
+    exclude: []
+  'kind/ENHANCEMENT':
+    include:
+      - '/kind enhancement'
+    exclude: []
+  'kind/FEATURE':
+    include:
+      - '/kind (feat|feature)'
+    exclude: []
+  'kind/CHANGE':
+    include:
+      - '/kind change'
+    exclude: []
+  'release-note-none':
+    include:
+      - '/kind (none|NONE|release-note-none|release-notes-none)'
+    exclude: []

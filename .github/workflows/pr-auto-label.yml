@@ -1,0 +1,55 @@
+---
+name: PR-auto-labeler
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize]
+
+permissions:
+    contents: read # the config file
+    pull-requests: write # for labeling pull requests (on: pull_request_target or on: pull_request)
+    statuses: write # to generate status
+    checks: write # to generate status
+
+jobs:
+  pr-labeler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Labels
+        id: labeler
+        uses: jimschubert/labeler-action@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+# Adjust the configuration in /.github/labeler.yml
+
+  validate-pr-label:
+    runs-on: ubuntu-latest
+    needs: pr-labeler
+    steps:
+      - name: Verify Label
+        id: preview_label_check
+        uses: docker://agilepathway/pull-request-label-checker:latest
+        with:
+          any_of: kind/BUGFIX,kind/ENHANCEMENT,kind/FEATURE,kind/CHANGE,release-note-none
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          allow_failure: true
+      - name: Comment on Label Check Failure
+        uses: thollander/actions-comment-pull-request@v2.5.0
+        if: steps.preview_label_check.outputs.label_check == 'failure'
+        with:
+          message: |
+            PR body does not contain a valid type of change. Please refer to [CONTRIBUTING.md](https://github.com/prometheus/client_golang/blob/main/CONTRIBUTING.md#how-to-fill-the-pr-template) for more information.
+          comment_tag: labelfailure
+          mode: recreate
+      - name: Remove Label Check Failure Comment
+        uses: thollander/actions-comment-pull-request@v2.5.0
+        if: steps.preview_label_check.outputs.label_check == 'success'
+        with:
+          message: |
+            PR body contains a valid type of change.
+          comment_tag: labelfailure
+          mode: delete
+          create_if_not_exists: false
+      - name: Exit on Failure
+        if: steps.preview_label_check.outputs.label_check == 'failure'
+        run: exit 1

@@ -21,7 +21,7 @@ Prometheus uses GitHub to manage reviews of pull requests.
 
 * Be sure to sign off on the [DCO](https://github.com/probot/dco#how-it-works)
 
-## How to fill the PR template
+## How to write a PR description
 
 ### Describe your PR
 
