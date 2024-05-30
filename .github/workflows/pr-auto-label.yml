@@ -51,7 +51,5 @@ jobs:
           mode: delete
           create_if_not_exists: false
       - name: Exit on Failure
-        run: |
-          if [[ ${{ steps.preview_label_check.outputs.label_check }} == 'failure' ]]; then
-            exit 1
-          fi
+        if: steps.preview_label_check.outputs.label_check == 'failure'
+        run: exit 1
