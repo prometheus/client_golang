@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - "release-*"
+    paths:
+      - 'VERSION'
 
 jobs:
   build-and-run-release-notes:
@@ -13,25 +15,32 @@ jobs:
     steps:
       - name: Check out code onto GOPATH
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           check-latest: true
-
+        
       - name: Build and Install Release Notes Tool
         env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-            ./generate-changelog.sh
-            cat CHANGELOG.md
-
-      - name: Read Tag Name from VERSION File
-        id: tag_name
-        run: |
-          echo "tag_name=$(cat VERSION)" >> $GITHUB_ENV
           echo "prev_tag_name=$(git show HEAD~1:VERSION)" >> $GITHUB_ENV
+          echo "tag_name=$(cat VERSION)" >> $GITHUB_ENV
+          echo "todays_date=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+          ./generate-changelog.sh
+
+      - name: Update CHANGELOG.md header
+        run: |
+          echo "Tag Name: ${{ env.tag_name }}"
+          echo "Today's Date: ${{ env.todays_date }}"
+          echo "Previous Tag Name: ${{ env.prev_tag_name }}"
+          NEW_HEADER="## ${{ env.tag_name }} / ${{ env.todays_date }}"
+          sed -i '1s|.*|'"$NEW_HEADER"'\n\n|' CHANGELOG.md
+          cat CHANGELOG.md
 
       - name: Get Base SHA from Tag
         id: base_sha
