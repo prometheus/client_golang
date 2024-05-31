@@ -12,8 +12,22 @@ permissions:
     checks: write # to generate status
 
 jobs:
+  remove-old-labels:
+    name: Remove old PR labels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: mondeja/remove-labels-gh-action@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          labels: |
+            kind/BUGFIX
+            kind/ENHANCEMENT
+            kind/FEATURE
+            kind/CHANGE
+            release-note-none
   pr-labeler:
     runs-on: ubuntu-latest
+    needs: remove-old-labels
     steps:
       - name: Check Labels
         id: labeler
