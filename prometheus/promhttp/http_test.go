@@ -15,8 +15,10 @@ package promhttp
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -24,12 +26,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/klauspost/compress/zstd"
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type errorCollector struct{}
+
+const (
+	acceptHeader    = "Accept"
+	acceptTextPlain = "text/plain"
+)
 
 func (e errorCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("invalid_metric", "not helpful", nil, nil)
@@ -69,6 +77,28 @@ func (g *mockTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), 
 	g.gatherInvoked++
 	mfs, err := g.g.Gather()
 	return mfs, func() { g.doneInvoked++ }, err
+}
+
+func readCompressedBody(r io.Reader, comp Compression) (string, error) {
+	switch comp {
+	case Gzip:
+		reader, err := gzip.NewReader(r)
+		if err != nil {
+			return "", err
+		}
+		defer reader.Close()
+		got, err := io.ReadAll(reader)
+		return string(got), err
+	case Zstd:
+		reader, err := zstd.NewReader(r)
+		if err != nil {
+			return "", err
+		}
+		defer reader.Close()
+		got, err := io.ReadAll(reader)
+		return string(got), err
+	}
+	return "", fmt.Errorf("Unsupported compression")
 }
 
 func TestHandlerErrorHandling(t *testing.T) {
@@ -223,7 +253,7 @@ func TestInstrumentMetricHandler(t *testing.T) {
 	InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Add("Accept", "test/plain")
+	request.Header.Add(acceptHeader, acceptTextPlain)
 
 	handler.ServeHTTP(writer, request)
 	if got := mReg.gatherInvoked; got != 1 {
@@ -235,6 +265,10 @@ func TestInstrumentMetricHandler(t *testing.T) {
 
 	if got, want := writer.Code, http.StatusOK; got != want {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := writer.Header().Get(contentEncodingHeader), string(Identity); got != want {
+		t.Errorf("got HTTP content encoding header %s, want %s", got, want)
 	}
 
 	want := "promhttp_metric_handler_requests_in_flight 1\n"
@@ -278,7 +312,7 @@ func TestHandlerMaxRequestsInFlight(t *testing.T) {
 	w2 := httptest.NewRecorder()
 	w3 := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Add("Accept", "test/plain")
+	request.Header.Add(acceptHeader, acceptTextPlain)
 
 	c := blockingCollector{Block: make(chan struct{}), CollectStarted: make(chan struct{}, 1)}
 	reg.MustRegister(c)
@@ -330,6 +364,121 @@ func TestHandlerTimeout(t *testing.T) {
 	}
 
 	close(c.Block) // To not leak a goroutine.
+}
+
+func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	mReg := &mockTransactionGatherer{g: reg}
+	handler := InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{DisableCompression: false}))
+	compression := Zstd
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Add(acceptHeader, acceptTextPlain)
+	request.Header.Add(acceptEncodingHeader, string(compression))
+
+	handler.ServeHTTP(writer, request)
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
+
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := writer.Header().Get(contentEncodingHeader), string(compression); got != want {
+		t.Errorf("got HTTP content encoding header %s, want %s", got, want)
+	}
+
+	body, err := readCompressedBody(writer.Body, compression)
+	want := "promhttp_metric_handler_requests_in_flight 1\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	for i := 0; i < 100; i++ {
+		writer.Body.Reset()
+		handler.ServeHTTP(writer, request)
+
+		if got, want := mReg.gatherInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of gather invokes, want %d, got %d", want, got)
+		}
+		if got, want := mReg.doneInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of done invokes, want %d, got %d", want, got)
+		}
+		if got, want := writer.Code, http.StatusOK; got != want {
+			t.Errorf("got HTTP status code %d, want %d", got, want)
+		}
+		body, err := readCompressedBody(writer.Body, compression)
+
+		want := "promhttp_metric_handler_requests_in_flight 1\n"
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+
+		want = fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1)
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+	}
+
+	// Test with Zstd
+	compression = Zstd
+	request.Header.Set(acceptEncodingHeader, string(compression))
+
+	handler.ServeHTTP(writer, request)
+
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := writer.Header().Get(contentEncodingHeader), string(compression); got != want {
+		t.Errorf("got HTTP content encoding header %s, want %s", got, want)
+	}
+
+	body, err = readCompressedBody(writer.Body, compression)
+	want = "promhttp_metric_handler_requests_in_flight 1\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 101\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	for i := 101; i < 201; i++ {
+		writer.Body.Reset()
+		handler.ServeHTTP(writer, request)
+
+		if got, want := mReg.gatherInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of gather invokes, want %d, got %d", want, got)
+		}
+		if got, want := mReg.doneInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of done invokes, want %d, got %d", want, got)
+		}
+		if got, want := writer.Code, http.StatusOK; got != want {
+			t.Errorf("got HTTP status code %d, want %d", got, want)
+		}
+		body, err := readCompressedBody(writer.Body, compression)
+
+		want := "promhttp_metric_handler_requests_in_flight 1\n"
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+
+		want = fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1)
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+	}
 }
 
 func TestNegotiateEncodingWriter(t *testing.T) {
@@ -393,7 +542,7 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		request, _ := http.NewRequest("GET", "/", nil)
 		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
 		rr := httptest.NewRecorder()
-		_, encodingHeader, err := NegotiateEncodingWriter(request, rr, test.disableCompression, test.offeredCompressions)
+		_, encodingHeader, _, err := NegotiateEncodingWriter(request, rr, test.disableCompression, test.offeredCompressions)
 
 		if !errors.Is(err, test.err) {
 			t.Errorf("got error: %v, expected: %v", err, test.err)
@@ -489,7 +638,7 @@ func BenchmarkCompression(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					writer := httptest.NewRecorder()
 					request, _ := http.NewRequest("GET", "/", nil)
-					request.Header.Add("Accept-Encoding", benchmark.compressionType)
+					request.Header.Add(acceptEncodingHeader, benchmark.compressionType)
 					handler.ServeHTTP(writer, request)
 				}
 			})

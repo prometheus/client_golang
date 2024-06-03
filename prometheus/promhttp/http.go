@@ -190,7 +190,18 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
-		w, encodingHeader, err := NegotiateEncodingWriter(req, rsp, opts.DisableCompression, compressions)
+		w, encodingHeader, closeWriter, err := NegotiateEncodingWriter(req, rsp, opts.DisableCompression, compressions)
+
+		if closeWriter != nil {
+			defer func() {
+				err := closeWriter()
+				if err != nil {
+					if opts.ErrorLog != nil {
+						opts.ErrorLog.Println("error closing writer:", err)
+					}
+				}
+			}()
+		}
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error getting writer", err)
@@ -432,11 +443,11 @@ func httpError(rsp http.ResponseWriter, err error) {
 // selects the right compression based on an allow-list of supported
 // compressions. It returns a writer implementing the compression and an the
 // correct value that the caller can set in the response header.
-func NegotiateEncodingWriter(r *http.Request, rw io.Writer, disableCompression bool, compressions []string) (_ io.Writer, encodingHeaderValue string, _ error) {
+func NegotiateEncodingWriter(r *http.Request, rw io.Writer, disableCompression bool, compressions []string) (_ io.Writer, encodingHeaderValue string, closeWriter func() error, _ error) {
 	w := rw
 
 	if disableCompression {
-		return w, string(Identity), nil
+		return w, string(Identity), nil, nil
 	}
 
 	// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
@@ -447,26 +458,26 @@ func NegotiateEncodingWriter(r *http.Request, rw io.Writer, disableCompression b
 		// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
 		z, err := zstd.NewWriter(rw, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		if err != nil {
-			return nil, "", err
+			return nil, "", nil, err
 		}
 
 		z.Reset(w)
-		defer z.Close()
-
 		w = z
+
+		return w, compression, z.Close, nil
 	case "gzip":
 		gz := gzipPool.Get().(*gzip.Writer)
 		defer gzipPool.Put(gz)
 
 		gz.Reset(w)
-		defer gz.Close()
 
 		w = gz
+		return w, compression, gz.Close, nil
 	case "identity":
 		// This means the content is not compressed.
+		return w, compression, nil, nil
 	default:
 		// The content encoding was not implemented yet.
-		return nil, "", fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
+		return nil, "", nil, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
 	}
-	return w, compression, nil
 }
