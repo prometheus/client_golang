@@ -55,23 +55,13 @@ const (
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
 
-type Compression int
+type Compression string
 
 const (
-	Identity Compression = iota
-	Gzip
-	Zstd
+	Identity Compression = "identity"
+	Gzip     Compression = "gzip"
+	Zstd     Compression = "zstd"
 )
-
-var compressions = [...]string{
-	"identity",
-	"gzip",
-	"zstd",
-}
-
-func (c Compression) String() string {
-	return compressions[c]
-}
 
 var defaultCompressionFormats = []Compression{Identity, Gzip, Zstd}
 
@@ -143,6 +133,18 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 	}
 
+	// Select all supported compression formats
+	var compressions []string
+	if !opts.DisableCompression {
+		offers := defaultCompressionFormats
+		if len(opts.OfferedCompressions) > 0 {
+			offers = opts.OfferedCompressions
+		}
+		for _, comp := range offers {
+			compressions = append(compressions, string(comp))
+		}
+	}
+
 	h := http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
 		if !opts.ProcessStartTime.IsZero() {
 			rsp.Header().Set(processStartTimeHeader, strconv.FormatInt(opts.ProcessStartTime.Unix(), 10))
@@ -188,12 +190,19 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
-		w, err := GetWriter(req, rsp, opts.DisableCompression, opts.OfferedCompressions)
+		w, encodingHeader, err := NegotiateEncodingWriter(req, rsp, opts.DisableCompression, compressions)
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error getting writer", err)
 			}
+			// Since the writer received from NegotiateEncodingWriter will be nil, in case there's an error, we set it here
+			w = io.Writer(rsp)
 		}
+
+		if encodingHeader == "" {
+			encodingHeader = string(Identity)
+		}
+		rsp.Header().Set(contentEncodingHeader, encodingHeader)
 
 		enc := expfmt.NewEncoder(w, contentType)
 
@@ -419,48 +428,45 @@ func httpError(rsp http.ResponseWriter, err error) {
 	)
 }
 
-func GetWriter(r *http.Request, rsp http.ResponseWriter, disableCompression bool, offeredCompressions []Compression) (io.Writer, error) {
-	w := io.Writer(rsp)
-	rsp.Header().Set(contentEncodingHeader, "identity")
-	if !disableCompression {
-		offers := defaultCompressionFormats
-		if len(offeredCompressions) > 0 {
-			offers = offeredCompressions
-		}
-		var compressions []string
-		for _, comp := range offers {
-			compressions = append(compressions, comp.String())
-		}
-		// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
-		compression := httputil.NegotiateContentEncoding(r, compressions)
-		switch compression {
-		case "zstd":
-			rsp.Header().Set(contentEncodingHeader, "zstd")
-			// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
-			z, err := zstd.NewWriter(rsp, zstd.WithEncoderLevel(zstd.SpeedFastest))
-			if err != nil {
-				return nil, err
-			}
+// NegotiateEncodingWriter reads the Accept-Encoding header from a request and
+// selects the right compression based on an allow-list of supported
+// compressions. It returns a writer implementing the compression and an the
+// correct value that the caller can set in the response header.
+func NegotiateEncodingWriter(r *http.Request, rw io.Writer, disableCompression bool, compressions []string) (_ io.Writer, encodingHeaderValue string, _ error) {
+	w := rw
 
-			z.Reset(w)
-			defer z.Close()
-
-			w = z
-		case "gzip":
-			rsp.Header().Set(contentEncodingHeader, "gzip")
-			gz := gzipPool.Get().(*gzip.Writer)
-			defer gzipPool.Put(gz)
-
-			gz.Reset(w)
-			defer gz.Close()
-
-			w = gz
-		case "identity":
-			// This means the content is not compressed.
-		default:
-			// The content encoding was not implemented yet.
-			return w, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
-		}
+	if disableCompression {
+		return w, string(Identity), nil
 	}
-	return w, nil
+
+	// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
+	compression := httputil.NegotiateContentEncoding(r, compressions)
+
+	switch compression {
+	case "zstd":
+		// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
+		z, err := zstd.NewWriter(rw, zstd.WithEncoderLevel(zstd.SpeedFastest))
+		if err != nil {
+			return nil, "", err
+		}
+
+		z.Reset(w)
+		defer z.Close()
+
+		w = z
+	case "gzip":
+		gz := gzipPool.Get().(*gzip.Writer)
+		defer gzipPool.Put(gz)
+
+		gz.Reset(w)
+		defer gz.Close()
+
+		w = gz
+	case "identity":
+		// This means the content is not compressed.
+	default:
+		// The content encoding was not implemented yet.
+		return nil, "", fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
+	}
+	return w, compression, nil
 }

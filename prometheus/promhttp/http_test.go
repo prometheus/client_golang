@@ -332,11 +332,17 @@ func TestHandlerTimeout(t *testing.T) {
 	close(c.Block) // To not leak a goroutine.
 }
 
-func TestGetWriter(t *testing.T) {
+func TestNegotiateEncodingWriter(t *testing.T) {
+	var defaultCompressions []string
+
+	for _, comp := range defaultCompressionFormats {
+		defaultCompressions = append(defaultCompressions, string(comp))
+	}
+
 	testCases := []struct {
 		name                string
 		disableCompression  bool
-		offeredCompressions []Compression
+		offeredCompressions []string
 		acceptEncoding      string
 		expectedCompression string
 		err                 error
@@ -344,7 +350,7 @@ func TestGetWriter(t *testing.T) {
 		{
 			name:                "test without compression enabled",
 			disableCompression:  true,
-			offeredCompressions: defaultCompressionFormats,
+			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "",
 			expectedCompression: "identity",
 			err:                 nil,
@@ -352,7 +358,7 @@ func TestGetWriter(t *testing.T) {
 		{
 			name:                "test with compression enabled with empty accept-encoding header",
 			disableCompression:  false,
-			offeredCompressions: defaultCompressionFormats,
+			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "",
 			expectedCompression: "identity",
 			err:                 nil,
@@ -360,7 +366,7 @@ func TestGetWriter(t *testing.T) {
 		{
 			name:                "test with gzip compression requested",
 			disableCompression:  false,
-			offeredCompressions: defaultCompressionFormats,
+			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "gzip",
 			expectedCompression: "gzip",
 			err:                 nil,
@@ -368,7 +374,7 @@ func TestGetWriter(t *testing.T) {
 		{
 			name:                "test with gzip, zstd compression requested",
 			disableCompression:  false,
-			offeredCompressions: defaultCompressionFormats,
+			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "gzip,zstd",
 			expectedCompression: "gzip",
 			err:                 nil,
@@ -376,7 +382,7 @@ func TestGetWriter(t *testing.T) {
 		{
 			name:                "test with zstd, gzip compression requested",
 			disableCompression:  false,
-			offeredCompressions: defaultCompressionFormats,
+			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "zstd,gzip",
 			expectedCompression: "gzip",
 			err:                 nil,
@@ -387,14 +393,14 @@ func TestGetWriter(t *testing.T) {
 		request, _ := http.NewRequest("GET", "/", nil)
 		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
 		rr := httptest.NewRecorder()
-		_, err := GetWriter(request, rr, test.disableCompression, test.offeredCompressions)
+		_, encodingHeader, err := NegotiateEncodingWriter(request, rr, test.disableCompression, test.offeredCompressions)
 
 		if !errors.Is(err, test.err) {
 			t.Errorf("got error: %v, expected: %v", err, test.err)
 		}
 
-		if rr.Header().Get(contentEncodingHeader) != test.expectedCompression {
-			t.Errorf("got different compression type: %v, expected: %v", rr.Header().Get(contentEncodingHeader), test.expectedCompression)
+		if encodingHeader != test.expectedCompression {
+			t.Errorf("got different compression type: %v, expected: %v", encodingHeader, test.expectedCompression)
 		}
 	}
 }
