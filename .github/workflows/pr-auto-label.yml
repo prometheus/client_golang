@@ -1,5 +1,5 @@
 ---
-name: PR-auto-labeler
+name: Changelog automation
 
 on:
   pull_request_target:
@@ -12,11 +12,12 @@ permissions:
     checks: write # to generate status
 
 jobs:
-  remove-old-labels:
-    name: Remove old PR labels
+  changelog-automation:
+    name: Changelog automation
     runs-on: ubuntu-latest
     steps:
-      - uses: mondeja/remove-labels-gh-action@v2.0.0
+      - name: Remove old PR labels
+        uses: mondeja/remove-labels-gh-action@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           labels: |
@@ -25,21 +26,13 @@ jobs:
             kind/FEATURE
             kind/CHANGE
             release-note-none
-  pr-labeler:
-    runs-on: ubuntu-latest
-    needs: remove-old-labels
-    steps:
-      - name: Check Labels
+      - name: Add label to PR
         id: labeler
         uses: jimschubert/labeler-action@v1
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 # Adjust the configuration in /.github/labeler.yml
 
-  validate-pr-label:
-    runs-on: ubuntu-latest
-    needs: pr-labeler
-    steps:
       - name: Verify Label
         id: preview_label_check
         uses: docker://agilepathway/pull-request-label-checker:latest
@@ -52,7 +45,7 @@ jobs:
         if: steps.preview_label_check.outputs.label_check == 'failure'
         with:
           message: |
-            PR body does not contain a valid type of change. Please refer to [CONTRIBUTING.md](https://github.com/prometheus/client_golang/blob/main/CONTRIBUTING.md#how-to-fill-the-pr-template) for more information.
+            PR body does not contain a valid type of change. Please refer to [CONTRIBUTING.md](https://github.com/prometheus/client_golang/blob/main/CONTRIBUTING.md#how-to-write-a-pr-description) for more information.
           comment_tag: labelfailure
           mode: recreate
       - name: Remove Label Check Failure Comment
