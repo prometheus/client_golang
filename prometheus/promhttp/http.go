@@ -364,10 +364,10 @@ type HandlerOpts struct {
 	// by the client and the OfferedCompressions field is ignored.
 	DisableCompression bool
 	// OfferedCompressions is a set of encodings (compressions) handler will
-	// try to offer when negotiating with the client. This defaults to zstd,
-	// gzip and identity.
-	// NOTE: If handler can't agree on the encodings with the client or
-	// caller using unsupported or empty encodings in OfferedCompressions,
+	// try to offer when negotiating with the client. This defaults to identity, gzip
+	// and zstd.
+	// NOTE: If handler can't agree with the client on the encodings or
+	// unsupported or empty encodings are set in OfferedCompressions,
 	// handler always fallbacks to no compression (identity), for
 	// compatibility reasons. In such cases ErrorLog will be used if set.
 	OfferedCompressions []Compression
