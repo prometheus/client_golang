@@ -361,7 +361,7 @@ type HandlerOpts struct {
 	// DisableCompression disables the response encoding (compression) and
 	// encoding negotiation. If true, the handler will
 	// never compress the response, even if requested
-	// by the client and the OfferedCompressions field is ignored.
+	// by the client and the OfferedCompressions field is set.
 	DisableCompression bool
 	// OfferedCompressions is a set of encodings (compressions) handler will
 	// try to offer when negotiating with the client. This defaults to identity, gzip
