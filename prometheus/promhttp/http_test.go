@@ -490,7 +490,6 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 
 	testCases := []struct {
 		name                string
-		disableCompression  bool
 		offeredCompressions []string
 		acceptEncoding      string
 		expectedCompression string
@@ -498,15 +497,13 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 	}{
 		{
 			name:                "test without compression enabled",
-			disableCompression:  true,
-			offeredCompressions: defaultCompressions,
+			offeredCompressions: []string{},
 			acceptEncoding:      "",
 			expectedCompression: "identity",
 			err:                 nil,
 		},
 		{
 			name:                "test with compression enabled with empty accept-encoding header",
-			disableCompression:  false,
 			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "",
 			expectedCompression: "identity",
@@ -514,7 +511,6 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		},
 		{
 			name:                "test with gzip compression requested",
-			disableCompression:  false,
 			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "gzip",
 			expectedCompression: "gzip",
@@ -522,7 +518,6 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		},
 		{
 			name:                "test with gzip, zstd compression requested",
-			disableCompression:  false,
 			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "gzip,zstd",
 			expectedCompression: "gzip",
@@ -530,7 +525,6 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		},
 		{
 			name:                "test with zstd, gzip compression requested",
-			disableCompression:  false,
 			offeredCompressions: defaultCompressions,
 			acceptEncoding:      "zstd,gzip",
 			expectedCompression: "gzip",
@@ -542,7 +536,7 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		request, _ := http.NewRequest("GET", "/", nil)
 		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
 		rr := httptest.NewRecorder()
-		_, encodingHeader, _, err := NegotiateEncodingWriter(request, rr, test.disableCompression, test.offeredCompressions)
+		_, encodingHeader, _, err := negotiateEncodingWriter(request, rr, test.offeredCompressions)
 
 		if !errors.Is(err, test.err) {
 			t.Errorf("got error: %v, expected: %v", err, test.err)

@@ -190,7 +190,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
-		w, encodingHeader, closeWriter, err := NegotiateEncodingWriter(req, rsp, opts.DisableCompression, compressions)
+		w, encodingHeader, closeWriter, err := negotiateEncodingWriter(req, rsp, compressions)
 		if err != nil {
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error getting writer", err)
@@ -199,16 +199,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			encodingHeader = string(Identity)
 		}
 
-		if closeWriter != nil {
-			defer func() {
-				err := closeWriter()
-				if err != nil {
-					if opts.ErrorLog != nil {
-						opts.ErrorLog.Println("error closing writer:", err)
-					}
-				}
-			}()
-		}
+		defer closeWriter()
 
 		rsp.Header().Set(contentEncodingHeader, encodingHeader)
 
@@ -440,41 +431,35 @@ func httpError(rsp http.ResponseWriter, err error) {
 // selects the right compression based on an allow-list of supported
 // compressions. It returns a writer implementing the compression and an the
 // correct value that the caller can set in the response header.
-func NegotiateEncodingWriter(r *http.Request, rw io.Writer, disableCompression bool, compressions []string) (_ io.Writer, encodingHeaderValue string, closeWriter func() error, _ error) {
-	w := rw
-
-	if disableCompression {
-		return w, string(Identity), nil, nil
+func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []string) (_ io.Writer, encodingHeaderValue string, closeWriter func(), _ error) {
+	if len(compressions) == 0 {
+		return rw, string(Identity), func() {}, nil
 	}
 
 	// TODO(mrueg): Replace internal/github.com/gddo once https://github.com/golang/go/issues/19307 is implemented.
-	compression := httputil.NegotiateContentEncoding(r, compressions)
+	selected := httputil.NegotiateContentEncoding(r, compressions)
 
-	switch compression {
+	switch selected {
 	case "zstd":
 		// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
 		z, err := zstd.NewWriter(rw, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", func() {}, err
 		}
 
-		z.Reset(w)
-		w = z
-
-		return w, compression, z.Close, nil
+		z.Reset(rw)
+		return z, selected, func() { _ = z.Close() }, nil
 	case "gzip":
 		gz := gzipPool.Get().(*gzip.Writer)
 		defer gzipPool.Put(gz)
 
-		gz.Reset(w)
-
-		w = gz
-		return w, compression, gz.Close, nil
+		gz.Reset(rw)
+		return gz, selected, func() { _ = gz.Close(); gzipPool.Put(gz) }, nil
 	case "identity":
 		// This means the content is not compressed.
-		return w, compression, nil, nil
+		return rw, selected, func() {}, nil
 	default:
 		// The content encoding was not implemented yet.
-		return nil, "", nil, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", compression, defaultCompressionFormats)
+		return nil, "", func() {}, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", selected, defaultCompressionFormats)
 	}
 }
