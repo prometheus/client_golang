@@ -191,6 +191,13 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
 		w, encodingHeader, closeWriter, err := NegotiateEncodingWriter(req, rsp, opts.DisableCompression, compressions)
+		if err != nil {
+			if opts.ErrorLog != nil {
+				opts.ErrorLog.Println("error getting writer", err)
+			}
+			w = io.Writer(rsp)
+			encodingHeader = string(Identity)
+		}
 
 		if closeWriter != nil {
 			defer func() {
@@ -202,17 +209,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 				}
 			}()
 		}
-		if err != nil {
-			if opts.ErrorLog != nil {
-				opts.ErrorLog.Println("error getting writer", err)
-			}
-			// Since the writer received from NegotiateEncodingWriter will be nil, in case there's an error, we set it here
-			w = io.Writer(rsp)
-		}
 
-		if encodingHeader == "" {
-			encodingHeader = string(Identity)
-		}
 		rsp.Header().Set(contentEncodingHeader, encodingHeader)
 
 		enc := expfmt.NewEncoder(w, contentType)
