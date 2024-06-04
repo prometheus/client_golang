@@ -133,7 +133,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 	}
 
-	// Select all supported compression formats
+	// Select compression formats to offer based on default or user choice.
 	var compressions []string
 	if !opts.DisableCompression {
 		offers := defaultCompressionFormats
