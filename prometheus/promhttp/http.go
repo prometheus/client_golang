@@ -55,6 +55,8 @@ const (
 	processStartTimeHeader = "Process-Start-Time-Unix"
 )
 
+// Compression represents the content encodings handlers support for the HTTP
+// responses.
 type Compression string
 
 const (
@@ -427,7 +429,7 @@ func httpError(rsp http.ResponseWriter, err error) {
 	)
 }
 
-// NegotiateEncodingWriter reads the Accept-Encoding header from a request and
+// negotiateEncodingWriter reads the Accept-Encoding header from a request and
 // selects the right compression based on an allow-list of supported
 // compressions. It returns a writer implementing the compression and an the
 // correct value that the caller can set in the response header.
@@ -451,8 +453,6 @@ func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []strin
 		return z, selected, func() { _ = z.Close() }, nil
 	case "gzip":
 		gz := gzipPool.Get().(*gzip.Writer)
-		defer gzipPool.Put(gz)
-
 		gz.Reset(rw)
 		return gz, selected, func() { _ = gz.Close(); gzipPool.Put(gz) }, nil
 	case "identity":
