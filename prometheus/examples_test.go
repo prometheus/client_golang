@@ -456,6 +456,34 @@ func ExampleNewConstHistogram() {
 	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}]}}
 }
 
+func ExampleNewConstHistogramWithCreatedTimestamp() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A histogram of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	ct := time.Unix(0, 0).UTC()
+	h := prometheus.MustNewConstHistogramWithCreatedTimestamp(
+		desc,
+		4711, 403.34,
+		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		ct,
+		"200", "get",
+	)
+
+	// Just for demonstration, let's check the state of the histogram by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	h.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}],"createdTimestamp":"1970-01-01T00:00:00Z"}}
+}
+
 func ExampleNewConstHistogram_WithExemplar() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",

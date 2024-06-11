@@ -1373,6 +1373,48 @@ func MustNewConstHistogram(
 	return m
 }
 
+// NewConstHistogramWithCreatedTimestamp does the same thing as NewConstHistogram but sets the created timestamp
+func NewConstHistogramWithCreatedTimestamp(
+	desc *Desc,
+	count uint64,
+	sum float64,
+	buckets map[float64]uint64,
+	ct time.Time,
+	labelValues ...string,
+) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
+		return nil, err
+	}
+	return &constHistogram{
+		desc:       desc,
+		count:      count,
+		sum:        sum,
+		buckets:    buckets,
+		labelPairs: MakeLabelPairs(desc, labelValues),
+		createdTs:  timestamppb.New(ct),
+	}, nil
+}
+
+// MustNewConstHistogramWithCreatedTimestamp is a version of NewConstHistogramWithCreatedTimestamp that panics where
+// NewConstHistogramWithCreatedTimestamp would have returned an error.
+func MustNewConstHistogramWithCreatedTimestamp(
+	desc *Desc,
+	count uint64,
+	sum float64,
+	buckets map[float64]uint64,
+	ct time.Time,
+	labelValues ...string,
+) Metric {
+	m, err := NewConstHistogramWithCreatedTimestamp(desc, count, sum, buckets, ct, labelValues...)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
 type buckSort []*dto.Bucket
 
 func (s buckSort) Len() int {
