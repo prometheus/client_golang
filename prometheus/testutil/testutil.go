@@ -43,13 +43,13 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
-	"github.com/prometheus/client_golang/prometheus/testutil/diff"
 )
 
 // ToFloat64 collects all Metrics from the provided Collector. It expects that
