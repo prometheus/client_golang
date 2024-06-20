@@ -60,10 +60,11 @@ func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metric
 		// one bucket to the next of (at most) 1.1. (The precise factor
 		// is 2^2^-3 = 1.0905077...)
 		rpcDurationsHistogram: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Name:                        "rpc_durations_histogram_seconds",
-			Help:                        "RPC latency distributions.",
-			Buckets:                     prometheus.LinearBuckets(normMean-5*normDomain, .5*normDomain, 20),
-			NativeHistogramBucketFactor: 1.1,
+			Name:                         "rpc_durations_histogram_seconds",
+			Help:                         "RPC latency distributions.",
+			Buckets:                      prometheus.LinearBuckets(normMean-5*normDomain, .5*normDomain, 20),
+			NativeHistogramBucketFactor:  1.1,
+			NativeHistogramZeroThreshold: prometheus.NativeHistogramZeroThresholdZero,
 		}),
 	}
 	reg.MustRegister(m.rpcDurations)
@@ -106,6 +107,18 @@ func main() {
 	}()
 
 	go func() {
+		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+			0, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+		)
+		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+			0, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+		)
+		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+			0, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+		)
+		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
+			0.01, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+		)
 		for {
 			v := (rand.NormFloat64() * *normDomain) + *normMean
 			m.rpcDurations.WithLabelValues("normal").Observe(v)
@@ -118,7 +131,7 @@ func main() {
 			m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
 				v, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
 			)
-			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
+			time.Sleep(time.Duration(oscillationFactor()) * time.Millisecond)
 		}
 	}()
 
