@@ -116,11 +116,9 @@ func main() {
 		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
 			0, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
 		)
-		m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
-			0.01, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
-		)
+
 		for {
-			v := (rand.NormFloat64() * *normDomain) + *normMean
+			v := math.Abs((rand.NormFloat64() * *normDomain) + *normMean)
 			m.rpcDurations.WithLabelValues("normal").Observe(v)
 			// Demonstrate exemplar support with a dummy ID. This
 			// would be something like a trace ID in a real
