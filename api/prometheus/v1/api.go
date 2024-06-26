@@ -1026,7 +1026,7 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 
 func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]string, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 
 	if !startTime.IsZero() {
 		q.Set("start", formatTime(startTime))
@@ -1049,7 +1049,7 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 
 func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, error) {
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 
 	if !startTime.IsZero() {
 		q.Set("start", formatTime(startTime))
@@ -1091,15 +1091,15 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
-// WithLimit can be used to provide an optional maximum number of returned entries for APIs that support that.
-// https://prometheus.io/docs/prometheus/latest/querying/api/#instant-queries
+// WithLimit provides an optional maximum number of returned entries for APIs that support limit parameter
+// e.g. https://prometheus.io/docs/prometheus/latest/querying/api/#instant-querie:~:text=%3A%20End%20timestamp.-,limit%3D%3Cnumber%3E,-%3A%20Maximum%20number%20of
 func WithLimit(limit uint64) Option {
 	return func(o *apiOptions) {
 		o.limit = limit
 	}
 }
 
-func formatOptions(q url.Values, opts []Option) url.Values {
+func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	opt := &apiOptions{}
 	for _, o := range opts {
 		o(opt)
@@ -1118,7 +1118,7 @@ func formatOptions(q url.Values, opts []Option) url.Values {
 
 func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ...Option) (model.Value, Warnings, error) {
 	u := h.client.URL(epQuery, nil)
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 
 	q.Set("query", query)
 	if !ts.IsZero() {
@@ -1136,7 +1136,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 
 func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error) {
 	u := h.client.URL(epQueryRange, nil)
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 
 	q.Set("query", query)
 	q.Set("start", formatTime(r.Start))
@@ -1154,7 +1154,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 
 func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]model.LabelSet, Warnings, error) {
 	u := h.client.URL(epSeries, nil)
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 
 	for _, m := range matches {
 		q.Add("match[]", m)
@@ -1286,7 +1286,7 @@ func (h *httpAPI) Metadata(ctx context.Context, metric, limit string) (map[strin
 
 func (h *httpAPI) TSDB(ctx context.Context, opts ...Option) (TSDBResult, error) {
 	u := h.client.URL(epTSDB, nil)
-	q := formatOptions(u.Query(), opts)
+	q := addOptionalURLParams(u.Query(), opts)
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
