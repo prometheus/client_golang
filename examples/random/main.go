@@ -118,7 +118,7 @@ func main() {
 		)
 
 		for {
-			v := math.Abs((rand.NormFloat64() * *normDomain) + *normMean)
+			v := -math.Abs((rand.NormFloat64() * *normDomain) + *normMean)
 			m.rpcDurations.WithLabelValues("normal").Observe(v)
 			// Demonstrate exemplar support with a dummy ID. This
 			// would be something like a trace ID in a real
