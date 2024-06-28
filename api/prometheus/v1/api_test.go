@@ -154,15 +154,15 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doLabelNames := func(matches []string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelNames(context.Background(), matches, startTime, endTime)
+			return promAPI.LabelNames(context.Background(), matches, startTime, endTime, opts...)
 		}
 	}
 
-	doLabelValues := func(matches []string, label string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime)
+			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime, opts...)
 		}
 	}
 
@@ -178,9 +178,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
+	doSeries := func(matcher string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime)
+			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime, opts...)
 		}
 	}
 
@@ -219,9 +219,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doTSDB := func() func() (interface{}, Warnings, error) {
+	doTSDB := func(opts ...Option) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			v, err := promAPI.TSDB(context.Background())
+			v, err := promAPI.TSDB(context.Background(), opts...)
 			return v, nil, err
 		}
 	}
