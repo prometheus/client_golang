@@ -38,22 +38,22 @@ func TestCounterAdd(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 	counter.Add(42)
-	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 42.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(43), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
 	counter.Add(24.42)
-	if expected, got := 24.42, math.Float64frombits(counter.valBits); expected != got {
+	if expected, got := 42+24.42, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(43), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -71,6 +71,114 @@ func TestCounterAdd(t *testing.T) {
 		},
 		Counter: &dto.Counter{
 			Value:            proto.Float64(67.42),
+			CreatedTimestamp: timestamppb.New(now),
+		},
+	}
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
+	}
+}
+
+func TestCounterOverflowAdd(t *testing.T) {
+	now := time.Now()
+
+	counter := NewCounter(CounterOpts{
+		Name:        "test",
+		Help:        "test help",
+		ConstLabels: Labels{"a": "1", "b": "2"},
+		now:         func() time.Time { return now },
+	}).(*counter)
+	counter.change = math.MaxUint64
+	counter.Inc()
+
+	// this is expected due to the overflow
+	if expected, got := uint64(0), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	expected := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: proto.String("a"), Value: proto.String("1")},
+			{Name: proto.String("b"), Value: proto.String("2")},
+		},
+		Counter: &dto.Counter{
+			Value:            proto.Float64(0),
+			CreatedTimestamp: timestamppb.New(now),
+		},
+	}
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
+	}
+}
+
+func TestCounterPrecisionLosingAdd(t *testing.T) {
+	now := time.Now()
+
+	counter := NewCounter(CounterOpts{
+		Name:        "test",
+		Help:        "test help",
+		ConstLabels: Labels{"a": "1", "b": "2"},
+		now:         func() time.Time { return now },
+	}).(*counter)
+
+	counter.Add(1 << 53)
+	if expected, got := float64(1<<53), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+
+	counter.Inc()
+	if expected, got := uint64(1), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	// along with the value 1 inside change, the sum could be added into the float without losing precision
+	counter.Add(1)
+	if expected, got := float64(1<<53+2), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	// the change is reset to 0
+	if expected, got := uint64(0), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	// the value will flip with 2
+	counter.Add(1)
+	if expected, got := float64(1<<53+4), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := uint64(0), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	counter.Add(1)
+	if expected, got := float64(1<<53+4), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := uint64(1), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	counter.Add(1)
+	if expected, got := float64(1<<53+6), math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("Expected %f, got %f.", expected, got)
+	}
+	if expected, got := uint64(0), counter.change; expected != got {
+		t.Errorf("Expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	expected := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: proto.String("a"), Value: proto.String("1")},
+			{Name: proto.String("b"), Value: proto.String("2")},
+		},
+		Counter: &dto.Counter{
+			Value:            proto.Float64(1<<53 + 6),
 			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
@@ -157,7 +265,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -165,7 +273,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(1), counter.valInt; expected != got {
+	if expected, got := uint64(1), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -173,7 +281,7 @@ func TestCounterAddInf(t *testing.T) {
 	if expected, got := math.Inf(1), math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("Expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(2), counter.valInt; expected != got {
+	if expected, got := uint64(2), counter.change; expected != got {
 		t.Errorf("Expected %d, got %d.", expected, got)
 	}
 
@@ -207,7 +315,7 @@ func TestCounterAddLarge(t *testing.T) {
 	if expected, got := large, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -240,7 +348,7 @@ func TestCounterAddSmall(t *testing.T) {
 	if expected, got := small, math.Float64frombits(counter.valBits); expected != got {
 		t.Errorf("valBits expected %f, got %f.", expected, got)
 	}
-	if expected, got := uint64(0), counter.valInt; expected != got {
+	if expected, got := uint64(0), counter.change; expected != got {
 		t.Errorf("valInts expected %d, got %d.", expected, got)
 	}
 
@@ -384,5 +492,93 @@ func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricTyp
 		if !gotTs.Equal(ct) {
 			t.Errorf("expected created timestamp for %s with label value %q: %s, got %s", typ, val, ct, gotTs)
 		}
+	}
+}
+
+func Test_hasRoundingError(t *testing.T) {
+	// for reviewing, could use this online tool to convert decimal
+	// https://baseconvert.com/ieee-754-floating-point
+	tests := []struct {
+		name              string
+		base              float64
+		delta             float64
+		wantRoundingError bool
+		wantNumber        float64
+	}{
+		{
+			name:              "no rounding error",
+			base:              0,
+			delta:             1,
+			wantRoundingError: false,
+			wantNumber:        1,
+		},
+		{
+			name:              "no rounding error",
+			base:              1<<53 - 1,
+			delta:             1,
+			wantRoundingError: false,
+			wantNumber:        1 << 53,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 53,
+			delta:             1,
+			wantRoundingError: true,
+			wantNumber:        1 << 53,
+		},
+		{
+			name:              "no rounding error",
+			base:              1 << 53,
+			delta:             2,
+			wantRoundingError: true,
+			wantNumber:        1<<53 + 2,
+		},
+		{
+			name:              "no rounding error",
+			base:              1<<53 + 2,
+			delta:             1,
+			wantRoundingError: false,
+			// there is a precision losing
+			wantNumber: 1<<53 + 4,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 54,
+			delta:             1,
+			wantRoundingError: true,
+			wantNumber:        1 << 54,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 54,
+			delta:             3,
+			wantRoundingError: false,
+			wantNumber:        18014398509481988,
+		},
+		{
+			name:              "rounding error",
+			base:              1 << 64,
+			delta:             1000,
+			wantRoundingError: true,
+			wantNumber:        1 << 64,
+		},
+		{
+			name:              "no rounding error",
+			base:              1 << 64,
+			delta:             10000,
+			wantRoundingError: false,
+			wantNumber:        18446744073709559808,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expectNumber, hasRoundingErr := addWithRoundingErrorChecking(tt.base, tt.delta)
+			if expectNumber != tt.wantNumber {
+				t.Errorf("addWithRoundingErrorChecking() = %f, wantRoundingError %f", expectNumber, tt.wantNumber)
+			}
+			if hasRoundingErr != tt.wantRoundingError {
+				t.Errorf("addWithRoundingErrorChecking() = %v, wantRoundingError %v", hasRoundingErr, tt.wantRoundingError)
+			}
+		})
 	}
 }
