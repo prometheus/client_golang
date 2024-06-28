@@ -499,6 +499,63 @@ x_bytes 10
 	runTests(t, tests)
 }
 
+func TestLintGauge(t *testing.T) {
+	tests := []test{
+		{
+			name: "counter with _timestamp_seconds suffix",
+			in: `
+# HELP _timestamp_seconds Test metric.
+# TYPE _timestamp_seconds counter
+_timestamp_seconds 10
+`,
+			problems: []promlint.Problem{
+				{
+					Metric: "_timestamp_seconds",
+					Text:   `counter metrics should have "_total" suffix`,
+				},
+				{
+					Metric: "_timestamp_seconds",
+					Text:   `non-gauge metrics should not have "_timestamp_seconds" suffix`,
+				},
+			},
+		},
+		{
+			name: "gauge with _timestamp_seconds suffix",
+			in: `
+# HELP _timestamp_seconds Test metric.
+# TYPE _timestamp_seconds gauge
+_timestamp_seconds 10
+`,
+		},
+		{
+			name: "counter without _timestamp_seconds suffix",
+			in: `
+# HELP _total Test metric.
+# TYPE _total counter
+_total 10
+`,
+		},
+		{
+			name: "untyped with _timestamp_seconds suffix",
+			in: `
+# HELP _timestamp_seconds Test metric.
+# TYPE _timestamp_seconds untyped
+_timestamp_seconds 10
+`,
+		},
+		{
+			name: "untyped without _timestamp_seconds suffix",
+			in: `
+# HELP _seconds Test metric.
+# TYPE _seconds untyped
+_seconds 10
+`,
+		},
+	}
+
+	runTests(t, tests)
+}
+
 func TestLintHistogramSummaryReserved(t *testing.T) {
 	tests := []test{
 		{
