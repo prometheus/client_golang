@@ -405,6 +405,35 @@ func ExampleNewConstSummary() {
 	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}]}}
 }
 
+func ExampleNewConstSummaryWithCreatedTimestamp() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A summary of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	// Create a constant summary with created timestamp set
+	createdTs := time.Unix(1719670764, 123)
+	s := prometheus.MustNewConstSummaryWithCreatedTimestamp(
+		desc,
+		4711, 403.34,
+		map[float64]float64{0.5: 42.3, 0.9: 323.3},
+		createdTs,
+		"200", "get",
+	)
+
+	// Just for demonstration, let's check the state of the summary by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}],"createdTimestamp":"2024-06-29T14:19:24.000000123Z"}}
+}
+
 func ExampleHistogram() {
 	temps := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "pond_temperature_celsius",
@@ -464,12 +493,12 @@ func ExampleNewConstHistogramWithCreatedTimestamp() {
 		prometheus.Labels{"owner": "example"},
 	)
 
-	ct := time.Unix(0, 0).UTC()
+	createdTs := time.Unix(1719670764, 123)
 	h := prometheus.MustNewConstHistogramWithCreatedTimestamp(
 		desc,
 		4711, 403.34,
 		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
-		ct,
+		createdTs,
 		"200", "get",
 	)
 
@@ -481,7 +510,7 @@ func ExampleNewConstHistogramWithCreatedTimestamp() {
 	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
-	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}],"createdTimestamp":"1970-01-01T00:00:00Z"}}
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}],"createdTimestamp":"2024-06-29T14:19:24.000000123Z"}}
 }
 
 func ExampleNewConstHistogram_WithExemplar() {

@@ -474,3 +474,28 @@ func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {
 		})
 	}
 }
+
+func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
+	metricDesc := NewDesc(
+		"sample_value",
+		"sample value",
+		nil,
+		nil,
+	)
+	quantiles := map[float64]float64{50: 200.12, 99: 500.342}
+	createdTs := time.Unix(1719670764, 123)
+
+	s, err := NewConstSummaryWithCreatedTimestamp(metricDesc, 100, 200, quantiles, createdTs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var metric dto.Metric
+	if err := s.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Summary.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
+		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)
+	}
+}
