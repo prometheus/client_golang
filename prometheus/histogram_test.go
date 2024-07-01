@@ -1272,6 +1272,31 @@ func TestHistogramVecCreatedTimestampWithDeletes(t *testing.T) {
 	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
 }
 
+func TestNewConstHistogramWithCreatedTimestamp(t *testing.T) {
+	metricDesc := NewDesc(
+		"sample_value",
+		"sample value",
+		nil,
+		nil,
+	)
+	buckets := map[float64]uint64{25: 100, 50: 200}
+	createdTs := time.Unix(1719670764, 123)
+
+	h, err := NewConstHistogramWithCreatedTimestamp(metricDesc, 100, 200, buckets, createdTs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var metric dto.Metric
+	if err := h.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Histogram.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
+		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Histogram.CreatedTimestamp)
+	}
+}
+
 func TestNativeHistogramExemplar(t *testing.T) {
 	// Test the histogram with positive NativeHistogramExemplarTTL and NativeHistogramMaxExemplars
 	h := NewHistogram(HistogramOpts{
