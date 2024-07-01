@@ -784,7 +784,7 @@ func MustNewConstSummary(
 	return m
 }
 
-// NewConstSummaryWithCreatedTimestamp does the same thing as NewConstSummary but sets the created timestamp
+// NewConstSummaryWithCreatedTimestamp does the same thing as NewConstSummary but sets the created timestamp.
 func NewConstSummaryWithCreatedTimestamp(
 	desc *Desc,
 	count uint64,

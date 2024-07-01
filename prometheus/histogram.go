@@ -1373,7 +1373,7 @@ func MustNewConstHistogram(
 	return m
 }
 
-// NewConstHistogramWithCreatedTimestamp does the same thing as NewConstHistogram but sets the created timestamp
+// NewConstHistogramWithCreatedTimestamp does the same thing as NewConstHistogram but sets the created timestamp.
 func NewConstHistogramWithCreatedTimestamp(
 	desc *Desc,
 	count uint64,
