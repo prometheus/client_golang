@@ -28,7 +28,7 @@ jobs:
             release-note-none
       - name: Add label to PR
         id: labeler
-        uses: jimschubert/labeler-action@v1
+        uses: jimschubert/labeler-action@v2
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 # Adjust the configuration in /.github/labeler.yml
