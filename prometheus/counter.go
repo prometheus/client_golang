@@ -129,11 +129,22 @@ func (c *counter) Add(v float64) {
 	}
 
 	ival := uint64(v)
-	if float64(ival) == v {
-		atomic.AddUint64(&c.valInt, ival)
-		return
-	}
 
+	// if the v is an unsigned integer
+	// and the precise doesn't lose during uint cast and cast it back to float
+	for v == float64(ival) {
+		oldUint := atomic.LoadUint64(&c.valInt)
+		leftNum := math.MaxUint64 - oldUint
+
+		if leftNum < ival {
+			// overflow happens, we need to handle as a float number
+			break
+		}
+		if atomic.CompareAndSwapUint64(&c.valInt, oldUint, oldUint+ival) {
+			return
+		}
+
+	}
 	for {
 		oldBits := atomic.LoadUint64(&c.valBits)
 		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
