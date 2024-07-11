@@ -31,6 +31,9 @@ import (
 
 var baseMetrics = []string{
 	"go_gc_duration_seconds",
+	"go_gogc_percent",
+	"go_gomaxprocs",
+	"go_gomemlimit",
 	"go_goroutines",
 	"go_info",
 	"go_memstats_last_gc_time_seconds",
