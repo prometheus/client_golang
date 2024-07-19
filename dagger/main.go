@@ -17,16 +17,17 @@ package main
 
 import (
 	"context"
+	"dagger/internal/dagger"
 	"strings"
 
 	"golang.org/x/sync/errgroup"
 )
 
 type ClientGolang struct {
-	Source *Directory // +private
+	Source *dagger.Directory // +private
 }
 
-func New(src *Directory) *ClientGolang {
+func New(src *dagger.Directory) *ClientGolang {
 	return &ClientGolang{Source: src}
 }
 
