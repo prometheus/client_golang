@@ -88,6 +88,12 @@ func WithGoCollectorMemStatsMetricsDisabled() func(options *internal.GoCollector
 	}
 }
 
+func WithGoCollectorRuntimeEnvVarsMetricsDisabled() func(options *internal.GoCollectorOptions) {
+	return func(o *internal.GoCollectorOptions) {
+		o.DisableRuntimeEnvVarsMetrics = true
+	}
+}
+
 // GoRuntimeMetricsRule allow enabling and configuring particular group of runtime/metrics.
 // TODO(bwplotka): Consider adding ability to adjust buckets.
 type GoRuntimeMetricsRule struct {

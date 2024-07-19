@@ -31,6 +31,7 @@ import (
 
 const (
 	// constants for strings referenced more than once.
+	goGCGogcPercent                         = "/gc/gogc:percent"
 	goGCHeapTinyAllocsObjects               = "/gc/heap/tiny/allocs:objects"
 	goGCHeapAllocsObjects                   = "/gc/heap/allocs:objects"
 	goGCHeapFreesObjects                    = "/gc/heap/frees:objects"
@@ -38,6 +39,7 @@ const (
 	goGCHeapAllocsBytes                     = "/gc/heap/allocs:bytes"
 	goGCHeapObjects                         = "/gc/heap/objects:objects"
 	goGCHeapGoalBytes                       = "/gc/heap/goal:bytes"
+	goGCMemLimit                            = "/gc/gomemlimit:bytes"
 	goMemoryClassesTotalBytes               = "/memory/classes/total:bytes"
 	goMemoryClassesHeapObjectsBytes         = "/memory/classes/heap/objects:bytes"
 	goMemoryClassesHeapUnusedBytes          = "/memory/classes/heap/unused:bytes"
@@ -52,6 +54,7 @@ const (
 	goMemoryClassesProfilingBucketsBytes    = "/memory/classes/profiling/buckets:bytes"
 	goMemoryClassesMetadataOtherBytes       = "/memory/classes/metadata/other:bytes"
 	goMemoryClassesOtherBytes               = "/memory/classes/other:bytes"
+	goSchedMaxProcs                         = "/sched/gomaxprocs:threads"
 )
 
 // rmNamesForMemStatsMetrics represents runtime/metrics names required to populate goRuntimeMemStats from like logic.
@@ -76,6 +79,12 @@ var rmNamesForMemStatsMetrics = []string{
 	goMemoryClassesProfilingBucketsBytes,
 	goMemoryClassesMetadataOtherBytes,
 	goMemoryClassesOtherBytes,
+}
+
+var rmNamesForEnvVarsMetrics = []string{ // how to call them???
+	goGCGogcPercent,
+	goGCMemLimit,
+	goSchedMaxProcs,
 }
 
 func bestEffortLookupRM(lookup []string) []metrics.Description {
@@ -116,6 +125,9 @@ type goCollector struct {
 	// as well.
 	msMetrics        memStatsMetrics
 	msMetricsEnabled bool
+
+	rmEnvVarMetrics        runtimeEnvVarsMetrics // how to call them???
+	rmEnvVarMetricsEnabled bool
 }
 
 type rmMetricDesc struct {
@@ -193,7 +205,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	metricSet := make([]collectorMetric, 0, len(exposedDescriptions))
 	// SampleBuf is used for reading from runtime/metrics.
 	// We are assuming the largest case to have stable pointers for sampleMap purposes.
-	sampleBuf := make([]metrics.Sample, 0, len(exposedDescriptions)+len(opt.RuntimeMetricSumForHist)+len(rmNamesForMemStatsMetrics))
+	sampleBuf := make([]metrics.Sample, 0, len(exposedDescriptions)+len(opt.RuntimeMetricSumForHist)+len(rmNamesForMemStatsMetrics)+len(rmNamesForEnvVarsMetrics))
 	sampleMap := make(map[string]*metrics.Sample, len(exposedDescriptions))
 	for _, d := range exposedDescriptions {
 		namespace, subsystem, name, ok := internal.RuntimeMetricsToProm(&d.Description)
@@ -255,8 +267,10 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	}
 
 	var (
-		msMetrics      memStatsMetrics
-		msDescriptions []metrics.Description
+		msMetrics             memStatsMetrics
+		msDescriptions        []metrics.Description
+		rmEnvVarMetrics       runtimeEnvVarsMetrics
+		rmEnvVarsDescriptions []metrics.Description
 	)
 
 	if !opt.DisableMemStatsLikeMetrics {
@@ -273,14 +287,29 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		}
 	}
 
+	if !opt.DisableRuntimeEnvVarsMetrics {
+		rmEnvVarMetrics = goRuntimeEnvVarsMetrics()
+		rmEnvVarsDescriptions = bestEffortLookupRM(rmNamesForEnvVarsMetrics)
+
+		// Check if metric was not exposed before and if not, add to sampleBuf.
+		for _, rnevDesc := range rmEnvVarsDescriptions {
+			if _, ok := sampleMap[rnevDesc.Name]; ok {
+				continue
+			}
+			sampleBuf = append(sampleBuf, metrics.Sample{Name: rnevDesc.Name})
+			sampleMap[rnevDesc.Name] = &sampleBuf[len(sampleBuf)-1]
+		}
+	}
 	return &goCollector{
-		base:                 newBaseGoCollector(),
-		sampleBuf:            sampleBuf,
-		sampleMap:            sampleMap,
-		rmExposedMetrics:     metricSet,
-		rmExactSumMapForHist: opt.RuntimeMetricSumForHist,
-		msMetrics:            msMetrics,
-		msMetricsEnabled:     !opt.DisableMemStatsLikeMetrics,
+		base:                   newBaseGoCollector(),
+		sampleBuf:              sampleBuf,
+		sampleMap:              sampleMap,
+		rmExposedMetrics:       metricSet,
+		rmExactSumMapForHist:   opt.RuntimeMetricSumForHist,
+		msMetrics:              msMetrics,
+		msMetricsEnabled:       !opt.DisableMemStatsLikeMetrics,
+		rmEnvVarMetrics:        rmEnvVarMetrics,
+		rmEnvVarMetricsEnabled: !opt.DisableRuntimeEnvVarsMetrics,
 	}
 }
 

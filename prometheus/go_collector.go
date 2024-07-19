@@ -212,9 +212,6 @@ type baseGoCollector struct {
 	gcDesc         *Desc
 	gcLastTimeDesc *Desc
 	goInfoDesc     *Desc
-	goMaxProcs     *Desc
-	goGogcPercent  *Desc
-	goMemLimit     *Desc
 }
 
 func newBaseGoCollector() baseGoCollector {
@@ -239,18 +236,6 @@ func newBaseGoCollector() baseGoCollector {
 			"go_info",
 			"Information about the Go environment.",
 			nil, Labels{"version": runtime.Version()}),
-		goMaxProcs: NewDesc(
-			"go_gomaxprocs",
-			"Value of GOMAXPROCS, i.e number of usable threads.",
-			nil, nil),
-		goGogcPercent: NewDesc(
-			"go_gogc_percent",
-			"Value of GOGC (percentage).",
-			nil, nil),
-		goMemLimit: NewDesc(
-			"go_gomemlimit",
-			"Value of GOMEMLIMIT (bytes).",
-			nil, nil),
 	}
 }
 
@@ -261,9 +246,6 @@ func (c *baseGoCollector) Describe(ch chan<- *Desc) {
 	ch <- c.gcDesc
 	ch <- c.gcLastTimeDesc
 	ch <- c.goInfoDesc
-	ch <- c.goMaxProcs
-	ch <- c.goGogcPercent
-	ch <- c.goMemLimit
 }
 
 // Collect returns the current state of all metrics of the collector.
@@ -285,18 +267,6 @@ func (c *baseGoCollector) Collect(ch chan<- Metric) {
 	ch <- MustNewConstSummary(c.gcDesc, uint64(stats.NumGC), stats.PauseTotal.Seconds(), quantiles)
 	ch <- MustNewConstMetric(c.gcLastTimeDesc, GaugeValue, float64(stats.LastGC.UnixNano())/1e9)
 	ch <- MustNewConstMetric(c.goInfoDesc, GaugeValue, 1)
-	ch <- MustNewConstMetric(c.goMaxProcs, GaugeValue, float64(runtime.NumCPU()))
-
-	gogcSample := make([]runmetr.Sample, 1)
-	gogcSample[0].Name = "/gc/gogc:percent"
-	runmetr.Read(gogcSample)
-	ch <- MustNewConstMetric(c.goGogcPercent, GaugeValue, float64(gogcSample[0].Value.Uint64()))
-
-	memLimitSample := make([]runmetr.Sample, 1)
-	memLimitSample[0].Name = "/gc/gomemlimit:bytes"
-	runmetr.Read(memLimitSample)
-	ch <- MustNewConstMetric(c.goMemLimit, GaugeValue, float64(memLimitSample[0].Value.Uint64()))
-
 }
 
 func memstatNamespace(s string) string {
@@ -309,4 +279,49 @@ type memStatsMetrics []struct {
 	desc    *Desc
 	eval    func(*runtime.MemStats) float64
 	valType ValueType
+}
+
+func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
+	return runtimeEnvVarsMetrics{
+		{
+			desc: NewDesc(
+				"go_gogc_percent",
+				"Value of GOGC (percentage).",
+				nil, nil,
+			),
+			eval:    float64(readRunMetrSample("/gc/gogc:percent")[0].Value.Uint64()),
+			valType: GaugeValue,
+		},
+		{
+			desc: NewDesc(
+				"go_gomemlimit",
+				"Value of GOMEMLIMIT (bytes).",
+				nil, nil,
+			),
+			eval:    float64(readRunMetrSample("/gc/gomemlimit:bytes")[0].Value.Uint64()),
+			valType: GaugeValue,
+		},
+		{
+			desc: NewDesc(
+				"go_gomaxprocs",
+				"Value of GOMAXPROCS, i.e number of usable threads.",
+				nil, nil,
+			),
+			eval:    float64(runtime.NumCPU()),
+			valType: GaugeValue,
+		},
+	}
+}
+
+type runtimeEnvVarsMetrics []struct { // how to call this struct?
+	desc    *Desc
+	eval    float64
+	valType ValueType
+}
+
+func readRunMetrSample(metricName string) []runmetr.Sample {
+	sample := make([]runmetr.Sample, 1)
+	sample[0].Name = metricName
+	runmetr.Read(sample)
+	return sample
 }

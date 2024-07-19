@@ -26,7 +26,8 @@ type GoCollectorRule struct {
 //
 // This is internal, so external users only can use it via `collector.WithGoCollector*` methods
 type GoCollectorOptions struct {
-	DisableMemStatsLikeMetrics bool
-	RuntimeMetricSumForHist    map[string]string
-	RuntimeMetricRules         []GoCollectorRule
+	DisableMemStatsLikeMetrics   bool
+	RuntimeMetricSumForHist      map[string]string
+	RuntimeMetricRules           []GoCollectorRule
+	DisableRuntimeEnvVarsMetrics bool
 }

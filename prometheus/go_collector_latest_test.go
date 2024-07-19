@@ -54,9 +54,6 @@ func expectedBaseMetrics() map[string]struct{} {
 		b.goroutinesDesc.fqName,
 		b.gcLastTimeDesc.fqName,
 		b.threadsDesc.fqName,
-		b.goMaxProcs.fqName,
-		b.goGogcPercent.fqName,
-		b.goMemLimit.fqName,
 	} {
 		metrics[m] = struct{}{}
 	}
