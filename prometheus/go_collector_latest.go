@@ -126,8 +126,8 @@ type goCollector struct {
 	msMetrics        memStatsMetrics
 	msMetricsEnabled bool
 
-	rmEnvVarMetrics        runtimeEnvVarsMetrics // how to call them???
-	rmEnvVarMetricsEnabled bool
+	rmEnvVarsMetrics        runtimeEnvVarsMetrics // how to call them???
+	rmEnvVarsMetricsEnabled bool
 }
 
 type rmMetricDesc struct {
@@ -269,7 +269,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	var (
 		msMetrics             memStatsMetrics
 		msDescriptions        []metrics.Description
-		rmEnvVarMetrics       runtimeEnvVarsMetrics
+		rmEnvVarsMetrics      runtimeEnvVarsMetrics
 		rmEnvVarsDescriptions []metrics.Description
 	)
 
@@ -288,7 +288,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	}
 
 	if !opt.DisableRuntimeEnvVarsMetrics {
-		rmEnvVarMetrics = goRuntimeEnvVarsMetrics()
+		rmEnvVarsMetrics = goRuntimeEnvVarsMetrics()
 		rmEnvVarsDescriptions = bestEffortLookupRM(rmNamesForEnvVarsMetrics)
 
 		// Check if metric was not exposed before and if not, add to sampleBuf.
@@ -301,15 +301,15 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		}
 	}
 	return &goCollector{
-		base:                   newBaseGoCollector(),
-		sampleBuf:              sampleBuf,
-		sampleMap:              sampleMap,
-		rmExposedMetrics:       metricSet,
-		rmExactSumMapForHist:   opt.RuntimeMetricSumForHist,
-		msMetrics:              msMetrics,
-		msMetricsEnabled:       !opt.DisableMemStatsLikeMetrics,
-		rmEnvVarMetrics:        rmEnvVarMetrics,
-		rmEnvVarMetricsEnabled: !opt.DisableRuntimeEnvVarsMetrics,
+		base:                    newBaseGoCollector(),
+		sampleBuf:               sampleBuf,
+		sampleMap:               sampleMap,
+		rmExposedMetrics:        metricSet,
+		rmExactSumMapForHist:    opt.RuntimeMetricSumForHist,
+		msMetrics:               msMetrics,
+		msMetricsEnabled:        !opt.DisableMemStatsLikeMetrics,
+		rmEnvVarsMetrics:        rmEnvVarsMetrics,
+		rmEnvVarsMetricsEnabled: !opt.DisableRuntimeEnvVarsMetrics,
 	}
 }
 
@@ -390,9 +390,12 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 		}
 	}
 
-	if c.rmEnvVarMetricsEnabled {
-		for _, v := range c.rmEnvVarMetrics {
-			ch <- MustNewConstMetric(v.desc, GaugeValue, float64(readRunMetrSampleBuf(v.origMetricName)[0].Value.Uint64()))
+	if c.rmEnvVarsMetricsEnabled {
+		sampleBuf := make([]metrics.Sample, len(c.rmEnvVarsMetrics))
+		for i, v := range c.rmEnvVarsMetrics {
+			sampleBuf[i].Name = v.origMetricName
+			metrics.Read(sampleBuf)
+			ch <- MustNewConstMetric(v.desc, GaugeValue, unwrapScalarRMValue(sampleBuf[i].Value))
 		}
 	}
 }

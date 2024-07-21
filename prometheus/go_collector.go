@@ -16,7 +16,6 @@ package prometheus
 import (
 	"runtime"
 	"runtime/debug"
-	runmetr "runtime/metrics"
 	"time"
 )
 
@@ -313,11 +312,4 @@ func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
 type runtimeEnvVarsMetrics []struct { // I couldn't come up with a better name. Any suggestions?
 	desc           *Desc
 	origMetricName string
-}
-
-func readRunMetrSampleBuf(metricName string) []runmetr.Sample {
-	sampleBuf := make([]runmetr.Sample, 1)
-	sampleBuf[0].Name = metricName
-	runmetr.Read(sampleBuf)
-	return sampleBuf
 }
