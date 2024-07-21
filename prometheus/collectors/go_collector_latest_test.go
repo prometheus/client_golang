@@ -54,10 +54,11 @@ func TestGoCollectorMarshalling(t *testing.T) {
 	}
 }
 
-func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
+func TestWithBaseMetricsOnly(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(NewGoCollector(
 		WithGoCollectorMemStatsMetricsDisabled(),
+		WithGoCollectorRuntimeEnvVarsMetricsDisabled(),
 	))
 	result, err := reg.Gather()
 	if err != nil {
@@ -116,6 +117,7 @@ func TestGoCollectorAllowList(t *testing.T) {
 			reg.MustRegister(NewGoCollector(
 				WithGoCollectorMemStatsMetricsDisabled(),
 				WithGoCollectorRuntimeMetrics(test.rules...),
+				WithGoCollectorRuntimeEnvVarsMetricsDisabled(),
 			))
 			result, err := reg.Gather()
 			if err != nil {
@@ -170,6 +172,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 			reg.MustRegister(NewGoCollector(
 				WithGoCollectorMemStatsMetricsDisabled(),
 				WithoutGoCollectorRuntimeMetrics(test.matchers...),
+				WithGoCollectorRuntimeEnvVarsMetricsDisabled(),
 			))
 			result, err := reg.Gather()
 			if err != nil {
@@ -213,6 +216,7 @@ func ExampleGoCollector_WithAdvancedGoMetrics() {
 				},
 			),
 			WithoutGoCollectorRuntimeMetrics(regexp.MustCompile("^/gc/.*")),
+			WithGoCollectorRuntimeEnvVarsMetricsDisabled(),
 		))
 
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))

@@ -289,8 +289,7 @@ func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
 				"Value of GOGC (percentage).",
 				nil, nil,
 			),
-			eval:    float64(readRunMetrSample("/gc/gogc:percent")[0].Value.Uint64()),
-			valType: GaugeValue,
+			origMetricName: "/gc/gogc:percent",
 		},
 		{
 			desc: NewDesc(
@@ -298,8 +297,7 @@ func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
 				"Value of GOMEMLIMIT (bytes).",
 				nil, nil,
 			),
-			eval:    float64(readRunMetrSample("/gc/gomemlimit:bytes")[0].Value.Uint64()),
-			valType: GaugeValue,
+			origMetricName: "/gc/gomemlimit:bytes",
 		},
 		{
 			desc: NewDesc(
@@ -307,21 +305,19 @@ func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
 				"Value of GOMAXPROCS, i.e number of usable threads.",
 				nil, nil,
 			),
-			eval:    float64(runtime.NumCPU()),
-			valType: GaugeValue,
+			origMetricName: "/sched/gomaxprocs:threads",
 		},
 	}
 }
 
-type runtimeEnvVarsMetrics []struct { // how to call this struct?
-	desc    *Desc
-	eval    float64
-	valType ValueType
+type runtimeEnvVarsMetrics []struct { // I couldn't come up with a better name. Any suggestions?
+	desc           *Desc
+	origMetricName string
 }
 
-func readRunMetrSample(metricName string) []runmetr.Sample {
-	sample := make([]runmetr.Sample, 1)
-	sample[0].Name = metricName
-	runmetr.Read(sample)
-	return sample
+func readRunMetrSampleBuf(metricName string) []runmetr.Sample {
+	sampleBuf := make([]runmetr.Sample, 1)
+	sampleBuf[0].Name = metricName
+	runmetr.Read(sampleBuf)
+	return sampleBuf
 }

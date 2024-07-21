@@ -88,6 +88,10 @@ func WithGoCollectorMemStatsMetricsDisabled() func(options *internal.GoCollector
 	}
 }
 
+// WithGoCollectorRuntimeEnvVarsMetricsDisabled disables the following default metrics:
+// go_gogc_percent
+// go_gomemlimit
+// go_gomaxprocs
 func WithGoCollectorRuntimeEnvVarsMetricsDisabled() func(options *internal.GoCollectorOptions) {
 	return func(o *internal.GoCollectorOptions) {
 		o.DisableRuntimeEnvVarsMetrics = true

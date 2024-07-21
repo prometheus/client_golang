@@ -81,7 +81,7 @@ var rmNamesForMemStatsMetrics = []string{
 	goMemoryClassesOtherBytes,
 }
 
-var rmNamesForEnvVarsMetrics = []string{ // how to call them???
+var rmNamesForEnvVarsMetrics = []string{ // how to name this var???
 	goGCGogcPercent,
 	goGCMemLimit,
 	goSchedMaxProcs,
@@ -387,6 +387,12 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 		memStatsFromRM(&ms, c.sampleMap)
 		for _, i := range c.msMetrics {
 			ch <- MustNewConstMetric(i.desc, i.valType, i.eval(&ms))
+		}
+	}
+
+	if c.rmEnvVarMetricsEnabled {
+		for _, v := range c.rmEnvVarMetrics {
+			ch <- MustNewConstMetric(v.desc, GaugeValue, float64(readRunMetrSampleBuf(v.origMetricName)[0].Value.Uint64()))
 		}
 	}
 }
