@@ -17,6 +17,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 	"runtime/metrics"
@@ -393,8 +394,11 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	if c.rmEnvVarsMetricsEnabled {
 		sampleBuf := make([]metrics.Sample, len(c.rmEnvVarsMetrics))
 		for i, v := range c.rmEnvVarsMetrics {
+			fmt.Printf("Reading metric %d: %q, %#v\n", i, v.origMetricName, *v.desc)
 			sampleBuf[i].Name = v.origMetricName
-			metrics.Read(sampleBuf)
+		}
+		metrics.Read(sampleBuf)
+		for i, v := range c.rmEnvVarsMetrics {
 			ch <- MustNewConstMetric(v.desc, GaugeValue, unwrapScalarRMValue(sampleBuf[i].Value))
 		}
 	}
@@ -414,13 +418,13 @@ func unwrapScalarRMValue(v metrics.Value) float64 {
 		//
 		// This should never happen because we always populate our metric
 		// set from the runtime/metrics package.
-		panic("unexpected unsupported metric")
+		panic("unexpected bad kind metric")
 	default:
 		// Unsupported metric kind.
 		//
 		// This should never happen because we check for this during initialization
 		// and flag and filter metrics whose kinds we don't understand.
-		panic("unexpected unsupported metric kind")
+		panic(fmt.Sprintf("unexpected unsupported metric: %v", v.Kind()))
 	}
 }
 
