@@ -280,35 +280,6 @@ type memStatsMetrics []struct {
 	valType ValueType
 }
 
-func goRuntimeEnvVarsMetrics() runtimeEnvVarsMetrics {
-	return runtimeEnvVarsMetrics{
-		{
-			desc: NewDesc(
-				"go_gogc_percent",
-				"Value of GOGC (percentage).",
-				nil, nil,
-			),
-			origMetricName: "/gc/gogc:percent",
-		},
-		{
-			desc: NewDesc(
-				"go_gomemlimit",
-				"Value of GOMEMLIMIT (bytes).",
-				nil, nil,
-			),
-			origMetricName: "/gc/gomemlimit:bytes",
-		},
-		{
-			desc: NewDesc(
-				"go_gomaxprocs",
-				"Value of GOMAXPROCS, i.e number of usable threads.",
-				nil, nil,
-			),
-			origMetricName: "/sched/gomaxprocs:threads",
-		},
-	}
-}
-
 type runtimeEnvVarsMetrics []struct { // I couldn't come up with a better name. Any suggestions?
 	desc           *Desc
 	origMetricName string
