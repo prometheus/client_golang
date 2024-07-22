@@ -394,7 +394,6 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 	if c.rmEnvVarsMetricsEnabled {
 		sampleBuf := make([]metrics.Sample, len(c.rmEnvVarsMetrics))
 		for i, v := range c.rmEnvVarsMetrics {
-			fmt.Printf("Reading metric %d: %q, %#v\n", i, v.origMetricName, *v.desc)
 			sampleBuf[i].Name = v.origMetricName
 		}
 		metrics.Read(sampleBuf)
