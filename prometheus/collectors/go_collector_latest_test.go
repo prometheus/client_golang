@@ -20,10 +20,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"reflect"
 	"regexp"
 	"sort"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -69,8 +70,8 @@ func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
 		got = append(got, r.GetName())
 	}
 
-	if !reflect.DeepEqual(got, baseMetrics) {
-		t.Errorf("got %v, want %v", got, baseMetrics)
+	if diff := cmp.Diff(got, baseMetrics); diff != "" {
+		t.Errorf("missmatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -127,8 +128,8 @@ func TestGoCollectorAllowList(t *testing.T) {
 				got = append(got, r.GetName())
 			}
 
-			if !reflect.DeepEqual(got, test.expected) {
-				t.Errorf("got %v, want %v", got, test.expected)
+			if diff := cmp.Diff(got, test.expected); diff != "" {
+				t.Errorf("missmatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -181,8 +182,8 @@ func TestGoCollectorDenyList(t *testing.T) {
 				got = append(got, r.GetName())
 			}
 
-			if !reflect.DeepEqual(got, test.expected) {
-				t.Errorf("got %v, want %v", got, test.expected)
+			if diff := cmp.Diff(got, test.expected); diff != "" {
+				t.Errorf("missmatch (-want +got):\n%s", diff)
 			}
 		})
 	}
