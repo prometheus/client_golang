@@ -69,6 +69,8 @@ func TestProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nprocess_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_resident_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nprocess_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nprocess_network_transmit_bytes_total [0-9]+"),
 		regexp.MustCompile("\nfoobar_process_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nfoobar_process_max_fds [1-9]"),
 		regexp.MustCompile("\nfoobar_process_open_fds [1-9]"),
@@ -76,6 +78,8 @@ func TestProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nfoobar_process_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nfoobar_process_resident_memory_bytes [1-9]"),
 		regexp.MustCompile("\nfoobar_process_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nfoobar_process_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nfoobar_process_network_transmit_bytes_total [0-9]+"),
 	} {
 		if !re.Match(buf.Bytes()) {
 			t.Errorf("want body to match %s\n%s", re, buf.String())
