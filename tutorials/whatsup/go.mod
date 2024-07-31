@@ -1,4 +1,4 @@
-module github.com/prometheus/client_golang/tutorial
+module github.com/prometheus/client_golang/tutorials/whatsup
 
 go 1.20
 
