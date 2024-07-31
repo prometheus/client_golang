@@ -36,7 +36,7 @@ import (
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/tutorial/internal"
+	"github.com/prometheus/client_golang/tutorials/whatsup/internal"
 )
 
 func main() {
