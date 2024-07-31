@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: brokenapp
+  labels:
+    app: brokenapp
+spec:
+  selector:
+    matchLabels:
+      app: brokenapp
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app: brokenapp
+    spec:
+      containers:
+      - name: brokenapp
+        imagePullPolicy: Always
+        image: gcr.io/gpe-test-1/bwplotka-brokenapp:latest
+        args:
+        - "/app"
+        - "-listen-address=:9999"
+        ports:
+        - containerPort: 9999
+          name: metrics
+        resources:
+          limits:
+            memory: 1G
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: brokenapp
+  labels:
+    app: brokenapp
+spec:
+  endpoints:
+  - port: metrics
+    interval: 15s
+    path: /metrics
+  selector:
+    matchLabels:
+      app: brokenapp
