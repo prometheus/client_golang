@@ -61,7 +61,7 @@ func goRuntimeMemStats() memStatsMetrics {
 			desc: NewDesc(
 				memstatNamespace("mallocs_total"),
 				// TODO(bwplotka): We could add go_memstats_heap_objects, probably useful for discovery. Let's gather more feedback, kind of waste of bytes for everybody for compatibility reason.
-				"Total number of heap objects allocated, semantically a counter version for go_memstats_heap_objects gauge.",
+				"Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Mallocs) },
