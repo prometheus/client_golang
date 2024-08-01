@@ -38,6 +38,31 @@ var baseMetrics = []string{
 	"go_threads",
 }
 
+var memstatMetrics = []string{
+	"go_memstats_alloc_bytes",
+	"go_memstats_alloc_bytes_total",
+	"go_memstats_buck_hash_sys_bytes",
+	"go_memstats_frees_total",
+	"go_memstats_gc_sys_bytes",
+	"go_memstats_heap_alloc_bytes",
+	"go_memstats_heap_idle_bytes",
+	"go_memstats_heap_inuse_bytes",
+	"go_memstats_heap_objects",
+	"go_memstats_heap_released_bytes",
+	"go_memstats_heap_sys_bytes",
+	"go_memstats_lookups_total",
+	"go_memstats_mallocs_total",
+	"go_memstats_mcache_inuse_bytes",
+	"go_memstats_mcache_sys_bytes",
+	"go_memstats_mspan_inuse_bytes",
+	"go_memstats_mspan_sys_bytes",
+	"go_memstats_next_gc_bytes",
+	"go_memstats_other_sys_bytes",
+	"go_memstats_stack_inuse_bytes",
+	"go_memstats_stack_sys_bytes",
+	"go_memstats_sys_bytes",
+}
+
 func TestGoCollectorMarshalling(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(NewGoCollector(
@@ -52,6 +77,24 @@ func TestGoCollectorMarshalling(t *testing.T) {
 
 	if _, err := json.Marshal(result); err != nil {
 		t.Errorf("json marshalling should not fail, %v", err)
+	}
+}
+
+func TestWithGoCollectorDefault(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(NewGoCollector())
+	result, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := []string{}
+	for _, r := range result {
+		got = append(got, r.GetName())
+	}
+
+	if diff := cmp.Diff(got, withBaseMetrics(memstatMetrics)); diff != "" {
+		t.Errorf("[IMPORTANT, those are default metrics, can't change in 1.x] missmatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -192,7 +235,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 func ExampleGoCollector() {
 	reg := prometheus.NewRegistry()
 
-	// Register the GoCollector with the default options. Only the base metrics will be enabled.
+	// Register the GoCollector with the default options. Only the base metrics and memstats are enabled.
 	reg.MustRegister(NewGoCollector())
 
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
