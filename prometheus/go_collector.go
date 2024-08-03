@@ -22,13 +22,13 @@ import (
 // goRuntimeMemStats provides the metrics initially provided by runtime.ReadMemStats.
 // From Go 1.17 those similar (and better) statistics are provided by runtime/metrics, so
 // while eval closure works on runtime.MemStats, the struct from Go 1.17+ is
-// populated using runtime/metrics.
+// populated using runtime/metrics. Those are the defaults we can't alter.
 func goRuntimeMemStats() memStatsMetrics {
 	return memStatsMetrics{
 		{
 			desc: NewDesc(
 				memstatNamespace("alloc_bytes"),
-				"Number of bytes allocated and still in use.",
+				"Number of bytes allocated and currently in use.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Alloc) },
@@ -36,7 +36,7 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("alloc_bytes_total"),
-				"Total number of bytes allocated, even if freed.",
+				"Total number of bytes allocated until now, even if released already.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.TotalAlloc) },
@@ -60,7 +60,8 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("mallocs_total"),
-				"Total number of mallocs.",
+				// TODO(bwplotka): We could add go_memstats_heap_objects, probably useful for discovery. Let's gather more feedback, kind of waste of bytes for everybody for compatibility reason.
+				"Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Mallocs) },
@@ -68,7 +69,7 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("frees_total"),
-				"Total number of frees.",
+				"Total number of heap objects frees.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.Frees) },
@@ -76,7 +77,7 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("heap_alloc_bytes"),
-				"Number of heap bytes allocated and still in use.",
+				"Number of heap bytes allocated and currently in use.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapAlloc) },
@@ -116,7 +117,7 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("heap_objects"),
-				"Number of allocated objects.",
+				"Number of currently allocated objects.",
 				nil, nil,
 			),
 			eval:    func(ms *runtime.MemStats) float64 { return float64(ms.HeapObjects) },
@@ -225,7 +226,7 @@ func newBaseGoCollector() baseGoCollector {
 			nil, nil),
 		gcDesc: NewDesc(
 			"go_gc_duration_seconds",
-			"A summary of the pause duration of garbage collection cycles.",
+			"A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.",
 			nil, nil),
 		gcLastTimeDesc: NewDesc(
 			"go_memstats_last_gc_time_seconds",
