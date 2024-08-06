@@ -280,8 +280,3 @@ type memStatsMetrics []struct {
 	eval    func(*runtime.MemStats) float64
 	valType ValueType
 }
-
-type runtimeEnvVarsMetrics []struct { // I couldn't come up with a better name. Any suggestions?
-	desc           *Desc
-	origMetricName string
-}

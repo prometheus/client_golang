@@ -19,6 +19,7 @@ package prometheus
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"runtime"
 	"runtime/metrics"
 	"strings"
@@ -32,7 +33,6 @@ import (
 
 const (
 	// constants for strings referenced more than once.
-	goGCGogcPercent                         = "/gc/gogc:percent"
 	goGCHeapTinyAllocsObjects               = "/gc/heap/tiny/allocs:objects"
 	goGCHeapAllocsObjects                   = "/gc/heap/allocs:objects"
 	goGCHeapFreesObjects                    = "/gc/heap/frees:objects"
@@ -40,7 +40,6 @@ const (
 	goGCHeapAllocsBytes                     = "/gc/heap/allocs:bytes"
 	goGCHeapObjects                         = "/gc/heap/objects:objects"
 	goGCHeapGoalBytes                       = "/gc/heap/goal:bytes"
-	goGCMemLimit                            = "/gc/gomemlimit:bytes"
 	goMemoryClassesTotalBytes               = "/memory/classes/total:bytes"
 	goMemoryClassesHeapObjectsBytes         = "/memory/classes/heap/objects:bytes"
 	goMemoryClassesHeapUnusedBytes          = "/memory/classes/heap/unused:bytes"
@@ -55,7 +54,6 @@ const (
 	goMemoryClassesProfilingBucketsBytes    = "/memory/classes/profiling/buckets:bytes"
 	goMemoryClassesMetadataOtherBytes       = "/memory/classes/metadata/other:bytes"
 	goMemoryClassesOtherBytes               = "/memory/classes/other:bytes"
-	goSchedMaxProcs                         = "/sched/gomaxprocs:threads"
 )
 
 // rmNamesForMemStatsMetrics represents runtime/metrics names required to populate goRuntimeMemStats from like logic.
@@ -80,12 +78,6 @@ var rmNamesForMemStatsMetrics = []string{
 	goMemoryClassesProfilingBucketsBytes,
 	goMemoryClassesMetadataOtherBytes,
 	goMemoryClassesOtherBytes,
-}
-
-var rmNamesForEnvVarsMetrics = []string{ // how to name this var???
-	goGCGogcPercent,
-	goGCMemLimit,
-	goSchedMaxProcs,
 }
 
 func bestEffortLookupRM(lookup []string) []metrics.Description {
@@ -126,9 +118,6 @@ type goCollector struct {
 	// as well.
 	msMetrics        memStatsMetrics
 	msMetricsEnabled bool
-
-	rmEnvVarsMetrics        runtimeEnvVarsMetrics // how to call them???
-	rmEnvVarsMetricsEnabled bool
 }
 
 type rmMetricDesc struct {
@@ -166,7 +155,9 @@ func defaultGoCollectorOptions() internal.GoCollectorOptions {
 			"/gc/heap/frees-by-size:bytes":  goGCHeapFreesBytes,
 		},
 		RuntimeMetricRules: []internal.GoCollectorRule{
-			//{Matcher: regexp.MustCompile("")},
+			{
+				Matcher: regexp.MustCompile(`\/gc\/gogc:percent|\/gc\/gomemlimit:bytes|\/sched\/gomaxprocs:threads`),
+			},
 		},
 	}
 }
@@ -206,7 +197,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	metricSet := make([]collectorMetric, 0, len(exposedDescriptions))
 	// SampleBuf is used for reading from runtime/metrics.
 	// We are assuming the largest case to have stable pointers for sampleMap purposes.
-	sampleBuf := make([]metrics.Sample, 0, len(exposedDescriptions)+len(opt.RuntimeMetricSumForHist)+len(rmNamesForMemStatsMetrics)+len(rmNamesForEnvVarsMetrics))
+	sampleBuf := make([]metrics.Sample, 0, len(exposedDescriptions)+len(opt.RuntimeMetricSumForHist)+len(rmNamesForMemStatsMetrics))
 	sampleMap := make(map[string]*metrics.Sample, len(exposedDescriptions))
 	for _, d := range exposedDescriptions {
 		namespace, subsystem, name, ok := internal.RuntimeMetricsToProm(&d.Description)
@@ -268,10 +259,8 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 	}
 
 	var (
-		msMetrics             memStatsMetrics
-		msDescriptions        []metrics.Description
-		rmEnvVarsMetrics      runtimeEnvVarsMetrics
-		rmEnvVarsDescriptions []metrics.Description
+		msMetrics      memStatsMetrics
+		msDescriptions []metrics.Description
 	)
 
 	if !opt.DisableMemStatsLikeMetrics {
@@ -288,29 +277,14 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		}
 	}
 
-	if !opt.DisableRuntimeEnvVarsMetrics {
-		rmEnvVarsMetrics = goRuntimeEnvVarsMetrics()
-		rmEnvVarsDescriptions = bestEffortLookupRM(rmNamesForEnvVarsMetrics)
-
-		// Check if metric was not exposed before and if not, add to sampleBuf.
-		for _, rnevDesc := range rmEnvVarsDescriptions {
-			if _, ok := sampleMap[rnevDesc.Name]; ok {
-				continue
-			}
-			sampleBuf = append(sampleBuf, metrics.Sample{Name: rnevDesc.Name})
-			sampleMap[rnevDesc.Name] = &sampleBuf[len(sampleBuf)-1]
-		}
-	}
 	return &goCollector{
-		base:                    newBaseGoCollector(),
-		sampleBuf:               sampleBuf,
-		sampleMap:               sampleMap,
-		rmExposedMetrics:        metricSet,
-		rmExactSumMapForHist:    opt.RuntimeMetricSumForHist,
-		msMetrics:               msMetrics,
-		msMetricsEnabled:        !opt.DisableMemStatsLikeMetrics,
-		rmEnvVarsMetrics:        rmEnvVarsMetrics,
-		rmEnvVarsMetricsEnabled: !opt.DisableRuntimeEnvVarsMetrics,
+		base:                 newBaseGoCollector(),
+		sampleBuf:            sampleBuf,
+		sampleMap:            sampleMap,
+		rmExposedMetrics:     metricSet,
+		rmExactSumMapForHist: opt.RuntimeMetricSumForHist,
+		msMetrics:            msMetrics,
+		msMetricsEnabled:     !opt.DisableMemStatsLikeMetrics,
 	}
 }
 
@@ -388,17 +362,6 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 		memStatsFromRM(&ms, c.sampleMap)
 		for _, i := range c.msMetrics {
 			ch <- MustNewConstMetric(i.desc, i.valType, i.eval(&ms))
-		}
-	}
-
-	if c.rmEnvVarsMetricsEnabled {
-		sampleBuf := make([]metrics.Sample, len(c.rmEnvVarsMetrics))
-		for i, v := range c.rmEnvVarsMetrics {
-			sampleBuf[i].Name = v.origMetricName
-		}
-		metrics.Read(sampleBuf)
-		for i, v := range c.rmEnvVarsMetrics {
-			ch <- MustNewConstMetric(v.desc, GaugeValue, unwrapScalarRMValue(sampleBuf[i].Value))
 		}
 	}
 }

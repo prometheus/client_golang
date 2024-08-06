@@ -74,9 +74,14 @@ func addExpectedRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} 
 	return metrics
 }
 
-func addExpectedEnvVarsMetrics(metrics map[string]struct{}) map[string]struct{} {
-	for _, m := range goRuntimeEnvVarsMetrics() {
-		metrics[m.desc.fqName] = struct{}{}
+func addExpectedDefaultRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} {
+	expMetrics := map[string]string{
+		"/gc/gogc:percent":          "go_gc_gogc_percent",
+		"/gc/gomemlimit:bytes":      "go_gc_gomemlimit_bytes",
+		"/sched/gomaxprocs:threads": "go_sched_gomaxprocs_threads",
+	}
+	for _, e := range expMetrics {
+		metrics[e] = struct{}{}
 	}
 	return metrics
 }
@@ -88,27 +93,23 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 	}{
 		{
 			opts: internal.GoCollectorOptions{
-				DisableMemStatsLikeMetrics:   true,
-				DisableRuntimeEnvVarsMetrics: true,
+				DisableMemStatsLikeMetrics: true,
 			},
 			expectedFQNameSet: expectedBaseMetrics(),
 		},
 		{
-			// Default, only Memstats and RuntimeEnvVars.
-			expectedFQNameSet: addExpectedEnvVarsMetrics(addExpectedRuntimeMemStats(expectedBaseMetrics())),
-		},
-		{
-			// Only MemStats.
+			// Default, only MemStats and default Runtime metrics.
 			opts: internal.GoCollectorOptions{
-				DisableRuntimeEnvVarsMetrics: true,
+				RuntimeMetricRules: []internal.GoCollectorRule{
+					{Matcher: regexp.MustCompile(`\/gc\/gogc:percent|\/gc\/gomemlimit:bytes|\/sched\/gomaxprocs:threads`)},
+				},
 			},
-			expectedFQNameSet: addExpectedRuntimeMemStats(expectedBaseMetrics()),
+			expectedFQNameSet: addExpectedDefaultRuntimeMetrics(addExpectedRuntimeMemStats(expectedBaseMetrics())),
 		},
 		{
-			// Get all runtime/metrics without MemStats nor RuntimeEnvVars.
+			// Get all runtime/metrics without MemStats.
 			opts: internal.GoCollectorOptions{
-				DisableMemStatsLikeMetrics:   true,
-				DisableRuntimeEnvVarsMetrics: true,
+				DisableMemStatsLikeMetrics: true,
 				RuntimeMetricRules: []internal.GoCollectorRule{
 					{Matcher: regexp.MustCompile("/.*")},
 				},
@@ -116,20 +117,13 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 			expectedFQNameSet: addExpectedRuntimeMetrics(expectedBaseMetrics()),
 		},
 		{
-			// Get all runtime/metrics, MemStats and RuntimeEnvVars.
+			// Get all runtime/metrics and MemStats.
 			opts: internal.GoCollectorOptions{
 				RuntimeMetricRules: []internal.GoCollectorRule{
 					{Matcher: regexp.MustCompile("/.*")},
 				},
 			},
-			expectedFQNameSet: addExpectedEnvVarsMetrics(addExpectedRuntimeMemStats(addExpectedRuntimeMetrics(expectedBaseMetrics()))),
-		},
-		{
-			// Only RuntimeEnvVars.
-			opts: internal.GoCollectorOptions{
-				DisableMemStatsLikeMetrics: true,
-			},
-			expectedFQNameSet: addExpectedEnvVarsMetrics(expectedBaseMetrics()),
+			expectedFQNameSet: addExpectedRuntimeMemStats(addExpectedRuntimeMetrics(expectedBaseMetrics())),
 		},
 	} {
 		if ok := t.Run("", func(t *testing.T) {
@@ -252,7 +246,6 @@ func collectGoMetrics(t *testing.T, opts internal.GoCollectorOptions) []Metric {
 		o.DisableMemStatsLikeMetrics = opts.DisableMemStatsLikeMetrics
 		o.RuntimeMetricSumForHist = opts.RuntimeMetricSumForHist
 		o.RuntimeMetricRules = opts.RuntimeMetricRules
-		o.DisableRuntimeEnvVarsMetrics = opts.DisableRuntimeEnvVarsMetrics
 	}).(*goCollector)
 
 	// Collect all metrics.
