@@ -75,11 +75,6 @@ func addExpectedRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} 
 }
 
 func addExpectedDefaultRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} {
-	expMetrics := map[string]string{
-		"/gc/gogc:percent":          "go_gc_gogc_percent",
-		"/gc/gomemlimit:bytes":      "go_gc_gomemlimit_bytes",
-		"/sched/gomaxprocs:threads": "go_sched_gomaxprocs_threads",
-	}
 	for _, e := range expMetrics {
 		metrics[e] = struct{}{}
 	}
