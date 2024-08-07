@@ -51,7 +51,7 @@ func (m *ClientGolang) Make(
 }
 
 // runs `make` with the given arguments for all supported go versions
-func (m *ClientGolang) MakeAll(
+func (m *ClientGolang) MakeRun(
 	ctx context.Context,
 	// +optional,
 	args string,
