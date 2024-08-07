@@ -135,7 +135,11 @@ func ExampleAPI_queryRangeWithBasicAuth() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 		// We can use amazing github.com/prometheus/common/config helper!
-		RoundTripper: config.NewBasicAuthRoundTripper("me", "definitely_me", "", "", api.DefaultRoundTripper),
+		RoundTripper: config.NewBasicAuthRoundTripper(
+			config.NewInlineSecret("me"),
+			config.NewInlineSecret("definitely_me"),
+			api.DefaultRoundTripper,
+		),
 	})
 	if err != nil {
 		fmt.Printf("Error creating client: %v\n", err)
@@ -165,7 +169,11 @@ func ExampleAPI_queryRangeWithAuthBearerToken() {
 	client, err := api.NewClient(api.Config{
 		Address: "http://demo.robustperception.io:9090",
 		// We can use amazing github.com/prometheus/common/config helper!
-		RoundTripper: config.NewAuthorizationCredentialsRoundTripper("Bearer", "secret_token", api.DefaultRoundTripper),
+		RoundTripper: config.NewAuthorizationCredentialsRoundTripper(
+			"Bearer",
+			config.NewInlineSecret("secret_token"),
+			api.DefaultRoundTripper,
+		),
 	})
 	if err != nil {
 		fmt.Printf("Error creating client: %v\n", err)
