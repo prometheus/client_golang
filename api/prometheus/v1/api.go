@@ -601,6 +601,7 @@ type AlertingRule struct {
 	EvaluationTime float64        `json:"evaluationTime"`
 	LastEvaluation time.Time      `json:"lastEvaluation"`
 	State          string         `json:"state"`
+	Type           string         `json:"type"`
 }
 
 // RecordingRule models a recording rule.
@@ -612,6 +613,7 @@ type RecordingRule struct {
 	LastError      string         `json:"lastError,omitempty"`
 	EvaluationTime float64        `json:"evaluationTime"`
 	LastEvaluation time.Time      `json:"lastEvaluation"`
+	Type           string         `json:"type"`
 }
 
 // Alert models an active alert.
@@ -721,11 +723,13 @@ func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 
 	for _, rule := range v.Rules {
 		alertingRule := AlertingRule{}
+		alertingRule.Type = string(RuleTypeAlerting)
 		if err := json.Unmarshal(rule, &alertingRule); err == nil {
 			rg.Rules = append(rg.Rules, alertingRule)
 			continue
 		}
 		recordingRule := RecordingRule{}
+		recordingRule.Type = string(RuleTypeRecording)
 		if err := json.Unmarshal(rule, &recordingRule); err == nil {
 			rg.Rules = append(rg.Rules, recordingRule)
 			continue
