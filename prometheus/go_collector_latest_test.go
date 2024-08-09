@@ -94,11 +94,7 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 		},
 		{
 			// Default, only MemStats and default Runtime metrics.
-			opts: internal.GoCollectorOptions{
-				RuntimeMetricRules: []internal.GoCollectorRule{
-					{Matcher: regexp.MustCompile(`\/gc\/gogc:percent|\/gc\/gomemlimit:bytes|\/sched\/gomaxprocs:threads`)},
-				},
-			},
+			opts:              defaultGoCollectorOptions(),
 			expectedFQNameSet: addExpectedDefaultRuntimeMetrics(addExpectedRuntimeMemStats(expectedBaseMetrics())),
 		},
 		{
