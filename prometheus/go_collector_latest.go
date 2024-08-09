@@ -19,7 +19,6 @@ package prometheus
 import (
 	"fmt"
 	"math"
-	"regexp"
 	"runtime"
 	"runtime/metrics"
 	"strings"
@@ -155,9 +154,8 @@ func defaultGoCollectorOptions() internal.GoCollectorOptions {
 			"/gc/heap/frees-by-size:bytes":  goGCHeapFreesBytes,
 		},
 		RuntimeMetricRules: []internal.GoCollectorRule{
-			{
-				Matcher: regexp.MustCompile(`\/gc\/gogc:percent|\/gc\/gomemlimit:bytes|\/sched\/gomaxprocs:threads`),
-			},
+			// Recommended metrics we want by default from runtime/metrics.
+			{Matcher: internal.GoCollectorDefaultRuntimeMetrics},
 		},
 	}
 }
