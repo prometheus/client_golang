@@ -386,3 +386,38 @@ func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricTyp
 		}
 	}
 }
+
+func TestCounterInt(t *testing.T) {
+	now := time.Now()
+
+	counter := NewCounter(CounterOpts{
+		Name:              "test",
+		Help:              "test help",
+		now:               func() time.Time { return now },
+		IntegerExposition: true,
+	}).(*counter)
+
+	// large is greater than the max safe integer value, but has no rounding error itself and ergo is integer-safe
+	large := math.Nextafter(float64(float64Mantissa), math.MaxUint64)
+	counter.Add(large)
+	if expected, got := 0.0, math.Float64frombits(counter.valBits); expected != got {
+		t.Errorf("valBits expected %f, got %f.", expected, got)
+	}
+	if expected, got := uint64(large), counter.valInt; expected != got {
+		t.Errorf("valInts expected %d, got %d.", expected, got)
+	}
+
+	m := &dto.Metric{}
+	counter.Write(m)
+
+	expected := &dto.Metric{
+		Counter: &dto.Counter{
+			Value:            proto.Float64(float64(uint64(large) % float64Mantissa)), // wrapped value!
+			CreatedTimestamp: timestamppb.New(now),
+		},
+	}
+
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
+	}
+}
