@@ -52,7 +52,6 @@ var expectedRuntimeMetrics = map[string]string{
 	"/godebug/non-default-behavior/multipartmaxheaders:events":  "go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 	"/godebug/non-default-behavior/multipartmaxparts:events":    "go_godebug_non_default_behavior_multipartmaxparts_events_total",
 	"/godebug/non-default-behavior/multipathtcp:events":         "go_godebug_non_default_behavior_multipathtcp_events_total",
-	"/godebug/non-default-behavior/netedns0:events":             "go_godebug_non_default_behavior_netedns0_events_total",
 	"/godebug/non-default-behavior/panicnil:events":             "go_godebug_non_default_behavior_panicnil_events_total",
 	"/godebug/non-default-behavior/randautoseed:events":         "go_godebug_non_default_behavior_randautoseed_events_total",
 	"/godebug/non-default-behavior/tarinsecurepath:events":      "go_godebug_non_default_behavior_tarinsecurepath_events_total",
@@ -80,4 +79,4 @@ var expectedRuntimeMetrics = map[string]string{
 	"/sync/mutex/wait/total:seconds":                            "go_sync_mutex_wait_total_seconds_total",
 }
 
-const expectedRuntimeMetricsCardinality = 115
+const expectedRuntimeMetricsCardinality = 114
