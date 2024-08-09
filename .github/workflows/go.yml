@@ -16,6 +16,7 @@ permissions:
   contents: read
 
 jobs:
+
   supportedVersions:
     name: Fetch supported Go versions
     runs-on: ubuntu-latest
@@ -30,7 +31,7 @@ jobs:
             versions=$(cat supported_go_versions.txt)
             matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
             echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
-  
+
   test:
     name: Tests
     runs-on: ubuntu-latest
@@ -44,23 +45,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4.1.1
 
-      - name: Set up Go ${{ matrix.go_version }}
-        uses: actions/setup-go@v5.0.2
-        with:
-          go-version: ${{ matrix.go_version }}
-
-      - name: Cache Go modules
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: v1-go${{ matrix.go_version }}
-
       - name: Run tests and check license
-        run: make check_license test
-        env:
-          CI: true
+        uses: dagger/dagger-for-github@v5
+        with:
+          version: "latest"
+          verb: call
+          args: -vvv --src . make --go-version ${{matrix.go_version}} --args 'check_license test'
 
       - name: Run style and unused
+        uses: dagger/dagger-for-github@v6
         if: ${{ matrix.go_version == '1.20' }}
-        run: make style unused
+        with:
+          version: "latest"
+          verb: call
+          args: -vvv --src . make --args 'check_license test'
