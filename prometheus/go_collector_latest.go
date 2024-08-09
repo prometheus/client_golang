@@ -17,6 +17,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 	"runtime/metrics"
@@ -153,7 +154,8 @@ func defaultGoCollectorOptions() internal.GoCollectorOptions {
 			"/gc/heap/frees-by-size:bytes":  goGCHeapFreesBytes,
 		},
 		RuntimeMetricRules: []internal.GoCollectorRule{
-			//{Matcher: regexp.MustCompile("")},
+			// Recommended metrics we want by default from runtime/metrics.
+			{Matcher: internal.GoCollectorDefaultRuntimeMetrics},
 		},
 	}
 }
@@ -376,13 +378,13 @@ func unwrapScalarRMValue(v metrics.Value) float64 {
 		//
 		// This should never happen because we always populate our metric
 		// set from the runtime/metrics package.
-		panic("unexpected unsupported metric")
+		panic("unexpected bad kind metric")
 	default:
 		// Unsupported metric kind.
 		//
 		// This should never happen because we check for this during initialization
 		// and flag and filter metrics whose kinds we don't understand.
-		panic("unexpected unsupported metric kind")
+		panic(fmt.Sprintf("unexpected unsupported metric: %v", v.Kind()))
 	}
 }
 

@@ -63,16 +63,29 @@ func main() {
 	v := goVersion(gv.Segments()[1])
 	log.Printf("generating metrics for Go version %q", v)
 
+	allDesc := metrics.All()
+
+	// Find default metrics.
+	var defaultDesc []metrics.Description
+	for _, d := range allDesc {
+		if !internal.GoCollectorDefaultRuntimeMetrics.MatchString(d.Name) {
+			continue
+		}
+		defaultDesc = append(defaultDesc, d)
+	}
+
 	// Generate code.
 	var buf bytes.Buffer
 	err = testFile.Execute(&buf, struct {
-		Descriptions []metrics.Description
-		GoVersion    goVersion
-		Cardinality  int
+		AllDescriptions     []metrics.Description
+		DefaultDescriptions []metrics.Description
+		GoVersion           goVersion
+		Cardinality         int
 	}{
-		Descriptions: metrics.All(),
-		GoVersion:    v,
-		Cardinality:  rmCardinality(),
+		AllDescriptions:     allDesc,
+		DefaultDescriptions: defaultDesc,
+		GoVersion:           v,
+		Cardinality:         rmCardinality(),
 	})
 	if err != nil {
 		log.Fatalf("executing template: %v", err)
@@ -167,14 +180,25 @@ var testFile = template.Must(template.New("testFile").Funcs(map[string]interface
 
 package prometheus
 
-var expectedRuntimeMetrics = map[string]string{
-{{- range .Descriptions -}}
+var (
+	expectedRuntimeMetrics = map[string]string{
+{{- range .AllDescriptions -}}
 	{{- $trans := rm2prom . -}}
 	{{- if ne $trans "" }}
 	{{.Name | printf "%q"}}: {{$trans | printf "%q"}},
 	{{- end -}}
 {{end}}
-}
+	}
+
+	expMetrics = map[string]string{
+{{- range .DefaultDescriptions -}}
+	{{- $trans := rm2prom . -}}
+	{{- if ne $trans "" }}
+	{{.Name | printf "%q"}}: {{$trans | printf "%q"}},
+	{{- end -}}
+{{end}}
+	}
+)
 
 const expectedRuntimeMetricsCardinality = {{.Cardinality}}
 `))

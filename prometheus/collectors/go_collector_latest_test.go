@@ -93,7 +93,9 @@ func TestWithGoCollectorDefault(t *testing.T) {
 		got = append(got, r.GetName())
 	}
 
-	if diff := cmp.Diff(got, withBaseMetrics(memstatMetrics)); diff != "" {
+	expected := append(withBaseMetrics(memstatMetrics), defaultRuntimeMetrics...)
+	sort.Strings(expected)
+	if diff := cmp.Diff(got, expected); diff != "" {
 		t.Errorf("[IMPORTANT, those are default metrics, can't change in 1.x] missmatch (-want +got):\n%s", diff)
 	}
 }
@@ -113,7 +115,7 @@ func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
 		got = append(got, r.GetName())
 	}
 
-	if diff := cmp.Diff(got, baseMetrics); diff != "" {
+	if diff := cmp.Diff(got, withBaseMetrics(defaultRuntimeMetrics)); diff != "" {
 		t.Errorf("missmatch (-want +got):\n%s", diff)
 	}
 }
@@ -127,7 +129,7 @@ func TestGoCollectorAllowList(t *testing.T) {
 		{
 			name:     "Without any rules",
 			rules:    nil,
-			expected: baseMetrics,
+			expected: withBaseMetrics(defaultRuntimeMetrics),
 		},
 		{
 			name:     "allow all",
@@ -137,22 +139,22 @@ func TestGoCollectorAllowList(t *testing.T) {
 		{
 			name:     "allow GC",
 			rules:    []GoRuntimeMetricsRule{MetricsGC},
-			expected: withGCMetrics(),
+			expected: withDefaultRuntimeMetrics(withGCMetrics(), true, false),
 		},
 		{
 			name:     "allow Memory",
 			rules:    []GoRuntimeMetricsRule{MetricsMemory},
-			expected: withMemoryMetrics(),
+			expected: withDefaultRuntimeMetrics(withMemoryMetrics(), false, false),
 		},
 		{
 			name:     "allow Scheduler",
 			rules:    []GoRuntimeMetricsRule{MetricsScheduler},
-			expected: withSchedulerMetrics(),
+			expected: withDefaultRuntimeMetrics(withSchedulerMetrics(), false, true),
 		},
 		{
 			name:     "allow debug",
 			rules:    []GoRuntimeMetricsRule{MetricsDebug},
-			expected: withDebugMetrics(),
+			expected: withDefaultRuntimeMetrics(withDebugMetrics(), false, false),
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -193,7 +195,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 		{
 			name:     "Without any matchers",
 			matchers: nil,
-			expected: baseMetrics,
+			expected: withBaseMetrics(defaultRuntimeMetrics),
 		},
 		{
 			name:     "deny all",
@@ -205,6 +207,14 @@ func TestGoCollectorDenyList(t *testing.T) {
 			matchers: []*regexp.Regexp{
 				regexp.MustCompile("^/gc/.*"),
 				regexp.MustCompile("^/sched/latencies:.*"),
+			},
+			expected: withDefaultRuntimeMetrics(baseMetrics, true, false),
+		},
+		{
+			name: "deny gc and scheduler",
+			matchers: []*regexp.Regexp{
+				regexp.MustCompile("^/gc/.*"),
+				regexp.MustCompile("^/sched/.*"),
 			},
 			expected: baseMetrics,
 		},
@@ -235,7 +245,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 func ExampleGoCollector() {
 	reg := prometheus.NewRegistry()
 
-	// Register the GoCollector with the default options. Only the base metrics and memstats are enabled.
+	// Register the GoCollector with the default options. Only the base metrics, default runtime metrics and memstats are enabled.
 	reg.MustRegister(NewGoCollector())
 
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
