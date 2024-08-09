@@ -16,6 +16,8 @@
 
 package collectors
 
+import "sort"
+
 func withAllMetrics() []string {
 	return withBaseMetrics([]string{
 		"go_cgo_go_to_c_calls_calls_total",
@@ -115,4 +117,19 @@ func withSchedulerMetrics() []string {
 
 func withDebugMetrics() []string {
 	return withBaseMetrics([]string{})
+}
+
+var defaultRuntimeMetrics = []string{
+	"go_sched_gomaxprocs_threads",
+}
+
+func withDefaultRuntimeMetrics(metricNames []string, withoutGC, withoutSched bool) []string {
+	// If withoutSched is true, exclude "go_sched_gomaxprocs_threads".
+	if withoutSched {
+		return metricNames
+	}
+	metricNames = append(metricNames, defaultRuntimeMetrics...)
+	// sorting is required
+	sort.Strings(metricNames)
+	return metricNames
 }
