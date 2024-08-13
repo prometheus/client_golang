@@ -50,7 +50,6 @@ var memstatMetrics = []string{
 	"go_memstats_heap_objects",
 	"go_memstats_heap_released_bytes",
 	"go_memstats_heap_sys_bytes",
-	"go_memstats_lookups_total",
 	"go_memstats_mallocs_total",
 	"go_memstats_mcache_inuse_bytes",
 	"go_memstats_mcache_sys_bytes",
