@@ -1,8 +1,22 @@
 ## Unreleased
 
-* [CHANGE] go-collector: Remove `go_memstat_lookups_total` metric which was always 0; Go runtime stopped sharing pointer lookup statistics.
+## 1.20.0 / 2024-08-14
 
-## 1.19.0 / 2023-02-27
+* [CHANGE] :warning: go-collector: Remove `go_memstat_lookups_total` metric which was always 0; Go runtime stopped sharing pointer lookup statistics. #1577
+* [FEATURE] :warning: go-collector: Add 3 default metrics: `go_gc_gogc_percent`, `go_gc_gomemlimit_bytes` and `go_sched_gomaxprocs_threads` as those are recommended by the Go team. #1559
+* [FEATURE] go-collector: Add more information to all metrics' HELP e.g. the exact `runtime/metrics` sourcing each metric (if relevant). #1568 #1578
+* [FEATURE] testutil: Add CollectAndFormat method. #1503
+* [FEATURE] histograms: Add support for exemplars in native histograms. #1471
+* [FEATURE] promhttp: Add experimental support for `zstd` on scrape, controlled by the request `Accept-Encoding` header. #1496
+* [FEATURE] api/v1: Add `WithLimit` parameter to all API methods that supports it. #1544
+* [FEATURE] prometheus: Add support for created timestamps in constant histograms and constant summaries. #1537
+* [FEATURE] process-collectors: Add network usage metrics: `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`. #1555
+* [FEATURE] promlint: Add duplicated metric lint rule. #1472
+* [BUGFIX] promlint: Relax metric type in name linter rule. #1455
+* [BUGFIX] promhttp: Make sure server instrumentation wrapping supports new and future extra responseWriter methods. #1480
+* [BUGFIX] testutil: Functions using compareMetricFamilies are now failing if filtered metricNames are not in the input. #1424
+
+## 1.19.0 / 2024-02-27
 
 The module `prometheus/common v0.48.0` introduced an incompatibility when used together with client_golang (See https://github.com/prometheus/client_golang/pull/1448 for more details). If your project uses client_golang and you want to use `prometheus/common v0.48.0` or higher, please update client_golang to v1.19.0.
 
