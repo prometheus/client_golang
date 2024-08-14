@@ -47,7 +47,6 @@ var (
 // go_memstats_alloc_bytes
 // go_memstats_alloc_bytes_total
 // go_memstats_sys_bytes
-// go_memstats_lookups_total
 // go_memstats_mallocs_total
 // go_memstats_frees_total
 // go_memstats_heap_alloc_bytes
