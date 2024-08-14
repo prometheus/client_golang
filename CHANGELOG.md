@@ -13,8 +13,7 @@
 * [FEATURE] process-collectors: Add network usage metrics: `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`. #1555
 * [FEATURE] promlint: Add duplicated metric lint rule. #1472
 * [BUGFIX] promlint: Relax metric type in name linter rule. #1455
-* [BUGFIX] promhttp: Make sure server
-instrumentation wrapping supports new and future extra responseWriter methods. #1480
+* [BUGFIX] promhttp: Make sure server instrumentation wrapping supports new and future extra responseWriter methods. #1480
 * [BUGFIX] testutil: Functions using compareMetricFamilies are now failing if filtered metricNames are not in the input. #1424
 
 ## 1.19.0 / 2024-02-27
