@@ -205,6 +205,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 			// to fail here. This condition is tested in TestExpectedRuntimeMetrics.
 			continue
 		}
+		help := attachOriginalName(d.Description.Description, d.Name)
 
 		sampleBuf = append(sampleBuf, metrics.Sample{Name: d.Name})
 		sampleMap[d.Name] = &sampleBuf[len(sampleBuf)-1]
@@ -216,7 +217,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 			m = newBatchHistogram(
 				NewDesc(
 					BuildFQName(namespace, subsystem, name),
-					d.Description.Description,
+					help,
 					nil,
 					nil,
 				),
@@ -228,7 +229,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 				Namespace: namespace,
 				Subsystem: subsystem,
 				Name:      name,
-				Help:      d.Description.Description,
+				Help:      help,
 			},
 			)
 		} else {
@@ -236,7 +237,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 				Namespace: namespace,
 				Subsystem: subsystem,
 				Name:      name,
-				Help:      d.Description.Description,
+				Help:      help,
 			})
 		}
 		metricSet = append(metricSet, m)
@@ -284,6 +285,10 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		msMetrics:            msMetrics,
 		msMetricsEnabled:     !opt.DisableMemStatsLikeMetrics,
 	}
+}
+
+func attachOriginalName(desc, origName string) string {
+	return fmt.Sprintf("%s Sourced from %s", desc, origName)
 }
 
 // Describe returns all descriptions of the collector.
