@@ -52,7 +52,7 @@ func goRuntimeMemStats() memStatsMetrics {
 		}, {
 			desc: NewDesc(
 				memstatNamespace("mallocs_total"),
-				// TODO(bwplotka): We could add go_memstats_heap_objects, probably useful for discovery. Let's gather more feedback, kind of waste of bytes for everybody for compatibility reason to keep both, and we can't reall rename/remove useful metric.
+				// TODO(bwplotka): We could add go_memstats_heap_objects, probably useful for discovery. Let's gather more feedback, kind of a waste of bytes for everybody for compatibility reasons to keep both, and we can't really rename/remove useful metric.
 				"Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.",
 				nil, nil,
 			),
