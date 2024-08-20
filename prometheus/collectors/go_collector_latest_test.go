@@ -63,7 +63,7 @@ var memstatMetrics = []string{
 }
 
 func TestGoCollectorMarshalling(t *testing.T) {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewGoCollector(
 		WithGoCollectorRuntimeMetrics(GoRuntimeMetricsRule{
 			Matcher: regexp.MustCompile("/.*"),
@@ -80,7 +80,7 @@ func TestGoCollectorMarshalling(t *testing.T) {
 }
 
 func TestWithGoCollectorDefault(t *testing.T) {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewGoCollector())
 	result, err := reg.Gather()
 	if err != nil {
@@ -100,7 +100,7 @@ func TestWithGoCollectorDefault(t *testing.T) {
 }
 
 func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewGoCollector(
 		WithGoCollectorMemStatsMetricsDisabled(),
 	))
@@ -157,7 +157,7 @@ func TestGoCollectorAllowList(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			reg := prometheus.NewRegistry()
+			reg := prometheus.NewPedanticRegistry()
 			reg.MustRegister(NewGoCollector(
 				WithGoCollectorMemStatsMetricsDisabled(),
 				WithGoCollectorRuntimeMetrics(test.rules...),
@@ -219,7 +219,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			reg := prometheus.NewRegistry()
+			reg := prometheus.NewPedanticRegistry()
 			reg.MustRegister(NewGoCollector(
 				WithGoCollectorMemStatsMetricsDisabled(),
 				WithoutGoCollectorRuntimeMetrics(test.matchers...),
@@ -242,7 +242,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 }
 
 func ExampleGoCollector() {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 
 	// Register the GoCollector with the default options. Only the base metrics, default runtime metrics and memstats are enabled.
 	reg.MustRegister(NewGoCollector())
@@ -252,7 +252,7 @@ func ExampleGoCollector() {
 }
 
 func ExampleGoCollector_WithAdvancedGoMetrics() {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 
 	// Enable Go metrics with pre-defined rules. Or your custom rules.
 	reg.MustRegister(
