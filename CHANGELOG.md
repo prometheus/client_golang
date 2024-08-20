@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.20.1 / 2024-08-20
+
+* [BUGFIX] process-collector: Fixed unregistered descriptor error when using process collector with `PedanticRegistry` on linux machines. #1587
+
 ## 1.20.0 / 2024-08-14
 
 * [CHANGE] :warning: go-collector: Remove `go_memstat_lookups_total` metric which was always 0; Go runtime stopped sharing pointer lookup statistics. #1577
@@ -10,7 +14,7 @@
 * [FEATURE] promhttp: Add experimental support for `zstd` on scrape, controlled by the request `Accept-Encoding` header. #1496
 * [FEATURE] api/v1: Add `WithLimit` parameter to all API methods that supports it. #1544
 * [FEATURE] prometheus: Add support for created timestamps in constant histograms and constant summaries. #1537
-* [FEATURE] process-collectors: Add network usage metrics: `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`. #1555
+* [FEATURE] process-collector: Add network usage metrics: `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`. #1555
 * [FEATURE] promlint: Add duplicated metric lint rule. #1472
 * [BUGFIX] promlint: Relax metric type in name linter rule. #1455
 * [BUGFIX] promhttp: Make sure server instrumentation wrapping supports new and future extra responseWriter methods. #1480
