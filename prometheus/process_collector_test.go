@@ -37,7 +37,7 @@ func TestProcessCollector(t *testing.T) {
 		t.Skipf("skipping TestProcessCollector, procfs not available: %s", err)
 	}
 
-	registry := NewRegistry()
+	registry := NewPedanticRegistry()
 	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{})); err != nil {
 		t.Fatal(err)
 	}
