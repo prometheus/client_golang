@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.20.2 / 2024-08-23
+
+* [BUGFIX] promhttp: Unset Content-Encoding header when data is uncompressed. #1596
+
 ## 1.20.1 / 2024-08-20
 
 * [BUGFIX] process-collector: Fixed unregistered descriptor error when using process collector with `PedanticRegistry` on linux machines. #1587
