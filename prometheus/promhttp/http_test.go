@@ -267,7 +267,7 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got HTTP status code %d, want %d", got, want)
 	}
 
-	if got, want := writer.Header().Get(contentEncodingHeader), string(Identity); got != want {
+	if got, want := writer.Header().Get(contentEncodingHeader), ""; got != want {
 		t.Errorf("got HTTP content encoding header %s, want %s", got, want)
 	}
 

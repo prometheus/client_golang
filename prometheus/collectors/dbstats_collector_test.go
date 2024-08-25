@@ -21,7 +21,7 @@ import (
 )
 
 func TestDBStatsCollector(t *testing.T) {
-	reg := prometheus.NewRegistry()
+	reg := prometheus.NewPedanticRegistry()
 	{
 		db := new(sql.DB)
 		if err := reg.Register(NewDBStatsCollector(db, "db_A")); err != nil {
