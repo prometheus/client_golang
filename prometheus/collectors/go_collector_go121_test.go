@@ -16,8 +16,6 @@
 
 package collectors
 
-import "sort"
-
 func withAllMetrics() []string {
 	return withBaseMetrics([]string{
 		"go_cgo_go_to_c_calls_calls_total",
@@ -170,29 +168,4 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_x509usefallbackroots_events_total",
 		"go_godebug_non_default_behavior_zipinsecurepath_events_total",
 	})
-}
-
-var defaultRuntimeMetrics = []string{
-	"go_gc_gogc_percent",
-	"go_gc_gomemlimit_bytes",
-	"go_sched_gomaxprocs_threads",
-}
-
-func withDefaultRuntimeMetrics(metricNames []string, withoutGC, withoutSched bool) []string {
-	if withoutGC && withoutSched {
-		// If both flags are true, return the metricNames as is.
-		return metricNames
-	} else if withoutGC && !withoutSched {
-		// If only withoutGC is true, include "go_sched_gomaxprocs_threads" only.
-		metricNames = append(metricNames, []string{"go_sched_gomaxprocs_threads"}...)
-	} else if withoutSched && !withoutGC {
-		// If only withoutSched is true, exclude "go_sched_gomaxprocs_threads".
-		metricNames = append(metricNames, []string{"go_gc_gogc_percent", "go_gc_gomemlimit_bytes"}...)
-	} else {
-		// If neither flag is true, use the default metrics.
-		metricNames = append(metricNames, defaultRuntimeMetrics...)
-	}
-	// sorting is required
-	sort.Strings(metricNames)
-	return metricNames
 }
