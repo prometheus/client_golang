@@ -39,6 +39,7 @@ package testutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -310,7 +311,7 @@ func compare(got, want []*dto.MetricFamily) error {
 		}
 	}
 	if diffErr := diff.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
-		return fmt.Errorf(diffErr)
+		return errors.New(diffErr)
 	}
 	return nil
 }
