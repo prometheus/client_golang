@@ -168,6 +168,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error gathering metrics:", err)
 			}
+			if opts.StructuredErrorLog != nil {
+				opts.StructuredErrorLog.Error("error gathering metrics", "error", err)
+			}
 			errCnt.WithLabelValues("gathering").Inc()
 			switch opts.ErrorHandling {
 			case PanicOnError:
@@ -197,6 +200,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error getting writer", err)
 			}
+			if opts.StructuredErrorLog != nil {
+				opts.StructuredErrorLog.Error("error getting writer", "error", err)
+			}
 			w = io.Writer(rsp)
 			encodingHeader = string(Identity)
 		}
@@ -217,6 +223,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			}
 			if opts.ErrorLog != nil {
 				opts.ErrorLog.Println("error encoding and sending metric family:", err)
+			}
+			if opts.StructuredErrorLog != nil {
+				opts.StructuredErrorLog.Error("error encoding and sending metric family", "error", err)
 			}
 			errCnt.WithLabelValues("encoding").Inc()
 			switch opts.ErrorHandling {
@@ -344,6 +353,12 @@ type Logger interface {
 	Println(v ...interface{})
 }
 
+// StructuredLogger is a minimal interface HandlerOpts needs for structured
+// logging. This is implementd by the standard library log/slog.Logger type.
+type StructuredLogger interface {
+	Error(msg string, args ...any)
+}
+
 // HandlerOpts specifies options how to serve metrics via an http.Handler. The
 // zero value of HandlerOpts is a reasonable default.
 type HandlerOpts struct {
@@ -354,6 +369,9 @@ type HandlerOpts struct {
 	// latter, create a Logger implementation that detects a
 	// prometheus.MultiError and formats the contained errors into one line.
 	ErrorLog Logger
+	// StructuredErrorLog StructuredLogger specifies an optional structured log
+	// handler.
+	StructuredErrorLog StructuredLogger
 	// ErrorHandling defines how errors are handled. Note that errors are
 	// logged regardless of the configured ErrorHandling provided ErrorLog
 	// is not nil.

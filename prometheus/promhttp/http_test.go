@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -130,25 +132,30 @@ func TestHandlerErrorHandling(t *testing.T) {
 	logBuf := &bytes.Buffer{}
 	logger := log.New(logBuf, "", 0)
 
+	slogger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
 	mReg := &mockTransactionGatherer{g: reg}
 	errorHandler := HandlerForTransactional(mReg, HandlerOpts{
-		ErrorLog:      logger,
-		ErrorHandling: HTTPErrorOnError,
-		Registry:      reg,
+		ErrorLog:           logger,
+		StructuredErrorLog: slogger,
+		ErrorHandling:      HTTPErrorOnError,
+		Registry:           reg,
 	})
 	continueHandler := HandlerForTransactional(mReg, HandlerOpts{
-		ErrorLog:      logger,
-		ErrorHandling: ContinueOnError,
-		Registry:      reg,
+		ErrorLog:           logger,
+		StructuredErrorLog: slogger,
+		ErrorHandling:      ContinueOnError,
+		Registry:           reg,
 	})
 	panicHandler := HandlerForTransactional(mReg, HandlerOpts{
-		ErrorLog:      logger,
-		ErrorHandling: PanicOnError,
-		Registry:      reg,
+		ErrorLog:           logger,
+		StructuredErrorLog: slogger,
+		ErrorHandling:      PanicOnError,
+		Registry:           reg,
 	})
 	// Expect gatherer not touched.
 	if got := mReg.gatherInvoked; got != 0 {
