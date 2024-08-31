@@ -51,7 +51,7 @@ func ExampleNewCounterVecT_multiple_labels_manual() {
 
 	c := promsafe.NewCounterVecT(prometheus.CounterOpts{
 		Name: "items_counted_detailed",
-	}, &MyCounterLabels{})
+	}, new(MyCounterLabels))
 
 	// Manually register the counter
 	if err := prometheus.Register(c.Unsafe()); err != nil {
@@ -86,7 +86,7 @@ func ExampleNewCounterVecT_promauto_migrated() {
 		EventType string
 		Source    string
 	}
-	c := promsafe.WithAuto(myReg).NewCounterVecT(counterOpts, &TicketReservationAttemptsLabels{})
+	c := promsafe.WithAuto(myReg).NewCounterVecT(counterOpts, new(TicketReservationAttemptsLabels))
 
 	c.With(&TicketReservationAttemptsLabels{
 		EventType: "reservation", Source: "source1",
@@ -121,7 +121,7 @@ func ExampleNewCounterVecT_promauto_global_migrated() {
 		Status string
 		Source string
 	}
-	c := promsafe.NewCounterVecT(counterOpts, &TicketReservationAttemptsLabels{})
+	c := promsafe.NewCounterVecT(counterOpts, new(TicketReservationAttemptsLabels))
 
 	c.With(&TicketReservationAttemptsLabels{
 		Status: "active", Source: "source1",
