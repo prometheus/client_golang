@@ -330,11 +330,11 @@ func ExponentialBuckets(start, factor float64, count int) []float64 {
 // used for the Buckets field of HistogramOpts.
 //
 // The function panics if 'count' is 0 or negative, if 'min' is 0 or negative.
-func ExponentialBucketsRange(min, max float64, count int) []float64 {
+func ExponentialBucketsRange(minBucket, maxBucket float64, count int) []float64 {
 	if count < 1 {
 		panic("ExponentialBucketsRange count needs a positive count")
 	}
-	if min <= 0 {
+	if minBucket <= 0 {
 		panic("ExponentialBucketsRange min needs to be greater than 0")
 	}
 
@@ -342,12 +342,12 @@ func ExponentialBucketsRange(min, max float64, count int) []float64 {
 	// max = min*growthFactor^(bucketCount-1)
 
 	// We know max/min and highest bucket. Solve for growthFactor.
-	growthFactor := math.Pow(max/min, 1.0/float64(count-1))
+	growthFactor := math.Pow(maxBucket/minBucket, 1.0/float64(count-1))
 
 	// Now that we know growthFactor, solve for each bucket.
 	buckets := make([]float64, count)
 	for i := 1; i <= count; i++ {
-		buckets[i-1] = min * math.Pow(growthFactor, float64(i-1))
+		buckets[i-1] = minBucket * math.Pow(growthFactor, float64(i-1))
 	}
 	return buckets
 }
