@@ -17,15 +17,15 @@ permissions:  # added using https://github.com/step-security/secure-repo
 jobs:
   golangci:
     permissions:
-      contents: read  # for actions/checkout to fetch code
+      contents: read  # for actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
     name: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - name: Lint
-        uses: dagger/dagger-for-github@v5
+        uses: dagger/dagger-for-github@8ab204f3cf74a4940a1648469c426ef0d28af7cc # v6.6.0
         with:
           version: "latest"
           verb: call
