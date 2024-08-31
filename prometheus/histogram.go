@@ -1705,17 +1705,23 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		return
 	}
 
+	if len(n.exemplars) == 1 {
+		// When the number of exemplars is 1, then
+		// replace the existing exemplar with the new exemplar.
+		n.exemplars[0] = e
+		return
+	}
+	// From this point on, the number of exemplars is greater than 1.
+
 	// When the number of exemplars exceeds the limit, remove one exemplar.
 	var (
-		rIdx int // The index where to remove the old exemplar.
-
 		ot    = time.Now() // Oldest timestamp seen.
 		otIdx = -1         // Index of the exemplar with the oldest timestamp.
 
-		md    = -1.0  // Logarithm of the delta of the closest pair of exemplars.
-		mdIdx = -1    // Index of the older exemplar within the closest pair.
-		cLog  float64 // Logarithm of the current exemplar.
-		pLog  float64 // Logarithm of the previous exemplar.
+		md   = -1.0  // Logarithm of the delta of the closest pair of exemplars.
+		rIdx = -1    // Index of the older exemplar within the closest pair and where we need to insert the new exemplar.
+		cLog float64 // Logarithm of the current exemplar.
+		pLog float64 // Logarithm of the previous exemplar.
 	)
 
 	for i, exemplar := range n.exemplars {
@@ -1726,7 +1732,7 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		}
 
 		// Find the index at which to insert new the exemplar.
-		if *e.Value <= *exemplar.Value && nIdx == -1 {
+		if nIdx == -1 && *e.Value <= *exemplar.Value {
 			nIdx = i
 		}
 
@@ -1738,11 +1744,13 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		}
 		diff := math.Abs(cLog - pLog)
 		if md == -1 || diff < md {
+			// The closest exemplar pair is this: |exemplar.[i] - n.exemplars[i-1].Value| is minimal.
+			// Choose the exemplar with the older timestamp for replacement.
 			md = diff
 			if n.exemplars[i].Timestamp.AsTime().Before(n.exemplars[i-1].Timestamp.AsTime()) {
-				mdIdx = i
+				rIdx = i
 			} else {
-				mdIdx = i - 1
+				rIdx = i - 1
 			}
 		}
 
@@ -1753,8 +1761,11 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 	if nIdx == -1 {
 		nIdx = len(n.exemplars)
 	}
+	// Here, we have the following relationships:
+	// n.exemplars[nIdx-1].Value < e.Value <= n.exemplars[nIdx].Value
 
 	if otIdx != -1 && e.Timestamp.AsTime().Sub(ot) > n.ttl {
+		// If the oldest exemplar has expired, then replace it with the new exemplar.
 		rIdx = otIdx
 	} else {
 		// In the previous for loop, when calculating the closest pair of exemplars,
@@ -1764,23 +1775,22 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		if nIdx > 0 {
 			diff := math.Abs(elog - math.Log(n.exemplars[nIdx-1].GetValue()))
 			if diff < md {
+				// The closest exemplar pair is this: |e.Value - n.exemplars[nIdx-1].Value| is minimal.
+				// Assume that the exemplar we are inserting has a newer timestamp. This is not always
+				// true, due to concurrency, but it's a good enough approximation.
 				md = diff
-				mdIdx = nIdx
-				if n.exemplars[nIdx-1].Timestamp.AsTime().Before(e.Timestamp.AsTime()) {
-					mdIdx = nIdx - 1
-				}
+				rIdx = nIdx - 1
 			}
 		}
 		if nIdx < len(n.exemplars) {
 			diff := math.Abs(math.Log(n.exemplars[nIdx].GetValue()) - elog)
 			if diff < md {
-				mdIdx = nIdx
-				if n.exemplars[nIdx].Timestamp.AsTime().Before(e.Timestamp.AsTime()) {
-					mdIdx = nIdx
-				}
+				// The closest exemplar pair is this: |n.exemplars[nIdx].Value - e.Value| is minimal.
+				// Assume that the exemplar we are inserting has a newer timestamp. This is not always
+				// true, due to concurrency, but it's a good enough approximation.
+				rIdx = nIdx
 			}
 		}
-		rIdx = mdIdx
 	}
 
 	// Adjust the slice according to rIdx and nIdx.
