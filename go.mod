@@ -12,7 +12,7 @@ require (
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.55.0
 	github.com/prometheus/procfs v0.15.1
-	golang.org/x/sys v0.22.0
+	golang.org/x/sys v0.24.0
 	google.golang.org/protobuf v1.34.2
 )
 
