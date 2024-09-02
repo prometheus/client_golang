@@ -17,7 +17,7 @@ permissions:  # added using https://github.com/step-security/secure-repo
 jobs:
   golangci:
     permissions:
-      contents: read  # for actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      contents: read  # for actions/checkout to fetch code
       pull-requests: read  # for golangci/golangci-lint-action to fetch pull requests
     name: lint
     runs-on: ubuntu-latest
