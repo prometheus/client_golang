@@ -573,7 +573,7 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 			h.nativeHistogramZeroThreshold = DefNativeHistogramZeroThreshold
 		} // Leave h.nativeHistogramZeroThreshold at 0 otherwise.
 		h.nativeHistogramSchema = pickSchema(opts.NativeHistogramBucketFactor)
-		makeNativeExemplars(&h.nativeExemplars, opts.NativeHistogramExemplarTTL, opts.NativeHistogramMaxExemplars)
+		h.nativeExemplars = makeNativeExemplars(opts.NativeHistogramExemplarTTL, opts.NativeHistogramMaxExemplars)
 	}
 	for i, upperBound := range h.upperBounds {
 		if i < len(h.upperBounds)-1 {
@@ -1658,11 +1658,11 @@ func addAndResetCounts(hot, cold *histogramCounts) {
 type nativeExemplars struct {
 	sync.Mutex
 
-	ttl       atomic.Int64 // It is a duration, but also used to check concurrently if exemplars are enabled.
+	ttl       time.Duration
 	exemplars []*dto.Exemplar
 }
 
-func makeNativeExemplars(exemplars *nativeExemplars, ttl time.Duration, maxCount int) {
+func makeNativeExemplars(ttl time.Duration, maxCount int) nativeExemplars {
 	if ttl == 0 {
 		ttl = 5 * time.Minute
 	}
@@ -1676,13 +1676,14 @@ func makeNativeExemplars(exemplars *nativeExemplars, ttl time.Duration, maxCount
 		ttl = -1
 	}
 
-	exemplars.ttl.Store(int64(ttl))
-	exemplars.exemplars = make([]*dto.Exemplar, 0, maxCount)
+	return nativeExemplars{
+		ttl:       ttl,
+		exemplars: make([]*dto.Exemplar, 0, maxCount),
+	}
 }
 
 func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
-	ttl := n.ttl.Load()
-	if ttl == -1 {
+	if n.ttl == -1 {
 		return
 	}
 
@@ -1764,7 +1765,7 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 	// Here, we have the following relationships:
 	// n.exemplars[nIdx-1].Value < e.Value <= n.exemplars[nIdx].Value
 
-	if otIdx != -1 && e.Timestamp.AsTime().Sub(ot) > time.Duration(ttl) {
+	if otIdx != -1 && e.Timestamp.AsTime().Sub(ot) > n.ttl {
 		// If the oldest exemplar has expired, then replace it with the new exemplar.
 		rIdx = otIdx
 	} else {
