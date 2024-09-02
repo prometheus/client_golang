@@ -66,8 +66,6 @@ linters-settings:
     local-prefixes: github.com/prometheus/client_golang
   gofumpt:
     extra-rules: true
-  predeclared:
-    ignore: "min,max"
   revive:
     rules:
       # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md#unused-parameter
