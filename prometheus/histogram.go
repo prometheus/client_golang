@@ -1673,6 +1673,7 @@ func makeNativeExemplars(ttl time.Duration, maxCount int) nativeExemplars {
 
 	if maxCount < 0 {
 		maxCount = 0
+		ttl = -1
 	}
 
 	return nativeExemplars{
@@ -1682,12 +1683,12 @@ func makeNativeExemplars(ttl time.Duration, maxCount int) nativeExemplars {
 }
 
 func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
-	n.Lock()
-	defer n.Unlock()
-
-	if cap(n.exemplars) == 0 {
+	if n.ttl == -1 {
 		return
 	}
+
+	n.Lock()
+	defer n.Unlock()
 
 	// The index where to insert the new exemplar.
 	var nIdx int = -1
