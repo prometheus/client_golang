@@ -17,25 +17,9 @@ import (
 	"log"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promsafe"
 )
-
-func ExampleNewCounterVecT_single_label_manual() {
-	// Manually registering with a single label
-
-	c := promsafe.NewCounterVecT(prometheus.CounterOpts{
-		Name: "items_counted_by_status",
-	}, promsafe.SingleLabelProvider("status"))
-
-	// Manually register the counter
-	if err := prometheus.Register(c.Unsafe()); err != nil {
-		log.Fatal("could not register: ", err.Error())
-	}
-
-	c.With("active").Inc()
-
-	// Output:
-}
 
 func ExampleNewCounterVecT_multiple_labels_manual() {
 	// Manually registering with multiple labels
@@ -49,17 +33,17 @@ func ExampleNewCounterVecT_multiple_labels_manual() {
 		ShouldNotBeUsed string `promsafe:"-"`
 	}
 
-	c := promsafe.NewCounterVecT(prometheus.CounterOpts{
+	c := promsafe.NewCounterVecT[MyCounterLabels](prometheus.CounterOpts{
 		Name: "items_counted_detailed",
-	}, new(MyCounterLabels))
+	})
 
 	// Manually register the counter
 	if err := prometheus.Register(c.Unsafe()); err != nil {
-		log.Fatal("could not register: ", err.Error())
+		log.Fatal("could not register1: ", err.Error())
 	}
 
 	// and now, because of generics we can call Inc() with filled struct of labels:
-	counter := c.With(&MyCounterLabels{
+	counter := c.With(MyCounterLabels{
 		EventType: "reservation", Success: true, Position: 1,
 	})
 	counter.Inc()
@@ -81,14 +65,14 @@ func ExampleNewCounterVecT_promauto_migrated() {
 	// promauto.With(myReg).NewCounterVec(counterOpts, []string{"event_type", "source"})
 	// becomes:
 
-	type TicketReservationAttemptsLabels struct {
+	type MyLabels struct {
 		promsafe.StructLabelProvider
 		EventType string
 		Source    string
 	}
-	c := promsafe.WithAuto(myReg).NewCounterVecT(counterOpts, new(TicketReservationAttemptsLabels))
+	c := promsafe.WithAuto[MyLabels](myReg).NewCounterVecT(counterOpts)
 
-	c.With(&TicketReservationAttemptsLabels{
+	c.With(MyLabels{
 		EventType: "reservation", Source: "source1",
 	}).Inc()
 
@@ -103,6 +87,10 @@ func ExampleNewCounterVecT_promauto_global_migrated() {
 	// like promauto does
 	// Note: it actually accepts other registry to become a default one
 	promsafe.SetupGlobalPromauto()
+	defer func() {
+		// cleanup for other examples
+		promsafe.SetupGlobalPromauto(promauto.With(nil))
+	}()
 
 	counterOpts := prometheus.CounterOpts{
 		Name: "items_counted_detailed_auto_global",
@@ -116,16 +104,34 @@ func ExampleNewCounterVecT_promauto_global_migrated() {
 	//}).Inc()
 	// becomes:
 
-	type TicketReservationAttemptsLabels struct {
+	type MyLabels struct {
 		promsafe.StructLabelProvider
 		Status string
 		Source string
 	}
-	c := promsafe.NewCounterVecT(counterOpts, new(TicketReservationAttemptsLabels))
+	c := promsafe.NewCounterVecT[*MyLabels](counterOpts)
 
-	c.With(&TicketReservationAttemptsLabels{
+	c.With(&MyLabels{
 		Status: "active", Source: "source1",
 	}).Inc()
+
+	// Output:
+}
+
+func ExampleNewCounterVecT_single_label_manual() {
+	// Manually registering with a single label
+	// Example of usage of shorthand: no structs no generics, but one string only
+
+	c := promsafe.NewCounterVecT1(prometheus.CounterOpts{
+		Name: "items_counted_by_status",
+	}, promsafe.SingleLabelProvider("status"))
+
+	// Manually register the counter
+	if err := prometheus.Register(c.Unsafe()); err != nil {
+		log.Fatal("could not register: ", err.Error())
+	}
+
+	c.With("active").Inc()
 
 	// Output:
 }

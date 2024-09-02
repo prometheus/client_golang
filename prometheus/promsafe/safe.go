@@ -53,140 +53,78 @@ func SetPromsafeTag(tag string) {
 	promsafeTag = tag
 }
 
-// labelProviderMarker is a marker interface for enforcing type-safety.
-// With its help we can force our label-related functions to only accept SingleLabelProvider or StructLabelProvider.
-type labelProviderMarker interface {
-	marker()
-}
-
-// SingleLabelProvider is a type used for declaring a single label.
-// When used as labelProviderMarker it provides just a label name.
-// It's meant to be used with single-label metrics only!
-// Use StructLabelProvider for multi-label metrics.
-type SingleLabelProvider string
-
-var _ labelProviderMarker = SingleLabelProvider("")
-
-func (s SingleLabelProvider) marker() {
-	panic("marker interface method should never be called")
+// labelsProviderMarker is a marker interface for enforcing type-safety of StructLabelProvider.
+type labelsProviderMarker interface {
+	labelsProviderMarker()
 }
 
 // StructLabelProvider should be embedded in any struct that serves as a label provider.
 type StructLabelProvider struct{}
 
-var _ labelProviderMarker = (*StructLabelProvider)(nil)
+var _ labelsProviderMarker = (*StructLabelProvider)(nil)
 
-func (s StructLabelProvider) marker() {
-	panic("marker interface method should never be called")
+func (s StructLabelProvider) labelsProviderMarker() {
+	panic("labelsProviderMarker interface method should never be called")
 }
 
-// handler is a helper struct that helps us to handle type-safe labels
-// It holds a label name in case if it's the only label (when SingleLabelProvider is used).
-type handler[T labelProviderMarker] struct {
-	theOnlyLabelName string
-}
+// newEmptyLabels creates a new empty labels instance of type T
+// It's a bit tricky as we want to support both structs and pointers to structs
+// e.g. &MyLabels{StructLabelProvider} or MyLabels{StructLabelProvider}
+func newEmptyLabels[T labelsProviderMarker]() T {
+	var emptyLabels T
 
-func newHandler[T labelProviderMarker](labelProvider T) handler[T] {
-	var h handler[T]
-	if s, ok := any(labelProvider).(SingleLabelProvider); ok {
-		h.theOnlyLabelName = string(s)
-	}
-	return h
-}
-
-// extractLabelsWithValues extracts labels names+values from a given labelProviderMarker (SingleLabelProvider or StructLabelProvider)
-func (h handler[T]) extractLabels(labelProvider T) []string {
-	if any(labelProvider) == nil {
-		return nil
-	}
-	if s, ok := any(labelProvider).(SingleLabelProvider); ok {
-		return []string{string(s)}
+	// Let's Support both Structs or Pointer to Structs given as T
+	val := reflect.ValueOf(&emptyLabels).Elem()
+	if val.Kind() == reflect.Ptr {
+		val.Set(reflect.New(val.Type().Elem()))
 	}
 
-	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
-	labels := extractLabelFromStruct(labelProvider)
-	labelNames := make([]string, 0, len(labels))
-	for k := range labels {
-		labelNames = append(labelNames, k)
-	}
-	return labelNames
-}
-
-// extractLabelsWithValues extracts labels names+values from a given labelProviderMarker (SingleLabelProvider or StructLabelProvider)
-func (h handler[T]) extractLabelsWithValues(labelProvider T) prometheus.Labels {
-	if any(labelProvider) == nil {
-		return nil
-	}
-
-	// TODO: let's handle defaults as well, why not?
-
-	if s, ok := any(labelProvider).(SingleLabelProvider); ok {
-		return prometheus.Labels{h.theOnlyLabelName: string(s)}
-	}
-
-	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
-	return extractLabelFromStruct(labelProvider)
-}
-
-// extractLabelValues extracts label string values from a given labelProviderMarker (SingleLabelProvider or StructLabelProvider)
-func (h handler[T]) extractLabelValues(labelProvider T) []string {
-	m := h.extractLabelsWithValues(labelProvider)
-
-	labelValues := make([]string, 0, len(m))
-	for _, v := range m {
-		labelValues = append(labelValues, v)
-	}
-	return labelValues
+	return emptyLabels
 }
 
 // NewCounterVecT creates a new CounterVecT with type-safe labels.
-func NewCounterVecT[T labelProviderMarker](opts prometheus.CounterOpts, labels T) *CounterVecT[T] {
-	h := newHandler(labels)
+func NewCounterVecT[T labelsProviderMarker](opts prometheus.CounterOpts) *CounterVecT[T] {
+	emptyLabels := newEmptyLabels[T]()
 
 	var inner *prometheus.CounterVec
-
 	if factory != nil {
-		inner = factory.NewCounterVec(opts, h.extractLabels(labels))
+		inner = factory.NewCounterVec(opts, extractLabelNames(emptyLabels))
 	} else {
-		inner = prometheus.NewCounterVec(opts, h.extractLabels(labels))
+		inner = prometheus.NewCounterVec(opts, extractLabelNames(emptyLabels))
 	}
 
-	return &CounterVecT[T]{
-		handler: h,
-		inner:   inner,
-	}
+	return &CounterVecT[T]{inner: inner}
 }
 
-// CounterVecT is a wrapper around prometheus.CounterVecT that allows type-safe labels.
-type CounterVecT[T labelProviderMarker] struct {
-	handler[T]
+// CounterVecT is a wrapper around prometheus.CounterVec that allows type-safe labels.
+type CounterVecT[T labelsProviderMarker] struct {
 	inner *prometheus.CounterVec
 }
 
 // GetMetricWithLabelValues behaves like prometheus.CounterVec.GetMetricWithLabelValues but with type-safe labels.
 func (c *CounterVecT[T]) GetMetricWithLabelValues(labels T) (prometheus.Counter, error) {
-	return c.inner.GetMetricWithLabelValues(c.handler.extractLabelValues(labels)...)
+	return c.inner.GetMetricWithLabelValues(extractLabelValues(labels)...)
 }
 
 // GetMetricWith behaves like prometheus.CounterVec.GetMetricWith but with type-safe labels.
 func (c *CounterVecT[T]) GetMetricWith(labels T) (prometheus.Counter, error) {
-	return c.inner.GetMetricWith(c.handler.extractLabelsWithValues(labels))
+	return c.inner.GetMetricWith(extractLabelsWithValues(labels))
 }
 
 // WithLabelValues behaves like prometheus.CounterVec.WithLabelValues but with type-safe labels.
 func (c *CounterVecT[T]) WithLabelValues(labels T) prometheus.Counter {
-	return c.inner.WithLabelValues(c.handler.extractLabelValues(labels)...)
+	return c.inner.WithLabelValues(extractLabelValues(labels)...)
 }
 
 // With behaves like prometheus.CounterVec.With but with type-safe labels.
 func (c *CounterVecT[T]) With(labels T) prometheus.Counter {
-	return c.inner.With(c.handler.extractLabelsWithValues(labels))
+	return c.inner.With(extractLabelsWithValues(labels))
 }
 
 // CurryWith behaves like prometheus.CounterVec.CurryWith but with type-safe labels.
 // It still returns a CounterVecT, but it's inner prometheus.CounterVec is curried.
 func (c *CounterVecT[T]) CurryWith(labels T) (*CounterVecT[T], error) {
-	curriedInner, err := c.inner.CurryWith(c.handler.extractLabelsWithValues(labels))
+	curriedInner, err := c.inner.CurryWith(extractLabelsWithValues(labels))
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +135,7 @@ func (c *CounterVecT[T]) CurryWith(labels T) (*CounterVecT[T], error) {
 // MustCurryWith behaves like prometheus.CounterVec.MustCurryWith but with type-safe labels.
 // It still returns a CounterVecT, but it's inner prometheus.CounterVec is curried.
 func (c *CounterVecT[T]) MustCurryWith(labels T) *CounterVecT[T] {
-	c.inner = c.inner.MustCurryWith(c.handler.extractLabelsWithValues(labels))
+	c.inner = c.inner.MustCurryWith(extractLabelsWithValues(labels))
 	return c
 }
 
@@ -222,23 +160,109 @@ func NewCounterFuncT(opts prometheus.CounterOpts, function func() float64) prome
 }
 
 //
+// Shorthand for Metrics with a single label
+//
+
+// singleLabelProviderMarker is a marker interface for enforcing type-safety of SingleLabelProvider.
+type singleLabelProviderMarker interface {
+	singleLabelProviderMarker()
+}
+
+// SingleLabelProvider is a type used for declaring a single label only.
+// When declaring a metric it's values used as a label name
+// When calling With() it's values used as a label value
+type SingleLabelProvider string
+
+var _ singleLabelProviderMarker = SingleLabelProvider("")
+
+func (s SingleLabelProvider) singleLabelProviderMarker() {
+	panic("singleLabelProviderMarker interface method should never be called")
+}
+
+// NewCounterVecT1 creates a new CounterVecT with the only single label
+func NewCounterVecT1(opts prometheus.CounterOpts, singleLabelProvider singleLabelProviderMarker) *CounterVecT1 {
+	// labelName is the string itself
+	// and singleLabelProviderMarker here can ONLY be SingleLabelProvider
+	labelName := string(singleLabelProvider.(SingleLabelProvider))
+
+	var inner *prometheus.CounterVec
+	if factory != nil {
+		inner = factory.NewCounterVec(opts, []string{labelName})
+	} else {
+		inner = prometheus.NewCounterVec(opts, []string{labelName})
+	}
+
+	return &CounterVecT1{inner: inner, labelName: labelName}
+}
+
+// CounterVecT1 is a wrapper around prometheus.CounterVec that allows a single type-safe label.
+type CounterVecT1 struct {
+	labelName string
+	inner     *prometheus.CounterVec
+}
+
+// GetMetricWithLabelValues behaves like prometheus.CounterVec.GetMetricWithLabelValues but with type-safe labels.
+func (c *CounterVecT1) GetMetricWithLabelValues(labelValue string) (prometheus.Counter, error) {
+	return c.inner.GetMetricWithLabelValues(labelValue)
+}
+
+// GetMetricWith behaves like prometheus.CounterVec.GetMetricWith but with type-safe labels.
+func (c *CounterVecT1) GetMetricWith(labelValue string) (prometheus.Counter, error) {
+	return c.inner.GetMetricWith(prometheus.Labels{c.labelName: labelValue})
+}
+
+// WithLabelValues behaves like prometheus.CounterVec.WithLabelValues but with type-safe labels.
+func (c *CounterVecT1) WithLabelValues(labelValue string) prometheus.Counter {
+	return c.inner.WithLabelValues(labelValue)
+}
+
+// With behaves like prometheus.CounterVec.With but with type-safe labels.
+func (c *CounterVecT1) With(labelValue string) prometheus.Counter {
+	return c.inner.With(prometheus.Labels{c.labelName: labelValue})
+}
+
+// CurryWith behaves like prometheus.CounterVec.CurryWith but with type-safe labels.
+// It still returns a CounterVecT, but it's inner prometheus.CounterVec is curried.
+func (c *CounterVecT1) CurryWith(labelValue string) (*CounterVecT1, error) {
+	curriedInner, err := c.inner.CurryWith(prometheus.Labels{c.labelName: labelValue})
+	if err != nil {
+		return nil, err
+	}
+	c.inner = curriedInner
+	return c, nil
+}
+
+// MustCurryWith behaves like prometheus.CounterVec.MustCurryWith but with type-safe labels.
+// It still returns a CounterVecT, but it's inner prometheus.CounterVec is curried.
+func (c *CounterVecT1) MustCurryWith(labelValue string) *CounterVecT1 {
+	c.inner = c.inner.MustCurryWith(prometheus.Labels{c.labelName: labelValue})
+	return c
+}
+
+// Unsafe returns the underlying prometheus.CounterVec
+// it's used to call any other method of prometheus.CounterVec that doesn't require type-safe labels
+func (c *CounterVecT1) Unsafe() *prometheus.CounterVec {
+	return c.inner
+}
+
+//
 // Promauto compatibility
 //
 
 // Factory is a promauto-like factory that allows type-safe labels.
 // We have to duplicate promauto.Factory logic here, because promauto.Factory's registry is private.
-type Factory[T labelProviderMarker] struct {
+type Factory[T labelsProviderMarker] struct {
 	r prometheus.Registerer
 }
 
 // WithAuto is a helper function that allows to use promauto.With with promsafe.With
-func WithAuto(r prometheus.Registerer) Factory[labelProviderMarker] {
-	return Factory[labelProviderMarker]{r: r}
+func WithAuto[T labelsProviderMarker](r prometheus.Registerer) Factory[T] {
+	return Factory[T]{r: r}
 }
 
 // NewCounterVecT works like promauto.NewCounterVec but with type-safe labels
-func (f Factory[T]) NewCounterVecT(opts prometheus.CounterOpts, labels T) *CounterVecT[T] {
-	c := NewCounterVecT(opts, labels)
+func (f Factory[T]) NewCounterVecT(opts prometheus.CounterOpts) *CounterVecT[T] {
+	c := NewCounterVecT[T](opts)
 	if f.r != nil {
 		f.r.MustRegister(c.inner)
 	}
@@ -257,9 +281,49 @@ func (f Factory[T]) NewCounterFuncT(opts prometheus.CounterOpts, function func()
 	return promauto.With(f.r).NewCounterFunc(opts, function)
 }
 
+// TODO: we can't use Factory with NewCounterT1. If we need, then we need a new type-less Factory
+
 //
 // Helpers
 //
+
+// extractLabelsWithValues extracts labels names+values from a given labelsProviderMarker (parent instance of a StructLabelProvider)
+func extractLabelsWithValues(labelProvider labelsProviderMarker) prometheus.Labels {
+	if any(labelProvider) == nil {
+		return nil
+	}
+
+	// TODO: let's handle defaults as well, why not?
+
+	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
+	return extractLabelFromStruct(labelProvider)
+}
+
+// extractLabelValues extracts label string values from a given labelsProviderMarker (parent instance of aStructLabelProvider)
+func extractLabelValues(labelProvider labelsProviderMarker) []string {
+	m := extractLabelsWithValues(labelProvider)
+
+	labelValues := make([]string, 0, len(m))
+	for _, v := range m {
+		labelValues = append(labelValues, v)
+	}
+	return labelValues
+}
+
+// extractLabelNames extracts labels names from a given labelsProviderMarker (parent instance of aStructLabelProvider)
+func extractLabelNames(labelProvider labelsProviderMarker) []string {
+	if any(labelProvider) == nil {
+		return nil
+	}
+
+	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
+	labels := extractLabelFromStruct(labelProvider)
+	labelNames := make([]string, 0, len(labels))
+	for k := range labels {
+		labelNames = append(labelNames, k)
+	}
+	return labelNames
+}
 
 // extractLabelFromStruct extracts labels names+values from a given StructLabelProvider
 func extractLabelFromStruct(structWithLabels any) prometheus.Labels {
