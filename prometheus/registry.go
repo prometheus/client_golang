@@ -634,54 +634,7 @@ func processMetric(
 		return fmt.Errorf("error collecting metric %v: %w", desc, err)
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
-	if ok { // Existing name.
-		if metricFamily.GetHelp() != desc.help {
-			return fmt.Errorf(
-				"collected metric %s %s has help %q but should have %q",
-				desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
-			)
-		}
-		// TODO(beorn7): Simplify switch once Desc has type.
-		switch metricFamily.GetType() {
-		case dto.MetricType_COUNTER:
-			if dtoMetric.Counter == nil {
-				return fmt.Errorf(
-					"collected metric %s %s should be a Counter",
-					desc.fqName, dtoMetric,
-				)
-			}
-		case dto.MetricType_GAUGE:
-			if dtoMetric.Gauge == nil {
-				return fmt.Errorf(
-					"collected metric %s %s should be a Gauge",
-					desc.fqName, dtoMetric,
-				)
-			}
-		case dto.MetricType_SUMMARY:
-			if dtoMetric.Summary == nil {
-				return fmt.Errorf(
-					"collected metric %s %s should be a Summary",
-					desc.fqName, dtoMetric,
-				)
-			}
-		case dto.MetricType_UNTYPED:
-			if dtoMetric.Untyped == nil {
-				return fmt.Errorf(
-					"collected metric %s %s should be Untyped",
-					desc.fqName, dtoMetric,
-				)
-			}
-		case dto.MetricType_HISTOGRAM:
-			if dtoMetric.Histogram == nil {
-				return fmt.Errorf(
-					"collected metric %s %s should be a Histogram",
-					desc.fqName, dtoMetric,
-				)
-			}
-		default:
-			panic("encountered MetricFamily with invalid type")
-		}
-	} else { // New name.
+	if !ok { // New name.
 		metricFamily = &dto.MetricFamily{}
 		metricFamily.Name = proto.String(desc.fqName)
 		metricFamily.Help = proto.String(desc.help)
