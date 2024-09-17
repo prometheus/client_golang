@@ -85,7 +85,13 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		c.reportError(ch, c.cpuTotal, err)
 	}
 
-	// TODO: publish c.vsize and c.rss values
+	if info, err := getMemoryUsage(); err == nil {
+		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(info.ResidentSize))
+		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(info.VirtualSize))
+	} else {
+		c.reportError(ch, c.rss, err)
+		c.reportError(ch, c.vsize, err)
+	}
 
 	if fds, err := getOpenFileCount(); err == nil {
 		ch <- MustNewConstMetric(c.openFDs, GaugeValue, fds)

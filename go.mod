@@ -17,6 +17,7 @@ require (
 )
 
 require (
+	github.com/ebitengine/purego v0.7.1 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
