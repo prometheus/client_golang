@@ -1,5 +1,11 @@
 ## Unreleased
 
+* [BUGFIX] histograms: Fix possible data race when appending exemplars vs metrics gather. #1623
+
+## 1.20.3 / 2024-09-05
+
+* [BUGFIX] histograms: Fix possible data race when appending exemplars. #1608
+
 ## 1.20.2 / 2024-08-23
 
 * [BUGFIX] promhttp: Unset Content-Encoding header when data is uncompressed. #1596

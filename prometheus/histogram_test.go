@@ -1049,10 +1049,14 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 
 			go func(vals []float64) {
 				start.Wait()
-				for _, v := range vals {
+				for i, v := range vals {
 					// An observation every 1 to 10 seconds.
 					atomic.AddInt64(&ts, rand.Int63n(10)+1)
-					his.Observe(v)
+					if i%2 == 0 {
+						his.Observe(v)
+					} else {
+						his.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
+					}
 				}
 				end.Done()
 			}(vals)
