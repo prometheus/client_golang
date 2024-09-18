@@ -15,19 +15,19 @@ package prometheus_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"runtime"
-	"sort"
 	"strings"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/golang/protobuf/proto"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func ExampleGauge() {
@@ -71,7 +71,7 @@ func ExampleGaugeVec() {
 	opsQueued.With(prometheus.Labels{"type": "delete", "user": "alice"}).Inc()
 }
 
-func ExampleGaugeFunc() {
+func ExampleGaugeFunc_simple() {
 	if err := prometheus.Register(prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Subsystem: "runtime",
@@ -89,35 +89,42 @@ func ExampleGaugeFunc() {
 	// GaugeFunc 'goroutines_count' registered.
 }
 
-func ExampleCounter() {
-	pushCounter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "repository_pushes", // Note: No help string...
-	})
-	err := prometheus.Register(pushCounter) // ... so this will return an error.
-	if err != nil {
-		fmt.Println("Push counter couldn't be registered, no counting will happen:", err)
-		return
+func ExampleGaugeFunc_constLabels() {
+	// primaryDB and secondaryDB represent two example *sql.DB connections we want to instrument.
+	var primaryDB, secondaryDB interface {
+		Stats() struct{ OpenConnections int }
 	}
 
-	// Try it once more, this time with a help string.
-	pushCounter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "repository_pushes",
-		Help: "Number of pushes to external repository.",
-	})
-	err = prometheus.Register(pushCounter)
-	if err != nil {
-		fmt.Println("Push counter couldn't be registered AGAIN, no counting will happen:", err)
-		return
+	if err := prometheus.Register(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace:   "mysql",
+			Name:        "connections_open",
+			Help:        "Number of mysql connections open.",
+			ConstLabels: prometheus.Labels{"destination": "primary"},
+		},
+		func() float64 { return float64(primaryDB.Stats().OpenConnections) },
+	)); err == nil {
+		fmt.Println(`GaugeFunc 'connections_open' for primary DB connection registered with labels {destination="primary"}`)
 	}
 
-	pushComplete := make(chan struct{})
-	// TODO: Start a goroutine that performs repository pushes and reports
-	// each completion via the channel.
-	for range pushComplete {
-		pushCounter.Inc()
+	if err := prometheus.Register(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Namespace:   "mysql",
+			Name:        "connections_open",
+			Help:        "Number of mysql connections open.",
+			ConstLabels: prometheus.Labels{"destination": "secondary"},
+		},
+		func() float64 { return float64(secondaryDB.Stats().OpenConnections) },
+	)); err == nil {
+		fmt.Println(`GaugeFunc 'connections_open' for secondary DB connection registered with labels {destination="secondary"}`)
 	}
+
+	// Note that we can register more than once GaugeFunc with same metric name
+	// as long as their const labels are consistent.
+
 	// Output:
-	// Push counter couldn't be registered, no counting will happen: descriptor Desc{fqName: "repository_pushes", help: "", constLabels: {}, variableLabels: []} is invalid: empty help string
+	// GaugeFunc 'connections_open' for primary DB connection registered with labels {destination="primary"}
+	// GaugeFunc 'connections_open' for secondary DB connection registered with labels {destination="secondary"}
 }
 
 func ExampleCounterVec() {
@@ -146,38 +153,22 @@ func ExampleCounterVec() {
 	httpReqs.DeleteLabelValues("200", "GET")
 	// Same thing with the more verbose Labels syntax.
 	httpReqs.Delete(prometheus.Labels{"method": "GET", "code": "200"})
-}
 
-func ExampleInstrumentHandler() {
-	// Handle the "/doc" endpoint with the standard http.FileServer handler.
-	// By wrapping the handler with InstrumentHandler, request count,
-	// request and response sizes, and request latency are automatically
-	// exported to Prometheus, partitioned by HTTP status code and method
-	// and by the handler name (here "fileserver").
-	http.Handle("/doc", prometheus.InstrumentHandler(
-		"fileserver", http.FileServer(http.Dir("/usr/share/doc")),
-	))
-	// The Prometheus handler still has to be registered to handle the
-	// "/metrics" endpoint. The handler returned by prometheus.Handler() is
-	// already instrumented - with "prometheus" as the handler name. In this
-	// example, we want the handler name to be "metrics", so we instrument
-	// the uninstrumented Prometheus handler ourselves.
-	http.Handle("/metrics", prometheus.InstrumentHandler(
-		"metrics", prometheus.UninstrumentedHandler(),
-	))
-}
+	// Just for demonstration, let's check the state of the counter vector
+	// by registering it with a custom registry and then let it collect the
+	// metrics.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(httpReqs)
 
-func ExampleLabelPairSorter() {
-	labelPairs := []*dto.LabelPair{
-		{Name: proto.String("status"), Value: proto.String("404")},
-		{Name: proto.String("method"), Value: proto.String("get")},
+	metricFamilies, err := reg.Gather()
+	if err != nil || len(metricFamilies) != 1 {
+		panic("unexpected behavior of custom test registry")
 	}
 
-	sort.Sort(prometheus.LabelPairSorter(labelPairs))
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
 
-	fmt.Println(labelPairs)
 	// Output:
-	// [name:"method" value:"get"  name:"status" value:"404" ]
+	// {"name":"http_requests_total","help":"How many HTTP requests processed, partitioned by status code and HTTP method.","type":"COUNTER","metric":[{"label":[{"name":"code","value":"404"},{"name":"method","value":"POST"}],"counter":{"value":42,"createdTimestamp":"1970-01-01T00:00:10Z"}}]}
 }
 
 func ExampleRegister() {
@@ -195,7 +186,7 @@ func ExampleRegister() {
 	}
 	// Don't forget to tell the HTTP server about the Prometheus handler.
 	// (In a real program, you still need to start the HTTP server...)
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	// Now you can start workers and give every one of them a pointer to
 	// taskCounter and let it increment it whenever it completes a task.
@@ -276,16 +267,11 @@ func ExampleRegister() {
 
 	// A different (and somewhat tricky) approach is to use
 	// ConstLabels. ConstLabels are pairs of label names and label values
-	// that never change. You might ask what those labels are good for (and
-	// rightfully so - if they never change, they could as well be part of
-	// the metric name). There are essentially two use-cases: The first is
-	// if labels are constant throughout the lifetime of a binary execution,
-	// but they vary over time or between different instances of a running
-	// binary. The second is what we have here: Each worker creates and
-	// registers an own Counter instance where the only difference is in the
-	// value of the ConstLabels. Those Counters can all be registered
-	// because the different ConstLabel values guarantee that each worker
-	// will increment a different Counter metric.
+	// that never change. Each worker creates and registers an own Counter
+	// instance where the only difference is in the value of the
+	// ConstLabels. Those Counters can all be registered because the
+	// different ConstLabel values guarantee that each worker will increment
+	// a different Counter metric.
 	counterOpts := prometheus.CounterOpts{
 		Subsystem:   "worker_pool",
 		Name:        "completed_tasks",
@@ -322,11 +308,11 @@ func ExampleRegister() {
 
 	// Output:
 	// taskCounter registered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [worker_id]} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
 	// taskCounter unregistered.
-	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: [worker_id]} has different label names or a different help string
+	// taskCounterVec not registered: a previously registered descriptor with the same fully-qualified name as Desc{fqName: "worker_pool_completed_tasks_total", help: "Total number of tasks completed.", constLabels: {}, variableLabels: {worker_id}} has different label names or a different help string
 	// taskCounterVec registered.
-	// Worker initialization failed: inconsistent label cardinality
+	// Worker initialization failed: inconsistent label cardinality: expected 1 label values but got 2 in []string{"42", "spurious arg"}
 	// notMyCounter is nil.
 	// taskCounterForWorker42 registered.
 	// taskCounterForWorker2001 registered.
@@ -349,25 +335,11 @@ func ExampleSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+
+	fmt.Println(toNormalizedJSON(sanitizeMetric(metric)))
 
 	// Output:
-	// summary: <
-	//   sample_count: 1000
-	//   sample_sum: 29969.50000000001
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 31.1
-	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 41.3
-	//   >
-	//   quantile: <
-	//     quantile: 0.99
-	//     value: 41.9
-	//   >
-	// >
+	// {"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}}
 }
 
 func ExampleSummaryVec() {
@@ -399,78 +371,11 @@ func ExampleSummaryVec() {
 	if err != nil || len(metricFamilies) != 1 {
 		panic("unexpected behavior of custom test registry")
 	}
-	fmt.Println(proto.MarshalTextString(metricFamilies[0]))
+
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
 
 	// Output:
-	// name: "pond_temperature_celsius"
-	// help: "The temperature of the frog pond."
-	// type: SUMMARY
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "leiopelma-hochstetteri"
-	//   >
-	//   summary: <
-	//     sample_count: 0
-	//     sample_sum: 0
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: nan
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: nan
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: nan
-	//     >
-	//   >
-	// >
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "lithobates-catesbeianus"
-	//   >
-	//   summary: <
-	//     sample_count: 1000
-	//     sample_sum: 31956.100000000017
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: 32.4
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: 41.4
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: 41.9
-	//     >
-	//   >
-	// >
-	// metric: <
-	//   label: <
-	//     name: "species"
-	//     value: "litoria-caerulea"
-	//   >
-	//   summary: <
-	//     sample_count: 1000
-	//     sample_sum: 29969.50000000001
-	//     quantile: <
-	//       quantile: 0.5
-	//       value: 31.1
-	//     >
-	//     quantile: <
-	//       quantile: 0.9
-	//       value: 41.3
-	//     >
-	//     quantile: <
-	//       quantile: 0.99
-	//       value: 41.9
-	//     >
-	//   >
-	// >
+	// {"name":"pond_temperature_celsius","help":"The temperature of the frog pond.","type":"SUMMARY","metric":[{"label":[{"name":"species","value":"leiopelma-hochstetteri"}],"summary":{"sampleCount":"0","sampleSum":0,"quantile":[{"quantile":0.5,"value":"NaN"},{"quantile":0.9,"value":"NaN"},{"quantile":0.99,"value":"NaN"}],"createdTimestamp":"1970-01-01T00:00:10Z"}},{"label":[{"name":"species","value":"lithobates-catesbeianus"}],"summary":{"sampleCount":"1000","sampleSum":31956.100000000017,"quantile":[{"quantile":0.5,"value":32.4},{"quantile":0.9,"value":41.4},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}},{"label":[{"name":"species","value":"litoria-caerulea"}],"summary":{"sampleCount":"1000","sampleSum":29969.50000000001,"quantile":[{"quantile":0.5,"value":31.1},{"quantile":0.9,"value":41.3},{"quantile":0.99,"value":41.9}],"createdTimestamp":"1970-01-01T00:00:10Z"}}]}
 }
 
 func ExampleNewConstSummary() {
@@ -494,33 +399,39 @@ func ExampleNewConstSummary() {
 	// internally).
 	metric := &dto.Metric{}
 	s.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
-	// label: <
-	//   name: "code"
-	//   value: "200"
-	// >
-	// label: <
-	//   name: "method"
-	//   value: "get"
-	// >
-	// label: <
-	//   name: "owner"
-	//   value: "example"
-	// >
-	// summary: <
-	//   sample_count: 4711
-	//   sample_sum: 403.34
-	//   quantile: <
-	//     quantile: 0.5
-	//     value: 42.3
-	//   >
-	//   quantile: <
-	//     quantile: 0.9
-	//     value: 323.3
-	//   >
-	// >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}]}}
+}
+
+func ExampleNewConstSummaryWithCreatedTimestamp() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A summary of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	// Create a constant summary with created timestamp set
+	createdTs := time.Unix(1719670764, 123)
+	s := prometheus.MustNewConstSummaryWithCreatedTimestamp(
+		desc,
+		4711, 403.34,
+		map[float64]float64{0.5: 42.3, 0.9: 323.3},
+		createdTs,
+		"200", "get",
+	)
+
+	// Just for demonstration, let's check the state of the summary by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"summary":{"sampleCount":"4711","sampleSum":403.34,"quantile":[{"quantile":0.5,"value":42.3},{"quantile":0.9,"value":323.3}],"createdTimestamp":"2024-06-29T14:19:24.000000123Z"}}
 }
 
 func ExampleHistogram() {
@@ -540,33 +451,11 @@ func ExampleHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	temps.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+
+	fmt.Println(toNormalizedJSON(sanitizeMetric(metric)))
 
 	// Output:
-	// histogram: <
-	//   sample_count: 1000
-	//   sample_sum: 29969.50000000001
-	//   bucket: <
-	//     cumulative_count: 192
-	//     upper_bound: 20
-	//   >
-	//   bucket: <
-	//     cumulative_count: 366
-	//     upper_bound: 25
-	//   >
-	//   bucket: <
-	//     cumulative_count: 501
-	//     upper_bound: 30
-	//   >
-	//   bucket: <
-	//     cumulative_count: 638
-	//     upper_bound: 35
-	//   >
-	//   bucket: <
-	//     cumulative_count: 816
-	//     upper_bound: 40
-	//   >
-	// >
+	// {"histogram":{"sampleCount":"1000","sampleSum":29969.50000000001,"bucket":[{"cumulativeCount":"192","upperBound":20},{"cumulativeCount":"366","upperBound":25},{"cumulativeCount":"501","upperBound":30},{"cumulativeCount":"638","upperBound":35},{"cumulativeCount":"816","upperBound":40}],"createdTimestamp":"1970-01-01T00:00:10Z"}}
 }
 
 func ExampleNewConstHistogram() {
@@ -590,41 +479,76 @@ func ExampleNewConstHistogram() {
 	// internally).
 	metric := &dto.Metric{}
 	h.Write(metric)
-	fmt.Println(proto.MarshalTextString(metric))
+	fmt.Println(toNormalizedJSON(metric))
 
 	// Output:
-	// label: <
-	//   name: "code"
-	//   value: "200"
-	// >
-	// label: <
-	//   name: "method"
-	//   value: "get"
-	// >
-	// label: <
-	//   name: "owner"
-	//   value: "example"
-	// >
-	// histogram: <
-	//   sample_count: 4711
-	//   sample_sum: 403.34
-	//   bucket: <
-	//     cumulative_count: 121
-	//     upper_bound: 25
-	//   >
-	//   bucket: <
-	//     cumulative_count: 2403
-	//     upper_bound: 50
-	//   >
-	//   bucket: <
-	//     cumulative_count: 3221
-	//     upper_bound: 100
-	//   >
-	//   bucket: <
-	//     cumulative_count: 4233
-	//     upper_bound: 200
-	//   >
-	// >
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}]}}
+}
+
+func ExampleNewConstHistogramWithCreatedTimestamp() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A histogram of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	createdTs := time.Unix(1719670764, 123)
+	h := prometheus.MustNewConstHistogramWithCreatedTimestamp(
+		desc,
+		4711, 403.34,
+		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		createdTs,
+		"200", "get",
+	)
+
+	// Just for demonstration, let's check the state of the histogram by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	h.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25},{"cumulativeCount":"2403","upperBound":50},{"cumulativeCount":"3221","upperBound":100},{"cumulativeCount":"4233","upperBound":200}],"createdTimestamp":"2024-06-29T14:19:24.000000123Z"}}
+}
+
+func ExampleNewConstHistogram_WithExemplar() {
+	desc := prometheus.NewDesc(
+		"http_request_duration_seconds",
+		"A histogram of the HTTP request durations.",
+		[]string{"code", "method"},
+		prometheus.Labels{"owner": "example"},
+	)
+
+	// Create a constant histogram from values we got from a 3rd party telemetry system.
+	h := prometheus.MustNewConstHistogram(
+		desc,
+		4711, 403.34,
+		map[float64]uint64{25: 121, 50: 2403, 100: 3221, 200: 4233},
+		"200", "get",
+	)
+
+	// Wrap const histogram with exemplars for each bucket.
+	exemplarTs, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 GMT")
+	exemplarLabels := prometheus.Labels{"testName": "testVal"}
+	h = prometheus.MustNewMetricWithExemplars(
+		h,
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 24.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 42.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 89.0},
+		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 157.0},
+	)
+
+	// Just for demonstration, let's check the state of the histogram by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	h.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"label":[{"name":"code","value":"200"},{"name":"method","value":"get"},{"name":"owner","value":"example"}],"histogram":{"sampleCount":"4711","sampleSum":403.34,"bucket":[{"cumulativeCount":"121","upperBound":25,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":24,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"2403","upperBound":50,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":42,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"3221","upperBound":100,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":89,"timestamp":"2006-01-02T15:04:05Z"}},{"cumulativeCount":"4233","upperBound":200,"exemplar":{"label":[{"name":"testName","value":"testVal"}],"value":157,"timestamp":"2006-01-02T15:04:05Z"}}]}}
 }
 
 func ExampleAlreadyRegisteredError() {
@@ -633,7 +557,8 @@ func ExampleAlreadyRegisteredError() {
 		Help: "The total number of requests served.",
 	})
 	if err := prometheus.Register(reqCounter); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+		are := &prometheus.AlreadyRegisteredError{}
+		if errors.As(err, are) {
 			// A counter for that metric has been registered before.
 			// Use the old counter from now on.
 			reqCounter = are.ExistingCollector.(prometheus.Counter)
@@ -718,7 +643,13 @@ temperature_kelvin 4.5
 
 	gathering, err = gatherers.Gather()
 	if err != nil {
-		fmt.Println(err)
+		// We expect error collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
+		// We cannot assert it because of https://github.com/golang/protobuf/issues/1121
+		if strings.HasPrefix(err.Error(), `collected metric "temperature_kelvin" `) {
+			fmt.Println("Found duplicated metric `temperature_kelvin`")
+		} else {
+			fmt.Print(err)
+		}
 	}
 	// Note that still as many metrics as possible are returned:
 	out.Reset()
@@ -740,7 +671,7 @@ temperature_kelvin 4.5
 	// temperature_kelvin{location="outside"} 273.14
 	// temperature_kelvin{location="somewhere else"} 4.5
 	// ----------
-	// collected metric "temperature_kelvin" { label:<name:"location" value:"outside" > gauge:<value:265.3 > } was collected before with the same name and label values
+	// Found duplicated metric `temperature_kelvin`
 	// # HELP humidity_percent Humidity in %.
 	// # TYPE humidity_percent gauge
 	// humidity_percent{location="inside"} 33.2
@@ -750,4 +681,58 @@ temperature_kelvin 4.5
 	// temperature_kelvin 4.5
 	// temperature_kelvin{location="inside"} 298.44
 	// temperature_kelvin{location="outside"} 273.14
+}
+
+func ExampleNewMetricWithTimestamp() {
+	desc := prometheus.NewDesc(
+		"temperature_kelvin",
+		"Current temperature in Kelvin.",
+		nil, nil,
+	)
+
+	// Create a constant gauge from values we got from an external
+	// temperature reporting system. Those values are reported with a slight
+	// delay, so we want to add the timestamp of the actual measurement.
+	temperatureReportedByExternalSystem := 298.15
+	timeReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)
+	s := prometheus.NewMetricWithTimestamp(
+		timeReportedByExternalSystem,
+		prometheus.MustNewConstMetric(
+			desc, prometheus.GaugeValue, temperatureReportedByExternalSystem,
+		),
+	)
+
+	// Just for demonstration, let's check the state of the gauge by
+	// (ab)using its Write method (which is usually only used by Prometheus
+	// internally).
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"gauge":{"value":298.15},"timestampMs":"1257894000012"}
+}
+
+func ExampleNewConstMetricWithCreatedTimestamp() {
+	// Here we have a metric that is reported by an external system.
+	// Besides providing the value, the external system also provides the
+	// timestamp when the metric was created.
+	desc := prometheus.NewDesc(
+		"time_since_epoch_seconds",
+		"Current epoch time in seconds.",
+		nil, nil,
+	)
+
+	timeSinceEpochReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)
+	epoch := time.Unix(0, 0).UTC()
+	s := prometheus.MustNewConstMetricWithCreatedTimestamp(
+		desc, prometheus.CounterValue, float64(timeSinceEpochReportedByExternalSystem.Unix()), epoch,
+	)
+
+	metric := &dto.Metric{}
+	s.Write(metric)
+	fmt.Println(toNormalizedJSON(metric))
+
+	// Output:
+	// {"counter":{"value":1257894000,"createdTimestamp":"1970-01-01T00:00:00Z"}}
 }

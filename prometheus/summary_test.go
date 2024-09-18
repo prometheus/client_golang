@@ -26,10 +26,13 @@ import (
 )
 
 func TestSummaryWithDefaultObjectives(t *testing.T) {
+	now := time.Now()
+
 	reg := NewRegistry()
 	summaryWithDefaultObjectives := NewSummary(SummaryOpts{
 		Name: "default_objectives",
 		Help: "Test help.",
+		now:  func() time.Time { return now },
 	})
 	if err := reg.Register(summaryWithDefaultObjectives); err != nil {
 		t.Error(err)
@@ -39,8 +42,12 @@ func TestSummaryWithDefaultObjectives(t *testing.T) {
 	if err := summaryWithDefaultObjectives.Write(m); err != nil {
 		t.Error(err)
 	}
-	if len(m.GetSummary().Quantile) != len(DefObjectives) {
-		t.Error("expected default objectives in summary")
+	if len(m.GetSummary().Quantile) != 0 {
+		t.Error("expected no objectives in summary")
+	}
+
+	if !m.Summary.CreatedTimestamp.AsTime().Equal(now) {
+		t.Errorf("expected created timestamp %s, got %s", now, m.Summary.CreatedTimestamp.AsTime())
 	}
 }
 
@@ -54,10 +61,18 @@ func TestSummaryWithoutObjectives(t *testing.T) {
 	if err := reg.Register(summaryWithEmptyObjectives); err != nil {
 		t.Error(err)
 	}
+	summaryWithEmptyObjectives.Observe(3)
+	summaryWithEmptyObjectives.Observe(0.14)
 
 	m := &dto.Metric{}
 	if err := summaryWithEmptyObjectives.Write(m); err != nil {
 		t.Error(err)
+	}
+	if got, want := m.GetSummary().GetSampleSum(), 3.14; got != want {
+		t.Errorf("got sample sum %f, want %f", got, want)
+	}
+	if got, want := m.GetSummary().GetSampleCount(), uint64(2); got != want {
+		t.Errorf("got sample sum %d, want %d", got, want)
 	}
 	if len(m.GetSummary().Quantile) != 0 {
 		t.Error("expected no objectives in summary")
@@ -188,7 +203,8 @@ func TestSummaryConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -202,7 +218,7 @@ func TestSummaryConcurrency(t *testing.T) {
 		sum := NewSummary(SummaryOpts{
 			Name:       "test_summary",
 			Help:       "helpless",
-			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+			Objectives: objMap,
 		})
 
 		allVars := make([]float64, total)
@@ -237,22 +253,22 @@ func TestSummaryConcurrency(t *testing.T) {
 			t.Errorf("got sample sum %f, want %f", got, want)
 		}
 
-		objectives := make([]float64, 0, len(DefObjectives))
-		for qu := range DefObjectives {
-			objectives = append(objectives, qu)
+		objSlice := make([]float64, 0, len(objMap))
+		for qu := range objMap {
+			objSlice = append(objSlice, qu)
 		}
-		sort.Float64s(objectives)
+		sort.Float64s(objSlice)
 
-		for i, wantQ := range objectives {
-			ε := DefObjectives[wantQ]
+		for i, wantQ := range objSlice {
+			ε := objMap[wantQ]
 			gotQ := *m.Summary.Quantile[i].Quantile
 			gotV := *m.Summary.Quantile[i].Value
-			min, max := getBounds(allVars, wantQ, ε)
+			minBound, maxBound := getBounds(allVars, wantQ, ε)
 			if gotQ != wantQ {
 				t.Errorf("got quantile %f, want %f", gotQ, wantQ)
 			}
-			if gotV < min || gotV > max {
-				t.Errorf("got %f for quantile %f, want [%f,%f]", gotV, gotQ, min, max)
+			if gotV < minBound || gotV > maxBound {
+				t.Errorf("got %f for quantile %f, want [%f,%f]", gotV, gotQ, minBound, maxBound)
 			}
 		}
 		return true
@@ -268,14 +284,14 @@ func TestSummaryVecConcurrency(t *testing.T) {
 		t.Skip("Skipping test in short mode.")
 	}
 
-	rand.Seed(42)
+	rand.New(rand.NewSource(42))
+	objMap := map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}
 
-	objectives := make([]float64, 0, len(DefObjectives))
-	for qu := range DefObjectives {
-
-		objectives = append(objectives, qu)
+	objSlice := make([]float64, 0, len(objMap))
+	for qu := range objMap {
+		objSlice = append(objSlice, qu)
 	}
-	sort.Float64s(objectives)
+	sort.Float64s(objSlice)
 
 	it := func(n uint32) bool {
 		mutations := int(n%1e4 + 1e4)
@@ -290,7 +306,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			SummaryOpts{
 				Name:       "test_summary",
 				Help:       "helpless",
-				Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+				Objectives: objMap,
 			},
 			[]string{"label"},
 		)
@@ -312,7 +328,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			go func(vals []float64) {
 				start.Wait()
 				for i, v := range vals {
-					sum.WithLabelValues(string('A' + picks[i])).Observe(v)
+					sum.WithLabelValues(string('A' + rune(picks[i]))).Observe(v)
 				}
 				end.Done()
 			}(vals)
@@ -325,7 +341,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 		for i := 0; i < vecLength; i++ {
 			m := &dto.Metric{}
-			s := sum.WithLabelValues(string('A' + i))
+			s := sum.WithLabelValues(string('A' + rune(i)))
 			s.(Summary).Write(m)
 			if got, want := int(*m.Summary.SampleCount), len(allVars[i]); got != want {
 				t.Errorf("got sample count %d for label %c, want %d", got, 'A'+i, want)
@@ -333,16 +349,16 @@ func TestSummaryVecConcurrency(t *testing.T) {
 			if got, want := *m.Summary.SampleSum, sampleSums[i]; math.Abs((got-want)/want) > 0.001 {
 				t.Errorf("got sample sum %f for label %c, want %f", got, 'A'+i, want)
 			}
-			for j, wantQ := range objectives {
-				ε := DefObjectives[wantQ]
+			for j, wantQ := range objSlice {
+				ε := objMap[wantQ]
 				gotQ := *m.Summary.Quantile[j].Quantile
 				gotV := *m.Summary.Quantile[j].Value
-				min, max := getBounds(allVars[i], wantQ, ε)
+				minBound, maxBound := getBounds(allVars[i], wantQ, ε)
 				if gotQ != wantQ {
 					t.Errorf("got quantile %f for label %c, want %f", gotQ, 'A'+i, wantQ)
 				}
-				if gotV < min || gotV > max {
-					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, min, max)
+				if gotV < minBound || gotV > maxBound {
+					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, minBound, maxBound)
 				}
 			}
 		}
@@ -394,20 +410,92 @@ func TestSummaryDecay(t *testing.T) {
 	}
 }
 
-func getBounds(vars []float64, q, ε float64) (min, max float64) {
+func getBounds(vars []float64, q, ε float64) (minBound, maxBound float64) {
 	// TODO(beorn7): This currently tolerates an error of up to 2*ε. The
 	// error must be at most ε, but for some reason, it's sometimes slightly
 	// higher. That's a bug.
 	n := float64(len(vars))
 	lower := int((q - 2*ε) * n)
 	upper := int(math.Ceil((q + 2*ε) * n))
-	min = vars[0]
+	minBound = vars[0]
 	if lower > 1 {
-		min = vars[lower-1]
+		minBound = vars[lower-1]
 	}
-	max = vars[len(vars)-1]
+	maxBound = vars[len(vars)-1]
 	if upper < len(vars) {
-		max = vars[upper-1]
+		maxBound = vars[upper-1]
 	}
 	return
+}
+
+func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {
+	for _, tcase := range []struct {
+		desc       string
+		objectives map[float64]float64
+	}{
+		{desc: "summary with objectives", objectives: map[float64]float64{1.0: 1.0}},
+		{desc: "no objectives summary", objectives: nil},
+	} {
+		now := time.Now()
+		t.Run(tcase.desc, func(t *testing.T) {
+			summaryVec := NewSummaryVec(SummaryOpts{
+				Name:       "test",
+				Help:       "test help",
+				Objectives: tcase.objectives,
+				now:        func() time.Time { return now },
+			}, []string{"label"})
+
+			// First use of "With" should populate CT.
+			summaryVec.WithLabelValues("1")
+			expected := map[string]time.Time{"1": now}
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Two more labels at different times.
+			summaryVec.WithLabelValues("2")
+			expected["2"] = now
+
+			now = now.Add(1 * time.Hour)
+
+			summaryVec.WithLabelValues("3")
+			expected["3"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+
+			// Recreate metric instance should reset created timestamp to now.
+			summaryVec.DeleteLabelValues("1")
+			summaryVec.WithLabelValues("1")
+			expected["1"] = now
+
+			now = now.Add(1 * time.Hour)
+			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
+		})
+	}
+}
+
+func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
+	metricDesc := NewDesc(
+		"sample_value",
+		"sample value",
+		nil,
+		nil,
+	)
+	quantiles := map[float64]float64{50: 200.12, 99: 500.342}
+	createdTs := time.Unix(1719670764, 123)
+
+	s, err := NewConstSummaryWithCreatedTimestamp(metricDesc, 100, 200, quantiles, createdTs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var metric dto.Metric
+	if err := s.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Summary.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
+		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)
+	}
 }

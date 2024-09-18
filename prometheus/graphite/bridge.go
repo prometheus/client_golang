@@ -17,6 +17,7 @@ package graphite
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +27,6 @@ import (
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -54,6 +54,9 @@ const (
 
 // Config defines the Graphite bridge config.
 type Config struct {
+	// Whether to use Graphite tags or not. Defaults to false.
+	UseTags bool
+
 	// The url to push data to. Required.
 	URL string
 
@@ -80,6 +83,7 @@ type Config struct {
 
 // Bridge pushes metrics to the configured Graphite server.
 type Bridge struct {
+	useTags  bool
 	url      string
 	prefix   string
 	interval time.Duration
@@ -101,6 +105,8 @@ type Logger interface {
 // NewBridge returns a pointer to a new Bridge struct.
 func NewBridge(c *Config) (*Bridge, error) {
 	b := &Bridge{}
+
+	b.useTags = c.UseTags
 
 	if c.URL == "" {
 		return nil, errors.New("missing URL")
@@ -178,10 +184,10 @@ func (b *Bridge) Push() error {
 	}
 	defer conn.Close()
 
-	return writeMetrics(conn, mfs, b.prefix, model.Now())
+	return writeMetrics(conn, mfs, b.useTags, b.prefix, model.Now())
 }
 
-func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model.Time) error {
+func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, useTags bool, prefix string, now model.Time) error {
 	vec, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{
 		Timestamp: now,
 	}, mfs...)
@@ -191,15 +197,17 @@ func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model
 
 	buf := bufio.NewWriter(w)
 	for _, s := range vec {
-		for _, c := range prefix {
-			if _, err := buf.WriteRune(c); err != nil {
+		if prefix != "" {
+			for _, c := range prefix {
+				if _, err := buf.WriteRune(c); err != nil {
+					return err
+				}
+			}
+			if err := buf.WriteByte('.'); err != nil {
 				return err
 			}
 		}
-		if err := buf.WriteByte('.'); err != nil {
-			return err
-		}
-		if err := writeMetric(buf, s.Metric); err != nil {
+		if err := writeMetric(buf, s.Metric, useTags); err != nil {
 			return err
 		}
 		if _, err := fmt.Fprintf(buf, " %g %d\n", s.Value, int64(s.Timestamp)/millisecondsPerSecond); err != nil {
@@ -213,18 +221,11 @@ func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, prefix string, now model
 	return nil
 }
 
-func writeMetric(buf *bufio.Writer, m model.Metric) error {
+func writeMetric(buf *bufio.Writer, m model.Metric, useTags bool) error {
 	metricName, hasName := m[model.MetricNameLabel]
 	numLabels := len(m) - 1
 	if !hasName {
 		numLabels = len(m)
-	}
-
-	labelStrings := make([]string, 0, numLabels)
-	for label, value := range m {
-		if label != model.MetricNameLabel {
-			labelStrings = append(labelStrings, fmt.Sprintf("%s %s", string(label), string(value)))
-		}
 	}
 
 	var err error
@@ -234,17 +235,48 @@ func writeMetric(buf *bufio.Writer, m model.Metric) error {
 			return writeSanitized(buf, string(metricName))
 		}
 	default:
-		sort.Strings(labelStrings)
 		if err = writeSanitized(buf, string(metricName)); err != nil {
 			return err
 		}
-		for _, s := range labelStrings {
-			if err = buf.WriteByte('.'); err != nil {
+		if useTags {
+			return writeTags(buf, m)
+		}
+		return writeLabels(buf, m, numLabels)
+	}
+	return nil
+}
+
+func writeTags(buf *bufio.Writer, m model.Metric) error {
+	for label, value := range m {
+		if label != model.MetricNameLabel {
+			buf.WriteRune(';')
+			if _, err := buf.WriteString(string(label)); err != nil {
 				return err
 			}
-			if err = writeSanitized(buf, s); err != nil {
+			buf.WriteRune('=')
+			if _, err := buf.WriteString(string(value)); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func writeLabels(buf *bufio.Writer, m model.Metric, numLabels int) error {
+	labelStrings := make([]string, 0, numLabels)
+	for label, value := range m {
+		if label != model.MetricNameLabel {
+			labelString := string(label) + " " + string(value)
+			labelStrings = append(labelStrings, labelString)
+		}
+	}
+	sort.Strings(labelStrings)
+	for _, s := range labelStrings {
+		if err := buf.WriteByte('.'); err != nil {
+			return err
+		}
+		if err := writeSanitized(buf, s); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -15,17 +15,23 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus/internal"
 
+	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -52,7 +58,7 @@ var (
 )
 
 func init() {
-	MustRegister(NewProcessCollector(os.Getpid(), ""))
+	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
 	MustRegister(NewGoCollector())
 }
 
@@ -69,7 +75,7 @@ func NewRegistry() *Registry {
 // NewPedanticRegistry returns a registry that checks during collection if each
 // collected Metric is consistent with its reported Desc, and if the Desc has
 // actually been registered with the registry. Unchecked Collectors (those whose
-// Describe methed does not yield any descriptors) are excluded from the check.
+// Describe method does not yield any descriptors) are excluded from the check.
 //
 // Usually, a Registry will be happy as long as the union of all collected
 // Metrics is consistent and valid even if some metrics are not consistent with
@@ -106,9 +112,6 @@ type Registerer interface {
 	// Collector, and for providing a Collector that will not cause
 	// inconsistent metrics on collection. (This would lead to scrape
 	// errors.)
-	//
-	// It is in general not safe to register the same Collector multiple
-	// times concurrently.
 	Register(Collector) error
 	// MustRegister works like Register but registers any number of
 	// Collectors and panics upon the first registration that causes an
@@ -211,6 +214,8 @@ func (err AlreadyRegisteredError) Error() string {
 // by a Gatherer to report multiple errors during MetricFamily gathering.
 type MultiError []error
 
+// Error formats the contained errors as a bullet point list, preceded by the
+// total number of errors. Note that this results in a multi-line string.
 func (errs MultiError) Error() string {
 	if len(errs) == 0 {
 		return ""
@@ -246,9 +251,12 @@ func (errs MultiError) MaybeUnwrap() error {
 }
 
 // Registry registers Prometheus collectors, collects their metrics, and gathers
-// them into MetricFamilies for exposition. It implements both Registerer and
-// Gatherer. The zero value is not usable. Create instances with NewRegistry or
-// NewPedanticRegistry.
+// them into MetricFamilies for exposition. It implements Registerer, Gatherer,
+// and Collector. The zero value is not usable. Create instances with
+// NewRegistry or NewPedanticRegistry.
+//
+// Registry implements Collector to allow it to be used for creating groups of
+// metrics. See the Grouping example for how this can be done.
 type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
@@ -264,7 +272,7 @@ func (r *Registry) Register(c Collector) error {
 		descChan           = make(chan *Desc, capDescChan)
 		newDescIDs         = map[uint64]struct{}{}
 		newDimHashesByName = map[string]uint64{}
-		collectorID        uint64 // Just a sum of all desc IDs.
+		collectorID        uint64 // All desc IDs XOR'd together.
 		duplicateDescErr   error
 	)
 	go func() {
@@ -272,13 +280,18 @@ func (r *Registry) Register(c Collector) error {
 		close(descChan)
 	}()
 	r.mtx.Lock()
-	defer r.mtx.Unlock()
+	defer func() {
+		// Drain channel in case of premature return to not leak a goroutine.
+		for range descChan {
+		}
+		r.mtx.Unlock()
+	}()
 	// Conduct various tests...
 	for desc := range descChan {
 
 		// Is the descriptor valid at all?
 		if desc.err != nil {
-			return fmt.Errorf("descriptor %s is invalid: %s", desc, desc.err)
+			return fmt.Errorf("descriptor %s is invalid: %w", desc, desc.err)
 		}
 
 		// Is the descID unique?
@@ -286,12 +299,12 @@ func (r *Registry) Register(c Collector) error {
 		if _, exists := r.descIDs[desc.id]; exists {
 			duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
 		}
-		// If it is not a duplicate desc in this collector, add it to
+		// If it is not a duplicate desc in this collector, XOR it to
 		// the collectorID.  (We allow duplicate descs within the same
 		// collector, but their existence must be a no-op.)
 		if _, exists := newDescIDs[desc.id]; !exists {
 			newDescIDs[desc.id] = struct{}{}
-			collectorID += desc.id
+			collectorID ^= desc.id
 		}
 
 		// Are all the label names and the help string consistent with
@@ -301,16 +314,17 @@ func (r *Registry) Register(c Collector) error {
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
-		} else {
-			// ...then check the new descriptors already seen.
-			if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
-				if dimHash != desc.dimHash {
-					return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
-				}
-			} else {
-				newDimHashesByName[desc.fqName] = desc.dimHash
-			}
+			continue
 		}
+
+		// ...then check the new descriptors already seen.
+		if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
+			if dimHash != desc.dimHash {
+				return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+			}
+			continue
+		}
+		newDimHashesByName[desc.fqName] = desc.dimHash
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
@@ -318,9 +332,17 @@ func (r *Registry) Register(c Collector) error {
 		return nil
 	}
 	if existing, exists := r.collectorsByID[collectorID]; exists {
-		return AlreadyRegisteredError{
-			ExistingCollector: existing,
-			NewCollector:      c,
+		switch e := existing.(type) {
+		case *wrappingCollector:
+			return AlreadyRegisteredError{
+				ExistingCollector: e.unwrapRecursively(),
+				NewCollector:      c,
+			}
+		default:
+			return AlreadyRegisteredError{
+				ExistingCollector: e,
+				NewCollector:      c,
+			}
 		}
 	}
 	// If the collectorID is new, but at least one of the descs existed
@@ -345,7 +367,7 @@ func (r *Registry) Unregister(c Collector) bool {
 	var (
 		descChan    = make(chan *Desc, capDescChan)
 		descIDs     = map[uint64]struct{}{}
-		collectorID uint64 // Just a sum of the desc IDs.
+		collectorID uint64 // All desc IDs XOR'd together.
 	)
 	go func() {
 		c.Describe(descChan)
@@ -353,7 +375,7 @@ func (r *Registry) Unregister(c Collector) bool {
 	}()
 	for desc := range descChan {
 		if _, exists := descIDs[desc.id]; !exists {
-			collectorID += desc.id
+			collectorID ^= desc.id
 			descIDs[desc.id] = struct{}{}
 		}
 	}
@@ -388,6 +410,14 @@ func (r *Registry) MustRegister(cs ...Collector) {
 
 // Gather implements Gatherer.
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
+	r.mtx.RLock()
+
+	if len(r.collectorsByID) == 0 && len(r.uncheckedCollectors) == 0 {
+		// Fast path.
+		r.mtx.RUnlock()
+		return nil, nil
+	}
+
 	var (
 		checkedMetricChan   = make(chan Metric, capMetricChan)
 		uncheckedMetricChan = make(chan Metric, capMetricChan)
@@ -397,7 +427,6 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
 	)
 
-	r.mtx.RLock()
 	goroutineBudget := len(r.collectorsByID) + len(r.uncheckedCollectors)
 	metricFamiliesByName := make(map[string]*dto.MetricFamily, len(r.dimHashesByName))
 	checkedCollectors := make(chan Collector, len(r.collectorsByID))
@@ -520,14 +549,71 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			goroutineBudget--
 			runtime.Gosched()
 		}
-		// Once both checkedMetricChan and uncheckdMetricChan are closed
+		// Once both checkedMetricChan and uncheckedMetricChan are closed
 		// and drained, the contraption above will nil out cmc and umc,
 		// and then we can leave the collect loop here.
 		if cmc == nil && umc == nil {
 			break
 		}
 	}
-	return normalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
+	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
+}
+
+// Describe implements Collector.
+func (r *Registry) Describe(ch chan<- *Desc) {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	// Only report the checked Collectors; unchecked collectors don't report any
+	// Desc.
+	for _, c := range r.collectorsByID {
+		c.Describe(ch)
+	}
+}
+
+// Collect implements Collector.
+func (r *Registry) Collect(ch chan<- Metric) {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	for _, c := range r.collectorsByID {
+		c.Collect(ch)
+	}
+	for _, c := range r.uncheckedCollectors {
+		c.Collect(ch)
+	}
+}
+
+// WriteToTextfile calls Gather on the provided Gatherer, encodes the result in the
+// Prometheus text format, and writes it to a temporary file. Upon success, the
+// temporary file is renamed to the provided filename.
+//
+// This is intended for use with the textfile collector of the node exporter.
+// Note that the node exporter expects the filename to be suffixed with ".prom".
+func WriteToTextfile(filename string, g Gatherer) error {
+	tmp, err := os.CreateTemp(filepath.Dir(filename), filepath.Base(filename))
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+
+	mfs, err := g.Gather()
+	if err != nil {
+		return err
+	}
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(tmp, mf); err != nil {
+			return err
+		}
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), filename)
 }
 
 // processMetric is an internal helper method only used by the Gather method.
@@ -538,9 +624,14 @@ func processMetric(
 	registeredDescIDs map[uint64]struct{},
 ) error {
 	desc := metric.Desc()
+	// Wrapped metrics collected by an unchecked Collector can have an
+	// invalid Desc.
+	if desc.err != nil {
+		return desc.err
+	}
 	dtoMetric := &dto.Metric{}
 	if err := metric.Write(dtoMetric); err != nil {
-		return fmt.Errorf("error collecting metric %v: %s", desc, err)
+		return fmt.Errorf("error collecting metric %v: %w", desc, err)
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
@@ -636,7 +727,7 @@ func processMetric(
 // Gatherers is a slice of Gatherer instances that implements the Gatherer
 // interface itself. Its Gather method calls Gather on all Gatherers in the
 // slice in order and returns the merged results. Errors returned from the
-// Gather calles are all returned in a flattened MultiError. Duplicate and
+// Gather calls are all returned in a flattened MultiError. Duplicate and
 // inconsistent Metrics are skipped (first occurrence in slice order wins) and
 // reported in the returned error.
 //
@@ -662,12 +753,13 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	for i, g := range gs {
 		mfs, err := g.Gather()
 		if err != nil {
-			if multiErr, ok := err.(MultiError); ok {
+			multiErr := MultiError{}
+			if errors.As(err, &multiErr) {
 				for _, err := range multiErr {
-					errs = append(errs, fmt.Errorf("[from Gatherer #%d] %s", i+1, err))
+					errs = append(errs, fmt.Errorf("[from Gatherer #%d] %w", i+1, err))
 				}
 			} else {
-				errs = append(errs, fmt.Errorf("[from Gatherer #%d] %s", i+1, err))
+				errs = append(errs, fmt.Errorf("[from Gatherer #%d] %w", i+1, err))
 			}
 		}
 		for _, mf := range mfs {
@@ -707,72 +799,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 			}
 		}
 	}
-	return normalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
-}
-
-// metricSorter is a sortable slice of *dto.Metric.
-type metricSorter []*dto.Metric
-
-func (s metricSorter) Len() int {
-	return len(s)
-}
-
-func (s metricSorter) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s metricSorter) Less(i, j int) bool {
-	if len(s[i].Label) != len(s[j].Label) {
-		// This should not happen. The metrics are
-		// inconsistent. However, we have to deal with the fact, as
-		// people might use custom collectors or metric family injection
-		// to create inconsistent metrics. So let's simply compare the
-		// number of labels in this case. That will still yield
-		// reproducible sorting.
-		return len(s[i].Label) < len(s[j].Label)
-	}
-	for n, lp := range s[i].Label {
-		vi := lp.GetValue()
-		vj := s[j].Label[n].GetValue()
-		if vi != vj {
-			return vi < vj
-		}
-	}
-
-	// We should never arrive here. Multiple metrics with the same
-	// label set in the same scrape will lead to undefined ingestion
-	// behavior. However, as above, we have to provide stable sorting
-	// here, even for inconsistent metrics. So sort equal metrics
-	// by their timestamp, with missing timestamps (implying "now")
-	// coming last.
-	if s[i].TimestampMs == nil {
-		return false
-	}
-	if s[j].TimestampMs == nil {
-		return true
-	}
-	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
-}
-
-// normalizeMetricFamilies returns a MetricFamily slice with empty
-// MetricFamilies pruned and the remaining MetricFamilies sorted by name within
-// the slice, with the contained Metrics sorted within each MetricFamily.
-func normalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
-	for _, mf := range metricFamiliesByName {
-		sort.Sort(metricSorter(mf.Metric))
-	}
-	names := make([]string, 0, len(metricFamiliesByName))
-	for name, mf := range metricFamiliesByName {
-		if len(mf.Metric) > 0 {
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	result := make([]*dto.MetricFamily, 0, len(names))
-	for _, name := range names {
-		result = append(result, metricFamiliesByName[name])
-	}
-	return result
+	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
 // checkSuffixCollisions checks for collisions with the “magic” suffixes the
@@ -844,6 +871,8 @@ func checkMetricConsistency(
 	dtoMetric *dto.Metric,
 	metricHashes map[uint64]struct{},
 ) error {
+	name := metricFamily.GetName()
+
 	// Type consistency with metric family.
 	if metricFamily.GetType() == dto.MetricType_GAUGE && dtoMetric.Gauge == nil ||
 		metricFamily.GetType() == dto.MetricType_COUNTER && dtoMetric.Counter == nil ||
@@ -852,50 +881,70 @@ func checkMetricConsistency(
 		metricFamily.GetType() == dto.MetricType_UNTYPED && dtoMetric.Untyped == nil {
 		return fmt.Errorf(
 			"collected metric %q { %s} is not a %s",
-			metricFamily.GetName(), dtoMetric, metricFamily.GetType(),
+			name, dtoMetric, metricFamily.GetType(),
 		)
 	}
 
+	previousLabelName := ""
 	for _, labelPair := range dtoMetric.GetLabel() {
-		if !checkLabelName(labelPair.GetName()) {
+		labelName := labelPair.GetName()
+		if labelName == previousLabelName {
 			return fmt.Errorf(
-				"collected metric %q { %s} has a label with an invalid name: %s",
-				metricFamily.GetName(), dtoMetric, labelPair.GetName(),
+				"collected metric %q { %s} has two or more labels with the same name: %s",
+				name, dtoMetric, labelName,
 			)
 		}
-		if dtoMetric.Summary != nil && labelPair.GetName() == quantileLabel {
+		if !checkLabelName(labelName) {
+			return fmt.Errorf(
+				"collected metric %q { %s} has a label with an invalid name: %s",
+				name, dtoMetric, labelName,
+			)
+		}
+		if dtoMetric.Summary != nil && labelName == quantileLabel {
 			return fmt.Errorf(
 				"collected metric %q { %s} must not have an explicit %q label",
-				metricFamily.GetName(), dtoMetric, quantileLabel,
+				name, dtoMetric, quantileLabel,
 			)
 		}
 		if !utf8.ValidString(labelPair.GetValue()) {
 			return fmt.Errorf(
 				"collected metric %q { %s} has a label named %q whose value is not utf8: %#v",
-				metricFamily.GetName(), dtoMetric, labelPair.GetName(), labelPair.GetValue())
+				name, dtoMetric, labelName, labelPair.GetValue())
 		}
+		previousLabelName = labelName
 	}
 
 	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
-	h := hashNew()
-	h = hashAdd(h, metricFamily.GetName())
-	h = hashAddByte(h, separatorByte)
+	h := xxhash.New()
+	h.WriteString(name)
+	h.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
-	sort.Sort(LabelPairSorter(dtoMetric.Label))
-	for _, lp := range dtoMetric.Label {
-		h = hashAdd(h, lp.GetName())
-		h = hashAddByte(h, separatorByte)
-		h = hashAdd(h, lp.GetValue())
-		h = hashAddByte(h, separatorByte)
+	if !sort.IsSorted(internal.LabelPairSorter(dtoMetric.Label)) {
+		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
+		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
+		copy(copiedLabels, dtoMetric.Label)
+		sort.Sort(internal.LabelPairSorter(copiedLabels))
+		dtoMetric.Label = copiedLabels
 	}
-	if _, exists := metricHashes[h]; exists {
+	for _, lp := range dtoMetric.Label {
+		h.WriteString(lp.GetName())
+		h.Write(separatorByteSlice)
+		h.WriteString(lp.GetValue())
+		h.Write(separatorByteSlice)
+	}
+	if dtoMetric.TimestampMs != nil {
+		h.WriteString(strconv.FormatInt(*(dtoMetric.TimestampMs), 10))
+		h.Write(separatorByteSlice)
+	}
+	hSum := h.Sum64()
+	if _, exists := metricHashes[hSum]; exists {
 		return fmt.Errorf(
 			"collected metric %q { %s} was collected before with the same name and label values",
-			metricFamily.GetName(), dtoMetric,
+			name, dtoMetric,
 		)
 	}
-	metricHashes[h] = struct{}{}
+	metricHashes[hSum] = struct{}{}
 	return nil
 }
 
@@ -913,9 +962,9 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, 0, len(dtoMetric.Label))
-	lpsFromDesc = append(lpsFromDesc, desc.constLabelPairs...)
-	for _, l := range desc.variableLabels {
+	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
+	copy(lpsFromDesc, desc.constLabelPairs)
+	for _, l := range desc.variableLabels.names {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
 			Name: proto.String(l),
 		})
@@ -926,7 +975,7 @@ func checkDescConsistency(
 			metricFamily.GetName(), dtoMetric, desc,
 		)
 	}
-	sort.Sort(LabelPairSorter(lpsFromDesc))
+	sort.Sort(internal.LabelPairSorter(lpsFromDesc))
 	for i, lpFromDesc := range lpsFromDesc {
 		lpFromMetric := dtoMetric.Label[i]
 		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
@@ -938,4 +987,90 @@ func checkDescConsistency(
 		}
 	}
 	return nil
+}
+
+var _ TransactionalGatherer = &MultiTRegistry{}
+
+// MultiTRegistry is a TransactionalGatherer that joins gathered metrics from multiple
+// transactional gatherers.
+//
+// It is caller responsibility to ensure two registries have mutually exclusive metric families,
+// no deduplication will happen.
+type MultiTRegistry struct {
+	tGatherers []TransactionalGatherer
+}
+
+// NewMultiTRegistry creates MultiTRegistry.
+func NewMultiTRegistry(tGatherers ...TransactionalGatherer) *MultiTRegistry {
+	return &MultiTRegistry{
+		tGatherers: tGatherers,
+	}
+}
+
+// Gather implements TransactionalGatherer interface.
+func (r *MultiTRegistry) Gather() (mfs []*dto.MetricFamily, done func(), err error) {
+	errs := MultiError{}
+
+	dFns := make([]func(), 0, len(r.tGatherers))
+	// TODO(bwplotka): Implement concurrency for those?
+	for _, g := range r.tGatherers {
+		// TODO(bwplotka): Check for duplicates?
+		m, d, err := g.Gather()
+		errs.Append(err)
+
+		mfs = append(mfs, m...)
+		dFns = append(dFns, d)
+	}
+
+	// TODO(bwplotka): Consider sort in place, given metric family in gather is sorted already.
+	sort.Slice(mfs, func(i, j int) bool {
+		return *mfs[i].Name < *mfs[j].Name
+	})
+	return mfs, func() {
+		for _, d := range dFns {
+			d()
+		}
+	}, errs.MaybeUnwrap()
+}
+
+// TransactionalGatherer represents transactional gatherer that can be triggered to notify gatherer that memory
+// used by metric family is no longer used by a caller. This allows implementations with cache.
+type TransactionalGatherer interface {
+	// Gather returns metrics in a lexicographically sorted slice
+	// of uniquely named MetricFamily protobufs. Gather ensures that the
+	// returned slice is valid and self-consistent so that it can be used
+	// for valid exposition. As an exception to the strict consistency
+	// requirements described for metric.Desc, Gather will tolerate
+	// different sets of label names for metrics of the same metric family.
+	//
+	// Even if an error occurs, Gather attempts to gather as many metrics as
+	// possible. Hence, if a non-nil error is returned, the returned
+	// MetricFamily slice could be nil (in case of a fatal error that
+	// prevented any meaningful metric collection) or contain a number of
+	// MetricFamily protobufs, some of which might be incomplete, and some
+	// might be missing altogether. The returned error (which might be a
+	// MultiError) explains the details. Note that this is mostly useful for
+	// debugging purposes. If the gathered protobufs are to be used for
+	// exposition in actual monitoring, it is almost always better to not
+	// expose an incomplete result and instead disregard the returned
+	// MetricFamily protobufs in case the returned error is non-nil.
+	//
+	// Important: done is expected to be triggered (even if the error occurs!)
+	// once caller does not need returned slice of dto.MetricFamily.
+	Gather() (_ []*dto.MetricFamily, done func(), err error)
+}
+
+// ToTransactionalGatherer transforms Gatherer to transactional one with noop as done function.
+func ToTransactionalGatherer(g Gatherer) TransactionalGatherer {
+	return &noTransactionGatherer{g: g}
+}
+
+type noTransactionGatherer struct {
+	g Gatherer
+}
+
+// Gather implements TransactionalGatherer interface.
+func (g *noTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
+	mfs, err := g.g.Gather()
+	return mfs, func() {}, err
 }

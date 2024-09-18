@@ -1,19 +1,36 @@
+// Copyright 2018 The Prometheus Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package graphite
 
 import (
 	"bufio"
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"regexp"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/common/model"
-	"golang.org/x/net/context"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -49,6 +66,11 @@ func TestSanitize(t *testing.T) {
 }
 
 func TestWriteSummary(t *testing.T) {
+	testWriteSummary(t, false)
+	testWriteSummary(t, true)
+}
+
+func testWriteSummary(t *testing.T, useTags bool) {
 	sumVec := prometheus.NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name:        "name",
@@ -80,9 +102,11 @@ func TestWriteSummary(t *testing.T) {
 		{prefix: "prefix"},
 		{prefix: "pre/fix"},
 		{prefix: "pre.fix"},
+		{prefix: ""},
 	}
 
-	const want = `%s.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043
+	var (
+		want = `%s.name.constname.constvalue.labelname.val1.quantile.0_5 20 1477043
 %s.name.constname.constvalue.labelname.val1.quantile.0_9 30 1477043
 %s.name.constname.constvalue.labelname.val1.quantile.0_99 30 1477043
 %s.name_sum.constname.constvalue.labelname.val1 60 1477043
@@ -93,26 +117,56 @@ func TestWriteSummary(t *testing.T) {
 %s.name_sum.constname.constvalue.labelname.val2 90 1477043
 %s.name_count.constname.constvalue.labelname.val2 3 1477043
 `
+		wantTagged = `%s.name;constname=constvalue;labelname=val1;quantile=0.5 20 1477043
+%s.name;constname=constvalue;labelname=val1;quantile=0.9 30 1477043
+%s.name;constname=constvalue;labelname=val1;quantile=0.99 30 1477043
+%s.name_sum;constname=constvalue;labelname=val1 60 1477043
+%s.name_count;constname=constvalue;labelname=val1 3 1477043
+%s.name;constname=constvalue;labelname=val2;quantile=0.5 30 1477043
+%s.name;constname=constvalue;labelname=val2;quantile=0.9 40 1477043
+%s.name;constname=constvalue;labelname=val2;quantile=0.99 40 1477043
+%s.name_sum;constname=constvalue;labelname=val2 90 1477043
+%s.name_count;constname=constvalue;labelname=val2 3 1477043
+`
+	)
+
+	if useTags {
+		want = wantTagged
+	}
+
 	for i, tc := range testCases {
 
 		now := model.Time(1477043083)
 		var buf bytes.Buffer
-		err = writeMetrics(&buf, mfs, tc.prefix, now)
+		err = writeMetrics(&buf, mfs, useTags, tc.prefix, now)
 		if err != nil {
 			t.Fatalf("error: %v", err)
 		}
 
-		wantWithPrefix := fmt.Sprintf(want,
-			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
-			tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
-		)
-		if got := buf.String(); wantWithPrefix != got {
-			t.Fatalf("test case index %d: wanted \n%s\n, got \n%s\n", i, wantWithPrefix, got)
+		var wantWithPrefix string
+		if tc.prefix == "" {
+			wantWithPrefix = strings.ReplaceAll(want, "%s.", "")
+		} else {
+			wantWithPrefix = fmt.Sprintf(want,
+				tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+				tc.prefix, tc.prefix, tc.prefix, tc.prefix, tc.prefix,
+			)
+		}
+
+		got := buf.String()
+
+		if err := checkLinesAreEqual(wantWithPrefix, got, useTags); err != nil {
+			t.Fatalf("test case index %d:\n%s", i, err.Error())
 		}
 	}
 }
 
 func TestWriteHistogram(t *testing.T) {
+	testWriteHistogram(t, false)
+	testWriteHistogram(t, true)
+}
+
+func testWriteHistogram(t *testing.T, useTags bool) {
 	histVec := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:        "name",
@@ -140,12 +194,13 @@ func TestWriteHistogram(t *testing.T) {
 
 	now := model.Time(1477043083)
 	var buf bytes.Buffer
-	err = writeMetrics(&buf, mfs, "prefix", now)
+	err = writeMetrics(&buf, mfs, useTags, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
 
-	want := `prefix.name_bucket.constname.constvalue.labelname.val1.le.0_01 0 1477043
+	var (
+		want = `prefix.name_bucket.constname.constvalue.labelname.val1.le.0_01 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val1.le.0_02 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val1.le.0_05 0 1477043
 prefix.name_bucket.constname.constvalue.labelname.val1.le.0_1 0 1477043
@@ -160,12 +215,40 @@ prefix.name_sum.constname.constvalue.labelname.val2 90 1477043
 prefix.name_count.constname.constvalue.labelname.val2 3 1477043
 prefix.name_bucket.constname.constvalue.labelname.val2.le._Inf 3 1477043
 `
-	if got := buf.String(); want != got {
-		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
+		wantTagged = `prefix.name_bucket;constname=constvalue;labelname=val1;le=0.01 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val1;le=0.02 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val1;le=0.05 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val1;le=0.1 0 1477043
+prefix.name_sum;constname=constvalue;labelname=val1 60 1477043
+prefix.name_count;constname=constvalue;labelname=val1 3 1477043
+prefix.name_bucket;constname=constvalue;labelname=val1;le=+Inf 3 1477043
+prefix.name_bucket;constname=constvalue;labelname=val2;le=0.01 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val2;le=0.02 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val2;le=0.05 0 1477043
+prefix.name_bucket;constname=constvalue;labelname=val2;le=0.1 0 1477043
+prefix.name_sum;constname=constvalue;labelname=val2 90 1477043
+prefix.name_count;constname=constvalue;labelname=val2 3 1477043
+prefix.name_bucket;constname=constvalue;labelname=val2;le=+Inf 3 1477043
+`
+	)
+
+	if useTags {
+		want = wantTagged
+	}
+
+	got := buf.String()
+
+	if err := checkLinesAreEqual(want, got, useTags); err != nil {
+		t.Fatal(err.Error())
 	}
 }
 
 func TestToReader(t *testing.T) {
+	testToReader(t, false)
+	testToReader(t, true)
+}
+
+func testToReader(t *testing.T, useTags bool) {
 	cntVec := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name:        "name",
@@ -180,9 +263,19 @@ func TestToReader(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(cntVec)
 
-	want := `prefix.name.constname.constvalue.labelname.val1 1 1477043
+	var (
+		want = `prefix.name.constname.constvalue.labelname.val1 1 1477043
 prefix.name.constname.constvalue.labelname.val2 1 1477043
 `
+		wantTagged = `prefix.name;constname=constvalue;labelname=val1 1 1477043
+prefix.name;constname=constvalue;labelname=val2 1 1477043
+`
+	)
+
+	if useTags {
+		want = wantTagged
+	}
+
 	mfs, err := reg.Gather()
 	if err != nil {
 		t.Fatalf("error: %v", err)
@@ -190,14 +283,66 @@ prefix.name.constname.constvalue.labelname.val2 1 1477043
 
 	now := model.Time(1477043083)
 	var buf bytes.Buffer
-	err = writeMetrics(&buf, mfs, "prefix", now)
+	err = writeMetrics(&buf, mfs, useTags, "prefix", now)
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
 
-	if got := buf.String(); want != got {
-		t.Fatalf("wanted \n%s\n, got \n%s\n", want, got)
+	got := buf.String()
+
+	if err := checkLinesAreEqual(want, got, useTags); err != nil {
+		t.Fatal(err.Error())
 	}
+}
+
+func checkLinesAreEqual(w, g string, useTags bool) error {
+	if useTags {
+		taggedLineRegexp := regexp.MustCompile(`;| `)
+
+		wantLines, err := stringToLines(w)
+		if err != nil {
+			return err
+		}
+
+		gotLines, err := stringToLines(g)
+		if err != nil {
+			return err
+		}
+
+		for lineInd := range gotLines {
+			var log string
+			// Tagged metric, order of tags doesn't matter
+			// m1 := "prefix.name;tag1=val1;tag2=val2 3 1477043"
+			// m2 := "prefix.name;tag2=val2;tag1=val1 3 1477043"
+			// m1 should be equal to m2
+			wantSplit := taggedLineRegexp.Split(wantLines[lineInd], -1)
+			gotSplit := taggedLineRegexp.Split(gotLines[lineInd], -1)
+			sort.Strings(wantSplit)
+			sort.Strings(gotSplit)
+
+			log += fmt.Sprintf("want: %v\ngot: %v\n\n", wantSplit, gotSplit)
+
+			if !reflect.DeepEqual(wantSplit, gotSplit) {
+				return errors.New(log)
+			}
+		}
+		return nil
+	}
+
+	if w != g {
+		return fmt.Errorf("wanted:\n\n%s\ngot:\n\n%s", w, g)
+	}
+
+	return nil
+}
+
+func stringToLines(s string) (lines []string, err error) {
+	scanner := bufio.NewScanner(strings.NewReader(s))
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	err = scanner.Err()
+	return
 }
 
 func TestPush(t *testing.T) {

@@ -15,7 +15,8 @@ package push
 
 import (
 	"bytes"
-	"io/ioutil"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,25 +27,31 @@ import (
 )
 
 func TestPush(t *testing.T) {
-
 	var (
 		lastMethod string
 		lastBody   []byte
 		lastPath   string
+		lastHeader http.Header
 	)
 
-	// Fake a Pushgateway that always responds with 202.
+	// Fake a Pushgateway that responds with 202 to DELETE and with 200 in
+	// all other cases.
 	pgwOK := httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lastMethod = r.Method
+			lastHeader = r.Header
 			var err error
-			lastBody, err = ioutil.ReadAll(r.Body)
+			lastBody, err = io.ReadAll(r.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
 			lastPath = r.URL.EscapedPath()
 			w.Header().Set("Content-Type", `text/plain; charset=utf-8`)
-			w.WriteHeader(http.StatusAccepted)
+			if r.Method == http.MethodDelete {
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		}),
 	)
 	defer pgwOK.Close()
@@ -77,7 +84,7 @@ func TestPush(t *testing.T) {
 	}
 
 	buf := &bytes.Buffer{}
-	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
+	enc := expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 
 	for _, mf := range mfs {
 		if err := enc.Encode(mf); err != nil {
@@ -93,10 +100,10 @@ func TestPush(t *testing.T) {
 		Push(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "PUT" {
-		t.Error("want method PUT for Push, got", lastMethod)
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
 	}
-	if bytes.Compare(lastBody, wantBody) != 0 {
+	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
 	if lastPath != "/metrics/job/testjob" {
@@ -110,14 +117,95 @@ func TestPush(t *testing.T) {
 		Add(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "POST" {
-		t.Error("want method POST for Add, got", lastMethod)
+	if lastMethod != http.MethodPost {
+		t.Errorf("got method %q for Add, want %q", lastMethod, http.MethodPost)
 	}
-	if bytes.Compare(lastBody, wantBody) != 0 {
+	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
 	if lastPath != "/metrics/job/testjob" {
 		t.Error("unexpected path:", lastPath)
+	}
+
+	// Pushes that require base64 encoding.
+	if err := New(pgwOK.URL, "test/job").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job@base64/dGVzdC9qb2I" {
+		t.Error("unexpected path:", lastPath)
+	}
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("foobar", "bu/ms").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/foobar@base64/YnUvbXM" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Push that requires URL encoding.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("titan", "Προμηθεύς").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/titan/%CE%A0%CF%81%CE%BF%CE%BC%CE%B7%CE%B8%CE%B5%CF%8D%CF%82" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Empty label value triggers special base64 encoding.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("empty", "").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob/empty@base64/=" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Empty job name results in error.
+	if err := New(pgwErr.URL, "").
+		Collector(metric1).
+		Collector(metric2).
+		Push(); err == nil {
+		t.Error("push with empty job succeeded")
+	} else {
+		if want := errJobEmpty; !errors.Is(err, want) {
+			t.Errorf("got error %q, want %q", err, want)
+		}
 	}
 
 	// Push some Collectors with a broken PGW.
@@ -140,19 +228,6 @@ func TestPush(t *testing.T) {
 		Push(); err == nil {
 		t.Error("push with grouping contained in metrics succeeded")
 	}
-	if err := New(pgwOK.URL, "test/job").
-		Collector(metric1).
-		Collector(metric2).
-		Push(); err == nil {
-		t.Error("push with invalid job value succeeded")
-	}
-	if err := New(pgwOK.URL, "testjob").
-		Grouping("foobar", "bu/ms").
-		Collector(metric1).
-		Collector(metric2).
-		Push(); err == nil {
-		t.Error("push with invalid grouping succeeded")
-	}
 	if err := New(pgwOK.URL, "testjob").
 		Grouping("foo-bar", "bums").
 		Collector(metric1).
@@ -167,10 +242,10 @@ func TestPush(t *testing.T) {
 		Push(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "PUT" {
-		t.Error("want method PUT for Push, got", lastMethod)
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Push, want %q", lastMethod, http.MethodPut)
 	}
-	if bytes.Compare(lastBody, wantBody) != 0 {
+	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
 
@@ -182,13 +257,53 @@ func TestPush(t *testing.T) {
 		Add(); err != nil {
 		t.Fatal(err)
 	}
-	if lastMethod != "POST" {
-		t.Error("want method POST for Add, got", lastMethod)
+	if lastMethod != http.MethodPost {
+		t.Errorf("got method %q for Add, want %q", lastMethod, http.MethodPost)
 	}
-	if bytes.Compare(lastBody, wantBody) != 0 {
+	if !bytes.Equal(lastBody, wantBody) {
 		t.Errorf("got body %v, want %v", lastBody, wantBody)
 	}
 	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
 		t.Error("unexpected path:", lastPath)
+	}
+
+	// Delete, all good.
+	if err := New(pgwOK.URL, "testjob").
+		Grouping("a", "x").
+		Grouping("b", "y").
+		Delete(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodDelete {
+		t.Errorf("got method %q for Delete, want %q", lastMethod, http.MethodDelete)
+	}
+	if len(lastBody) != 0 {
+		t.Errorf("got body of length %d, want empty body", len(lastBody))
+	}
+	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
+		t.Error("unexpected path:", lastPath)
+	}
+
+	// Push some Collectors with custom header, all good.
+	header := make(http.Header)
+	header.Set("Authorization", "Bearer Token")
+	if err := New(pgwOK.URL, "testjob").
+		Collector(metric1).
+		Collector(metric2).
+		Header(header).
+		Push(); err != nil {
+		t.Fatal(err)
+	}
+	if lastMethod != http.MethodPut {
+		t.Errorf("got method %q for Add, want %q", lastMethod, http.MethodPut)
+	}
+	if !bytes.Equal(lastBody, wantBody) {
+		t.Errorf("got body %v, want %v", lastBody, wantBody)
+	}
+	if lastPath != "/metrics/job/testjob" {
+		t.Error("unexpected path:", lastPath)
+	}
+	if lastHeader == nil || lastHeader.Get("Authorization") == "" {
+		t.Error("empty Authorization header")
 	}
 }

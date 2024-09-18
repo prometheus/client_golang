@@ -19,17 +19,15 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	// If a function is called rarely (i.e. not more often than scrapes
-	// happen) or ideally only once (like in a batch job), it can make sense
-	// to use a Gauge for timing the function call. For timing a batch job
-	// and pushing the result to a Pushgateway, see also the comprehensive
-	// example in the push package.
-	funcDuration = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "example_function_duration_seconds",
-		Help: "Duration of the last call of an example function.",
-	})
-)
+// If a function is called rarely (i.e. not more often than scrapes
+// happen) or ideally only once (like in a batch job), it can make sense
+// to use a Gauge for timing the function call. For timing a batch job
+// and pushing the result to a Pushgateway, see also the comprehensive
+// example in the push package.
+var funcDuration = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "example_function_duration_seconds",
+	Help: "Duration of the last call of an example function.",
+})
 
 func run() error {
 	// The Set method of the Gauge is used to observe the duration.

@@ -1,5 +1,7 @@
 # Contributing
 
+Thank you for contributing to our project! Here are the steps and guidelines to follow when creating a pull request (PR).
+
 Prometheus uses GitHub to manage reviews of pull requests.
 
 * If you have a trivial fix or improvement, go ahead and create a pull request,

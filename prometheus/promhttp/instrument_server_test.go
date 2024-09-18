@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"context"
 	"io"
 	"log"
 	"net/http"
@@ -25,9 +26,11 @@ import (
 
 func TestLabelCheck(t *testing.T) {
 	scenarios := map[string]struct {
+		metricName    string // Defaults to "c".
 		varLabels     []string
 		constLabels   []string
 		curriedLabels []string
+		dynamicLabels []string
 		ok            bool
 	}{
 		"empty": {
@@ -48,7 +51,7 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{},
 			ok:            true,
 		},
-		"cade and method as var labels": {
+		"code and method as var labels": {
 			varLabels:     []string{"method", "code"},
 			constLabels:   []string{},
 			curriedLabels: []string{},
@@ -58,7 +61,15 @@ func TestLabelCheck(t *testing.T) {
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
 			ok:            true,
+		},
+		"all labels used with an invalid const label name": {
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"in-valid", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
+			ok:            false,
 		},
 		"unsupported var label": {
 			varLabels:     []string{"foo"},
@@ -90,39 +101,83 @@ func TestLabelCheck(t *testing.T) {
 			curriedLabels: []string{"method"},
 			ok:            true,
 		},
+		"supported label as const and dynamic": {
+			varLabels:     []string{},
+			constLabels:   []string{"code"},
+			dynamicLabels: []string{"method"},
+			ok:            true,
+		},
+		"supported label as curried and dynamic": {
+			varLabels:     []string{},
+			curriedLabels: []string{"code"},
+			dynamicLabels: []string{"method"},
+			ok:            true,
+		},
 		"supported label as const and curry with unsupported as var": {
 			varLabels:     []string{"foo"},
 			constLabels:   []string{"code"},
 			curriedLabels: []string{"method"},
 			ok:            false,
 		},
+		"invalid name and otherwise empty": {
+			metricName:    "in-valid",
+			varLabels:     []string{},
+			constLabels:   []string{},
+			curriedLabels: []string{},
+			ok:            false,
+		},
+		"invalid name with all the otherwise valid labels": {
+			metricName:    "in-valid",
+			varLabels:     []string{"code", "method"},
+			constLabels:   []string{"foo", "bar"},
+			curriedLabels: []string{"dings", "bums"},
+			dynamicLabels: []string{"dyn", "amics"},
+			ok:            false,
+		},
 	}
 
 	for name, sc := range scenarios {
 		t.Run(name, func(t *testing.T) {
+			metricName := sc.metricName
+			if metricName == "" {
+				metricName = "c"
+			}
 			constLabels := prometheus.Labels{}
 			for _, l := range sc.constLabels {
 				constLabels[l] = "dummy"
 			}
-			c := prometheus.NewCounterVec(
-				prometheus.CounterOpts{
-					Name:        "c",
-					Help:        "c help",
-					ConstLabels: constLabels,
+			labelNames := append(append(sc.varLabels, sc.curriedLabels...), sc.dynamicLabels...)
+			c := prometheus.V2.NewCounterVec(
+				prometheus.CounterVecOpts{
+					CounterOpts: prometheus.CounterOpts{
+						Name:        metricName,
+						Help:        "c help",
+						ConstLabels: constLabels,
+					},
+					VariableLabels: prometheus.UnconstrainedLabels(labelNames),
 				},
-				append(sc.varLabels, sc.curriedLabels...),
 			)
-			o := prometheus.ObserverVec(prometheus.NewHistogramVec(
-				prometheus.HistogramOpts{
-					Name:        "c",
-					Help:        "c help",
-					ConstLabels: constLabels,
+			o := prometheus.ObserverVec(prometheus.V2.NewHistogramVec(
+				prometheus.HistogramVecOpts{
+					HistogramOpts: prometheus.HistogramOpts{
+						Name:        metricName,
+						Help:        "c help",
+						ConstLabels: constLabels,
+					},
+					VariableLabels: prometheus.UnconstrainedLabels(labelNames),
 				},
-				append(sc.varLabels, sc.curriedLabels...),
 			))
 			for _, l := range sc.curriedLabels {
 				c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
 				o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
+			}
+			opts := []Option{}
+			for _, l := range sc.dynamicLabels {
+				opts = append(opts, WithLabelFromCtx(l,
+					func(_ context.Context) string {
+						return "foo"
+					},
+				))
 			}
 
 			func() {
@@ -135,7 +190,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerCounter(c, nil)
+				InstrumentHandlerCounter(c, nil, opts...)
 			}()
 			func() {
 				defer func() {
@@ -147,7 +202,7 @@ func TestLabelCheck(t *testing.T) {
 						t.Error("expected panic")
 					}
 				}()
-				InstrumentHandlerDuration(o, nil)
+				InstrumentHandlerDuration(o, nil, opts...)
 			}()
 			if sc.ok {
 				// Test if wantCode and wantMethod were detected correctly.
@@ -159,6 +214,11 @@ func TestLabelCheck(t *testing.T) {
 					if l == "method" {
 						wantMethod = true
 					}
+				}
+				// Curry the dynamic labels since this is done normally behind the scenes for the check
+				for _, l := range sc.dynamicLabels {
+					c = c.MustCurryWith(prometheus.Labels{l: "dummy"})
+					o = o.MustCurryWith(prometheus.Labels{l: "dummy"})
 				}
 				gotCode, gotMethod := checkLabels(c)
 				if gotCode != wantCode {
@@ -179,7 +239,123 @@ func TestLabelCheck(t *testing.T) {
 	}
 }
 
-func TestMiddlewareAPI(t *testing.T) {
+func TestLabels(t *testing.T) {
+	scenarios := map[string]struct {
+		varLabels    []string
+		reqMethod    string
+		respStatus   int
+		extraMethods []string
+		wantLabels   prometheus.Labels
+		ok           bool
+	}{
+		"empty": {
+			varLabels:  []string{},
+			wantLabels: prometheus.Labels{},
+			reqMethod:  "GET",
+			respStatus: 200,
+			ok:         true,
+		},
+		"code as single var label": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"code": "200"},
+			ok:         true,
+		},
+		"code as single var label and out-of-range code": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 99,
+			wantLabels: prometheus.Labels{"code": "unknown"},
+			ok:         true,
+		},
+		"code as single var label and in-range but unrecognized code": {
+			varLabels:  []string{"code"},
+			reqMethod:  "GET",
+			respStatus: 308,
+			wantLabels: prometheus.Labels{"code": "308"},
+			ok:         true,
+		},
+		"method as single var label": {
+			varLabels:  []string{"method"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "get"},
+			ok:         true,
+		},
+		"method as single var label and unknown method": {
+			varLabels:  []string{"method"},
+			reqMethod:  "CUSTOM_METHOD",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "unknown"},
+			ok:         true,
+		},
+		"code and method as var labels": {
+			varLabels:  []string{"method", "code"},
+			reqMethod:  "GET",
+			respStatus: 200,
+			wantLabels: prometheus.Labels{"method": "get", "code": "200"},
+			ok:         true,
+		},
+		"method as single var label with extra methods specified": {
+			varLabels:    []string{"method"},
+			reqMethod:    "CUSTOM_METHOD",
+			respStatus:   200,
+			extraMethods: []string{"CUSTOM_METHOD", "CUSTOM_METHOD_1"},
+			wantLabels:   prometheus.Labels{"method": "custom_method"},
+			ok:           true,
+		},
+		"all labels used with an unknown method and out-of-range code": {
+			varLabels:  []string{"code", "method"},
+			reqMethod:  "CUSTOM_METHOD",
+			respStatus: 99,
+			wantLabels: prometheus.Labels{"method": "unknown", "code": "unknown"},
+			ok:         false,
+		},
+	}
+	checkLabels := func(labels []string) (gotCode, gotMethod bool) {
+		for _, label := range labels {
+			switch label {
+			case "code":
+				gotCode = true
+			case "method":
+				gotMethod = true
+			default:
+				panic("metric partitioned with non-supported labels for this test")
+			}
+		}
+		return
+	}
+	equalLabels := func(gotLabels, wantLabels prometheus.Labels) bool {
+		if len(gotLabels) != len(wantLabels) {
+			return false
+		}
+		for ln, lv := range gotLabels {
+			olv, ok := wantLabels[ln]
+			if !ok {
+				return false
+			}
+			if olv != lv {
+				return false
+			}
+		}
+		return true
+	}
+
+	for name, sc := range scenarios {
+		t.Run(name, func(t *testing.T) {
+			if sc.ok {
+				gotCode, gotMethod := checkLabels(sc.varLabels)
+				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
+				if !equalLabels(gotLabels, sc.wantLabels) {
+					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
+				}
+			}
+		})
+	}
+}
+
+func makeInstrumentedHandler(handler http.HandlerFunc, opts ...Option) (http.Handler, *prometheus.Registry) {
 	reg := prometheus.NewRegistry()
 
 	inFlightGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -224,25 +400,43 @@ func TestMiddlewareAPI(t *testing.T) {
 		[]string{},
 	)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
-	})
-
 	reg.MustRegister(inFlightGauge, counter, histVec, responseSize, writeHeaderVec)
 
-	chain := InstrumentHandlerInFlight(inFlightGauge,
+	return InstrumentHandlerInFlight(inFlightGauge,
 		InstrumentHandlerCounter(counter,
 			InstrumentHandlerDuration(histVec,
 				InstrumentHandlerTimeToWriteHeader(writeHeaderVec,
-					InstrumentHandlerResponseSize(responseSize, handler),
-				),
-			),
-		),
-	)
+					InstrumentHandlerResponseSize(responseSize, handler, opts...),
+					opts...),
+				opts...),
+			opts...),
+	), reg
+}
+
+func TestMiddlewareAPI(t *testing.T) {
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	})
 
 	r, _ := http.NewRequest("GET", "www.example.com", nil)
 	w := httptest.NewRecorder()
 	chain.ServeHTTP(w, r)
+
+	assetMetricAndExemplars(t, reg, 5, nil)
+}
+
+func TestMiddlewareAPI_WithExemplars(t *testing.T) {
+	exemplar := prometheus.Labels{"traceID": "example situation observed by this metric"}
+
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	}, WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }))
+
+	r, _ := http.NewRequest("GET", "www.example.com", nil)
+	w := httptest.NewRecorder()
+	chain.ServeHTTP(w, r)
+
+	assetMetricAndExemplars(t, reg, 5, labelsToLabelPair(exemplar))
 }
 
 func TestInstrumentTimeToFirstWrite(t *testing.T) {
@@ -294,6 +488,7 @@ func (t *testFlusher) Flush()                    { t.flushCalled = true }
 func TestInterfaceUpgrade(t *testing.T) {
 	w := &testResponseWriter{}
 	d := newDelegator(w, nil)
+	//nolint:staticcheck // Ignore SA1019. http.CloseNotifier is deprecated but we keep it here to not break existing users.
 	d.(http.CloseNotifier).CloseNotify()
 	if !w.closeNotifyCalled {
 		t.Error("CloseNotify not called")
@@ -312,6 +507,7 @@ func TestInterfaceUpgrade(t *testing.T) {
 
 	f := &testFlusher{}
 	d = newDelegator(f, nil)
+	//nolint:staticcheck // Ignore SA1019. http.CloseNotifier is deprecated but we keep it here to not break existing users.
 	if _, ok := d.(http.CloseNotifier); ok {
 		t.Error("delegator unexpectedly implements http.CloseNotifier")
 	}

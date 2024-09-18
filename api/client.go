@@ -11,14 +11,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// +build go1.7
-
 // Package api provides clients for the HTTP APIs.
 package api
 
 import (
+	"bytes"
 	"context"
-	"io/ioutil"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,6 +41,10 @@ type Config struct {
 	// The address of the Prometheus to connect to.
 	Address string
 
+	// Client is used by the Client to drive HTTP requests. If not provided,
+	// a new one based on the provided RoundTripper (or DefaultRoundTripper) will be used.
+	Client *http.Client
+
 	// RoundTripper is used by the Client to drive HTTP requests. If not
 	// provided, DefaultRoundTripper will be used.
 	RoundTripper http.RoundTripper
@@ -54,10 +57,30 @@ func (cfg *Config) roundTripper() http.RoundTripper {
 	return cfg.RoundTripper
 }
 
+func (cfg *Config) client() http.Client {
+	if cfg.Client == nil {
+		return http.Client{
+			Transport: cfg.roundTripper(),
+		}
+	}
+	return *cfg.Client
+}
+
+func (cfg *Config) validate() error {
+	if cfg.Client != nil && cfg.RoundTripper != nil {
+		return errors.New("api.Config.RoundTripper and api.Config.Client are mutually exclusive")
+	}
+	return nil
+}
+
 // Client is the interface for an API client.
 type Client interface {
 	URL(ep string, args map[string]string) *url.URL
 	Do(context.Context, *http.Request) (*http.Response, []byte, error)
+}
+
+type CloseIdler interface {
+	CloseIdleConnections()
 }
 
 // NewClient returns a new Client.
@@ -70,9 +93,13 @@ func NewClient(cfg Config) (Client, error) {
 	}
 	u.Path = strings.TrimRight(u.Path, "/")
 
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
 	return &httpClient{
 		endpoint: u,
-		client:   http.Client{Transport: cfg.roundTripper()},
+		client:   cfg.client(),
 	}, nil
 }
 
@@ -86,13 +113,17 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 
 	for arg, val := range args {
 		arg = ":" + arg
-		p = strings.Replace(p, arg, val, -1)
+		p = strings.ReplaceAll(p, arg, val)
 	}
 
 	u := *c.endpoint
 	u.Path = p
 
 	return &u
+}
+
+func (c *httpClient) CloseIdleConnections() {
+	c.client.CloseIdleConnections()
 }
 
 func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
@@ -113,14 +144,16 @@ func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	var body []byte
 	done := make(chan struct{})
 	go func() {
-		body, err = ioutil.ReadAll(resp.Body)
+		var buf bytes.Buffer
+		_, err = buf.ReadFrom(resp.Body)
+		body = buf.Bytes()
 		close(done)
 	}()
 
 	select {
 	case <-ctx.Done():
-		err = resp.Body.Close()
 		<-done
+		err = resp.Body.Close()
 		if err == nil {
 			err = ctx.Err()
 		}

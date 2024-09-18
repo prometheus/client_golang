@@ -22,6 +22,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 func listenGaugeStream(vals, result chan float64, done chan struct{}) {
@@ -139,7 +140,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 				start.Wait()
 				for i, v := range vals {
 					sStreams[pick[i]] <- v
-					gge.WithLabelValues(string('A' + pick[i])).Add(v)
+					gge.WithLabelValues(string('A' + rune(pick[i]))).Add(v)
 				}
 				end.Done()
 			}(vals)
@@ -147,7 +148,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 		start.Done()
 
 		for i := range sStreams {
-			if expected, got := <-results[i], math.Float64frombits(gge.WithLabelValues(string('A'+i)).(*gauge).valBits); math.Abs(expected-got) > 0.000001 {
+			if expected, got := <-results[i], math.Float64frombits(gge.WithLabelValues(string('A'+rune(i))).(*gauge).valBits); math.Abs(expected-got) > 0.000001 {
 				t.Fatalf("expected approx. %f, got %f", expected, got)
 				return false
 			}
@@ -170,15 +171,25 @@ func TestGaugeFunc(t *testing.T) {
 		func() float64 { return 3.1415 },
 	)
 
-	if expected, got := `Desc{fqName: "test_name", help: "test help", constLabels: {a="1",b="2"}, variableLabels: []}`, gf.Desc().String(); expected != got {
+	if expected, got := `Desc{fqName: "test_name", help: "test help", constLabels: {a="1",b="2"}, variableLabels: {}}`, gf.Desc().String(); expected != got {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 
 	m := &dto.Metric{}
 	gf.Write(m)
 
-	if expected, got := `label:<name:"a" value:"1" > label:<name:"b" value:"2" > gauge:<value:3.1415 > `, m.String(); expected != got {
-		t.Errorf("expected %q, got %q", expected, got)
+	expected := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: proto.String("a"), Value: proto.String("1")},
+			{Name: proto.String("b"), Value: proto.String("2")},
+		},
+		Gauge: &dto.Gauge{
+			Value: proto.Float64(3.1415),
+		},
+	}
+
+	if !proto.Equal(expected, m) {
+		t.Errorf("expected %q, got %q", expected, m)
 	}
 }
 
