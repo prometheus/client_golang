@@ -33,7 +33,7 @@ func main() {
 
 	// Create a new registry.
 	reg := prometheus.NewRegistry()
-	prometheus.WrapRegistererWith(prometheus.Labels{"serviceName": "bartek"}, reg).MustRegister(
+	prometheus.WrapRegistererWith(prometheus.Labels{"serviceName": "my-service-name"}, reg).MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
