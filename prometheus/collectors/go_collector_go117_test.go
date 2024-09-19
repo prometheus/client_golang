@@ -102,9 +102,3 @@ func withSchedulerMetrics() []string {
 func withDebugMetrics() []string {
 	return withBaseMetrics([]string{})
 }
-
-var defaultRuntimeMetrics = []string{}
-
-func withDefaultRuntimeMetrics(metricNames []string, withoutGC, withoutSched bool) []string {
-	return metricNames
-}

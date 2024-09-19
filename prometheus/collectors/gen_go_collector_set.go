@@ -81,14 +81,35 @@ func main() {
 	descriptions := computeMetricsList()
 	groupedMetrics := groupMetrics(descriptions)
 
+	allDesc := metrics.All()
+
+	// Find default metrics.
+	var defaultRuntimeDesc []metrics.Description
+	for _, d := range allDesc {
+		if !internal.GoCollectorDefaultRuntimeMetrics.MatchString(d.Name) {
+			continue
+		}
+		defaultRuntimeDesc = append(defaultRuntimeDesc, d)
+	}
+
+	var defaultRuntimeMetricsList []string
+
+	for _, d := range defaultRuntimeDesc {
+		if trans := rm2prom(d); trans != "" {
+			defaultRuntimeMetricsList = append(defaultRuntimeMetricsList, trans)
+		}
+	}
+
 	// Generate code.
 	var buf bytes.Buffer
 	err = testFile.Execute(&buf, struct {
-		GoVersion goVersion
-		Groups    []metricGroup
+		GoVersion                 goVersion
+		Groups                    []metricGroup
+		DefaultRuntimeMetricsList []string
 	}{
-		GoVersion: v,
-		Groups:    groupedMetrics,
+		GoVersion:                 v,
+		Groups:                    groupedMetrics,
+		DefaultRuntimeMetricsList: defaultRuntimeMetricsList,
 	})
 	if err != nil {
 		log.Fatalf("executing template: %v", err)
@@ -186,4 +207,13 @@ func {{ .Name }}() []string {
 	})
 }
 {{ end }}
+
+var (
+	defaultRuntimeMetrics = []string{
+		{{- range $metric := .DefaultRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+)
+
 `))
