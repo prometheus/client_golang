@@ -118,6 +118,28 @@ func ExampleNewCounterVecT_promauto_global_migrated() {
 	// Output:
 }
 
+func ExampleNewCounterVecT_pointer_to_labels_promauto() {
+	// It's possible to use pointer to labels struct
+	myReg := prometheus.NewRegistry()
+
+	counterOpts := prometheus.CounterOpts{
+		Name: "items_counted_detailed_ptr",
+	}
+
+	type MyLabels struct {
+		promsafe.StructLabelProvider
+		EventType string
+		Source    string
+	}
+	c := promsafe.WithAuto[*MyLabels](myReg).NewCounterVecT(counterOpts)
+
+	c.With(&MyLabels{
+		EventType: "reservation", Source: "source1",
+	}).Inc()
+
+	// Output:
+}
+
 func ExampleNewCounterVecT_single_label_manual() {
 	// Manually registering with a single label
 	// Example of usage of shorthand: no structs no generics, but one string only
