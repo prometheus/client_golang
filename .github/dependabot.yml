@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: "monthly"
   - package-ecosystem: "gomod"
+    directory: "/dagger"
+    schedule:
+      interval: "monthly"
+  - package-ecosystem: "gomod"
     directory: "/examples/middleware"
     schedule:
       interval: "monthly"

@@ -10,8 +10,8 @@ This is the [Go](http://golang.org) client library for
 instrumenting application code, and one for creating clients that talk to the
 Prometheus HTTP API.
 
-**This library requires Go1.20 or later.**
-> The library mandates the use of Go1.20 or subsequent versions. While it has demonstrated functionality with versions as old as Go 1.17, our commitment remains to offer support and rectifications for only the most recent three major releases.
+**This library requires Go1.21 or later.**
+> The library mandates the use of Go1.21 or subsequent versions. While it has demonstrated functionality with versions as old as Go 1.17, our commitment remains to offer support and rectifications for only the most recent three major releases.
 
 ## Important note about releases and stability
 

@@ -11,18 +11,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.17
-// +build go1.17
+// A simple example of how to add fixed custom labels to all metrics exported by the origin collector.
+// For more details, see the documentation: https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#WrapRegistererWith
 
-// A minimal example of how to include Prometheus instrumentation.
 package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -36,28 +33,12 @@ func main() {
 
 	// Create a new registry.
 	reg := prometheus.NewRegistry()
-
-	// Register metrics from GoCollector collecting statistics from the Go Runtime.
-	// This enabled default, recommended metrics with the additional, recommended metric for
-	// goroutine scheduling latencies histogram that is currently bit too expensive for default option.
-	//
-	// See the related GopherConUK talk to learn more: https://www.youtube.com/watch?v=18dyI_8VFa0
-	reg.MustRegister(
-		collectors.NewGoCollector(
-			collectors.WithGoCollectorRuntimeMetrics(
-				collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/sched/latencies:seconds")},
-			),
-		),
+	prometheus.WrapRegistererWith(prometheus.Labels{"serviceName": "my-service-name"}, reg).MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
 	// Expose the registered metrics via HTTP.
-	http.Handle("/metrics", promhttp.HandlerFor(
-		reg,
-		promhttp.HandlerOpts{
-			// Opt into OpenMetrics to support exemplars.
-			EnableOpenMetrics: true,
-		},
-	))
-	fmt.Println("Hello world from new Go Collector!")
+	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }

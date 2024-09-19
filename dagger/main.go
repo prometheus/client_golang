@@ -35,7 +35,7 @@ func New(src *dagger.Directory) *ClientGolang {
 func (m *ClientGolang) Make(
 	// +optional
 	args string,
-	// +default="1.20"
+	// +default="1.23"
 	goVersion string,
 	// +optional
 	env []string,
