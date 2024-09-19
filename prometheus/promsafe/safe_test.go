@@ -124,7 +124,7 @@ func ExampleNewCounterVecT_single_label_manual() {
 
 	c := promsafe.NewCounterVecT1(prometheus.CounterOpts{
 		Name: "items_counted_by_status",
-	}, promsafe.SingleLabelProvider("status"))
+	}, "status")
 
 	// Manually register the counter
 	if err := prometheus.Register(c.Unsafe()); err != nil {

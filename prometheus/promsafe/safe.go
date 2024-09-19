@@ -163,28 +163,8 @@ func NewCounterFuncT(opts prometheus.CounterOpts, function func() float64) prome
 // Shorthand for Metrics with a single label
 //
 
-// singleLabelProviderMarker is a marker interface for enforcing type-safety of SingleLabelProvider.
-type singleLabelProviderMarker interface {
-	singleLabelProviderMarker()
-}
-
-// SingleLabelProvider is a type used for declaring a single label only.
-// When declaring a metric it's values used as a label name
-// When calling With() it's values used as a label value
-type SingleLabelProvider string
-
-var _ singleLabelProviderMarker = SingleLabelProvider("")
-
-func (s SingleLabelProvider) singleLabelProviderMarker() {
-	panic("singleLabelProviderMarker interface method should never be called")
-}
-
 // NewCounterVecT1 creates a new CounterVecT with the only single label
-func NewCounterVecT1(opts prometheus.CounterOpts, singleLabelProvider singleLabelProviderMarker) *CounterVecT1 {
-	// labelName is the string itself
-	// and singleLabelProviderMarker here can ONLY be SingleLabelProvider
-	labelName := string(singleLabelProvider.(SingleLabelProvider))
-
+func NewCounterVecT1(opts prometheus.CounterOpts, labelName string) *CounterVecT1 {
 	var inner *prometheus.CounterVec
 	if factory != nil {
 		inner = factory.NewCounterVec(opts, []string{labelName})
