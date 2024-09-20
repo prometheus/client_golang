@@ -50,6 +50,13 @@ type CustomLabelsProvider interface {
 	ToPrometheusLabels() prometheus.Labels
 }
 
+// CustomLabelNamesProvider is an interface that allows to convert anything to an order list of label names
+// Result of it is considered to be when registering new metric. As we need proper ORDERED list of label names
+// It allows to provide your own FAST implementation of Struct->[]string conversion without any reflection
+type CustomLabelNamesProvider interface {
+	ToLabelNames() []string
+}
+
 // promsafeTag is the tag name used for promsafe labels inside structs.
 // The tag is optional, as if not present, field is used with snake_cased FieldName.
 // It's useful to use a tag when you want to override the default naming or exclude a field from the metric.
@@ -108,9 +115,10 @@ type CounterVecT[T labelsProviderMarker] struct {
 	inner *prometheus.CounterVec
 }
 
-// GetMetricWithLabelValues behaves like prometheus.CounterVec.GetMetricWithLabelValues but with type-safe labels.
-func (c *CounterVecT[T]) GetMetricWithLabelValues(labels T) (prometheus.Counter, error) {
-	return c.inner.GetMetricWithLabelValues(extractLabelValues(labels)...)
+// GetMetricWithLabelValues covers prometheus.CounterVec.GetMetricWithLabelValues
+// Deprecated: Use GetMetricWith() instead. We can't provide a []string safe implementation in promsafe
+func (c *CounterVecT[T]) GetMetricWithLabelValues(lvs ...string) (prometheus.Counter, error) {
+	panic("There can't be a SAFE GetMetricWithLabelValues(). Use GetMetricWith() instead")
 }
 
 // GetMetricWith behaves like prometheus.CounterVec.GetMetricWith but with type-safe labels.
@@ -118,9 +126,10 @@ func (c *CounterVecT[T]) GetMetricWith(labels T) (prometheus.Counter, error) {
 	return c.inner.GetMetricWith(extractLabelsWithValues(labels))
 }
 
-// WithLabelValues behaves like prometheus.CounterVec.WithLabelValues but with type-safe labels.
-func (c *CounterVecT[T]) WithLabelValues(labels T) prometheus.Counter {
-	return c.inner.WithLabelValues(extractLabelValues(labels)...)
+// WithLabelValues covers like prometheus.CounterVec.WithLabelValues.
+// Deprecated: Use With() instead. We can't provide a []string safe implementation in promsafe
+func (c *CounterVecT[T]) WithLabelValues(lvs ...string) prometheus.Counter {
+	panic("There can't be a SAFE WithLabelValues(). Use With() instead")
 }
 
 // With behaves like prometheus.CounterVec.With but with type-safe labels.
@@ -194,6 +203,7 @@ func (c *CounterVecT1) GetMetricWithLabelValues(labelValue string) (prometheus.C
 }
 
 // GetMetricWith behaves like prometheus.CounterVec.GetMetricWith but with type-safe labels.
+// We keep this function for consistency. Actually is useless and it's the same as GetMetricWithLabelValues
 func (c *CounterVecT1) GetMetricWith(labelValue string) (prometheus.Counter, error) {
 	return c.inner.GetMetricWith(prometheus.Labels{c.labelName: labelValue})
 }
@@ -204,6 +214,7 @@ func (c *CounterVecT1) WithLabelValues(labelValue string) prometheus.Counter {
 }
 
 // With behaves like prometheus.CounterVec.With but with type-safe labels.
+// We keep this function for consistency. Actually is useless and it's the same as WithLabelValues
 func (c *CounterVecT1) With(labelValue string) prometheus.Counter {
 	return c.inner.With(prometheus.Labels{c.labelName: labelValue})
 }
@@ -284,42 +295,45 @@ func extractLabelsWithValues(labelProvider labelsProviderMarker) prometheus.Labe
 		return clp.ToPrometheusLabels()
 	}
 
-	// TODO: let's handle defaults as well, why not?
-
 	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
 	return extractLabelFromStruct(labelProvider)
 }
 
-// extractLabelValues extracts label string values from a given labelsProviderMarker (parent instance of aStructLabelProvider)
-func extractLabelValues(labelProvider labelsProviderMarker) []string {
-	m := extractLabelsWithValues(labelProvider)
-
-	labelValues := make([]string, 0, len(m))
-	for _, v := range m {
-		labelValues = append(labelValues, v)
-	}
-	return labelValues
-}
-
 // extractLabelNames extracts labels names from a given labelsProviderMarker (parent instance of aStructLabelProvider)
-// Deprecated: refactor is required. Order of result slice is not guaranteed.
 func extractLabelNames(labelProvider labelsProviderMarker) []string {
 	if any(labelProvider) == nil {
 		return nil
 	}
 
-	var labels prometheus.Labels
-	if clp, ok := labelProvider.(CustomLabelsProvider); ok {
-		labels = clp.ToPrometheusLabels()
-	} else {
-		labels = extractLabelFromStruct(labelProvider)
+	// If custom implementation is done, just do it
+	if clp, ok := labelProvider.(CustomLabelNamesProvider); ok {
+		return clp.ToLabelNames()
 	}
 
-	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
-	labelNames := make([]string, 0, len(labels))
-	for k := range labels {
-		labelNames = append(labelNames, k)
+	// Fallback to slow implementation via reflect
+	// We'll return label values in order of fields in the struct
+	val := reflect.Indirect(reflect.ValueOf(labelProvider))
+	typ := val.Type()
+
+	labelNames := make([]string, 0, typ.NumField())
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Anonymous {
+			continue
+		}
+
+		var fieldName string
+		if ourTag := field.Tag.Get(promsafeTag); ourTag == "-" {
+			continue
+		} else if ourTag != "" {
+			fieldName = ourTag
+		} else {
+			fieldName = toSnakeCase(field.Name)
+		}
+
+		labelNames = append(labelNames, fieldName)
 	}
+
 	return labelNames
 }
 
@@ -346,13 +360,17 @@ func extractLabelFromStruct(structWithLabels any) prometheus.Labels {
 			labelName = toSnakeCase(field.Name)
 		}
 
-		// Note: we don't handle defaults values for now
-		// so it can have "nil" values, if you had *string fields, etc
-		fieldVal := fmt.Sprintf("%v", val.Field(i).Interface())
-
-		labels[labelName] = fieldVal
+		labels[labelName] = stringifyLabelValue(val.Field(i))
 	}
 	return labels
+}
+
+// stringifyLabelValue makes up a valid string value from a given field's value
+// It's used ONLY in fallback reflect mode
+// Field value might be a pointer, that's why we do reflect.Indirect()
+// Note: in future we can handle default values here as well
+func stringifyLabelValue(v reflect.Value) string {
+	return fmt.Sprintf("%v", reflect.Indirect(v).Interface())
 }
 
 // Convert struct field names to snake_case for Prometheus label compliance.

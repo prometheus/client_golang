@@ -43,7 +43,7 @@ func ExampleNewCounterVecT_multiple_labels_manual() {
 
 	// Manually register the counter
 	if err := prometheus.Register(c.Unsafe()); err != nil {
-		log.Fatal("could not register1: ", err.Error())
+		log.Fatal("could not register: ", err.Error())
 	}
 
 	// and now, because of generics we can call Inc() with filled struct of labels:
@@ -151,9 +151,14 @@ type FastMyLabels struct {
 	Source    string
 }
 
-// ToPrometheusLabels does a fast conversion to labels. No reflection involved.
+// ToPrometheusLabels does a superfast conversion to labels. So no reflection is involved.
 func (f FastMyLabels) ToPrometheusLabels() prometheus.Labels {
 	return prometheus.Labels{"event_type": f.EventType, "source": f.Source}
+}
+
+// ToLabelNames does a superfast label names list. So no reflection is involved.
+func (f FastMyLabels) ToLabelNames() []string {
+	return []string{"event_type", "source"}
 }
 
 func ExampleNewCounterVecT_fast_safe_labels_provider() {
