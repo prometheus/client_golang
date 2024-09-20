@@ -21,6 +21,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promsafe"
 )
 
+// Important: This is not a test file. These are only examples!
+//            These can be considered smoke tests, but nothing more.
+//            TODO: Write real tests
+
 func ExampleNewCounterVecT_multiple_labels_manual() {
 	// Manually registering with multiple labels
 
@@ -134,6 +138,35 @@ func ExampleNewCounterVecT_pointer_to_labels_promauto() {
 	c := promsafe.WithAuto[*MyLabels](myReg).NewCounterVecT(counterOpts)
 
 	c.With(&MyLabels{
+		EventType: "reservation", Source: "source1",
+	}).Inc()
+
+	// Output:
+}
+
+// FastMyLabels is a struct that will have a custom method that converts to prometheus.Labels
+type FastMyLabels struct {
+	promsafe.StructLabelProvider
+	EventType string
+	Source    string
+}
+
+// ToPrometheusLabels does a fast conversion to labels. No reflection involved.
+func (f FastMyLabels) ToPrometheusLabels() prometheus.Labels {
+	return prometheus.Labels{"event_type": f.EventType, "source": f.Source}
+}
+
+func ExampleNewCounterVecT_fast_safe_labels_provider() {
+	// It's possible to use pointer to labels struct
+	myReg := prometheus.NewRegistry()
+
+	counterOpts := prometheus.CounterOpts{
+		Name: "items_counted_fast",
+	}
+
+	c := promsafe.WithAuto[FastMyLabels](myReg).NewCounterVecT(counterOpts)
+
+	c.With(FastMyLabels{
 		EventType: "reservation", Source: "source1",
 	}).Inc()
 

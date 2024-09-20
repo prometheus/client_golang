@@ -43,6 +43,13 @@ func SetupGlobalPromauto(factoryArg ...promauto.Factory) {
 	}
 }
 
+// CustomLabelsProvider is an interface that allows to convert anything to a prometheus.Labels
+// It allows to provide your own FAST implementation of Struct->prometheus.Labels conversion
+// without using reflection.
+type CustomLabelsProvider interface {
+	ToPrometheusLabels() prometheus.Labels
+}
+
 // promsafeTag is the tag name used for promsafe labels inside structs.
 // The tag is optional, as if not present, field is used with snake_cased FieldName.
 // It's useful to use a tag when you want to override the default naming or exclude a field from the metric.
@@ -273,6 +280,10 @@ func extractLabelsWithValues(labelProvider labelsProviderMarker) prometheus.Labe
 		return nil
 	}
 
+	if clp, ok := labelProvider.(CustomLabelsProvider); ok {
+		return clp.ToPrometheusLabels()
+	}
+
 	// TODO: let's handle defaults as well, why not?
 
 	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
@@ -291,13 +302,20 @@ func extractLabelValues(labelProvider labelsProviderMarker) []string {
 }
 
 // extractLabelNames extracts labels names from a given labelsProviderMarker (parent instance of aStructLabelProvider)
+// Deprecated: refactor is required. Order of result slice is not guaranteed.
 func extractLabelNames(labelProvider labelsProviderMarker) []string {
 	if any(labelProvider) == nil {
 		return nil
 	}
 
+	var labels prometheus.Labels
+	if clp, ok := labelProvider.(CustomLabelsProvider); ok {
+		labels = clp.ToPrometheusLabels()
+	} else {
+		labels = extractLabelFromStruct(labelProvider)
+	}
+
 	// Here, then, it can be only a struct, that is a parent of StructLabelProvider
-	labels := extractLabelFromStruct(labelProvider)
 	labelNames := make([]string, 0, len(labels))
 	for k := range labels {
 		labelNames = append(labelNames, k)
