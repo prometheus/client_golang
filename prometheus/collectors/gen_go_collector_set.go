@@ -78,27 +78,19 @@ func main() {
 	v := goVersion(gv.Segments()[1])
 	log.Printf("generating metrics for Go version %q", v)
 
-	descriptions := computeMetricsList()
+	descriptions := computeMetricsList(metrics.All())
 	groupedMetrics := groupMetrics(descriptions)
-
-	allDesc := metrics.All()
 
 	// Find default metrics.
 	var defaultRuntimeDesc []metrics.Description
-	for _, d := range allDesc {
+	for _, d := range metrics.All() {
 		if !internal.GoCollectorDefaultRuntimeMetrics.MatchString(d.Name) {
 			continue
 		}
 		defaultRuntimeDesc = append(defaultRuntimeDesc, d)
 	}
 
-	var defaultRuntimeMetricsList []string
-
-	for _, d := range defaultRuntimeDesc {
-		if trans := rm2prom(d); trans != "" {
-			defaultRuntimeMetricsList = append(defaultRuntimeMetricsList, trans)
-		}
-	}
+	defaultRuntimeMetricsList := computeMetricsList(defaultRuntimeDesc)
 
 	// Generate code.
 	var buf bytes.Buffer
@@ -128,9 +120,9 @@ func main() {
 	}
 }
 
-func computeMetricsList() []string {
+func computeMetricsList(descs []metrics.Description) []string {
 	var metricsList []string
-	for _, d := range metrics.All() {
+	for _, d := range descs {
 		if trans := rm2prom(d); trans != "" {
 			metricsList = append(metricsList, trans)
 		}
