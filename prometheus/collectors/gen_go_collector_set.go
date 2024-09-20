@@ -208,12 +208,9 @@ func {{ .Name }}() []string {
 }
 {{ end }}
 
-var (
-	defaultRuntimeMetrics = []string{
+var defaultRuntimeMetrics = []string{
 		{{- range $metric := .DefaultRuntimeMetricsList }}
 			{{ $metric | printf "%q"}},
 		{{- end }}
 	}
-)
-
 `))

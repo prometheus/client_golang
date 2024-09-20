@@ -117,8 +117,6 @@ func withDebugMetrics() []string {
 	return withBaseMetrics([]string{})
 }
 
-var (
-	defaultRuntimeMetrics = []string{
-		"go_sched_gomaxprocs_threads",
-	}
-)
+var defaultRuntimeMetrics = []string{
+	"go_sched_gomaxprocs_threads",
+}

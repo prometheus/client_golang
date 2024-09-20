@@ -204,10 +204,8 @@ func withDebugMetrics() []string {
 	})
 }
 
-var (
-	defaultRuntimeMetrics = []string{
-		"go_gc_gogc_percent",
-		"go_gc_gomemlimit_bytes",
-		"go_sched_gomaxprocs_threads",
-	}
-)
+var defaultRuntimeMetrics = []string{
+	"go_gc_gogc_percent",
+	"go_gc_gomemlimit_bytes",
+	"go_sched_gomaxprocs_threads",
+}
