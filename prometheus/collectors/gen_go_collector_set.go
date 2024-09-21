@@ -92,16 +92,34 @@ func main() {
 
 	defaultRuntimeMetricsList := computeMetricsList(defaultRuntimeDesc)
 
+	onlyGCDefRuntimeMetricsList := []string{}
+	onlySchedDefRuntimeMetricsList := []string{}
+
+	for _, m := range defaultRuntimeMetricsList {
+		if strings.HasPrefix(m, "go_gc") {
+			onlyGCDefRuntimeMetricsList = append(onlyGCDefRuntimeMetricsList, m)
+		}
+		if strings.HasPrefix(m, "go_sched") {
+			onlySchedDefRuntimeMetricsList = append(onlySchedDefRuntimeMetricsList, m)
+		} else {
+			continue
+		}
+	}
+
 	// Generate code.
 	var buf bytes.Buffer
 	err = testFile.Execute(&buf, struct {
-		GoVersion                 goVersion
-		Groups                    []metricGroup
-		DefaultRuntimeMetricsList []string
+		GoVersion                      goVersion
+		Groups                         []metricGroup
+		DefaultRuntimeMetricsList      []string
+		OnlyGCDefRuntimeMetricsList    []string
+		OnlySchedDefRuntimeMetricsList []string
 	}{
-		GoVersion:                 v,
-		Groups:                    groupedMetrics,
-		DefaultRuntimeMetricsList: defaultRuntimeMetricsList,
+		GoVersion:                      v,
+		Groups:                         groupedMetrics,
+		DefaultRuntimeMetricsList:      defaultRuntimeMetricsList,
+		OnlyGCDefRuntimeMetricsList:    onlyGCDefRuntimeMetricsList,
+		OnlySchedDefRuntimeMetricsList: onlySchedDefRuntimeMetricsList,
 	})
 	if err != nil {
 		log.Fatalf("executing template: %v", err)
@@ -200,9 +218,21 @@ func {{ .Name }}() []string {
 }
 {{ end }}
 
-var defaultRuntimeMetrics = []string{
+var (
+	defaultRuntimeMetrics = []string{
 		{{- range $metric := .DefaultRuntimeMetricsList }}
 			{{ $metric | printf "%q"}},
 		{{- end }}
 	}
+	onlyGCDefRuntimeMetrics = []string{
+		{{- range $metric := .OnlyGCDefRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+	onlySchedDefRuntimeMetrics = []string{
+		{{- range $metric := .OnlySchedDefRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+)
 `))

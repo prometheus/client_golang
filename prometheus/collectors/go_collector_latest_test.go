@@ -63,16 +63,14 @@ var memstatMetrics = []string{
 }
 
 func withDefaultRuntimeMetrics(metricNames []string, withoutGC, withoutSched bool) []string {
-	if withoutSched && len(defaultRuntimeMetrics) == 1 {
-		// If only withoutSched is true and the Go version is 1.20, return the metricNames as is.
-		return metricNames
-	} else if withoutGC && !withoutSched {
-		// If only withoutGC is true, include "go_sched_gomaxprocs_threads" only.
-		metricNames = append(metricNames, []string{"go_sched_gomaxprocs_threads"}...)
-	} else if withoutSched && !withoutGC && len(defaultRuntimeMetrics) > 1 {
-		// If only withoutSched is true and the Go version is higher than 1.20, exclude "go_sched_gomaxprocs_threads".
-		metricNames = append(metricNames, []string{"go_gc_gogc_percent", "go_gc_gomemlimit_bytes"}...)
-	} else {
+	switch {
+	case withoutGC && !withoutSched:
+		// If only withoutGC is true, exclude "go_gc_*" metrics.
+		metricNames = append(metricNames, onlySchedDefRuntimeMetrics...)
+	case withoutSched && !withoutGC:
+		// If only withoutSched is true, exclude "go_sched_*" metrics.
+		metricNames = append(metricNames, onlyGCDefRuntimeMetrics...)
+	default:
 		// In any other case, use the default metrics.
 		metricNames = append(metricNames, defaultRuntimeMetrics...)
 	}
