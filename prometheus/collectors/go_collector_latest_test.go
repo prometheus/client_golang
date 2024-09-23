@@ -62,6 +62,23 @@ var memstatMetrics = []string{
 	"go_memstats_sys_bytes",
 }
 
+func withDefaultRuntimeMetrics(metricNames []string, withoutGC, withoutSched bool) []string {
+	switch {
+	case withoutGC && !withoutSched:
+		// If only withoutGC is true, exclude "go_gc_*" metrics.
+		metricNames = append(metricNames, onlySchedDefRuntimeMetrics...)
+	case withoutSched && !withoutGC:
+		// If only withoutSched is true, exclude "go_sched_*" metrics.
+		metricNames = append(metricNames, onlyGCDefRuntimeMetrics...)
+	default:
+		// In any other case, use the default metrics.
+		metricNames = append(metricNames, defaultRuntimeMetrics...)
+	}
+	// sorting is required
+	sort.Strings(metricNames)
+	return metricNames
+}
+
 func TestGoCollectorMarshalling(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewGoCollector(
