@@ -14,12 +14,22 @@
 package prometheus
 
 import (
+	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"os"
 	"syscall"
 	"time"
 )
+
+// notImplementedErr is returned by stub functions that replace cgo functions, when cgo
+// isn't available.
+var notImplementedErr = fmt.Errorf("not implemented")
+
+type memoryInfo struct {
+	vsize uint64 // Virtual memory size in bytes
+	rss   uint64 // Resident memory size in bytes
+}
 
 func canCollectProcess() bool {
 	return true
@@ -85,7 +95,14 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		c.reportError(ch, c.cpuTotal, err)
 	}
 
-	// TODO: publish c.vsize and c.rss values
+	if memInfo, err := getMemory(); err == nil {
+		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(memInfo.rss))
+		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(memInfo.vsize))
+	} else if !errors.Is(err, notImplementedErr) {
+		// Don't report an error when support is not compiled in.
+		c.reportError(ch, c.rss, err)
+		c.reportError(ch, c.vsize, err)
+	}
 
 	if fds, err := getOpenFileCount(); err == nil {
 		ch <- MustNewConstMetric(c.openFDs, GaugeValue, fds)
