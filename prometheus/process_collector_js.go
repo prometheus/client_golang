@@ -25,9 +25,9 @@ func canCollectProcess() bool {
 // in the processCollect method. Any changes to the metrics in processCollect
 // (such as adding or removing metrics) should be reflected in this list of descriptors.
 func (c *processCollector) processCollect(ch chan<- Metric) {
-	c.defaultCollect(ch)
+	c.errorCollectFn(ch)
 }
 
 func (c *processCollector) describe(ch chan<- *Desc) {
-	c.defaultDescribe(ch)
+	c.errorDescribeFn(ch)
 }

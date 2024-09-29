@@ -125,18 +125,18 @@ func NewProcessCollector(opts ProcessCollectorOpts) Collector {
 		c.collectFn = c.processCollect
 		c.describeFn = c.describe
 	} else {
-		c.collectFn = c.defaultCollectFn
-		c.describeFn = c.defaultDescribeFn
+		c.collectFn = c.errorCollectFn
+		c.describeFn = c.errorDescribeFn
 	}
 
 	return c
 }
 
-func (c *processCollector) defaultCollectFn(ch chan<- Metric) {
+func (c *processCollector) errorCollectFn(ch chan<- Metric) {
 	c.reportError(ch, nil, errors.New("process metrics not supported on this platform"))
 }
 
-func (c *processCollector) defaultDescribeFn(ch chan<- *Desc) {
+func (c *processCollector) errorDescribeFn(ch chan<- *Desc) {
 	if c.reportErrors {
 		ch <- NewInvalidDesc(errors.New("process metrics not supported on this platform"))
 	}

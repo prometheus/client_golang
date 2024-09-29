@@ -21,7 +21,7 @@ func canCollectProcess() bool {
 }
 
 func (c *processCollector) processCollect(ch chan<- Metric) {
-	c.defaultCollect(ch)
+	c.errorCollectFn(ch)
 }
 
 // describe returns all descriptions of the collector for wasip1.
@@ -29,5 +29,5 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 // in the processCollect method. Any changes to the metrics in processCollect
 // (such as adding or removing metrics) should be reflected in this list of descriptors.
 func (c *processCollector) describe(ch chan<- *Desc) {
-	c.defaultDescribe(ch)
+	c.errorDescribeFn(ch)
 }
