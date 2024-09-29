@@ -78,17 +78,48 @@ func main() {
 	v := goVersion(gv.Segments()[1])
 	log.Printf("generating metrics for Go version %q", v)
 
-	descriptions := computeMetricsList()
+	descriptions := computeMetricsList(metrics.All())
 	groupedMetrics := groupMetrics(descriptions)
+
+	// Find default metrics.
+	var defaultRuntimeDesc []metrics.Description
+	for _, d := range metrics.All() {
+		if !internal.GoCollectorDefaultRuntimeMetrics.MatchString(d.Name) {
+			continue
+		}
+		defaultRuntimeDesc = append(defaultRuntimeDesc, d)
+	}
+
+	defaultRuntimeMetricsList := computeMetricsList(defaultRuntimeDesc)
+
+	onlyGCDefRuntimeMetricsList := []string{}
+	onlySchedDefRuntimeMetricsList := []string{}
+
+	for _, m := range defaultRuntimeMetricsList {
+		if strings.HasPrefix(m, "go_gc") {
+			onlyGCDefRuntimeMetricsList = append(onlyGCDefRuntimeMetricsList, m)
+		}
+		if strings.HasPrefix(m, "go_sched") {
+			onlySchedDefRuntimeMetricsList = append(onlySchedDefRuntimeMetricsList, m)
+		} else {
+			continue
+		}
+	}
 
 	// Generate code.
 	var buf bytes.Buffer
 	err = testFile.Execute(&buf, struct {
-		GoVersion goVersion
-		Groups    []metricGroup
+		GoVersion                      goVersion
+		Groups                         []metricGroup
+		DefaultRuntimeMetricsList      []string
+		OnlyGCDefRuntimeMetricsList    []string
+		OnlySchedDefRuntimeMetricsList []string
 	}{
-		GoVersion: v,
-		Groups:    groupedMetrics,
+		GoVersion:                      v,
+		Groups:                         groupedMetrics,
+		DefaultRuntimeMetricsList:      defaultRuntimeMetricsList,
+		OnlyGCDefRuntimeMetricsList:    onlyGCDefRuntimeMetricsList,
+		OnlySchedDefRuntimeMetricsList: onlySchedDefRuntimeMetricsList,
 	})
 	if err != nil {
 		log.Fatalf("executing template: %v", err)
@@ -107,9 +138,9 @@ func main() {
 	}
 }
 
-func computeMetricsList() []string {
+func computeMetricsList(descs []metrics.Description) []string {
 	var metricsList []string
-	for _, d := range metrics.All() {
+	for _, d := range descs {
 		if trans := rm2prom(d); trans != "" {
 			metricsList = append(metricsList, trans)
 		}
@@ -186,4 +217,22 @@ func {{ .Name }}() []string {
 	})
 }
 {{ end }}
+
+var (
+	defaultRuntimeMetrics = []string{
+		{{- range $metric := .DefaultRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+	onlyGCDefRuntimeMetrics = []string{
+		{{- range $metric := .OnlyGCDefRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+	onlySchedDefRuntimeMetrics = []string{
+		{{- range $metric := .OnlySchedDefRuntimeMetricsList }}
+			{{ $metric | printf "%q"}},
+		{{- end }}
+	}
+)
 `))
