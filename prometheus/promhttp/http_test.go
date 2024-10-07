@@ -101,6 +101,34 @@ func readCompressedBody(r io.Reader, comp Compression) (string, error) {
 	return "", fmt.Errorf("Unsupported compression")
 }
 
+type channelGzipPool struct {
+	ch chan any
+}
+
+func newChannelGzipPool(minIdle int) *channelGzipPool {
+	return &channelGzipPool{
+		ch: make(chan any, minIdle),
+	}
+}
+
+func (p *channelGzipPool) Get() any {
+	var x any
+	select {
+	case x = <-p.ch:
+	default:
+		x = gzip.NewWriter(nil)
+	}
+	return x
+}
+
+func (p *channelGzipPool) Put(x any) {
+	select {
+	case p.ch <- x:
+	default:
+		// just drop it
+	}
+}
+
 func TestHandlerErrorHandling(t *testing.T) {
 	// Create a registry that collects a MetricFamily with two elements,
 	// another with one, and reports an error. Further down, we'll use the
@@ -481,6 +509,78 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 	}
 }
 
+func TestInstrumentMetricHandlerWithCompressionWithGzipCustomPool(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	mReg := &mockTransactionGatherer{g: reg}
+	gzipPool := newChannelGzipPool(2)
+	handler := InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{
+		DisableCompression: false,
+		GzipPool:           gzipPool,
+	}))
+	compression := Gzip
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Add(acceptHeader, acceptTextPlain)
+	request.Header.Add(acceptEncodingHeader, string(compression))
+
+	handler.ServeHTTP(writer, request)
+	if got := mReg.gatherInvoked; got != 1 {
+		t.Fatalf("unexpected number of gather invokes, want 1, got %d", got)
+	}
+	if got := mReg.doneInvoked; got != 1 {
+		t.Fatalf("unexpected number of done invokes, want 1, got %d", got)
+	}
+
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+
+	if got, want := writer.Header().Get(contentEncodingHeader), string(compression); got != want {
+		t.Errorf("got HTTP content encoding header %s, want %s", got, want)
+	}
+
+	body, err := readCompressedBody(writer.Body, compression)
+	want := "promhttp_metric_handler_requests_in_flight 1\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	want = "promhttp_metric_handler_requests_total{code=\"200\"} 0\n"
+	if got := body; !strings.Contains(got, want) {
+		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+	}
+
+	for i := 0; i < 100; i++ {
+		writer.Body.Reset()
+		handler.ServeHTTP(writer, request)
+
+		if got, want := mReg.gatherInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of gather invokes, want %d, got %d", want, got)
+		}
+		if got, want := mReg.doneInvoked, i+2; got != want {
+			t.Fatalf("unexpected number of done invokes, want %d, got %d", want, got)
+		}
+		if got, want := writer.Code, http.StatusOK; got != want {
+			t.Errorf("got HTTP status code %d, want %d", got, want)
+		}
+		body, err := readCompressedBody(writer.Body, compression)
+
+		want := "promhttp_metric_handler_requests_in_flight 1\n"
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+
+		want = fmt.Sprintf("promhttp_metric_handler_requests_total{code=\"200\"} %d\n", i+1)
+		if got := body; !strings.Contains(got, want) {
+			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
+		}
+	}
+
+	if len(gzipPool.ch) != 1 {
+		t.Fatalf("custom gzip pool not used, idle pool length is %d", len(gzipPool.ch))
+	}
+}
+
 func TestNegotiateEncodingWriter(t *testing.T) {
 	var defaultCompressions []string
 
@@ -552,18 +652,27 @@ func BenchmarkCompression(b *testing.B) {
 	benchmarks := []struct {
 		name            string
 		compressionType string
+		opts            HandlerOpts
 	}{
 		{
 			name:            "test with gzip compression",
 			compressionType: "gzip",
+			opts:            HandlerOpts{},
+		},
+		{
+			name:            "test with gzip compression with custom pool",
+			compressionType: "gzip",
+			opts:            HandlerOpts{GzipPool: newChannelGzipPool(2)},
 		},
 		{
 			name:            "test with zstd compression",
 			compressionType: "zstd",
+			opts:            HandlerOpts{},
 		},
 		{
 			name:            "test with no compression",
 			compressionType: "identity",
+			opts:            HandlerOpts{},
 		},
 	}
 	sizes := []struct {

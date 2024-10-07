@@ -67,11 +67,13 @@ const (
 
 var defaultCompressionFormats = []Compression{Identity, Gzip, Zstd}
 
-var gzipPool = sync.Pool{
-	New: func() interface{} {
-		return gzip.NewWriter(nil)
-	},
+// Pool represents generic object pool. Uses `any` type so that sync.Pool can be used as default implementation.
+type Pool interface {
+	Get() any
+	Put(x any)
 }
+
+var gzipPool Pool
 
 // Handler returns an http.Handler for the prometheus.DefaultGatherer, using
 // default HandlerOpts, i.e. it reports the first error as an HTTP error, it has
@@ -144,6 +146,16 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 		for _, comp := range offers {
 			compressions = append(compressions, string(comp))
+		}
+	}
+
+	if opts.GzipPool != nil {
+		gzipPool = opts.GzipPool
+	} else {
+		gzipPool = &sync.Pool{
+			New: func() interface{} {
+				return gzip.NewWriter(nil)
+			},
 		}
 	}
 
@@ -416,6 +428,8 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
+	// GzipPool provides pool of gzip writers. Default is sync.Pool instance.
+	GzipPool Pool
 }
 
 // httpError removes any content-encoding header and then calls http.Error with
