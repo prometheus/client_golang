@@ -652,27 +652,18 @@ func BenchmarkCompression(b *testing.B) {
 	benchmarks := []struct {
 		name            string
 		compressionType string
-		opts            HandlerOpts
 	}{
 		{
 			name:            "test with gzip compression",
 			compressionType: "gzip",
-			opts:            HandlerOpts{},
-		},
-		{
-			name:            "test with gzip compression with custom pool",
-			compressionType: "gzip",
-			opts:            HandlerOpts{GzipPool: newChannelGzipPool(2)},
 		},
 		{
 			name:            "test with zstd compression",
 			compressionType: "zstd",
-			opts:            HandlerOpts{},
 		},
 		{
 			name:            "test with no compression",
 			compressionType: "identity",
-			opts:            HandlerOpts{},
 		},
 	}
 	sizes := []struct {
@@ -714,6 +705,7 @@ func BenchmarkCompression(b *testing.B) {
 
 	for _, size := range sizes {
 		reg := prometheus.NewRegistry()
+		handler := HandlerFor(reg, HandlerOpts{})
 
 		// Generate Metrics
 		// Original source: https://github.com/prometheus-community/avalanche/blob/main/metrics/serve.go
@@ -736,7 +728,6 @@ func BenchmarkCompression(b *testing.B) {
 		}
 
 		for _, benchmark := range benchmarks {
-			handler := HandlerFor(reg, benchmark.opts)
 			b.Run(benchmark.name+"_"+size.name, func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					writer := httptest.NewRecorder()
