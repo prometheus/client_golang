@@ -20,7 +20,14 @@ func canCollectProcess() bool {
 	return false
 }
 
-func (*processCollector) processCollect(chan<- Metric) {
-	// noop on this platform
-	return
+func (c *processCollector) processCollect(ch chan<- Metric) {
+	c.errorCollectFn(ch)
+}
+
+// describe returns all descriptions of the collector for wasip1.
+// Ensure that this list of descriptors is kept in sync with the metrics collected
+// in the processCollect method. Any changes to the metrics in processCollect
+// (such as adding or removing metrics) should be reflected in this list of descriptors.
+func (c *processCollector) describe(ch chan<- *Desc) {
+	c.errorDescribeFn(ch)
 }

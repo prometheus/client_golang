@@ -170,3 +170,52 @@ func TestNewPidFileFn(t *testing.T) {
 		}
 	}
 }
+
+func TestDescribeAndCollectAlignment(t *testing.T) {
+	collector := &processCollector{
+		pidFn:     getPIDFn(),
+		cpuTotal:  NewDesc("cpu_total", "Total CPU usage", nil, nil),
+		openFDs:   NewDesc("open_fds", "Number of open file descriptors", nil, nil),
+		maxFDs:    NewDesc("max_fds", "Maximum file descriptors", nil, nil),
+		vsize:     NewDesc("vsize", "Virtual memory size", nil, nil),
+		maxVsize:  NewDesc("max_vsize", "Maximum virtual memory size", nil, nil),
+		rss:       NewDesc("rss", "Resident Set Size", nil, nil),
+		startTime: NewDesc("start_time", "Process start time", nil, nil),
+		inBytes:   NewDesc("in_bytes", "Input bytes", nil, nil),
+		outBytes:  NewDesc("out_bytes", "Output bytes", nil, nil),
+	}
+
+	// Collect and get descriptors
+	descCh := make(chan *Desc, 15)
+	collector.describe(descCh)
+	close(descCh)
+
+	definedDescs := make(map[string]bool)
+	for desc := range descCh {
+		definedDescs[desc.String()] = true
+	}
+
+	// Collect and get metrics
+	metricsCh := make(chan Metric, 15)
+	collector.processCollect(metricsCh)
+	close(metricsCh)
+
+	collectedMetrics := make(map[string]bool)
+	for metric := range metricsCh {
+		collectedMetrics[metric.Desc().String()] = true
+	}
+
+	// Verify that all described metrics are collected
+	for desc := range definedDescs {
+		if !collectedMetrics[desc] {
+			t.Errorf("Metric %s described but not collected", desc)
+		}
+	}
+
+	// Verify that no extra metrics are collected
+	for desc := range collectedMetrics {
+		if !definedDescs[desc] {
+			t.Errorf("Metric %s collected but not described", desc)
+		}
+	}
+}
