@@ -428,7 +428,7 @@ type HandlerOpts struct {
 	// NOTE: This feature is experimental and not covered by OpenMetrics or Prometheus
 	// exposition format.
 	ProcessStartTime time.Time
-	// GzipPool provides pool of gzip writers. Default is sync.Pool instance.
+	// GzipPool provides pool of gzip writers. Default is using sync.Pool.
 	GzipPool Pool
 }
 
