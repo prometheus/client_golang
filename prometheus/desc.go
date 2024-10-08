@@ -57,6 +57,9 @@ type Desc struct {
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
 	id uint64
+	// escapedID is similar to id, but with the metric and label names escaped
+	// with underscores.
+	escapedID uint64
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
@@ -142,11 +145,18 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 
 	xxh := xxhash.New()
-	for _, val := range labelValues {
+	escapedXXH := xxhash.New()
+	for i, val := range labelValues {
 		xxh.WriteString(val)
 		xxh.Write(separatorByteSlice)
+		if i == 0 {
+			val = model.EscapeName(val, model.UnderscoreEscaping)
+		}
+		escapedXXH.WriteString(val)
+		escapedXXH.Write(separatorByteSlice)
 	}
 	d.id = xxh.Sum64()
+	d.escapedID = escapedXXH.Sum64()
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
 	// Now hash together (in this order) the help string and the sorted
