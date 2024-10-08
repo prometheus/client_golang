@@ -76,20 +76,26 @@ type Desc struct {
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
 func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *Desc {
-	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels)
+	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels, false)
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
 // and will be reported on registration time. variableLabels and constLabels can
 // be nil if no such labels should be set. fqName must not be empty.
 //
-// variableLabels only contain the label names and normalization functions. Their
-// label values are variable and therefore not part of the Desc. (They are managed
-// within the Metric.)
+// If UTF8Collision is false, metric and label names will be rejected as
+// duplicates if their underscore-escapings are equivalent. This can prevent
+// compatibility problems with systems that are not UTF-8-aware. If true,
+// collisions will only be reported if the full UTF-8 metric and label names are
+// identical.
+//
+// variableLabels only contain the label names and normalization functions.
+// Their label values are variable and therefore not part of the Desc. (They are
+// managed within the Metric.)
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels) *Desc {
+func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels, UTF8Collision bool) *Desc {
 	d := &Desc{
 		fqName:         fqName,
 		help:           help,
@@ -141,24 +147,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		return d
 	}
 
-	xxh := xxhash.New()
-	for _, val := range labelValues {
-		xxh.WriteString(val)
-		xxh.Write(separatorByteSlice)
-	}
-	d.id = xxh.Sum64()
-	// Sort labelNames so that order doesn't matter for the hash.
-	sort.Strings(labelNames)
-	// Now hash together (in this order) the help string and the sorted
-	// label names.
-	xxh.Reset()
-	xxh.WriteString(help)
-	xxh.Write(separatorByteSlice)
-	for _, labelName := range labelNames {
-		xxh.WriteString(labelName)
-		xxh.Write(separatorByteSlice)
-	}
-	d.dimHash = xxh.Sum64()
+	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, UTF8Collision)
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
@@ -169,6 +158,43 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
 	return d
+}
+
+// makeHashes generates hashes for detecting duplicate metrics. It will mutate
+// labelNames, escaping them with the Underscore method, if UTF8Collision is
+// off.
+func makeHashes(labelNames, labelValues []string, help string, _ bool) (id, dimHash uint64) {
+	// fmt.Println("make hashes!", labelNames, labelValues, help, UTF8Collision)
+	xxh := xxhash.New()
+	for _, val := range labelValues {
+		// if i == 0 && !UTF8Collision {
+		// 	val = model.EscapeName(val, model.UnderscoreEscaping)
+		// }
+		xxh.WriteString(val)
+		xxh.Write(separatorByteSlice)
+	}
+	id = xxh.Sum64()
+
+	// if !UTF8Collision {
+	// 	for i := range labelNames {
+	// 		labelNames[i] = model.EscapeName(labelNames[i], model.UnderscoreEscaping)
+	// 	}
+	// }
+
+	// Sort labelNames so that order doesn't matter for the hash.
+	sort.Strings(labelNames)
+	fmt.Println("new label names I hope", labelNames)
+	// Now hash together (in this order) the help string and the sorted
+	// label names.
+	xxh.Reset()
+	xxh.WriteString(help)
+	xxh.Write(separatorByteSlice)
+	for _, labelName := range labelNames {
+		xxh.WriteString(labelName)
+		xxh.Write(separatorByteSlice)
+	}
+	dimHash = xxh.Sum64()
+	return
 }
 
 // NewInvalidDesc returns an invalid descriptor, i.e. a descriptor with the

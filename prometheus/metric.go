@@ -93,6 +93,8 @@ type Opts struct {
 	// https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels-not-static-scraped-labels
 	ConstLabels Labels
 
+	UTF8Collision bool
+
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 }

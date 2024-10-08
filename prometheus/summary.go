@@ -147,6 +147,8 @@ type SummaryOpts struct {
 	// "github.com/bmizerany/perks/quantile").
 	BufCap uint32
 
+	UTF8Collision bool
+
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 }
@@ -575,6 +577,7 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.UTF8Collision,
 	)
 	return &SummaryVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {

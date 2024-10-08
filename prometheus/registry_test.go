@@ -36,6 +36,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -1178,6 +1179,101 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 
 			t.Errorf("Unexpected registration error: %q\nprevious collector: %s (i=%d)\ncurrent collector %s (i=%d)", are, previous.name, previous.i, current.name, current.i)
 		}
+	}
+}
+
+func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
+	model.NameValidationScheme = model.UTF8Validation
+
+	tests := []struct {
+		name      string
+		counterA  prometheus.Counter
+		counterB  prometheus.Counter
+		utf8Collision bool
+		expectErr bool
+	}{
+		// {
+		// 	name: "no collision",
+		// 	counterA: prometheus.NewCounter(prometheus.CounterOpts{
+		// 		Name: "my_counter_a",
+		// 		ConstLabels: prometheus.Labels{
+		// 			"name": "label",
+		// 			"type": "test",
+		// 		},
+		// 	},
+		// 	),
+		// 	counterB: prometheus.NewCounter(prometheus.CounterOpts{
+		// 		Name: "myAcounterAa",
+		// 		ConstLabels: prometheus.Labels{
+		// 			"name": "label",
+		// 			"type": "test",
+		// 		},
+		// 	},
+		// 	),
+		// },
+		{
+			name: "escaped collision",
+			counterA: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my_counter_a",
+				ConstLabels: prometheus.Labels{
+					"name": "label",
+					"type": "test",
+				},
+			},
+			),
+			counterB: prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "my.counter.a",
+				ConstLabels: prometheus.Labels{
+					"name": "label",
+					"type": "test",
+				},
+			},
+			),
+			expectErr: true,
+		},
+		// {
+		// 	name: "no utf8 collision",
+		// 	counterA: prometheus.NewCounter(prometheus.CounterOpts{
+		// 		Name: "my_counter_a",
+		// 		ConstLabels: prometheus.Labels{
+		// 			"name": "label",
+		// 			"type": "test",
+		// 		},
+		// 	},
+		// 	),
+		// 	counterB: prometheus.NewCounter(prometheus.CounterOpts{
+		// 		Name: "my.counter.a",
+		// 		ConstLabels: prometheus.Labels{
+		// 			"name": "label",
+		// 			"type": "test",
+		// 		},
+		// 	},
+		// 	),
+		// 	utf8Collision: true,
+		// },
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry().WithUTF8Collision(tc.utf8Collision)
+			fmt.Println("------------")
+			err := reg.Register(tc.counterA)
+			if err != nil {
+				t.Error("expected no error")
+			}
+			err = reg.Register(tc.counterB)
+			if !tc.expectErr {
+				if err != nil {
+					t.Errorf("expected no error, got %T", err)
+				}
+			} else {
+				if err == nil {
+					t.Error("expected AlreadyRegisteredError, got none")
+				} else if !errors.As(err, &prometheus.AlreadyRegisteredError{}) {
+					t.Errorf("error mismatch, want %T got %T", tc.expectErr, err)
+				}
+			}
+		})
 	}
 }
 

@@ -205,6 +205,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.UTF8Collision,
 	)
 	if opts.now == nil {
 		opts.now = time.Now
