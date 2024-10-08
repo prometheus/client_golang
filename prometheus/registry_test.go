@@ -1199,7 +1199,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 		expectErr     bool
 	}{
 		{
-			name: "no collision",
+			name: "no metric name collision",
 			counterA: func() prometheus.Counter {
 				return prometheus.NewCounter(prometheus.CounterOpts{
 					Name: "my_counter_a",
@@ -1220,7 +1220,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			},
 		},
 		{
-			name: "escaped collision",
+			name: "compatibility metric name collision",
 			counterA: func() prometheus.Counter {
 				return prometheus.NewCounter(prometheus.CounterOpts{
 					Name: "my_counter_a",
@@ -1263,7 +1263,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			},
 		},
 		{
-			name: "escaped label name collision",
+			name: "compatibility label name collision",
 			counterA: func() prometheus.Counter {
 				return prometheus.NewCounter(prometheus.CounterOpts{
 					Name: "my_counter_a",
@@ -1285,7 +1285,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "no utf8 collision",
+			name: "no utf8 metric name collision",
 			counterA: func() prometheus.Counter {
 				return prometheus.NewCounter(prometheus.CounterOpts{
 					Name: "my_counter_a",

@@ -31,7 +31,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -309,7 +308,7 @@ func (r *Registry) Register(c Collector) error {
 	}()
 	// Conduct various tests...
 	for desc := range descChan {
-		fmt.Printf("desc!!! %v %d %d\n", desc, desc.id, desc.dimHash)
+		//fmt.Printf("desc!!! %v %d %d\n", desc, desc.id, desc.dimHash)
 
 		// Is the descriptor valid at all?
 		if desc.err != nil {
@@ -332,12 +331,7 @@ func (r *Registry) Register(c Collector) error {
 		// Are all the label names and the help string consistent with
 		// previous descriptors of the same name?
 		// First check existing descriptors...
-		fqName := desc.fqName
-		if !r.utf8Collision {
-			fqName = model.EscapeName(fqName, model.UnderscoreEscaping)
-		}
-		fmt.Println("fqname now", fqName)
-		if dimHash, exists := r.dimHashesByName[fqName]; exists {
+		if dimHash, exists := r.dimHashesByName[desc.fqName]; exists {
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
@@ -345,13 +339,13 @@ func (r *Registry) Register(c Collector) error {
 		}
 
 		// ...then check the new descriptors already seen.
-		if dimHash, exists := newDimHashesByName[fqName]; exists {
+		if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
 			}
 			continue
 		}
-		newDimHashesByName[fqName] = desc.dimHash
+		newDimHashesByName[desc.fqName] = desc.dimHash
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {

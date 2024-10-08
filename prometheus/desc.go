@@ -158,7 +158,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 // labelNames, escaping them with the Underscore method, if UTF8Collision is
 // set to CompatibilityCollision.
 func makeHashes(labelNames, labelValues []string, help string, UTF8Collision CollisionMode) (id, dimHash uint64) {
-	fmt.Println("make hashes!", labelNames, labelValues, help, UTF8Collision)
+	//fmt.Println("make hashes!", labelNames, labelValues, help, UTF8Collision)
 	xxh := xxhash.New()
 	for i, val := range labelValues {
 		if i == 0 && UTF8Collision == CompatibilityCollision {
@@ -177,7 +177,7 @@ func makeHashes(labelNames, labelValues []string, help string, UTF8Collision Col
 
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
-	fmt.Println("new label names I hope", labelNames)
+	//fmt.Println("new label names I hope", labelNames)
 	// Now hash together (in this order) the help string and the sorted
 	// label names.
 	xxh.Reset()
