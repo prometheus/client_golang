@@ -24,7 +24,7 @@ jobs:
         supported_versions: ${{ steps.matrix.outputs.supported_versions }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
       - name: Read supported_go_versions.txt
         id: matrix
         run: |
@@ -43,17 +43,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
 
       - name: Run tests and check license
-        uses: dagger/dagger-for-github@8ab204f3cf74a4940a1648469c426ef0d28af7cc # v6.6.0
+        uses: dagger/dagger-for-github@fc945fa66fc7bfa72bc80f85b1a1ef4bd1d30cbb # v6.11.0
         with:
           version: "latest"
           verb: call
           args: -vvv --src . make --go-version ${{matrix.go_version}} --args 'check_license test'
 
       - name: Run style and unused
-        uses: dagger/dagger-for-github@8ab204f3cf74a4940a1648469c426ef0d28af7cc # v6.6.0
+        uses: dagger/dagger-for-github@fc945fa66fc7bfa72bc80f85b1a1ef4bd1d30cbb # v6.11.0
         if: ${{ matrix.go_version == '1.21' }}
         with:
           version: "latest"
