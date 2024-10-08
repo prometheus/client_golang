@@ -1183,85 +1183,141 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 }
 
 func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
+	oldValidation := model.NameValidationScheme
 	model.NameValidationScheme = model.UTF8Validation
+	defer func() {
+		model.NameValidationScheme = oldValidation
+	}()
 
 	tests := []struct {
-		name      string
-		counterA  prometheus.Counter
-		counterB  prometheus.Counter
-		utf8Collision bool
-		expectErr bool
+		name string
+		// These are functions because hashes that determine collision are created
+		// at metric creation time.
+		counterA      func() prometheus.Counter
+		counterB      func() prometheus.Counter
+		utf8Collision prometheus.CollisionMode
+		expectErr     bool
 	}{
-		// {
-		// 	name: "no collision",
-		// 	counterA: prometheus.NewCounter(prometheus.CounterOpts{
-		// 		Name: "my_counter_a",
-		// 		ConstLabels: prometheus.Labels{
-		// 			"name": "label",
-		// 			"type": "test",
-		// 		},
-		// 	},
-		// 	),
-		// 	counterB: prometheus.NewCounter(prometheus.CounterOpts{
-		// 		Name: "myAcounterAa",
-		// 		ConstLabels: prometheus.Labels{
-		// 			"name": "label",
-		// 			"type": "test",
-		// 		},
-		// 	},
-		// 	),
-		// },
+		{
+			name: "no collision",
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "myAcounterAa",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+		},
 		{
 			name: "escaped collision",
-			counterA: prometheus.NewCounter(prometheus.CounterOpts{
-				Name: "my_counter_a",
-				ConstLabels: prometheus.Labels{
-					"name": "label",
-					"type": "test",
-				},
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
 			},
-			),
-			counterB: prometheus.NewCounter(prometheus.CounterOpts{
-				Name: "my.counter.a",
-				ConstLabels: prometheus.Labels{
-					"name": "label",
-					"type": "test",
-				},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my.counter.a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
 			},
-			),
 			expectErr: true,
 		},
-		// {
-		// 	name: "no utf8 collision",
-		// 	counterA: prometheus.NewCounter(prometheus.CounterOpts{
-		// 		Name: "my_counter_a",
-		// 		ConstLabels: prometheus.Labels{
-		// 			"name": "label",
-		// 			"type": "test",
-		// 		},
-		// 	},
-		// 	),
-		// 	counterB: prometheus.NewCounter(prometheus.CounterOpts{
-		// 		Name: "my.counter.a",
-		// 		ConstLabels: prometheus.Labels{
-		// 			"name": "label",
-		// 			"type": "test",
-		// 		},
-		// 	},
-		// 	),
-		// 	utf8Collision: true,
-		// },
+		{
+			name: "no label value collision",
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"name": "label.value",
+						"type": "test",
+					},
+				})
+			},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"name": "label_value",
+						"type": "test",
+					},
+				})
+			},
+		},
+		{
+			name: "escaped label name collision",
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"label.name": "name",
+						"type":       "test",
+					},
+				})
+			},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"label_name": "name",
+						"type":       "test",
+					},
+				})
+			},
+			expectErr: true,
+		},
+		{
+			name: "no utf8 collision",
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my_counter_a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my.counter.a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+			utf8Collision: prometheus.UTF8Collision,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			reg := prometheus.NewRegistry().WithUTF8Collision(tc.utf8Collision)
-			fmt.Println("------------")
-			err := reg.Register(tc.counterA)
+			prometheus.DefaultCollisionMode = tc.utf8Collision
+			reg := prometheus.NewRegistry()
+			fmt.Println("------------", prometheus.DefaultCollisionMode)
+			err := reg.Register(tc.counterA())
 			if err != nil {
 				t.Error("expected no error")
 			}
-			err = reg.Register(tc.counterB)
+			err = reg.Register(tc.counterB())
 			if !tc.expectErr {
 				if err != nil {
 					t.Errorf("expected no error, got %T", err)

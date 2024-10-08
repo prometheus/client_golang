@@ -489,8 +489,6 @@ type HistogramOpts struct {
 	// 5m is used. To always delete the oldest exemplar, set it to a negative value.
 	NativeHistogramExemplarTTL time.Duration
 
-	UTF8Collision bool
-
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 
@@ -1166,7 +1164,6 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
-		opts.UTF8Collision,
 	)
 	return &HistogramVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {

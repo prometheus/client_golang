@@ -163,7 +163,6 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
-		opts.UTF8Collision,
 	)
 	return &GaugeVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {

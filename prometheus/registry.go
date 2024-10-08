@@ -58,6 +58,25 @@ var (
 	DefaultGatherer   Gatherer   = defaultRegistry
 )
 
+// CollisionMode determines how metric name collisions are determined, and thus
+// AlreadyRegisteredError are returned. By default, we return a collision if the
+// Underscored escapings of the metric and label names are the same. This
+// protects against some edge cases when a UTF-8 system produces escaped metrics
+// to a non-UTF-8 metrics consumer. If it is known that an entire ecosystem is
+// UTF-8-capable, the DefaultCollisionMode can be set to UTF8Collision, and then
+// names will only be considered equivalent if they are exactly identical.
+type CollisionMode int
+
+const (
+	CompatibilityCollision CollisionMode = iota
+	UTF8Collision
+)
+
+// DefaultCollisionMode determines how hashes are generated for metrics. Only
+// metrics created after the mode is changed will have the correct hashes for
+// detecting already-registered names.
+var DefaultCollisionMode CollisionMode = CompatibilityCollision
+
 func init() {
 	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
 	MustRegister(NewGoCollector())
@@ -71,11 +90,6 @@ func NewRegistry() *Registry {
 		descIDs:         map[uint64]struct{}{},
 		dimHashesByName: map[string]uint64{},
 	}
-}
-
-func (r *Registry) WithUTF8Collision(utf8Collision bool) *Registry {
-	r.utf8Collision = utf8Collision
-	return r
 }
 
 // NewPedanticRegistry returns a registry that checks during collection if each
