@@ -57,12 +57,12 @@ type Desc struct {
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
 	id uint64
+	// compatID is similar to id, but is a hash of all the relevant names escaped with underscores.
+	compatID uint64
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
-	dimHash  uint64
-	compatID uint64
-	// compatDimHash uint64
+	dimHash uint64
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
@@ -143,10 +143,9 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		return d
 	}
 
+	// XXX this is gross and will be cleaned up.
 	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, true)
 	d.compatID, _ = makeHashes(labelNames, labelValues, help, false)
-
-	// fmt.Println("dimhashes", d.dimHash, d.compatDimHash)
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
@@ -163,7 +162,6 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 // labelNames, escaping them with the Underscore method, if UTF8Collision is
 // set to CompatibilityCollision.
 func makeHashes(labelNames, labelValues []string, help string, UTF8Collision bool) (id, dimHash uint64) {
-	//fmt.Println("make hashes!", labelNames, labelValues, help, UTF8Collision)
 	xxh := xxhash.New()
 	for i, val := range labelValues {
 		if i == 0 && !UTF8Collision {
@@ -182,7 +180,6 @@ func makeHashes(labelNames, labelValues []string, help string, UTF8Collision boo
 
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
-	//fmt.Println("new label names I hope", labelNames)
 	// Now hash together (in this order) the help string and the sorted
 	// label names.
 	xxh.Reset()
