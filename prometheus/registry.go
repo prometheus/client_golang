@@ -287,10 +287,14 @@ func (errs MultiError) MaybeUnwrap() error {
 type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
+	// stores colletors by compatid, only if compat id is different (otherwise we
+	// can just do the lookup in the regular map). 
 	collectorsByCompatID  map[uint64]Collector
 	descIDs               map[uint64]struct{}
+	// desc ids, only if different
 	compatDescIDs         map[uint64]struct{}
 	dimHashesByName       map[string]uint64
+	// dimhases by name, only if different
 	compatDimHashesByName map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
@@ -346,9 +350,18 @@ func (r *Registry) Register(c Collector) error {
 			if _, exists := r.compatDescIDs[desc.compatID]; exists {
 				duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
 			}
+			if _, exists := r.descIDs[desc.compatID]; exists {
+				duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
+			}
 		}
 		if _, exists := newCompatIDs[desc.compatID]; !exists {
-			newCompatIDs[desc.compatID] = struct{}{}
+			if desc.compatID != desc.id {
+				fmt.Println("I think this is a case...", desc.fqName)
+				newCompatIDs[desc.compatID] = struct{}{}
+			} /*else {
+				fmt.Println("this should be fine...", desc.fqName)
+			}*/
+			// }
 			compatID ^= desc.compatID
 		}
 
@@ -395,7 +408,10 @@ func (r *Registry) Register(c Collector) error {
 		}
 
 		newDimHashesByName[desc.fqName] = desc.dimHash
-		newCompatDimHashesByName[desc.fqName] = desc.compatDimHash
+		// only store if different
+		if desc.compatDimHash != desc.dimHash {
+			newCompatDimHashesByName[desc.fqName] = desc.compatDimHash
+		}
 		// fmt.Println("new stuff: ", desc.fqName, compatID)
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
@@ -408,8 +424,10 @@ func (r *Registry) Register(c Collector) error {
 	// fmt.Printf("first check:%v, %v\n", existing, collision)
 
 	if !collision && !r.utf8Collision {
-		existing, collision = r.collectorsByCompatID[compatID]
-		// fmt.Printf("second check:%v, %v\n", existing, collision)
+		existing, collision = r.collectorsByID[compatID]
+		if !collision {
+			existing, collision = r.collectorsByCompatID[compatID]
+		}
 	}
 
 	if collision {
@@ -434,13 +452,17 @@ func (r *Registry) Register(c Collector) error {
 
 	// Only after all tests have passed, actually register.
 	r.collectorsByID[collectorID] = c
-	r.collectorsByCompatID[compatID] = c
+	// only need to store if different
+	if compatID != collectorID {
+		r.collectorsByCompatID[compatID] = c
+	}
 	for hash := range newDescIDs {
 		r.descIDs[hash] = struct{}{}
 	}
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
 	}
+	// these lists are already pruned
 	for hash := range newCompatIDs {
 		r.compatDescIDs[hash] = struct{}{}
 	}
@@ -481,10 +503,10 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
-	if _, exists := r.collectorsByCompatID[compatID]; !exists {
-		panic("we should always have both")
-	}
+	// if _, exists := r.collectorsByCompatID[compatID]; exists {
+	// 	// we may not always have both
 	delete(r.collectorsByCompatID, compatID)
+	// }
 	for id := range descIDs {
 		delete(r.descIDs, id)
 	}
