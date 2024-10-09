@@ -57,24 +57,24 @@ var (
 	DefaultGatherer   Gatherer   = defaultRegistry
 )
 
-// CollisionMode determines how metric name collisions are determined, and thus
-// AlreadyRegisteredError are returned. By default, we return a collision if the
-// Underscored escapings of the metric and label names are the same. This
-// protects against some edge cases when a UTF-8 system produces escaped metrics
-// to a non-UTF-8 metrics consumer. If it is known that an entire ecosystem is
-// UTF-8-capable, the DefaultCollisionMode can be set to UTF8Collision, and then
-// names will only be considered equivalent if they are exactly identical.
-type CollisionMode int
+// // CollisionMode determines how metric name collisions are determined, and thus
+// // AlreadyRegisteredError are returned. By default, we return a collision if the
+// // Underscored escapings of the metric and label names are the same. This
+// // protects against some edge cases when a UTF-8 system produces escaped metrics
+// // to a non-UTF-8 metrics consumer. If it is known that an entire ecosystem is
+// // UTF-8-capable, the DefaultCollisionMode can be set to UTF8Collision, and then
+// // names will only be considered equivalent if they are exactly identical.
+// type CollisionMode int
 
-const (
-	CompatibilityCollision CollisionMode = iota
-	UTF8Collision
-)
+// const (
+// 	CompatibilityCollision CollisionMode = iota
+// 	UTF8Collision
+// )
 
-// DefaultCollisionMode determines how hashes are generated for metrics. Only
-// metrics created after the mode is changed will have the correct hashes for
-// detecting already-registered names.
-var DefaultCollisionMode CollisionMode = CompatibilityCollision
+// // DefaultCollisionMode determines how hashes are generated for metrics. Only
+// // metrics created after the mode is changed will have the correct hashes for
+// // detecting already-registered names.
+// var DefaultCollisionMode CollisionMode = CompatibilityCollision
 
 func init() {
 	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
@@ -85,10 +85,18 @@ func init() {
 // pre-registered.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectorsByID:  map[uint64]Collector{},
-		descIDs:         map[uint64]struct{}{},
-		dimHashesByName: map[string]uint64{},
+		collectorsByID:        map[uint64]Collector{},
+		collectorsByCompatID:  map[uint64]Collector{},
+		descIDs:               map[uint64]struct{}{},
+		compatDescIDs:         map[uint64]struct{}{},
+		dimHashesByName:       map[string]uint64{},
+		compatDimHashesByName: map[string]uint64{},
 	}
+}
+
+func (r *Registry) AllowCompatCollisions(allow bool) *Registry {
+	r.utf8Collision = allow
+	return r
 }
 
 // NewPedanticRegistry returns a registry that checks during collection if each
@@ -279,8 +287,11 @@ func (errs MultiError) MaybeUnwrap() error {
 type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
+	collectorsByCompatID  map[uint64]Collector
 	descIDs               map[uint64]struct{}
+	compatDescIDs         map[uint64]struct{}
 	dimHashesByName       map[string]uint64
+	compatDimHashesByName map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
 	utf8Collision         bool
@@ -289,11 +300,14 @@ type Registry struct {
 // Register implements Registerer.
 func (r *Registry) Register(c Collector) error {
 	var (
-		descChan           = make(chan *Desc, capDescChan)
-		newDescIDs         = map[uint64]struct{}{}
-		newDimHashesByName = map[string]uint64{}
-		collectorID        uint64 // All desc IDs XOR'd together.
-		duplicateDescErr   error
+		descChan                 = make(chan *Desc, capDescChan)
+		newDescIDs               = map[uint64]struct{}{}
+		newCompatIDs             = map[uint64]struct{}{}
+		newDimHashesByName       = map[string]uint64{}
+		newCompatDimHashesByName = map[string]uint64{}
+		collectorID              uint64 // All desc IDs XOR'd together.
+		compatID                 uint64
+		duplicateDescErr         error
 	)
 	go func() {
 		c.Describe(descChan)
@@ -308,13 +322,13 @@ func (r *Registry) Register(c Collector) error {
 	}()
 	// Conduct various tests...
 	for desc := range descChan {
-		//fmt.Printf("desc!!! %v %d %d\n", desc, desc.id, desc.dimHash)
+		// fmt.Printf("desc!!! %v %d %d\n", desc, desc.id, desc.dimHash)
 
 		// Is the descriptor valid at all?
 		if desc.err != nil {
 			return fmt.Errorf("descriptor %s is invalid: %w", desc, desc.err)
 		}
-
+ 
 		// Is the descID unique?
 		// (In other words: Is the fqName + constLabel combination unique?)
 		if _, exists := r.descIDs[desc.id]; exists {
@@ -328,10 +342,22 @@ func (r *Registry) Register(c Collector) error {
 			collectorID ^= desc.id
 		}
 
+		if !r.utf8Collision {
+			if _, exists := r.compatDescIDs[desc.compatID]; exists {
+				duplicateDescErr = fmt.Errorf("descriptor %s already exists with the same fully-qualified name and const label values", desc)
+			}
+		}
+		if _, exists := newCompatIDs[desc.compatID]; !exists {
+			newCompatIDs[desc.compatID] = struct{}{}
+			compatID ^= desc.compatID
+		}
+
 		// Are all the label names and the help string consistent with
 		// previous descriptors of the same name?
 		// First check existing descriptors...
+		// fmt.Println("name?", desc.fqName, r.dimHashesByName[desc.fqName])
 		if dimHash, exists := r.dimHashesByName[desc.fqName]; exists {
+			// fmt.Println("ok...", dimHash, desc.dimHash, exists)
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
 			}
@@ -339,20 +365,54 @@ func (r *Registry) Register(c Collector) error {
 		}
 
 		// ...then check the new descriptors already seen.
+		// fmt.Println("second check", newDimHashesByName[desc.fqName])
 		if dimHash, exists := newDimHashesByName[desc.fqName]; exists {
 			if dimHash != desc.dimHash {
 				return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
 			}
 			continue
 		}
+
+		// Rererun the same checks against escaped versions of all the names if we
+		// do have to.
+		if !r.utf8Collision {
+			if compatDimHash, exists := r.compatDimHashesByName[desc.fqName]; exists {
+				// fmt.Println("ok...", compatDimHash, desc.compatDimHash, exists)
+				if compatDimHash != desc.compatDimHash {
+					return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
+				}
+				continue
+			}
+
+			// ...then check the new descriptors already seen.
+			// fmt.Println("second check", newCompatDimHashesByName[desc.fqName])
+			if compatDimHash, exists := newCompatDimHashesByName[desc.fqName]; exists {
+				if compatDimHash != desc.compatDimHash {
+					return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+				}
+				continue
+			}
+		}
+
 		newDimHashesByName[desc.fqName] = desc.dimHash
+		newCompatDimHashesByName[desc.fqName] = desc.compatDimHash
+		// fmt.Println("new stuff: ", desc.fqName, compatID)
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
 		r.uncheckedCollectors = append(r.uncheckedCollectors, c)
 		return nil
 	}
-	if existing, exists := r.collectorsByID[collectorID]; exists {
+
+	existing, collision := r.collectorsByID[collectorID]
+	// fmt.Printf("first check:%v, %v\n", existing, collision)
+
+	if !collision && !r.utf8Collision {
+		existing, collision = r.collectorsByCompatID[compatID]
+		// fmt.Printf("second check:%v, %v\n", existing, collision)
+	}
+
+	if collision {
 		switch e := existing.(type) {
 		case *wrappingCollector:
 			return AlreadyRegisteredError{
@@ -374,11 +434,18 @@ func (r *Registry) Register(c Collector) error {
 
 	// Only after all tests have passed, actually register.
 	r.collectorsByID[collectorID] = c
+	r.collectorsByCompatID[compatID] = c
 	for hash := range newDescIDs {
 		r.descIDs[hash] = struct{}{}
 	}
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
+	}
+	for hash := range newCompatIDs {
+		r.compatDescIDs[hash] = struct{}{}
+	}
+	for name, compatDimHash := range newCompatDimHashesByName {
+		r.compatDimHashesByName[name] = compatDimHash
 	}
 	return nil
 }
@@ -389,6 +456,7 @@ func (r *Registry) Unregister(c Collector) bool {
 		descChan    = make(chan *Desc, capDescChan)
 		descIDs     = map[uint64]struct{}{}
 		collectorID uint64 // All desc IDs XOR'd together.
+		compatID    uint64
 	)
 	go func() {
 		c.Describe(descChan)
@@ -397,6 +465,7 @@ func (r *Registry) Unregister(c Collector) bool {
 	for desc := range descChan {
 		if _, exists := descIDs[desc.id]; !exists {
 			collectorID ^= desc.id
+			compatID ^= desc.compatID
 			descIDs[desc.id] = struct{}{}
 		}
 	}
@@ -412,6 +481,10 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
+	if _, exists := r.collectorsByCompatID[compatID]; !exists {
+		panic("we should always have both")
+	}
+	delete(r.collectorsByCompatID, compatID)
 	for id := range descIDs {
 		delete(r.descIDs, id)
 	}

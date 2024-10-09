@@ -60,7 +60,9 @@ type Desc struct {
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
-	dimHash uint64
+	dimHash       uint64
+	compatID      uint64
+	compatDimHash uint64
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
@@ -140,8 +142,9 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		d.err = fmt.Errorf("duplicate label names in constant and variable labels for metric %q", fqName)
 		return d
 	}
-
-	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, DefaultCollisionMode)
+ 
+	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, true)
+	d.compatID, d.compatDimHash = makeHashes(labelNames, labelValues, help, false)
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
@@ -157,19 +160,19 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 // makeHashes generates hashes for detecting duplicate metrics. It will mutate
 // labelNames, escaping them with the Underscore method, if UTF8Collision is
 // set to CompatibilityCollision.
-func makeHashes(labelNames, labelValues []string, help string, UTF8Collision CollisionMode) (id, dimHash uint64) {
+func makeHashes(labelNames, labelValues []string, help string, UTF8Collision bool) (id, dimHash uint64) {
 	//fmt.Println("make hashes!", labelNames, labelValues, help, UTF8Collision)
 	xxh := xxhash.New()
 	for i, val := range labelValues {
-		if i == 0 && UTF8Collision == CompatibilityCollision {
+		if i == 0 && !UTF8Collision {
 			val = model.EscapeName(val, model.UnderscoreEscaping)
 		}
 		xxh.WriteString(val)
 		xxh.Write(separatorByteSlice)
 	}
 	id = xxh.Sum64()
-
-	if UTF8Collision == CompatibilityCollision {
+ 
+	if !UTF8Collision {
 		for i := range labelNames {
 			labelNames[i] = model.EscapeName(labelNames[i], model.UnderscoreEscaping)
 		}

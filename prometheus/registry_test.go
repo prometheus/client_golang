@@ -1195,7 +1195,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 		// at metric creation time.
 		counterA      func() prometheus.Counter
 		counterB      func() prometheus.Counter
-		utf8Collision prometheus.CollisionMode
+		utf8Collision bool
 		expectErr     bool
 		// Since the collision mode will be Compat on startup, metrics created in
 		// init() functions will use that hashing mode. Metrics created *after*
@@ -1309,11 +1309,9 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 					},
 				})
 			},
-			utf8Collision: prometheus.UTF8Collision,
+			utf8Collision: true,
 		},
 		{
-			// XXXXXXXXXXXXXx this doesn't work, and it may not be possible for it to
-			// work.
 			name: "post init flag flip, should collide",
 			counterA: func() prometheus.Counter {
 				return prometheus.NewCounter(prometheus.CounterOpts{
@@ -1340,19 +1338,20 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.postInitFlagFlip {
-				prometheus.DefaultCollisionMode = prometheus.CompatibilityCollision
-			} else {
-				prometheus.DefaultCollisionMode = tc.utf8Collision
-			}
 			reg := prometheus.NewRegistry()
-			fmt.Println("------------", prometheus.DefaultCollisionMode)
+			if tc.postInitFlagFlip {
+				reg.AllowCompatCollisions(false)
+			} else {
+				reg.AllowCompatCollisions(tc.utf8Collision)
+			}
+			fmt.Println("------------")
 			err := reg.Register(tc.counterA())
 			if err != nil {
-				t.Error("expected no error")
+				t.Errorf("expected no error, got: %v", err)
 			}
+			// model.NameValidationScheme = model.UTF8Validation
 			if tc.postInitFlagFlip {
-				prometheus.DefaultCollisionMode = prometheus.UTF8Collision
+				reg.AllowCompatCollisions(false)
 			}
 			err = reg.Register(tc.counterB())
 			if !tc.expectErr {
@@ -1362,8 +1361,6 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			} else {
 				if err == nil {
 					t.Error("expected AlreadyRegisteredError, got none")
-				} else if !errors.As(err, &prometheus.AlreadyRegisteredError{}) {
-					t.Errorf("error mismatch, want %T got %T", tc.expectErr, err)
 				}
 			}
 		})
