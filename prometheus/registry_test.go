@@ -1197,6 +1197,11 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 		counterB      func() prometheus.Counter
 		utf8Collision prometheus.CollisionMode
 		expectErr     bool
+		// Since the collision mode will be Compat on startup, metrics created in
+		// init() functions will use that hashing mode. Metrics created *after*
+		// startup could be created with a different hashing mode. This bool tests
+		// that case.
+		postInitFlagFlip bool
 	}{
 		{
 			name: "no metric name collision",
@@ -1306,16 +1311,48 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			},
 			utf8Collision: prometheus.UTF8Collision,
 		},
+		{
+			// XXXXXXXXXXXXXx this doesn't work, and it may not be possible for it to
+			// work.
+			name: "post init flag flip, should collide",
+			counterA: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my.counter.a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+			counterB: func() prometheus.Counter {
+				return prometheus.NewCounter(prometheus.CounterOpts{
+					Name: "my.counter.a",
+					ConstLabels: prometheus.Labels{
+						"name": "label",
+						"type": "test",
+					},
+				})
+			},
+			postInitFlagFlip: true,
+			expectErr:        true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			prometheus.DefaultCollisionMode = tc.utf8Collision
+			if tc.postInitFlagFlip {
+				prometheus.DefaultCollisionMode = prometheus.CompatibilityCollision
+			} else {
+				prometheus.DefaultCollisionMode = tc.utf8Collision
+			}
 			reg := prometheus.NewRegistry()
 			fmt.Println("------------", prometheus.DefaultCollisionMode)
 			err := reg.Register(tc.counterA())
 			if err != nil {
 				t.Error("expected no error")
+			}
+			if tc.postInitFlagFlip {
+				prometheus.DefaultCollisionMode = prometheus.UTF8Collision
 			}
 			err = reg.Register(tc.counterB())
 			if !tc.expectErr {
