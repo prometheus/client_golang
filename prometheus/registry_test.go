@@ -1289,6 +1289,28 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			},
 			expectErr: true,
 		},
+		// {
+		// 	name: "compatibility label name collision2",
+		// 	counterA: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my_counter_a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label.name": "name",
+		// 				"type":       "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	counterB: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my_counter_a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label_name": "name",
+		// 				"type":       "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	expectErr: true,
+		// },
 		{
 			name: "no utf8 metric name collision",
 			counterA: func() prometheus.Counter {
@@ -1334,6 +1356,51 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			postInitFlagFlip: true,
 			expectErr:        true,
 		},
+		// {
+		// 	name: "post init flag flip, should collide2",
+		// 	counterA: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my.counter.a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label_name": "label",
+		// 				"type": "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	counterB: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my.counter.a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label.name": "label",
+		// 				"type": "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	expectErr:        false,
+		// 	utf8Collision: ,
+		// },
+		// {
+		// 	name: "post init flag flip, should collide2",
+		// 	counterA: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my.counter.a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label_name": "label",
+		// 				"type": "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	counterB: func() prometheus.Counter {
+		// 		return prometheus.NewCounter(prometheus.CounterOpts{
+		// 			Name: "my.counter.a",
+		// 			ConstLabels: prometheus.Labels{
+		// 				"label.name": "label",
+		// 				"type": "test",
+		// 			},
+		// 		})
+		// 	},
+		// 	expectErr:        true,
+		// },
 	}
 
 	for _, tc := range tests {

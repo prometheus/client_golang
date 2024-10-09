@@ -60,9 +60,9 @@ type Desc struct {
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
-	dimHash       uint64
-	compatID      uint64
-	compatDimHash uint64
+	dimHash  uint64
+	compatID uint64
+	// compatDimHash uint64
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
@@ -142,9 +142,11 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		d.err = fmt.Errorf("duplicate label names in constant and variable labels for metric %q", fqName)
 		return d
 	}
- 
+
 	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, true)
-	d.compatID, d.compatDimHash = makeHashes(labelNames, labelValues, help, false)
+	d.compatID, _ = makeHashes(labelNames, labelValues, help, false)
+
+	// fmt.Println("dimhashes", d.dimHash, d.compatDimHash)
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
@@ -171,7 +173,7 @@ func makeHashes(labelNames, labelValues []string, help string, UTF8Collision boo
 		xxh.Write(separatorByteSlice)
 	}
 	id = xxh.Sum64()
- 
+
 	if !UTF8Collision {
 		for i := range labelNames {
 			labelNames[i] = model.EscapeName(labelNames[i], model.UnderscoreEscaping)

@@ -85,12 +85,12 @@ func init() {
 // pre-registered.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectorsByID:        map[uint64]Collector{},
-		collectorsByCompatID:  map[uint64]Collector{},
-		descIDs:               map[uint64]struct{}{},
-		compatDescIDs:         map[uint64]struct{}{},
-		dimHashesByName:       map[string]uint64{},
-		compatDimHashesByName: map[string]uint64{},
+		collectorsByID:       map[uint64]Collector{},
+		collectorsByCompatID: map[uint64]Collector{},
+		descIDs:              map[uint64]struct{}{},
+		compatDescIDs:        map[uint64]struct{}{},
+		dimHashesByName:      map[string]uint64{},
+		// compatDimHashesByName: map[string]uint64{},
 	}
 }
 
@@ -285,17 +285,17 @@ func (errs MultiError) MaybeUnwrap() error {
 // Registry implements Collector to allow it to be used for creating groups of
 // metrics. See the Grouping example for how this can be done.
 type Registry struct {
-	mtx                   sync.RWMutex
-	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
+	mtx            sync.RWMutex
+	collectorsByID map[uint64]Collector // ID is a hash of the descIDs.
 	// stores colletors by compatid, only if compat id is different (otherwise we
-	// can just do the lookup in the regular map). 
-	collectorsByCompatID  map[uint64]Collector
-	descIDs               map[uint64]struct{}
+	// can just do the lookup in the regular map).
+	collectorsByCompatID map[uint64]Collector
+	descIDs              map[uint64]struct{}
 	// desc ids, only if different
-	compatDescIDs         map[uint64]struct{}
-	dimHashesByName       map[string]uint64
+	compatDescIDs   map[uint64]struct{}
+	dimHashesByName map[string]uint64
 	// dimhases by name, only if different
-	compatDimHashesByName map[string]uint64
+	// compatDimHashesByName map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
 	utf8Collision         bool
@@ -304,14 +304,14 @@ type Registry struct {
 // Register implements Registerer.
 func (r *Registry) Register(c Collector) error {
 	var (
-		descChan                 = make(chan *Desc, capDescChan)
-		newDescIDs               = map[uint64]struct{}{}
-		newCompatIDs             = map[uint64]struct{}{}
-		newDimHashesByName       = map[string]uint64{}
-		newCompatDimHashesByName = map[string]uint64{}
-		collectorID              uint64 // All desc IDs XOR'd together.
-		compatID                 uint64
-		duplicateDescErr         error
+		descChan           = make(chan *Desc, capDescChan)
+		newDescIDs         = map[uint64]struct{}{}
+		newCompatIDs       = map[uint64]struct{}{}
+		newDimHashesByName = map[string]uint64{}
+		// newCompatDimHashesByName = map[string]uint64{}
+		collectorID      uint64 // All desc IDs XOR'd together.
+		compatID         uint64
+		duplicateDescErr error
 	)
 	go func() {
 		c.Describe(descChan)
@@ -332,7 +332,7 @@ func (r *Registry) Register(c Collector) error {
 		if desc.err != nil {
 			return fmt.Errorf("descriptor %s is invalid: %w", desc, desc.err)
 		}
- 
+
 		// Is the descID unique?
 		// (In other words: Is the fqName + constLabel combination unique?)
 		if _, exists := r.descIDs[desc.id]; exists {
@@ -356,7 +356,7 @@ func (r *Registry) Register(c Collector) error {
 		}
 		if _, exists := newCompatIDs[desc.compatID]; !exists {
 			if desc.compatID != desc.id {
-				fmt.Println("I think this is a case...", desc.fqName)
+				//fmt.Println("I think this is a case...", desc.fqName)
 				newCompatIDs[desc.compatID] = struct{}{}
 			} /*else {
 				fmt.Println("this should be fine...", desc.fqName)
@@ -386,32 +386,32 @@ func (r *Registry) Register(c Collector) error {
 			continue
 		}
 
-		// Rererun the same checks against escaped versions of all the names if we
-		// do have to.
-		if !r.utf8Collision {
-			if compatDimHash, exists := r.compatDimHashesByName[desc.fqName]; exists {
-				// fmt.Println("ok...", compatDimHash, desc.compatDimHash, exists)
-				if compatDimHash != desc.compatDimHash {
-					return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
-				}
-				continue
-			}
+		// // Rererun the same checks against escaped versions of all the names if we
+		// // do have to.
+		// if !r.utf8Collision {
+		// 	if compatDimHash, exists := r.compatDimHashesByName[desc.fqName]; exists {
+		// 		// fmt.Println("ok...", compatDimHash, desc.compatDimHash, exists)
+		// 		if compatDimHash != desc.compatDimHash {
+		// 			return fmt.Errorf("a previously registered descriptor with the same fully-qualified name as %s has different label names or a different help string", desc)
+		// 		}
+		// 		continue
+		// 	}
 
-			// ...then check the new descriptors already seen.
-			// fmt.Println("second check", newCompatDimHashesByName[desc.fqName])
-			if compatDimHash, exists := newCompatDimHashesByName[desc.fqName]; exists {
-				if compatDimHash != desc.compatDimHash {
-					return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
-				}
-				continue
-			}
-		}
+		// 	// ...then check the new descriptors already seen.
+		// 	// fmt.Println("second check", newCompatDimHashesByName[desc.fqName])
+		// 	if compatDimHash, exists := newCompatDimHashesByName[desc.fqName]; exists {
+		// 		if compatDimHash != desc.compatDimHash {
+		// 			return fmt.Errorf("descriptors reported by collector have inconsistent label names or help strings for the same fully-qualified name, offender is %s", desc)
+		// 		}
+		// 		continue
+		// 	}
+		// }
 
 		newDimHashesByName[desc.fqName] = desc.dimHash
 		// only store if different
-		if desc.compatDimHash != desc.dimHash {
-			newCompatDimHashesByName[desc.fqName] = desc.compatDimHash
-		}
+		// if desc.compatDimHash != desc.dimHash {
+		// 	newCompatDimHashesByName[desc.fqName] = desc.compatDimHash
+		// }
 		// fmt.Println("new stuff: ", desc.fqName, compatID)
 	}
 	// A Collector yielding no Desc at all is considered unchecked.
@@ -461,24 +461,26 @@ func (r *Registry) Register(c Collector) error {
 	}
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
+		//fmt.Println("storing", name, dimHash)
 	}
 	// these lists are already pruned
 	for hash := range newCompatIDs {
 		r.compatDescIDs[hash] = struct{}{}
 	}
-	for name, compatDimHash := range newCompatDimHashesByName {
-		r.compatDimHashesByName[name] = compatDimHash
-	}
+	// for name, compatDimHash := range newCompatDimHashesByName {
+	// 	r.compatDimHashesByName[name] = compatDimHash
+	// }
 	return nil
 }
 
 // Unregister implements Registerer.
 func (r *Registry) Unregister(c Collector) bool {
 	var (
-		descChan    = make(chan *Desc, capDescChan)
-		descIDs     = map[uint64]struct{}{}
-		collectorID uint64 // All desc IDs XOR'd together.
-		compatID    uint64
+		descChan      = make(chan *Desc, capDescChan)
+		descIDs       = map[uint64]struct{}{}
+		compatDescIDs = map[uint64]struct{}{}
+		collectorID   uint64 // All desc IDs XOR'd together.
+		compatID      uint64
 	)
 	go func() {
 		c.Describe(descChan)
@@ -487,8 +489,9 @@ func (r *Registry) Unregister(c Collector) bool {
 	for desc := range descChan {
 		if _, exists := descIDs[desc.id]; !exists {
 			collectorID ^= desc.id
-			compatID ^= desc.compatID
 			descIDs[desc.id] = struct{}{}
+			compatID ^= desc.compatID
+			compatDescIDs[desc.compatID] = struct{}{}
 		}
 	}
 
@@ -503,12 +506,12 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
-	// if _, exists := r.collectorsByCompatID[compatID]; exists {
-	// 	// we may not always have both
 	delete(r.collectorsByCompatID, compatID)
-	// }
 	for id := range descIDs {
 		delete(r.descIDs, id)
+	}
+	for id := range compatDescIDs {
+		delete(r.compatDescIDs, id)
 	}
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.
