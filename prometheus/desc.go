@@ -57,8 +57,9 @@ type Desc struct {
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
 	id uint64
-	// compatID is similar to id, but is a hash of all the relevant names escaped with underscores.
-	compatID uint64
+	// escapedID is similar to id, but is a hash of all the metric name escaped
+	// with underscores.
+	escapedID uint64
 	// dimHash is a hash of the label names (preset and variable) and the
 	// Help string. Each Desc with the same fqName must have the same
 	// dimHash.
@@ -143,40 +144,19 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		return d
 	}
 
-	// XXX this is gross and will be cleaned up.
-	d.id, d.dimHash = makeHashes(labelNames, labelValues, help, true)
-	d.compatID, _ = makeHashes(labelNames, labelValues, help, false)
-
-	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
-	for n, v := range constLabels {
-		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
-		})
-	}
-	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
-	return d
-}
-
-// makeHashes generates hashes for detecting duplicate metrics. It will mutate
-// labelNames, escaping them with the Underscore method, if UTF8Collision is
-// set to CompatibilityCollision.
-func makeHashes(labelNames, labelValues []string, help string, UTF8Collision bool) (id, dimHash uint64) {
 	xxh := xxhash.New()
+	escapedXXH := xxhash.New()
 	for i, val := range labelValues {
-		if i == 0 && !UTF8Collision {
-			val = model.EscapeName(val, model.UnderscoreEscaping)
-		}
 		xxh.WriteString(val)
 		xxh.Write(separatorByteSlice)
-	}
-	id = xxh.Sum64()
-
-	if !UTF8Collision {
-		for i := range labelNames {
-			labelNames[i] = model.EscapeName(labelNames[i], model.UnderscoreEscaping)
+		if i == 0 {
+			val = model.EscapeName(val, model.UnderscoreEscaping)
 		}
+		escapedXXH.WriteString(val)
+		escapedXXH.Write(separatorByteSlice)
 	}
+	d.id = xxh.Sum64()
+	d.escapedID = escapedXXH.Sum64()
 
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
@@ -189,8 +169,18 @@ func makeHashes(labelNames, labelValues []string, help string, UTF8Collision boo
 		xxh.WriteString(labelName)
 		xxh.Write(separatorByteSlice)
 	}
-	dimHash = xxh.Sum64()
-	return
+	
+	d.dimHash = xxh.Sum64()
+
+	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
+	for n, v := range constLabels {
+		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
+			Name:  proto.String(n),
+			Value: proto.String(v),
+		})
+	}
+	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
+	return d
 }
 
 // NewInvalidDesc returns an invalid descriptor, i.e. a descriptor with the

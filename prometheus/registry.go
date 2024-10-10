@@ -66,16 +66,20 @@ func init() {
 // pre-registered.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectorsByID:       map[uint64]Collector{},
-		collectorsByCompatID: map[uint64]Collector{},
-		descIDs:              map[uint64]struct{}{},
-		compatDescIDs:        map[uint64]struct{}{},
-		dimHashesByName:      map[string]uint64{},
+		collectorsByID:        map[uint64]Collector{},
+		collectorsByEscapedID: map[uint64]Collector{},
+		descIDs:               map[uint64]struct{}{},
+		escapedDescIDs:        map[uint64]struct{}{},
+		dimHashesByName:       map[string]uint64{},
 	}
 }
 
-func (r *Registry) AllowCompatCollisions(allow bool) *Registry {
-	r.utf8Collision = allow
+// AllowEscapedCollisions determines whether the Registry should reject
+// Collectors that would collide when escaped to underscores for compatibility
+// with older systems. You may set this option to Allow if you know your metrics
+// will never be scraped by an older system.
+func (r *Registry) AllowEscapedCollisions(allow bool) *Registry {
+	r.disableLegacyCollision = allow
 	return r
 }
 
@@ -267,16 +271,17 @@ func (errs MultiError) MaybeUnwrap() error {
 type Registry struct {
 	mtx            sync.RWMutex
 	collectorsByID map[uint64]Collector // ID is a hash of the descIDs.
-	// stores colletors by compatid, only if compat id is different (otherwise we
-	// can just do the lookup in the regular map).
-	collectorsByCompatID map[uint64]Collector
-	descIDs              map[uint64]struct{}
+	// stores colletors by escapedID, only if escaped id is different (otherwise
+	// we can just do the lookup in the regular map).
+	collectorsByEscapedID map[uint64]Collector
+	descIDs               map[uint64]struct{}
 	// desc ids, only if different
-	compatDescIDs         map[uint64]struct{}
+	escapedDescIDs        map[uint64]struct{}
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
-	utf8Collision         bool
+	// This flag is inverted so that the default can be the false value.
+	disableLegacyCollision bool
 }
 
 // Register implements Registerer.
@@ -284,10 +289,10 @@ func (r *Registry) Register(c Collector) error {
 	var (
 		descChan           = make(chan *Desc, capDescChan)
 		newDescIDs         = map[uint64]struct{}{}
-		newCompatIDs       = map[uint64]struct{}{}
+		newEscapedIDs      = map[uint64]struct{}{}
 		newDimHashesByName = map[string]uint64{}
 		collectorID        uint64 // All desc IDs XOR'd together.
-		compatID           uint64
+		escapedID          uint64
 		duplicateDescErr   error
 	)
 	go func() {
@@ -324,19 +329,19 @@ func (r *Registry) Register(c Collector) error {
 
 		// Unless we are in pure UTF-8 mode, also check to see if the descID is
 		// unique when all the names are escaped to underscores.
-		if !r.utf8Collision {
-			if _, exists := r.compatDescIDs[desc.compatID]; exists {
+		if !r.disableLegacyCollision {
+			if _, exists := r.escapedDescIDs[desc.escapedID]; exists {
 				duplicateDescErr = fmt.Errorf("descriptor %s will collide with an existing descriptor when escaped for compatibility with non-UTF8 systems", desc)
 			}
-			if _, exists := r.descIDs[desc.compatID]; exists {
+			if _, exists := r.descIDs[desc.escapedID]; exists {
 				duplicateDescErr = fmt.Errorf("descriptor %s will collide with an existing descriptor when escaped for compatibility with non-UTF8 systems", desc)
 			}
 		}
-		if _, exists := newCompatIDs[desc.compatID]; !exists {
-			if desc.compatID != desc.id {
-				newCompatIDs[desc.compatID] = struct{}{}
+		if _, exists := newEscapedIDs[desc.escapedID]; !exists {
+			if desc.escapedID != desc.id {
+				newEscapedIDs[desc.escapedID] = struct{}{}
 			}
-			compatID ^= desc.compatID
+			escapedID ^= desc.escapedID
 		}
 
 		// Are all the label names and the help string consistent with
@@ -367,10 +372,10 @@ func (r *Registry) Register(c Collector) error {
 	existing, collision := r.collectorsByID[collectorID]
 	// Unless we are in pure UTF-8 mode, we also need to check that the
 	// underscore-escaped versions of the IDs don't match.
-	if !collision && !r.utf8Collision {
-		existing, collision = r.collectorsByID[compatID]
+	if !collision && !r.disableLegacyCollision {
+		existing, collision = r.collectorsByID[escapedID]
 		if !collision {
-			existing, collision = r.collectorsByCompatID[compatID]
+			existing, collision = r.collectorsByEscapedID[escapedID]
 		}
 	}
 
@@ -396,9 +401,9 @@ func (r *Registry) Register(c Collector) error {
 
 	// Only after all tests have passed, actually register.
 	r.collectorsByID[collectorID] = c
-	// We only need to store the compatID if it doesn't match the unescaped one.
-	if compatID != collectorID {
-		r.collectorsByCompatID[compatID] = c
+	// We only need to store the escapedID if it doesn't match the unescaped one.
+	if escapedID != collectorID {
+		r.collectorsByEscapedID[escapedID] = c
 	}
 	for hash := range newDescIDs {
 		r.descIDs[hash] = struct{}{}
@@ -406,8 +411,8 @@ func (r *Registry) Register(c Collector) error {
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
 	}
-	for hash := range newCompatIDs {
-		r.compatDescIDs[hash] = struct{}{}
+	for hash := range newEscapedIDs {
+		r.escapedDescIDs[hash] = struct{}{}
 	}
 	return nil
 }
@@ -415,11 +420,11 @@ func (r *Registry) Register(c Collector) error {
 // Unregister implements Registerer.
 func (r *Registry) Unregister(c Collector) bool {
 	var (
-		descChan      = make(chan *Desc, capDescChan)
-		descIDs       = map[uint64]struct{}{}
-		compatDescIDs = map[uint64]struct{}{}
-		collectorID   uint64 // All desc IDs XOR'd together.
-		compatID      uint64
+		descChan           = make(chan *Desc, capDescChan)
+		descIDs            = map[uint64]struct{}{}
+		escpaedDescIDs     = map[uint64]struct{}{}
+		collectorID        uint64 // All desc IDs XOR'd together.
+		collectorEscapedID uint64
 	)
 	go func() {
 		c.Describe(descChan)
@@ -429,8 +434,8 @@ func (r *Registry) Unregister(c Collector) bool {
 		if _, exists := descIDs[desc.id]; !exists {
 			collectorID ^= desc.id
 			descIDs[desc.id] = struct{}{}
-			compatID ^= desc.compatID
-			compatDescIDs[desc.compatID] = struct{}{}
+			collectorEscapedID ^= desc.escapedID
+			escpaedDescIDs[desc.escapedID] = struct{}{}
 		}
 	}
 
@@ -445,12 +450,12 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
-	delete(r.collectorsByCompatID, compatID)
+	delete(r.collectorsByEscapedID, collectorEscapedID)
 	for id := range descIDs {
 		delete(r.descIDs, id)
 	}
-	for id := range compatDescIDs {
-		delete(r.compatDescIDs, id)
+	for id := range escpaedDescIDs {
+		delete(r.escapedDescIDs, id)
 	}
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.

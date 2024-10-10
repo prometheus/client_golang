@@ -1340,9 +1340,9 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
 			if tc.postInitFlagFlip {
-				reg.AllowCompatCollisions(false)
+				reg.AllowEscapedCollisions(false)
 			} else {
-				reg.AllowCompatCollisions(tc.utf8Collision)
+				reg.AllowEscapedCollisions(tc.utf8Collision)
 			}
 			fmt.Println("------------")
 			err := reg.Register(tc.counterA())
@@ -1351,7 +1351,7 @@ func TestAlreadyRegisteredEscapingCollision(t *testing.T) {
 			}
 			// model.NameValidationScheme = model.UTF8Validation
 			if tc.postInitFlagFlip {
-				reg.AllowCompatCollisions(false)
+				reg.AllowEscapedCollisions(false)
 			}
 			err = reg.Register(tc.counterB())
 			if !tc.expectErr {
