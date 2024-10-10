@@ -43,6 +43,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 
 	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
@@ -251,6 +252,7 @@ func CollectAndFormat(c prometheus.Collector, format expfmt.FormatType, metricNa
 // dto.MetricFamily.
 func convertReaderToMetricFamily(reader io.Reader) ([]*dto.MetricFamily, error) {
 	var tp expfmt.TextParser
+	tp.IncludeEmptyMetricFamilies(true)
 	notNormalized, err := tp.TextToMetricFamilies(reader)
 	if err != nil {
 		return nil, fmt.Errorf("converting reader to metric families failed: %w", err)
@@ -270,7 +272,27 @@ func convertReaderToMetricFamily(reader io.Reader) ([]*dto.MetricFamily, error) 
 		}
 	}
 
-	return internal.NormalizeMetricFamilies(notNormalized), nil
+	a := normalizeMetricFamilies(notNormalized)
+	return a, nil
+}
+
+// normalizeMetricFamilies is a copy of Prometheus
+// internal.NormalizeMetricFamilies, but it keeps MetricFamily without
+// timeseries.
+func normalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
+	for _, mf := range metricFamiliesByName {
+		sort.Sort(internal.MetricSorter(mf.Metric))
+	}
+	names := make([]string, 0, len(metricFamiliesByName))
+	for name := range metricFamiliesByName {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	result := make([]*dto.MetricFamily, 0, len(names))
+	for _, name := range names {
+		result = append(result, metricFamiliesByName[name])
+	}
+	return result
 }
 
 // compareMetricFamilies would compare 2 slices of metric families, and optionally filters both of
