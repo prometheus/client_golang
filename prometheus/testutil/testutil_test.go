@@ -396,6 +396,18 @@ func TestScrapeAndCompare(t *testing.T) {
 			metricNames: []string{"some_total1", "some_total3"},
 			expectedErr: "expected metric name(s) not found: [some_total1 some_total3]",
 		},
+		"metric registered but absent": {
+			want: `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+
+		# HELP some_total2 A value that represents a counter.
+		# TYPE some_total2 counter
+	`,
+			metricNames: []string{"some_total2"},
+		},
 	}
 	for name, scenario := range scenarios {
 		t.Run(name, func(t *testing.T) {
