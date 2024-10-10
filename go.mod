@@ -23,10 +23,12 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/oauth2 v0.22.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/net v0.29.0 // indirect
+	golang.org/x/oauth2 v0.23.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 exclude github.com/prometheus/client_golang v1.12.1
+
+replace github.com/prometheus/common => github.com/dgrisonnet/common v0.0.0-20241010191341-a51096f4019c
