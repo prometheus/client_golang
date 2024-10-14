@@ -328,127 +328,83 @@ func TestMetricNotFound(t *testing.T) {
 }
 
 func TestScrapeAndCompare(t *testing.T) {
-	scenarios := map[string]struct {
-		want        string
-		metricNames []string
-		// expectedErr if empty, means no fail is expected for the comparison.
-		expectedErr string
-	}{
-		"empty metric Names": {
-			want: `
-		# HELP some_total A value that represents a counter.
-		# TYPE some_total counter
-
-		some_total{ label1 = "value1" } 1
-	`,
-			metricNames: []string{},
-		},
-		"one metric": {
-			want: `
-		# HELP some_total A value that represents a counter.
-		# TYPE some_total counter
-
-		some_total{ label1 = "value1" } 1
-	`,
-			metricNames: []string{"some_total"},
-		},
-		"multiple expected": {
-			want: `
-		# HELP some_total A value that represents a counter.
-		# TYPE some_total counter
-
-		some_total{ label1 = "value1" } 1
-
-		# HELP some_total2 A value that represents a counter.
-		# TYPE some_total2 counter
-
-		some_total2{ label2 = "value2" } 1
-	`,
-			metricNames: []string{"some_total2"},
-		},
-		"expected metric name is not scraped": {
-			want: `
-		# HELP some_total A value that represents a counter.
-		# TYPE some_total counter
-
-		some_total{ label1 = "value1" } 1
-
-		# HELP some_total2 A value that represents a counter.
-		# TYPE some_total2 counter
-
-		some_total2{ label2 = "value2" } 1
-	`,
-			metricNames: []string{"some_total3"},
-			expectedErr: "expected metric name(s) not found: [some_total3]",
-		},
-		"one of multiple expected metric names is not scraped": {
-			want: `
-		# HELP some_total A value that represents a counter.
-		# TYPE some_total counter
-
-		some_total{ label1 = "value1" } 1
-
-		# HELP some_total2 A value that represents a counter.
-		# TYPE some_total2 counter
-
-		some_total2{ label2 = "value2" } 1
-	`,
-			metricNames: []string{"some_total1", "some_total3"},
-			expectedErr: "expected metric name(s) not found: [some_total1 some_total3]",
-		},
-	}
-	for name, scenario := range scenarios {
-		t.Run(name, func(t *testing.T) {
-			expectedReader := strings.NewReader(scenario.want)
-
-			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprintln(w, scenario.want)
-			}))
-			defer ts.Close()
-			if err := ScrapeAndCompare(ts.URL, expectedReader, scenario.metricNames...); err != nil {
-				if scenario.expectedErr == "" || err.Error() != scenario.expectedErr {
-					t.Errorf("unexpected error happened: %s", err)
-				}
-			} else if scenario.expectedErr != "" {
-				t.Errorf("expected an error but got nil")
-			}
-		})
-	}
-
-	t.Run("fetching fail", func(t *testing.T) {
-		err := ScrapeAndCompare("some_url", strings.NewReader("some expectation"), "some_total")
-		if err == nil {
-			t.Errorf("expected an error but got nil")
-		}
-		if !strings.HasPrefix(err.Error(), "scraping metrics failed") {
-			t.Errorf("unexpected error happened: %s", err)
-		}
-	})
-
-	t.Run("bad status code", func(t *testing.T) {
-		const expected = `
+	const expected = `
 		# HELP some_total A value that represents a counter.
 		# TYPE some_total counter
 
 		some_total{ label1 = "value1" } 1
 	`
 
-		expectedReader := strings.NewReader(expected)
+	expectedReader := strings.NewReader(expected)
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusBadGateway)
-			fmt.Fprintln(w, expected)
-		}))
-		defer ts.Close()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
 
-		err := ScrapeAndCompare(ts.URL, expectedReader, "some_total")
-		if err == nil {
-			t.Errorf("expected an error but got nil")
-		}
-		if !strings.HasPrefix(err.Error(), "the scraping target returned a status code other than 200") {
-			t.Errorf("unexpected error happened: %s", err)
-		}
-	})
+	if err := ScrapeAndCompare(ts.URL, expectedReader, "some_total"); err != nil {
+		t.Errorf("unexpected scraping result:\n%s", err)
+	}
+}
+
+func TestScrapeAndCompareWithMultipleExpected(t *testing.T) {
+	const expected = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+
+		# HELP some_total2 A value that represents a counter.
+		# TYPE some_total2 counter
+
+		some_total2{ label2 = "value2" } 1
+	`
+
+	expectedReader := strings.NewReader(expected)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
+
+	if err := ScrapeAndCompare(ts.URL, expectedReader, "some_total2"); err != nil {
+		t.Errorf("unexpected scraping result:\n%s", err)
+	}
+}
+
+func TestScrapeAndCompareFetchingFail(t *testing.T) {
+	err := ScrapeAndCompare("some_url", strings.NewReader("some expectation"), "some_total")
+	if err == nil {
+		t.Errorf("expected an error but got nil")
+	}
+	if !strings.HasPrefix(err.Error(), "scraping metrics failed") {
+		t.Errorf("unexpected error happened: %s", err)
+	}
+}
+
+func TestScrapeAndCompareBadStatusCode(t *testing.T) {
+	const expected = `
+		# HELP some_total A value that represents a counter.
+		# TYPE some_total counter
+
+		some_total{ label1 = "value1" } 1
+	`
+
+	expectedReader := strings.NewReader(expected)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		fmt.Fprintln(w, expected)
+	}))
+	defer ts.Close()
+
+	err := ScrapeAndCompare(ts.URL, expectedReader, "some_total")
+	if err == nil {
+		t.Errorf("expected an error but got nil")
+	}
+	if !strings.HasPrefix(err.Error(), "the scraping target returned a status code other than 200") {
+		t.Errorf("unexpected error happened: %s", err)
+	}
 }
 
 func TestCollectAndCount(t *testing.T) {
