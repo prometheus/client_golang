@@ -468,3 +468,43 @@ func ExampleBridge() {
 	// Start pushing metrics to Graphite in the Run() loop.
 	b.Run(ctx)
 }
+
+func TestErrorHandling(t *testing.T) {
+	var testCases = []struct {
+		errorHandling    HandlerErrorHandling
+		receivedError    error
+		interceptedError error
+	}{
+		{
+			errorHandling:    ContinueOnError,
+			receivedError:    nil,
+			interceptedError: &net.OpError{},
+		},
+		{
+			errorHandling:    AbortOnError,
+			receivedError:    &net.OpError{},
+			interceptedError: &net.OpError{},
+		},
+	}
+
+	for _, testCase := range testCases {
+		var interceptedError error
+		c := &Config{
+			URL:               "localhost",
+			ErrorHandling:     testCase.errorHandling,
+			ErrorCallbackFunc: func(err error) { interceptedError = err },
+		}
+		b, err := NewBridge(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		receivedError := b.Push()
+		if reflect.TypeOf(receivedError) != reflect.TypeOf(testCase.receivedError) {
+			t.Errorf("expected to receive: %T, received: %T", testCase.receivedError, receivedError)
+		}
+		if reflect.TypeOf(interceptedError) != reflect.TypeOf(testCase.interceptedError) {
+			t.Errorf("expected to intercept: %T, intercepted: %T", testCase.interceptedError, interceptedError)
+		}
+	}
+}
