@@ -1835,3 +1835,129 @@ func (n *nativeExemplars) addExemplar(e *dto.Exemplar) {
 		n.exemplars = append(n.exemplars[:nIdx], append([]*dto.Exemplar{e}, append(n.exemplars[nIdx:rIdx], n.exemplars[rIdx+1:]...)...)...)
 	}
 }
+
+type constNativeHistogram struct {
+	desc                            *Desc
+	count                           uint64
+	sum                             float64
+	labelPairs                      []*dto.LabelPair
+	nativeHistogramSchema           int32
+	nativeHistogramZeroThreshold    float64
+	nativeHistogramMaxZeroThreshold float64
+	nativeHistogramMaxBuckets       uint32
+	nativeHistogramMinResetDuration time.Duration
+	timeStamp                       time.Time
+	nativeExemplars                 []*dto.Exemplar
+
+	positiveBuckets map[int]int64
+	negativeBuckets map[int]int64
+	zeroBucket      uint64
+}
+
+func NewconstNativeHistogram(desc *Desc, count uint64, sum float64, postiveBuckets, negativeBuckets map[int]int64, zeroBucket uint64,
+	labelPairs []*dto.LabelPair, nativeHistogramSchema int32, nativeHistogramZeroThreshold float64,
+	nativeHistogramMaxZeroThreshold float64, nativeHistogramMaxBuckets uint32,
+	nativeHistogramMinResetDuration time.Duration,
+	timeStamp time.Time,
+	nativeExemplars []*dto.Exemplar,
+) constNativeHistogram {
+	return constNativeHistogram{
+		desc:                            desc,
+		count:                           count,
+		sum:                             sum,
+		positiveBuckets:                 postiveBuckets,
+		negativeBuckets:                 negativeBuckets,
+		zeroBucket:                      zeroBucket,
+		labelPairs:                      labelPairs,
+		nativeHistogramSchema:           nativeHistogramSchema,
+		nativeHistogramZeroThreshold:    nativeHistogramZeroThreshold,
+		nativeHistogramMaxZeroThreshold: nativeHistogramMaxZeroThreshold,
+		nativeHistogramMaxBuckets:       nativeHistogramMaxBuckets,
+		nativeHistogramMinResetDuration: nativeHistogramMinResetDuration,
+		timeStamp:                       timeStamp,
+		nativeExemplars:                 nativeExemplars,
+	}
+}
+
+func (h *constNativeHistogram) Desc() *Desc {
+	return h.desc
+}
+
+func (h *constNativeHistogram) Write(out *dto.Metric) error {
+	his := &dto.Histogram{
+		CreatedTimestamp: timestamppb.New(h.timeStamp),
+		Schema:           &h.nativeHistogramSchema,
+		ZeroThreshold:    &h.nativeHistogramZeroThreshold,
+		Exemplars:        h.nativeExemplars,
+		SampleCount:      &h.count,
+		SampleSum:        &h.sum,
+	}
+	his.ZeroThreshold = proto.Float64(h.nativeHistogramZeroThreshold)
+	his.ZeroCount = proto.Uint64(h.zeroBucket)
+	his.NegativeSpan, his.NegativeDelta = makeBucketsAny(h.negativeBuckets)
+	his.PositiveSpan, his.PositiveDelta = makeBucketsAny(h.positiveBuckets)
+	if *his.ZeroThreshold == 0 && *his.ZeroCount == 0 && len(his.PositiveSpan) == 0 && len(his.NegativeSpan) == 0 {
+		his.PositiveSpan = []*dto.BucketSpan{{
+			Offset: proto.Int32(0),
+			Length: proto.Uint32(0),
+		}}
+	}
+	his.Exemplars = append(his.Exemplars, h.nativeExemplars...)
+	out.Histogram = his
+	out.Label = h.labelPairs
+	return nil
+}
+
+func makeBucketsAny(buckets map[int]int64) ([]*dto.BucketSpan, []int64) {
+	var ii []int
+
+	for k := range buckets {
+		ii = append(ii, k)
+	}
+	sort.Ints(ii)
+
+	if len(ii) == 0 {
+		return nil, nil
+	}
+
+	var (
+		spans     []*dto.BucketSpan
+		deltas    []int64
+		prevCount int64
+		nextI     int
+	)
+
+	appendDelta := func(count int64) {
+		*spans[len(spans)-1].Length++
+		deltas = append(deltas, count-prevCount)
+		prevCount = count
+	}
+
+	for n, i := range ii {
+		count := buckets[i]
+		// Multiple spans with only small gaps in between are probably
+		// encoded more efficiently as one larger span with a few empty
+		// buckets. Needs some research to find the sweet spot. For now,
+		// we assume that gaps of one or two buckets should not create
+		// a new span.
+		iDelta := int32(i - nextI)
+		if n == 0 || iDelta > 2 {
+			// We have to create a new span, either because we are
+			// at the very beginning, or because we have found a gap
+			// of more than two buckets.
+			spans = append(spans, &dto.BucketSpan{
+				Offset: proto.Int32(iDelta),
+				Length: proto.Uint32(0),
+			})
+		} else {
+			// We have found a small gap (or no gap at all).
+			// Insert empty buckets as needed.
+			for j := int32(0); j < iDelta; j++ {
+				appendDelta(0)
+			}
+		}
+		appendDelta(count)
+		nextI = i + 1
+	}
+	return spans, deltas
+}
