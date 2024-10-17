@@ -1364,6 +1364,10 @@ func (g *tGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
 	}, func() { g.done = true }, g.err
 }
 
+func (g *tGatherer) HasEscapedCollision() bool {
+	return false
+}
+
 func TestNewMultiTRegistry(t *testing.T) {
 	treg := &tGatherer{}
 

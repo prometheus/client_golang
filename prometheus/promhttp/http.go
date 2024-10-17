@@ -135,8 +135,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 				panic(err)
 			}
 		}
-		hasEscapedCollisions = opts.Registry.HasEscapedCollision()
 	}
+	hasEscapedCollisions = reg.HasEscapedCollision()
 
 	// Select compression formats to offer based on default or user choice.
 	var compressions []string

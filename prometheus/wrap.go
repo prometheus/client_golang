@@ -117,10 +117,6 @@ func (r *wrappingRegisterer) Unregister(c Collector) bool {
 	})
 }
 
-func (r *wrappingRegisterer) HasEscapedCollision() bool {
-	return r.wrappedRegisterer.HasEscapedCollision()
-}
-
 type wrappingCollector struct {
 	wrappedCollector Collector
 	prefix           string

@@ -137,11 +137,6 @@ type Registerer interface {
 	// instance must only collect consistent metrics throughout its
 	// lifetime.
 	Unregister(Collector) bool
-
-	// HasEscapedCollision returns true if any two of the registered metrics would
-	// be the same when escaped to underscores. This is needed to prevent
-	// duplicate metric issues when being scraped by a legacy system.
-	HasEscapedCollision() bool
 }
 
 // Gatherer is the interface for the part of a registry in charge of gathering
@@ -169,6 +164,11 @@ type Gatherer interface {
 	// expose an incomplete result and instead disregard the returned
 	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
+
+	// HasEscapedCollision returns true if any two of the registered metrics would
+	// be the same when escaped to underscores. This is needed to prevent
+	// duplicate metric issues when being scraped by a legacy system.
+	HasEscapedCollision() bool
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -203,6 +203,10 @@ type GathererFunc func() ([]*dto.MetricFamily, error)
 // Gather implements Gatherer.
 func (gf GathererFunc) Gather() ([]*dto.MetricFamily, error) {
 	return gf()
+}
+
+func (gf GathererFunc) HasEscapedCollision() bool {
+	return false
 }
 
 // AlreadyRegisteredError is returned by the Register method if the Collector to
@@ -872,6 +876,15 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
+func (gs Gatherers) HasEscapedCollision() bool {
+	for _, g := range gs {
+		if g.HasEscapedCollision() {
+			return true
+		}
+	}
+	return false
+}
+
 // checkSuffixCollisions checks for collisions with the “magic” suffixes the
 // Prometheus text format and the internal metric representation of the
 // Prometheus server add while flattening Summaries and Histograms.
@@ -1103,6 +1116,15 @@ func (r *MultiTRegistry) Gather() (mfs []*dto.MetricFamily, done func(), err err
 	}, errs.MaybeUnwrap()
 }
 
+func (r *MultiTRegistry) HasEscapedCollision() bool {
+	for _, g := range r.tGatherers {
+		if g.HasEscapedCollision() {
+			return true
+		}
+	}
+	return false
+}
+
 // TransactionalGatherer represents transactional gatherer that can be triggered to notify gatherer that memory
 // used by metric family is no longer used by a caller. This allows implementations with cache.
 type TransactionalGatherer interface {
@@ -1128,6 +1150,11 @@ type TransactionalGatherer interface {
 	// Important: done is expected to be triggered (even if the error occurs!)
 	// once caller does not need returned slice of dto.MetricFamily.
 	Gather() (_ []*dto.MetricFamily, done func(), err error)
+
+	// HasEscapedCollision returns true if any two of the registered metrics would
+	// be the same when escaped to underscores. This is needed to prevent
+	// duplicate metric issues when being scraped by a legacy system.
+	HasEscapedCollision() bool
 }
 
 // ToTransactionalGatherer transforms Gatherer to transactional one with noop as done function.
@@ -1143,4 +1170,8 @@ type noTransactionGatherer struct {
 func (g *noTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
 	mfs, err := g.g.Gather()
 	return mfs, func() {}, err
+}
+
+func (g *noTransactionGatherer) HasEscapedCollision() bool {
+	return g.g.HasEscapedCollision()
 }

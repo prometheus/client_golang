@@ -81,6 +81,10 @@ func (g *mockTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), 
 	return mfs, func() { g.doneInvoked++ }, err
 }
 
+func (g *mockTransactionGatherer) HasEscapedCollision() bool {
+	return g.g.HasEscapedCollision()
+}
+
 func readCompressedBody(r io.Reader, comp Compression) (string, error) {
 	switch comp {
 	case Gzip:
@@ -567,9 +571,7 @@ func TestEscapedCollisions(t *testing.T) {
 		Help: "A test metric with dots",
 	}))
 
-	handler := HandlerFor(reg, HandlerOpts{
-		Registry: reg,
-	})
+	handler := HandlerFor(reg, HandlerOpts{})
 
 	t.Run("fail case", func(t *testing.T) {
 		writer := httptest.NewRecorder()
