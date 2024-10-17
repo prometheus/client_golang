@@ -66,10 +66,16 @@ func init() {
 // pre-registered.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectorsByID:  map[uint64]Collector{},
-		descIDs:         map[uint64]struct{}{},
-		dimHashesByName: map[string]uint64{},
+		collectorsByID:        map[uint64]Collector{},
+		collectorsByEscapedID: map[uint64]Collector{},
+		descIDs:               map[uint64]struct{}{},
+		escapedDescIDs:        map[uint64]struct{}{},
+		dimHashesByName:       map[string]uint64{},
 	}
+}
+
+func (r *Registry) HasEscapedCollision() bool {
+	return r.hasEscapedCollision
 }
 
 // NewPedanticRegistry returns a registry that checks during collection if each
@@ -158,6 +164,11 @@ type Gatherer interface {
 	// expose an incomplete result and instead disregard the returned
 	// MetricFamily protobufs in case the returned error is non-nil.
 	Gather() ([]*dto.MetricFamily, error)
+
+	// HasEscapedCollision returns true if any two of the registered metrics would
+	// be the same when escaped to underscores. This is needed to prevent
+	// duplicate metric issues when being scraped by a legacy system.
+	HasEscapedCollision() bool
 }
 
 // Register registers the provided Collector with the DefaultRegisterer.
@@ -192,6 +203,10 @@ type GathererFunc func() ([]*dto.MetricFamily, error)
 // Gather implements Gatherer.
 func (gf GathererFunc) Gather() ([]*dto.MetricFamily, error) {
 	return gf()
+}
+
+func (gf GathererFunc) HasEscapedCollision() bool {
+	return false
 }
 
 // AlreadyRegisteredError is returned by the Register method if the Collector to
@@ -258,22 +273,36 @@ func (errs MultiError) MaybeUnwrap() error {
 // Registry implements Collector to allow it to be used for creating groups of
 // metrics. See the Grouping example for how this can be done.
 type Registry struct {
-	mtx                   sync.RWMutex
-	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
+	mtx            sync.RWMutex
+	collectorsByID map[uint64]Collector // ID is a hash of the descIDs.
+	// collectorsByEscapedID stores colletors by escapedID, only if escaped id is
+	// different (otherwise we can just do the lookup in the regular map).
+	collectorsByEscapedID map[uint64]Collector
 	descIDs               map[uint64]struct{}
+	// escapedDescIDs records desc ids of the escaped version of the metric, only
+	// if different from the regular name.
+	escapedDescIDs        map[uint64]struct{}
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+
+	// hasEscapedCollision is set to true if any two metrics that were not
+	// identical under UTF-8 would collide if scraped by a system that requires
+	// names to be escaped to legacy underscore replacement.
+	hasEscapedCollision bool
 }
 
 // Register implements Registerer.
 func (r *Registry) Register(c Collector) error {
 	var (
-		descChan           = make(chan *Desc, capDescChan)
-		newDescIDs         = map[uint64]struct{}{}
-		newDimHashesByName = map[string]uint64{}
-		collectorID        uint64 // All desc IDs XOR'd together.
-		duplicateDescErr   error
+		descChan             = make(chan *Desc, capDescChan)
+		newDescIDs           = map[uint64]struct{}{}
+		newEscapedIDs        = map[uint64]struct{}{}
+		newDimHashesByName   = map[string]uint64{}
+		collectorID          uint64 // All desc IDs XOR'd together.
+		escapedID            uint64
+		duplicateDescErr     error
+		duplicateEscapedDesc bool
 	)
 	go func() {
 		c.Describe(descChan)
@@ -307,6 +336,22 @@ func (r *Registry) Register(c Collector) error {
 			collectorID ^= desc.id
 		}
 
+		// Also check to see if the descID is unique when all the names are escaped
+		// to underscores. First check the primary map, then check the secondary
+		// map. We only officially log a collision later.
+		if _, exists := r.descIDs[desc.escapedID]; exists {
+			duplicateEscapedDesc = true
+		}
+		if _, exists := r.escapedDescIDs[desc.escapedID]; exists {
+			duplicateEscapedDesc = true
+		}
+		if _, exists := newEscapedIDs[desc.escapedID]; !exists {
+			if desc.escapedID != desc.id {
+				newEscapedIDs[desc.escapedID] = struct{}{}
+			}
+			escapedID ^= desc.escapedID
+		}
+
 		// Are all the label names and the help string consistent with
 		// previous descriptors of the same name?
 		// First check existing descriptors...
@@ -331,7 +376,17 @@ func (r *Registry) Register(c Collector) error {
 		r.uncheckedCollectors = append(r.uncheckedCollectors, c)
 		return nil
 	}
-	if existing, exists := r.collectorsByID[collectorID]; exists {
+
+	existing, collision := r.collectorsByID[collectorID]
+	// Also check whether the underscore-escaped versions of the IDs match.
+	if !collision {
+		_, escapedCollision := r.collectorsByID[escapedID]
+		r.hasEscapedCollision = r.hasEscapedCollision || escapedCollision
+		_, escapedCollision = r.collectorsByEscapedID[escapedID]
+		r.hasEscapedCollision = r.hasEscapedCollision || escapedCollision
+	}
+
+	if collision {
 		switch e := existing.(type) {
 		case *wrappingCollector:
 			return AlreadyRegisteredError{
@@ -351,13 +406,24 @@ func (r *Registry) Register(c Collector) error {
 		return duplicateDescErr
 	}
 
+	if duplicateEscapedDesc {
+		r.hasEscapedCollision = true
+	}
+
 	// Only after all tests have passed, actually register.
 	r.collectorsByID[collectorID] = c
+	// We only need to store the escapedID if it doesn't match the unescaped one.
+	if escapedID != collectorID {
+		r.collectorsByEscapedID[escapedID] = c
+	}
 	for hash := range newDescIDs {
 		r.descIDs[hash] = struct{}{}
 	}
 	for name, dimHash := range newDimHashesByName {
 		r.dimHashesByName[name] = dimHash
+	}
+	for hash := range newEscapedIDs {
+		r.escapedDescIDs[hash] = struct{}{}
 	}
 	return nil
 }
@@ -365,9 +431,11 @@ func (r *Registry) Register(c Collector) error {
 // Unregister implements Registerer.
 func (r *Registry) Unregister(c Collector) bool {
 	var (
-		descChan    = make(chan *Desc, capDescChan)
-		descIDs     = map[uint64]struct{}{}
-		collectorID uint64 // All desc IDs XOR'd together.
+		descChan           = make(chan *Desc, capDescChan)
+		descIDs            = map[uint64]struct{}{}
+		escapedDescIDs     = map[uint64]struct{}{}
+		collectorID        uint64 // All desc IDs XOR'd together.
+		collectorEscapedID uint64
 	)
 	go func() {
 		c.Describe(descChan)
@@ -377,6 +445,8 @@ func (r *Registry) Unregister(c Collector) bool {
 		if _, exists := descIDs[desc.id]; !exists {
 			collectorID ^= desc.id
 			descIDs[desc.id] = struct{}{}
+			collectorEscapedID ^= desc.escapedID
+			escapedDescIDs[desc.escapedID] = struct{}{}
 		}
 	}
 
@@ -391,8 +461,12 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
+	delete(r.collectorsByEscapedID, collectorEscapedID)
 	for id := range descIDs {
 		delete(r.descIDs, id)
+	}
+	for id := range escapedDescIDs {
+		delete(r.escapedDescIDs, id)
 	}
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.
@@ -802,6 +876,15 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
+func (gs Gatherers) HasEscapedCollision() bool {
+	for _, g := range gs {
+		if g.HasEscapedCollision() {
+			return true
+		}
+	}
+	return false
+}
+
 // checkSuffixCollisions checks for collisions with the “magic” suffixes the
 // Prometheus text format and the internal metric representation of the
 // Prometheus server add while flattening Summaries and Histograms.
@@ -1033,6 +1116,15 @@ func (r *MultiTRegistry) Gather() (mfs []*dto.MetricFamily, done func(), err err
 	}, errs.MaybeUnwrap()
 }
 
+func (r *MultiTRegistry) HasEscapedCollision() bool {
+	for _, g := range r.tGatherers {
+		if g.HasEscapedCollision() {
+			return true
+		}
+	}
+	return false
+}
+
 // TransactionalGatherer represents transactional gatherer that can be triggered to notify gatherer that memory
 // used by metric family is no longer used by a caller. This allows implementations with cache.
 type TransactionalGatherer interface {
@@ -1058,6 +1150,11 @@ type TransactionalGatherer interface {
 	// Important: done is expected to be triggered (even if the error occurs!)
 	// once caller does not need returned slice of dto.MetricFamily.
 	Gather() (_ []*dto.MetricFamily, done func(), err error)
+
+	// HasEscapedCollision returns true if any two of the registered metrics would
+	// be the same when escaped to underscores. This is needed to prevent
+	// duplicate metric issues when being scraped by a legacy system.
+	HasEscapedCollision() bool
 }
 
 // ToTransactionalGatherer transforms Gatherer to transactional one with noop as done function.
@@ -1073,4 +1170,8 @@ type noTransactionGatherer struct {
 func (g *noTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), err error) {
 	mfs, err := g.g.Gather()
 	return mfs, func() {}, err
+}
+
+func (g *noTransactionGatherer) HasEscapedCollision() bool {
+	return g.g.HasEscapedCollision()
 }
