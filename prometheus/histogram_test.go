@@ -1971,21 +1971,21 @@ func TestConstNativeHistogram(t *testing.T) {
 			n := atomic.LoadUint64(&_his.countAndHotIdx)
 			hotIdx := n >> 63
 			cold := _his.counts[hotIdx]
-			consthist := NewconstNativeHistogram(_his.Desc(),
+			consthist, err := NewConstNativeHistogram(_his.Desc(),
 				cold.count,
 				math.Float64frombits(cold.sumBits),
 				SyncMaptomap(&cold.nativeHistogramBucketsPositive),
 				SyncMaptomap(&cold.nativeHistogramBucketsNegative),
 				cold.nativeHistogramZeroBucket,
-				_his.labelPairs,
 				cold.nativeHistogramSchema,
 				math.Float64frombits(cold.nativeHistogramZeroThresholdBits),
 				_his.nativeHistogramMaxZeroThreshold,
-				_his.nativeHistogramMaxBuckets,
-				_his.nativeHistogramMinResetDuration,
 				_his.lastResetTime,
 				_his.nativeExemplars.exemplars,
 			)
+			if err != nil {
+				t.Fatal("unexpected error writing metric", err)
+			}
 			m2 := &dto.Metric{}
 
 			if err := consthist.Write(m2); err != nil {

@@ -1844,7 +1844,7 @@ type constNativeHistogram struct {
 	nativeHistogramSchema           int32
 	nativeHistogramZeroThreshold    float64
 	nativeHistogramMaxZeroThreshold float64
-	createdTimestamp                       time.Time
+	createdTimestamp                time.Time
 	nativeExemplars                 []*dto.Exemplar
 
 	positiveBuckets map[int]int64
@@ -1852,29 +1852,33 @@ type constNativeHistogram struct {
 	zeroBucket      uint64
 }
 
-func NewconstNativeHistogram(desc *Desc, count uint64, sum float64, postiveBuckets, negativeBuckets map[int]int64, zeroBucket uint64,
-	labelPairs []*dto.LabelPair, nativeHistogramSchema int32, nativeHistogramZeroThreshold float64,
-	nativeHistogramMaxZeroThreshold float64, nativeHistogramMaxBuckets uint32,
-	nativeHistogramMinResetDuration time.Duration,
+func NewConstNativeHistogram(desc *Desc, count uint64, sum float64, postiveBuckets, negativeBuckets map[int]int64, zeroBucket uint64,
+	nativeHistogramSchema int32, nativeHistogramZeroThreshold float64,
+	nativeHistogramMaxZeroThreshold float64,
 	createdTimestamp time.Time,
 	nativeExemplars []*dto.Exemplar,
-) (constNativeHistogram, error) {
-	return constNativeHistogram{
+	labelValues ...string,
+) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
+		return nil, err
+	}
+	return &constNativeHistogram{
 		desc:                            desc,
 		count:                           count,
 		sum:                             sum,
 		positiveBuckets:                 postiveBuckets,
 		negativeBuckets:                 negativeBuckets,
 		zeroBucket:                      zeroBucket,
-		labelPairs:                      labelPairs,
+		labelPairs:                      MakeLabelPairs(desc, labelValues),
 		nativeHistogramSchema:           nativeHistogramSchema,
 		nativeHistogramZeroThreshold:    nativeHistogramZeroThreshold,
 		nativeHistogramMaxZeroThreshold: nativeHistogramMaxZeroThreshold,
-		nativeHistogramMaxBuckets:       nativeHistogramMaxBuckets,
-		nativeHistogramMinResetDuration: nativeHistogramMinResetDuration,
-		timeStamp:                       timeStamp,
+		createdTimestamp:                createdTimestamp,
 		nativeExemplars:                 nativeExemplars,
-	}
+	}, nil
 }
 
 func (h *constNativeHistogram) Desc() *Desc {
@@ -1883,7 +1887,7 @@ func (h *constNativeHistogram) Desc() *Desc {
 
 func (h *constNativeHistogram) Write(out *dto.Metric) error {
 	his := &dto.Histogram{
-		CreatedTimestamp: timestamppb.New(h.timeStamp),
+		CreatedTimestamp: timestamppb.New(h.createdTimestamp),
 		Schema:           &h.nativeHistogramSchema,
 		ZeroThreshold:    &h.nativeHistogramZeroThreshold,
 		Exemplars:        h.nativeExemplars,
