@@ -1844,9 +1844,7 @@ type constNativeHistogram struct {
 	nativeHistogramSchema           int32
 	nativeHistogramZeroThreshold    float64
 	nativeHistogramMaxZeroThreshold float64
-	nativeHistogramMaxBuckets       uint32
-	nativeHistogramMinResetDuration time.Duration
-	timeStamp                       time.Time
+	createdTimestamp                       time.Time
 	nativeExemplars                 []*dto.Exemplar
 
 	positiveBuckets map[int]int64
@@ -1858,9 +1856,9 @@ func NewconstNativeHistogram(desc *Desc, count uint64, sum float64, postiveBucke
 	labelPairs []*dto.LabelPair, nativeHistogramSchema int32, nativeHistogramZeroThreshold float64,
 	nativeHistogramMaxZeroThreshold float64, nativeHistogramMaxBuckets uint32,
 	nativeHistogramMinResetDuration time.Duration,
-	timeStamp time.Time,
+	createdTimestamp time.Time,
 	nativeExemplars []*dto.Exemplar,
-) constNativeHistogram {
+) (constNativeHistogram, error) {
 	return constNativeHistogram{
 		desc:                            desc,
 		count:                           count,
