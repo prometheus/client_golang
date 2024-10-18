@@ -48,5 +48,15 @@ generate-go-collector-test-files:
 	go mod tidy
 
 .PHONY: fmt
-fmt: common-format
+fmt: common-format $(GOIMPORTS)
 	$(GOIMPORTS) -local github.com/prometheus/client_golang -w .
+
+.PHONY: proto
+proto: ## Regenerate Go from remote write proto.
+proto: $(BUF)
+	@echo ">> regenerating Prometheus Remote Write proto"
+	@cd api/prometheus/v1/genproto && $(BUF) generate
+	@cd api/prometheus/v1 && find genproto/ -type f -exec sed -i '' 's/protohelpers "github.com\/planetscale\/vtprotobuf\/protohelpers"/protohelpers "github.com\/prometheus\/client_golang\/internal\/github.com\/planetscale\/vtprotobuf\/protohelpers"/g' {} \;
+	# For some reasons buf generates this unused import, kill it manually for now and reformat.
+	@cd api/prometheus/v1 && find genproto/ -type f -exec sed -i '' 's/_ "github.com\/gogo\/protobuf\/gogoproto"//g' {} \;
+	@cd api/prometheus/v1 && go fmt ./genproto/...
