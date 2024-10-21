@@ -28,6 +28,8 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -77,6 +79,10 @@ func (g *mockTransactionGatherer) Gather() (_ []*dto.MetricFamily, done func(), 
 	g.gatherInvoked++
 	mfs, err := g.g.Gather()
 	return mfs, func() { g.doneInvoked++ }, err
+}
+
+func (g *mockTransactionGatherer) HasEscapedCollision() bool {
+	return g.g.HasEscapedCollision()
 }
 
 func readCompressedBody(r io.Reader, comp Compression) (string, error) {
@@ -546,6 +552,50 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 			t.Errorf("got different compression type: %v, expected: %v", encodingHeader, test.expectedCompression)
 		}
 	}
+}
+
+func TestEscapedCollisions(t *testing.T) {
+	oldScheme := model.NameValidationScheme
+	defer func() {
+		model.NameValidationScheme = oldScheme
+	}()
+	model.NameValidationScheme = model.UTF8Validation
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_metric",
+		Help: "A test metric with underscores",
+	}))
+	reg.MustRegister(prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test.metric",
+		Help: "A test metric with dots",
+	}))
+
+	handler := HandlerFor(reg, HandlerOpts{})
+
+	t.Run("fail case", func(t *testing.T) {
+		writer := httptest.NewRecorder()
+		request, _ := http.NewRequest("GET", "/metrics", nil)
+		request.Header.Add(acceptHeader, string(expfmt.NewFormat(expfmt.TypeTextPlain)))
+		handler.ServeHTTP(writer, request)
+		if writer.Code != 500 {
+			t.Errorf("wanted error 500, got %d", writer.Code)
+		}
+		expectErr := "An error has occurred while serving metrics:\n\none or more metrics collide when escaped\n"
+		if writer.Body.String() != expectErr {
+			t.Error("incorrect body returned, want " + expectErr + " got " + writer.Body.String())
+		}
+	})
+
+	t.Run("success case", func(t *testing.T) {
+		writer := httptest.NewRecorder()
+		request, _ := http.NewRequest("GET", "/metrics", nil)
+		request.Header.Add(acceptHeader, string(expfmt.NewFormat(expfmt.TypeTextPlain).WithEscapingScheme(model.NoEscaping)))
+		handler.ServeHTTP(writer, request)
+		if writer.Code != 200 {
+			t.Errorf("wanted 200 OK, got %d", writer.Code)
+		}
+	})
 }
 
 func BenchmarkCompression(b *testing.B) {
