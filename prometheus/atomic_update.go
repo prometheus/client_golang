@@ -26,7 +26,7 @@ func atomicUpdateFloat(bits *uint64, updateFunc func(float64) float64) {
 		maxBackoff     = 320 * time.Millisecond
 		initialBackoff = 10 * time.Millisecond
 	)
-	var backoff = initialBackoff
+	backoff := initialBackoff
 
 	for {
 		loadedBits := atomic.LoadUint64(bits)
