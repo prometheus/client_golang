@@ -131,3 +131,19 @@ func BenchmarkAtomicUpdateFloat_8Goroutines(b *testing.B) {
 func BenchmarkAtomicNoBackoff_8Goroutines(b *testing.B) {
 	benchmarkAtomicNoBackoffFloatConcurrency(b, 8)
 }
+
+func BenchmarkAtomicUpdateFloat_16Goroutines(b *testing.B) {
+	benchmarkAtomicUpdateFloatConcurrency(b, 16)
+}
+
+func BenchmarkAtomicNoBackoff_16Goroutines(b *testing.B) {
+	benchmarkAtomicNoBackoffFloatConcurrency(b, 16)
+}
+
+func BenchmarkAtomicUpdateFloat_32Goroutines(b *testing.B) {
+	benchmarkAtomicUpdateFloatConcurrency(b, 32)
+}
+
+func BenchmarkAtomicNoBackoff_32Goroutines(b *testing.B) {
+	benchmarkAtomicNoBackoffFloatConcurrency(b, 32)
+}
