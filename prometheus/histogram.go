@@ -1621,13 +1621,9 @@ func waitForCooldown(count uint64, counts *histogramCounts) {
 // atomicAddFloat adds the provided float atomically to another float
 // represented by the bit pattern the bits pointer is pointing to.
 func atomicAddFloat(bits *uint64, v float64) {
-	for {
-		loadedBits := atomic.LoadUint64(bits)
-		newBits := math.Float64bits(math.Float64frombits(loadedBits) + v)
-		if atomic.CompareAndSwapUint64(bits, loadedBits, newBits) {
-			break
-		}
-	}
+	atomicUpdateFloat(bits, func(oldVal float64) float64 {
+		return oldVal + v
+	})
 }
 
 // atomicDecUint32 atomically decrements the uint32 p points to.  See
