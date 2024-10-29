@@ -20,9 +20,11 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -33,12 +35,61 @@ func main() {
 
 	// Create a new registry.
 	reg := prometheus.NewRegistry()
-	prometheus.WrapRegistererWith(prometheus.Labels{"service": "my-service-name"}, reg).MustRegister(
+	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
-	// Expose the registered metrics via HTTP.
+	// We should see the following metrics with an extra source label. But
+	// other collectors registered above are expected not to have the extra
+	// label.
+	// See also https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels-not-static-scraped-labels
+	startFireKeeper(prometheus.WrapRegistererWith(prometheus.Labels{"component": "FireKeeper"}, reg))
+	startSparkForge(prometheus.WrapRegistererWith(prometheus.Labels{"component": "SparkForge"}, reg))
+
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	log.Fatal(http.ListenAndServe(*addr, nil))
+}
+
+func startFireKeeper(reg prometheus.Registerer) {
+	firesMaintained := promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		Name: "fires_maintained_total",
+		Help: "Total number of fires maintained",
+	})
+
+	sparksDistributed := promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		Name: "sparks_distributed_total",
+		Help: "Total number of sparks distributed",
+	})
+
+	go func() {
+		for {
+			time.Sleep(5 * time.Second)
+			firesMaintained.Inc()
+			log.Println("FireKeeper maintained a fire")
+		}
+	}()
+
+	go func() {
+		for {
+			time.Sleep(7 * time.Second)
+			sparksDistributed.Inc()
+			log.Println("FireKeeper distributed a spark")
+		}
+	}()
+}
+
+func startSparkForge(reg prometheus.Registerer) {
+	itemsForged := promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		Name: "items_forged_total",
+		Help: "Total number of items forged",
+	})
+
+	go func() {
+		for {
+			time.Sleep(6 * time.Second)
+			itemsForged.Inc()
+			log.Println("SparkForge forged an item")
+		}
+	}()
 }
