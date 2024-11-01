@@ -79,6 +79,9 @@ type Config struct {
 	// logged regardless of the configured ErrorHandling provided Logger
 	// is not nil.
 	ErrorHandling HandlerErrorHandling
+
+	// ErrorCallbackFunc is a callback function that can be executed when error is occurred
+	ErrorCallbackFunc ErrorCallbackFunc
 }
 
 // Bridge pushes metrics to the configured Graphite server.
@@ -89,8 +92,9 @@ type Bridge struct {
 	interval time.Duration
 	timeout  time.Duration
 
-	errorHandling HandlerErrorHandling
-	logger        Logger
+	errorHandling     HandlerErrorHandling
+	errorCallbackFunc ErrorCallbackFunc
+	logger            Logger
 
 	g prometheus.Gatherer
 }
@@ -101,6 +105,9 @@ type Bridge struct {
 type Logger interface {
 	Println(v ...interface{})
 }
+
+// ErrorCallbackFunc is a special type for callback functions
+type ErrorCallbackFunc func(error)
 
 // NewBridge returns a pointer to a new Bridge struct.
 func NewBridge(c *Config) (*Bridge, error) {
@@ -142,6 +149,10 @@ func NewBridge(c *Config) (*Bridge, error) {
 
 	b.errorHandling = c.ErrorHandling
 
+	if c.ErrorCallbackFunc != nil {
+		b.errorCallbackFunc = c.ErrorCallbackFunc
+	}
+
 	return b, nil
 }
 
@@ -164,18 +175,28 @@ func (b *Bridge) Run(ctx context.Context) {
 
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
-	mfs, err := b.g.Gather()
-	if err != nil || len(mfs) == 0 {
-		switch b.errorHandling {
-		case AbortOnError:
-			return err
-		case ContinueOnError:
-			if b.logger != nil {
-				b.logger.Println("continue on error:", err)
-			}
-		default:
-			panic("unrecognized error handling value")
+	err := b.push()
+	if b.errorCallbackFunc != nil {
+		b.errorCallbackFunc(err)
+	}
+	switch b.errorHandling {
+	case AbortOnError:
+		return err
+	case ContinueOnError:
+		if b.logger != nil {
+			b.logger.Println("continue on error:", err)
 		}
+	}
+	return nil
+}
+
+func (b *Bridge) push() error {
+	mfs, err := b.g.Gather()
+	if err != nil {
+		return err
+	}
+	if len(mfs) == 0 {
+		return nil
 	}
 
 	conn, err := net.DialTimeout("tcp", b.url, b.timeout)

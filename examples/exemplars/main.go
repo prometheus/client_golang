@@ -17,6 +17,54 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"log"
+	"math/rand"
+	"net/http"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/graphite"
+	"go.uber.org/zap"
+)
+
+func main() {
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	c := &Config{
+		URL:              "graphite.example.org:3099",
+		Gatherer:         prometheus.DefaultGatherer,
+		Prefix:           "prefix",
+		Interval:          5 * time.Second,
+		Timeout:           2 * time.Second,
+		ErrorHandling:     testCase.errorHandling,
+		ErrorCallbackFunc: func(err error) {  if err != nil { logger.Error("run", zap.Error(err)); cancel() } },
+	}
+
+
+	b, err := graphite.NewBridge(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b.Run(ctx)
+}
+
+
+
+
+
+package main
+
+import (
 	"fmt"
 	"log"
 	"math/rand"
