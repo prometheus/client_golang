@@ -373,8 +373,9 @@ func TestSummaryVecConcurrency(t *testing.T) {
 func TestSummaryDecay(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
-		// More because it depends on timing than because it is particularly long...
 	}
+
+	now := time.Now()
 
 	sum := NewSummary(SummaryOpts{
 		Name:       "test_summary",
@@ -382,28 +383,28 @@ func TestSummaryDecay(t *testing.T) {
 		MaxAge:     100 * time.Millisecond,
 		Objectives: map[float64]float64{0.1: 0.001},
 		AgeBuckets: 10,
+		now: func() time.Time {
+			return now
+		},
 	})
 
 	m := &dto.Metric{}
-	i := 0
-	tick := time.NewTicker(time.Millisecond)
-	for range tick.C {
-		i++
+	for i := 1; i <= 1000; i++ {
+		now = now.Add(time.Millisecond)
 		sum.Observe(float64(i))
 		if i%10 == 0 {
 			sum.Write(m)
-			if got, want := *m.Summary.Quantile[0].Value, math.Max(float64(i)/10, float64(i-90)); math.Abs(got-want) > 20 {
+			got := *m.Summary.Quantile[0].Value
+			want := math.Max(float64(i)/10, float64(i-90))
+			if math.Abs(got-want) > 20 {
 				t.Errorf("%d. got %f, want %f", i, got, want)
 			}
 			m.Reset()
 		}
-		if i >= 1000 {
-			break
-		}
 	}
-	tick.Stop()
-	// Wait for MaxAge without observations and make sure quantiles are NaN.
-	time.Sleep(100 * time.Millisecond)
+
+	// Simulate waiting for MaxAge without observations
+	now = now.Add(100 * time.Millisecond)
 	sum.Write(m)
 	if got := *m.Summary.Quantile[0].Value; !math.IsNaN(got) {
 		t.Errorf("got %f, want NaN after expiration", got)
