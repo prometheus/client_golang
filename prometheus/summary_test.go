@@ -371,10 +371,6 @@ func TestSummaryVecConcurrency(t *testing.T) {
 }
 
 func TestSummaryDecay(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping test in short mode.")
-	}
-
 	now := time.Now()
 
 	sum := NewSummary(SummaryOpts{
