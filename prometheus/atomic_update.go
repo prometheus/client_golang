@@ -23,6 +23,8 @@ import (
 // using the provided updateFunc, with an exponential backoff on contention.
 func atomicUpdateFloat(bits *uint64, updateFunc func(float64) float64) {
 	const (
+		// both numbers are derived from empirical observations
+		// documented in this PR: https://github.com/prometheus/client_golang/pull/1661
 		maxBackoff     = 320 * time.Millisecond
 		initialBackoff = 10 * time.Millisecond
 	)
