@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -390,12 +391,8 @@ func TestPush(t *testing.T) {
 	case got := <-nmg.readc:
 		for _, want := range wants {
 			matched, err := regexp.MatchString(want, got)
-			if err != nil {
-				t.Fatalf("error pushing: %v", err)
-			}
-			if !matched {
-				t.Fatalf("missing metric:\nno match for %s received by server:\n%s", want, got)
-			}
+			require.NoErrorf(t, err, "error pushing: %v", err)
+			require.Truef(t, matched, "missing metric:\nno match for %s received by server:\n%s", want, got)
 		}
 		return
 	case err := <-nmg.errc:

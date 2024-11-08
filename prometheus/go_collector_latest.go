@@ -24,10 +24,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 const (

@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDelete(t *testing.T) {
@@ -307,9 +308,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 			copy(pair[:], metric.values)
 
 			var metricOut dto.Metric
-			if err := metric.metric.Write(&metricOut); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, metric.metric.Write(&metricOut))
 			actual := *metricOut.Gauge.Value
 
 			var actualPair [2]string
@@ -320,25 +319,17 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 			// Test output pair against metric.values to ensure we've selected
 			// the right one. We check this to ensure the below check means
 			// anything at all.
-			if actualPair != pair {
-				t.Fatalf("unexpected pair association in metric map: %v != %v", actualPair, pair)
-			}
+			require.Equalf(t, actualPair, pair, "unexpected pair association in metric map: %v != %v", actualPair, pair)
 
-			if actual != float64(expected[pair]) {
-				t.Fatalf("incorrect counter value for %v: %v != %v", pair, actual, expected[pair])
-			}
+			require.False(t, actual != float64(expected[pair]), "incorrect counter value for %v: %v != %v", pair, actual, expected[pair])
 		}
 	}
 
-	if total != len(expected) {
-		t.Fatalf("unexpected number of metrics: %v != %v", total, len(expected))
-	}
+	require.Lenf(t, expected, total, "unexpected number of metrics: %v != %v", total, len(expected))
 
 	vec.Reset()
 
-	if len(vec.metricMap.metrics) > 0 {
-		t.Fatalf("reset failed")
-	}
+	require.Emptyf(t, vec.metricMap.metrics, "reset failed")
 }
 
 func TestMetricVecWithConstraints(t *testing.T) {
@@ -379,9 +370,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 			copy(pair[:], metric.values)
 
 			var metricOut dto.Metric
-			if err := metric.metric.Write(&metricOut); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, metric.metric.Write(&metricOut))
 			actual := *metricOut.Gauge.Value
 
 			var actualPair [2]string
@@ -392,25 +381,17 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 			// Test output pair against metric.values to ensure we've selected
 			// the right one. We check this to ensure the below check means
 			// anything at all.
-			if actualPair != pair {
-				t.Fatalf("unexpected pair association in metric map: %v != %v", actualPair, pair)
-			}
+			require.Equalf(t, actualPair, pair, "unexpected pair association in metric map: %v != %v", actualPair, pair)
 
-			if actual != float64(expected[pair]) {
-				t.Fatalf("incorrect counter value for %v: %v != %v", pair, actual, expected[pair])
-			}
+			require.False(t, actual != float64(expected[pair]), "incorrect counter value for %v: %v != %v", pair, actual, expected[pair])
 		}
 	}
 
-	if total != len(expected) {
-		t.Fatalf("unexpected number of metrics: %v != %v", total, len(expected))
-	}
+	require.Lenf(t, expected, total, "unexpected number of metrics: %v != %v", total, len(expected))
 
 	vec.Reset()
 
-	if len(vec.metricMap.metrics) > 0 {
-		t.Fatalf("reset failed")
-	}
+	require.Emptyf(t, vec.metricMap.metrics, "reset failed")
 }
 
 func TestCounterVecEndToEndWithCollision(t *testing.T) {
@@ -425,9 +406,7 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 	vec.WithLabelValues("!0IC=VloaY").Add(2)
 
 	m := &dto.Metric{}
-	if err := vec.WithLabelValues("77kepQFQ8Kl").Write(m); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, vec.WithLabelValues("77kepQFQ8Kl").Write(m))
 	if got, want := m.GetLabel()[0].GetValue(), "77kepQFQ8Kl"; got != want {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
@@ -435,9 +414,7 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 		t.Errorf("got value %f, want %f", got, want)
 	}
 	m.Reset()
-	if err := vec.WithLabelValues("!0IC=VloaY").Write(m); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, vec.WithLabelValues("!0IC=VloaY").Write(m))
 	if got, want := m.GetLabel()[0].GetValue(), "!0IC=VloaY"; got != want {
 		t.Errorf("got label value %q, want %q", got, want)
 	}
@@ -514,18 +491,14 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 		}
 		m := &dto.Metric{}
 		c1, err := vec.GetMetricWithLabelValues("1", "2", "3")
-		if err != nil {
-			t.Fatal("unexpected error getting metric:", err)
-		}
+		require.NoErrorf(t, err, "unexpected error getting metric")
 		c1.Write(m)
 		if want, got := 1., m.GetCounter().GetValue(); want != got {
 			t.Errorf("want %f as counter value, got %f", want, got)
 		}
 		m.Reset()
 		c2, err := vec.GetMetricWithLabelValues("11", "22", "33")
-		if err != nil {
-			t.Fatal("unexpected error getting metric:", err)
-		}
+		require.NoErrorf(t, err, "unexpected error getting metric")
 		c2.Write(m)
 		if want, got := 1., m.GetCounter().GetValue(); want != got {
 			t.Errorf("want %f as counter value, got %f", want, got)
@@ -711,9 +684,7 @@ func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(stri
 		}
 		m := &dto.Metric{}
 		c1, err := vec.GetMetricWithLabelValues("1", "2", "3")
-		if err != nil {
-			t.Fatal("unexpected error getting metric:", err)
-		}
+		require.NoErrorf(t, err, "unexpected error getting metric")
 		c1.Write(m)
 		if want, got := 1., m.GetCounter().GetValue(); want != got {
 			t.Errorf("want %f as counter value, got %f", want, got)
@@ -727,9 +698,7 @@ func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(stri
 		}
 		m.Reset()
 		c2, err := vec.GetMetricWithLabelValues("11", "22", "33")
-		if err != nil {
-			t.Fatal("unexpected error getting metric:", err)
-		}
+		require.NoErrorf(t, err, "unexpected error getting metric")
 		c2.Write(m)
 		if want, got := 1., m.GetCounter().GetValue(); want != got {
 			t.Errorf("want %f as counter value, got %f", want, got)

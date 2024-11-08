@@ -28,7 +28,6 @@ import (
 	"unsafe"
 
 	json "github.com/json-iterator/go"
-
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/api"

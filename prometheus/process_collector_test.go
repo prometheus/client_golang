@@ -26,10 +26,10 @@ import (
 	"strings"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/procfs"
-
-	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessCollector(t *testing.T) {
@@ -38,27 +38,20 @@ func TestProcessCollector(t *testing.T) {
 	}
 
 	registry := NewPedanticRegistry()
-	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{})); err != nil {
-		t.Fatal(err)
-	}
-	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{
+	require.NoError(t, registry.Register(NewProcessCollector(ProcessCollectorOpts{})))
+	require.NoError(t, registry.Register(NewProcessCollector(ProcessCollectorOpts{
 		PidFn:        func() (int, error) { return os.Getpid(), nil },
 		Namespace:    "foobar",
 		ReportErrors: true, // No errors expected, just to see if none are reported.
-	})); err != nil {
-		t.Fatal(err)
-	}
+	})))
 
 	mfs, err := registry.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var buf bytes.Buffer
 	for _, mf := range mfs {
-		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
-			t.Fatal(err)
-		}
+		_, err := expfmt.MetricFamilyToText(&buf, mf)
+		require.NoError(t, err)
 	}
 
 	for _, re := range []*regexp.Regexp{

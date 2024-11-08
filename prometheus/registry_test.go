@@ -32,13 +32,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // uncheckedCollector wraps a Collector but its Describe method yields no Desc.
@@ -94,9 +95,7 @@ func testHandler(t testing.TB) {
 	}
 	externalBuf := &bytes.Buffer{}
 	enc := expfmt.NewEncoder(externalBuf, expfmt.NewFormat(expfmt.TypeProtoDelim))
-	if err := enc.Encode(externalMetricFamily); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, enc.Encode(externalMetricFamily))
 	externalMetricFamilyAsBytes := externalBuf.Bytes()
 	externalMetricFamilyAsText := []byte(`# HELP externalname externaldocstring
 # TYPE externalname counter
@@ -164,9 +163,7 @@ metric: <
 	}
 	buf := &bytes.Buffer{}
 	enc = expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
-	if err := enc.Encode(expectedMetricFamily); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, enc.Encode(expectedMetricFamily))
 	expectedMetricFamilyAsBytes := buf.Bytes()
 	expectedMetricFamilyAsText := []byte(`# HELP name docstring
 # TYPE name counter
@@ -848,14 +845,10 @@ func TestAlreadyRegistered(t *testing.T) {
 
 	for _, s := range scenarios {
 		t.Run(s.name, func(t *testing.T) {
-			var err error
 			reg := prometheus.NewRegistry()
-			if err = s.registerWith(reg).Register(s.originalCollector); err != nil {
-				t.Fatal(err)
-			}
-			if err = s.reRegisterWith(reg).Register(s.newCollector); err == nil {
-				t.Fatal("expected error when registering new collector")
-			}
+			require.NoError(t, s.registerWith(reg).Register(s.originalCollector))
+			err := s.reRegisterWith(reg).Register(s.newCollector)
+			require.Errorf(t, err, "expected error when registering new collector")
 			are := &prometheus.AlreadyRegisteredError{}
 			if errors.As(err, are) {
 				if are.ExistingCollector != s.originalCollector {
@@ -1073,19 +1066,13 @@ test_summary_count{name="foo"} 2
 	counter.With(prometheus.Labels{"name": "qux"}).Inc()
 
 	tmpfile, err := os.CreateTemp("", "prom_registry_test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	if err := prometheus.WriteToTextfile(tmpfile.Name(), registry); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, prometheus.WriteToTextfile(tmpfile.Name(), registry))
 
 	fileBytes, err := os.ReadFile(tmpfile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	fileContents := string(fileBytes)
 
 	if fileContents != expectedOut {
@@ -1170,9 +1157,7 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 		// set of sub-collectors, determined by their names and const label values.
 		if err := reg.Register(&collector); err != nil {
 			are := &prometheus.AlreadyRegisteredError{}
-			if !errors.As(err, are) {
-				t.Fatal(err)
-			}
+			require.ErrorAs(t, err, are)
 
 			previous := are.ExistingCollector.(*collidingCollector)
 			current := are.NewCollector.(*collidingCollector)

@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
 )
@@ -162,13 +163,9 @@ func TestBatchHistogram(t *testing.T) {
 			break
 		}
 	}
-	if mhist == nil {
-		t.Fatal("failed to find metric to test")
-	}
+	require.NotNilf(t, mhist, "failed to find metric to test")
 	hist, ok := mhist.(*batchHistogram)
-	if !ok {
-		t.Fatal("found metric is not a runtime/metrics histogram")
-	}
+	require.Truef(t, ok, "found metric is not a runtime/metrics histogram")
 
 	// Make a bunch of allocations then do another collection.
 	//

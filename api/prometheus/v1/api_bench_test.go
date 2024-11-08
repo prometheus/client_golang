@@ -19,8 +19,8 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
-
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 )
 
 func generateData(timeseries, datapoints int) (floatMatrix, histogramMatrix model.Matrix) {
@@ -111,45 +111,37 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 					floats, histograms := generateData(timeseriesCount, datapointCount)
 
 					floatBytes, err := json.Marshal(floats)
-					if err != nil {
-						b.Fatalf("Error marshaling: %v", err)
-					}
+					require.NoErrorf(b, err, "Error marshaling: %v", err)
 					histogramBytes, err := json.Marshal(histograms)
-					if err != nil {
-						b.Fatalf("Error marshaling: %v", err)
-					}
+					require.NoErrorf(b, err, "Error marshaling: %v", err)
 
 					b.Run("marshal", func(b *testing.B) {
 						b.Run("encoding/json/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := json.Marshal(floats); err != nil {
-									b.Fatal(err)
-								}
+								_, err := json.Marshal(floats)
+								require.NoError(b, err)
 							}
 						})
 						b.Run("jsoniter/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := jsoniter.Marshal(floats); err != nil {
-									b.Fatal(err)
-								}
+								_, err := jsoniter.Marshal(floats)
+								require.NoError(b, err)
 							}
 						})
 						b.Run("encoding/json/histograms", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := json.Marshal(histograms); err != nil {
-									b.Fatal(err)
-								}
+								_, err := json.Marshal(histograms)
+								require.NoError(b, err)
 							}
 						})
 						b.Run("jsoniter/histograms", func(b *testing.B) {
 							b.ReportAllocs()
 							for i := 0; i < b.N; i++ {
-								if _, err := jsoniter.Marshal(histograms); err != nil {
-									b.Fatal(err)
-								}
+								_, err := jsoniter.Marshal(histograms)
+								require.NoError(b, err)
 							}
 						})
 					})
@@ -159,36 +151,28 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := json.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+								require.NoError(b, json.Unmarshal(floatBytes, &m))
 							}
 						})
 						b.Run("jsoniter/floats", func(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := jsoniter.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+								require.NoError(b, jsoniter.Unmarshal(floatBytes, &m))
 							}
 						})
 						b.Run("encoding/json/histograms", func(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := json.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+								require.NoError(b, json.Unmarshal(histogramBytes, &m))
 							}
 						})
 						b.Run("jsoniter/histograms", func(b *testing.B) {
 							b.ReportAllocs()
 							var m model.Matrix
 							for i := 0; i < b.N; i++ {
-								if err := jsoniter.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+								require.NoError(b, jsoniter.Unmarshal(histogramBytes, &m))
 							}
 						})
 					})

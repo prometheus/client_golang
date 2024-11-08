@@ -25,10 +25,9 @@ import (
 	"sort"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-
-	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -268,9 +269,7 @@ func TestCounterExemplar(t *testing.T) {
 	}).(*counter)
 
 	ts := timestamppb.New(now)
-	if err := ts.CheckValid(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ts.CheckValid())
 	expectedExemplar := &dto.Exemplar{
 		Label: []*dto.LabelPair{
 			{Name: proto.String("foo"), Value: proto.String("bar")},
@@ -360,13 +359,10 @@ func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricTyp
 	for val, ct := range ctsPerLabelValue {
 		var metric dto.Metric
 		m, err := vec.GetMetricWithLabelValues(val)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
-		if err := m.Write(&metric); err != nil {
-			t.Fatal(err)
-		}
+		err = m.Write(&metric)
+		require.NoError(t, err)
 
 		var gotTs time.Time
 		switch typ {

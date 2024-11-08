@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -87,9 +88,7 @@ func TestGoCollectorMarshalling(t *testing.T) {
 		}),
 	))
 	result, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	if _, err := json.Marshal(result); err != nil {
 		t.Errorf("json marshalling should not fail, %v", err)
@@ -100,9 +99,7 @@ func TestWithGoCollectorDefault(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewGoCollector())
 	result, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	got := []string{}
 	for _, r := range result {
@@ -122,9 +119,7 @@ func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
 		WithGoCollectorMemStatsMetricsDisabled(),
 	))
 	result, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	got := []string{}
 	for _, r := range result {
@@ -180,10 +175,7 @@ func TestGoCollectorAllowList(t *testing.T) {
 				WithGoCollectorRuntimeMetrics(test.rules...),
 			))
 			result, err := reg.Gather()
-			if err != nil {
-				t.Fatal(err)
-			}
-
+			require.NoError(t, err)
 			got := []string{}
 			for _, r := range result {
 				got = append(got, r.GetName())
@@ -242,9 +234,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 				WithoutGoCollectorRuntimeMetrics(test.matchers...),
 			))
 			result, err := reg.Gather()
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 
 			got := []string{}
 			for _, r := range result {

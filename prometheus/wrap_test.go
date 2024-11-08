@@ -20,6 +20,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -277,9 +278,7 @@ func TestWrap(t *testing.T) {
 		t.Run(n, func(t *testing.T) {
 			reg := NewPedanticRegistry()
 			for _, c := range s.preRegister {
-				if err := reg.Register(c); err != nil {
-					t.Fatal("error registering with unwrapped registry:", err)
-				}
+				require.NoErrorf(t, reg.Register(c), "error registering with unwrapped registry")
 			}
 			preReg := WrapRegistererWithPrefix(s.prefix, reg)
 			lReg := WrapRegistererWith(s.labels, preReg)
@@ -306,9 +305,7 @@ func TestWrap(t *testing.T) {
 			if !s.gatherFails && err != nil {
 				t.Fatal("gathering failed:", err)
 			}
-			if len(wantMF) != len(gotMF) {
-				t.Fatalf("Expected %d metricFamilies, got %d", len(wantMF), len(gotMF))
-			}
+			require.Equalf(t, len(wantMF), len(gotMF), "Expected %d metricFamilies, got %d", len(wantMF), len(gotMF))
 			for i := range gotMF {
 				if !proto.Equal(gotMF[i], wantMF[i]) {
 					var want, got []string
@@ -335,7 +332,5 @@ func TestNil(t *testing.T) {
 	// A wrapped nil registerer should be treated as a no-op, and not panic.
 	c := NewCounter(CounterOpts{Name: "test"})
 	err := WrapRegistererWith(Labels{"foo": "bar"}, nil).Register(c)
-	if err != nil {
-		t.Fatal("registering failed:", err)
-	}
+	require.NoErrorf(t, err, "registering failed")
 }

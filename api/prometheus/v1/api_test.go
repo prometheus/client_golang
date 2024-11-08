@@ -28,8 +28,8 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
-
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/require"
 )
 
 type apiTest struct {
@@ -73,9 +73,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 	}
 
 	b, err := json.Marshal(test.inRes)
-	if err != nil {
-		c.Fatal(err)
-	}
+	require.NoError(c, err)
 
 	resp := &http.Response{}
 	if test.inStatusCode != 0 {
@@ -1222,9 +1220,7 @@ func TestAPIs(t *testing.T) {
 			}
 
 			if test.err != nil {
-				if err == nil {
-					t.Fatalf("expected error %q but got none", test.err)
-				}
+				require.Errorf(t, err, "expected error %q but got none", test.err)
 				if err.Error() != test.err.Error() {
 					t.Errorf("unexpected error: want %s, got %s", test.err, err)
 				}
@@ -1237,9 +1233,7 @@ func TestAPIs(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
+			require.NoErrorf(t, err, "unexpected error: %s", err)
 
 			if !reflect.DeepEqual(res, test.res) {
 				t.Errorf("unexpected result: want %v, got %v", test.res, res)
@@ -1268,12 +1262,8 @@ func (c *testClient) URL(ep string, args map[string]string) *url.URL {
 }
 
 func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
-	if ctx == nil {
-		c.Fatalf("context was not passed down")
-	}
-	if req != c.req {
-		c.Fatalf("request was not passed down")
-	}
+	require.NotNilf(c, ctx, "context was not passed down")
+	require.Samef(c, req, c.req, "request was not passed down")
 
 	test := <-c.ch
 
@@ -1285,9 +1275,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 		b = []byte(v)
 	default:
 		b, err = json.Marshal(v)
-		if err != nil {
-			c.Fatal(err)
-		}
+		require.NoError(c, err)
 	}
 
 	resp := &http.Response{
@@ -1436,30 +1424,20 @@ func TestAPIClientDo(t *testing.T) {
 			_, body, warnings, err := client.Do(context.Background(), tc.req)
 
 			if test.expectedWarnings != nil {
-				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
-					t.Fatalf("mismatch in warnings expected=%v actual=%v", test.expectedWarnings, warnings)
-				}
+				require.Truef(t, reflect.DeepEqual(test.expectedWarnings, warnings), "mismatch in warnings expected=%v actual=%v", test.expectedWarnings, warnings)
 			} else {
-				if warnings != nil {
-					t.Fatalf("unexpected warnings: %v", warnings)
-				}
+				require.Nilf(t, warnings, "unexpected warnings: %v", warnings)
 			}
 
 			if test.expectedErr != nil {
-				if err == nil {
-					t.Fatal("expected error, but got none")
-				}
+				require.Errorf(t, err, "expected error, but got none")
 
-				if test.expectedErr.Error() != err.Error() {
-					t.Fatalf("expected error:%v, but got:%v", test.expectedErr.Error(), err.Error())
-				}
+				require.EqualErrorf(t, err, test.expectedErr.Error(), "expected error:%v, but got:%v", test.expectedErr.Error(), err.Error())
 
 				if test.expectedErr.Detail != "" {
 					apiErr := &Error{}
 					if errors.As(err, &apiErr) {
-						if apiErr.Detail != test.expectedErr.Detail {
-							t.Fatalf("expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
-						}
+						require.Equalf(t, apiErr.Detail, test.expectedErr.Detail, "expected error detail :%v, but got:%v", apiErr.Detail, test.expectedErr.Detail)
 					} else {
 						t.Fatalf("expected v1.Error instance, but got:%T", err)
 					}
@@ -1468,12 +1446,8 @@ func TestAPIClientDo(t *testing.T) {
 				return
 			}
 
-			if err != nil {
-				t.Fatalf("unexpected error:%v", err)
-			}
-			if test.expectedBody != string(body) {
-				t.Fatalf("expected body :%v, but got:%v", test.expectedBody, string(body))
-			}
+			require.NoErrorf(t, err, "unexpected error:%v", err)
+			require.Equalf(t, test.expectedBody, string(body), "expected body :%v, but got:%v", test.expectedBody, string(body))
 		})
 	}
 }
@@ -1548,28 +1522,18 @@ func TestSamplesJSONSerialization(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
 			b, err := json.Marshal(test.point)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(b) != test.expected {
-				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
-			}
+			require.NoError(t, err)
+			require.Equalf(t, test.expected, string(b), "Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 
 			// To test Unmarshal we will Unmarshal then re-Marshal this way we
 			// can do a string compare, otherwise Nan values don't show equivalence
 			// properly.
 			var sp model.SamplePair
-			if err = json.Unmarshal(b, &sp); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(b, &sp))
 
 			b, err = json.Marshal(sp)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(b) != test.expected {
-				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
-			}
+			require.NoError(t, err)
+			require.Equalf(t, test.expected, string(b), "Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 		})
 	}
 }
@@ -1653,28 +1617,18 @@ func TestHistogramJSONSerialization(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			b, err := json.Marshal(test.point)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(b) != test.expected {
-				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
-			}
+			require.NoError(t, err)
+			require.Equalf(t, test.expected, string(b), "Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 
 			// To test Unmarshal we will Unmarshal then re-Marshal. This way we
 			// can do a string compare, otherwise NaN values don't show equivalence
 			// properly.
 			var sp model.SampleHistogramPair
-			if err = json.Unmarshal(b, &sp); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(b, &sp))
 
 			b, err = json.Marshal(sp)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(b) != test.expected {
-				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expected, string(b))
-			}
+			require.NoError(t, err)
+			require.Equalf(t, test.expected, string(b), "Mismatch marshal expected=%s actual=%s", test.expected, string(b))
 		})
 	}
 }
@@ -1711,21 +1665,13 @@ func TestSampleStreamJSONSerialization(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			b, err := json.Marshal(test.stream)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if string(b) != test.expectedJSON {
-				t.Fatalf("Mismatch marshal expected=%s actual=%s", test.expectedJSON, string(b))
-			}
+			require.NoError(t, err)
+			require.Equalf(t, test.expectedJSON, string(b), "Mismatch marshal expected=%s actual=%s", test.expectedJSON, string(b))
 
 			var stream model.SampleStream
-			if err = json.Unmarshal(b, &stream); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, json.Unmarshal(b, &stream))
 
-			if !reflect.DeepEqual(test.stream, stream) {
-				t.Fatalf("Mismatch after unmarshal expected=%#v actual=%#v", test.stream, stream)
-			}
+			require.Truef(t, reflect.DeepEqual(test.stream, stream), "Mismatch after unmarshal expected=%#v actual=%#v", test.stream, stream)
 		})
 	}
 }
@@ -1806,9 +1752,7 @@ func TestDoGetFallback(t *testing.T) {
 	defer server.Close()
 
 	u, err := url.Parse(server.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	client := &httpTestClient{client: *(server.Client())}
 	api := &apiClientImpl{
 		client: client,
@@ -1816,49 +1760,25 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a post, and ensure that the post succeeds.
 	_, b, _, err := api.DoGetFallback(context.TODO(), u, v)
-	if err != nil {
-		t.Fatalf("Error doing local request: %v", err)
-	}
+	require.NoErrorf(t, err, "Error doing local request: %v", err)
 	resp := &testResponse{}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Method != http.MethodPost {
-		t.Fatalf("Mismatch method")
-	}
-	if resp.Values != v.Encode() {
-		t.Fatalf("Mismatch in values")
-	}
+	require.NoError(t, json.Unmarshal(b, resp))
+	require.Equalf(t, http.MethodPost, resp.Method, "Mismatch method")
+	require.Equalf(t, resp.Values, v.Encode(), "Mismatch in values")
 
 	// Do a fallback to a get on 405.
 	u.Path = "/blockPost405"
 	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
-	if err != nil {
-		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Method != http.MethodGet {
-		t.Fatalf("Mismatch method")
-	}
-	if resp.Values != v.Encode() {
-		t.Fatalf("Mismatch in values")
-	}
+	require.NoErrorf(t, err, "Error doing local request: %v", err)
+	require.NoError(t, json.Unmarshal(b, resp))
+	require.Equalf(t, http.MethodGet, resp.Method, "Mismatch method")
+	require.Equalf(t, resp.Values, v.Encode(), "Mismatch in values")
 
 	// Do a fallback to a get on 501.
 	u.Path = "/blockPost501"
 	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
-	if err != nil {
-		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.Method != http.MethodGet {
-		t.Fatalf("Mismatch method")
-	}
-	if resp.Values != v.Encode() {
-		t.Fatalf("Mismatch in values")
-	}
+	require.NoErrorf(t, err, "Error doing local request: %v", err)
+	require.NoError(t, json.Unmarshal(b, resp))
+	require.Equalf(t, http.MethodGet, resp.Method, "Mismatch method")
+	require.Equalf(t, resp.Values, v.Encode(), "Mismatch in values")
 }

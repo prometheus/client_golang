@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
 )
@@ -425,14 +426,11 @@ x_ounces 10
 			l := promlint.New(strings.NewReader(tt.in))
 
 			problems, err := l.Lint()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoErrorf(t, err, "unexpected error: %v", err)
 
-			if want, got := tt.problems, problems; !reflect.DeepEqual(want, got) {
-				t.Fatalf("unexpected problems:\n- want: %v\n-  got: %v",
-					want, got)
-			}
+			want, got := tt.problems, problems
+			require.Truef(t, reflect.DeepEqual(want, got), "unexpected problems:\n- want: %v\n-  got: %v",
+				want, got)
 		})
 	}
 }
@@ -777,14 +775,11 @@ func runTests(t *testing.T, tests []test) {
 			l := promlint.New(strings.NewReader(tt.in))
 
 			problems, err := l.Lint()
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			require.NoErrorf(t, err, "unexpected error: %v", err)
 
-			if want, got := tt.problems, problems; !reflect.DeepEqual(want, got) {
-				t.Fatalf("unexpected problems:\n- want: %v\n-  got: %v",
-					want, got)
-			}
+			want, got := tt.problems, problems
+			require.Truef(t, reflect.DeepEqual(want, got), "unexpected problems:\n- want: %v\n-  got: %v",
+				want, got)
 		})
 	}
 }
@@ -792,14 +787,11 @@ func runTests(t *testing.T, tests []test) {
 func TestCustomValidations(t *testing.T) {
 	lintAndVerify := func(l *promlint.Linter, cv test) {
 		problems, err := l.Lint()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.NoErrorf(t, err, "unexpected error: %v", err)
 
-		if want, got := cv.problems, problems; !reflect.DeepEqual(want, got) {
-			t.Fatalf("unexpected problems:\n- want: %v\n-  got: %v",
-				want, got)
-		}
+		want, got := cv.problems, problems
+		require.Truef(t, reflect.DeepEqual(want, got), "unexpected problems:\n- want: %v\n-  got: %v",
+			want, got)
 	}
 
 	prob := []promlint.Problem{

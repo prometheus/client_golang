@@ -29,10 +29,10 @@ import (
 	"strings"
 	"text/template"
 
+	version "github.com/hashicorp/go-version"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
-
-	version "github.com/hashicorp/go-version"
 )
 
 type metricGroup struct {

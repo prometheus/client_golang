@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
-
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -62,9 +62,7 @@ func TestWithExemplarsMetric(t *testing.T) {
 			{Value: proto.Float64(25.1)},
 		}}
 		metric := dto.Metric{}
-		if err := m.Write(&metric); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, m.Write(&metric))
 		if want, got := 5, len(metric.GetHistogram().Bucket); want != got {
 			t.Errorf("want %v, got %v", want, got)
 		}

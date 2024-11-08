@@ -16,9 +16,8 @@ package prometheus_test
 import (
 	"fmt"
 
-	"google.golang.org/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 )

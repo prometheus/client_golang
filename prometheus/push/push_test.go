@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/stretchr/testify/require"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -42,9 +43,7 @@ func TestPush(t *testing.T) {
 			lastHeader = r.Header
 			var err error
 			lastBody, err = io.ReadAll(r.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			lastPath = r.URL.EscapedPath()
 			w.Header().Set("Content-Type", `text/plain; charset=utf-8`)
 			if r.Method == http.MethodDelete {
@@ -79,17 +78,13 @@ func TestPush(t *testing.T) {
 	reg.MustRegister(metric2)
 
 	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	buf := &bytes.Buffer{}
 	enc := expfmt.NewEncoder(buf, expfmt.NewFormat(expfmt.TypeProtoDelim))
 
 	for _, mf := range mfs {
-		if err := enc.Encode(mf); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, enc.Encode(mf))
 	}
 	wantBody := buf.Bytes()
 

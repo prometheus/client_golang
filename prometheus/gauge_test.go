@@ -22,6 +22,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -91,9 +92,7 @@ func TestGaugeConcurrency(t *testing.T) {
 		return true
 	}
 
-	if err := quick.Check(it, nil); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, quick.Check(it, nil))
 }
 
 func TestGaugeVecConcurrency(t *testing.T) {
@@ -156,9 +155,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 		return true
 	}
 
-	if err := quick.Check(it, nil); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, quick.Check(it, nil))
 }
 
 func TestGaugeFunc(t *testing.T) {

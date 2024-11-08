@@ -21,6 +21,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -451,9 +453,7 @@ func TestInstrumentTimeToFirstWrite(t *testing.T) {
 
 	d.WriteHeader(http.StatusOK)
 
-	if i != http.StatusOK {
-		t.Fatalf("failed to execute observeWriteHeader")
-	}
+	require.Equalf(t, http.StatusOK, i, "failed to execute observeWriteHeader")
 }
 
 // testResponseWriter is an http.ResponseWriter that also implements

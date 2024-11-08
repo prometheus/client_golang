@@ -17,6 +17,8 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -24,21 +26,15 @@ func TestDBStatsCollector(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	{
 		db := new(sql.DB)
-		if err := reg.Register(NewDBStatsCollector(db, "db_A")); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, reg.Register(NewDBStatsCollector(db, "db_A")))
 	}
 	{
 		db := new(sql.DB)
-		if err := reg.Register(NewDBStatsCollector(db, "db_B")); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, reg.Register(NewDBStatsCollector(db, "db_B")))
 	}
 
 	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	names := []string{
 		"go_sql_max_open_connections",

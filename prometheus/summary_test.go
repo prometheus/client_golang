@@ -23,6 +23,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSummaryWithDefaultObjectives(t *testing.T) {
@@ -483,14 +484,10 @@ func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
 	createdTs := time.Unix(1719670764, 123)
 
 	s, err := NewConstSummaryWithCreatedTimestamp(metricDesc, 100, 200, quantiles, createdTs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var metric dto.Metric
-	if err := s.Write(&metric); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, s.Write(&metric))
 
 	if metric.Summary.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
 		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)

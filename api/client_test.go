@@ -21,13 +21,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestConfig(t *testing.T) {
 	c := Config{}
-	if c.roundTripper() != DefaultRoundTripper {
-		t.Fatalf("expected default roundtripper for nil RoundTripper field")
-	}
+	require.Equalf(t, c.roundTripper(), DefaultRoundTripper, "expected default roundtripper for nil RoundTripper field")
 }
 
 func TestClientURL(t *testing.T) {
@@ -99,9 +99,7 @@ func TestClientURL(t *testing.T) {
 
 	for _, test := range tests {
 		ep, err := url.Parse(test.address)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 
 		hclient := &httpClient{
 			endpoint: ep,
@@ -140,22 +138,16 @@ func BenchmarkClient(b *testing.B) {
 			client, err := NewClient(Config{
 				Address: testServer.URL,
 			})
-			if err != nil {
-				b.Fatalf("Failed to initialize client: %v", err)
-			}
+			require.NoErrorf(b, err, "Failed to initialize client: %v", err)
 			url, err := url.Parse(testServer.URL + "/prometheus/api/v1/query?query=up")
-			if err != nil {
-				b.Fatalf("Failed to parse url: %v", err)
-			}
+			require.NoErrorf(b, err, "Failed to parse url: %v", err)
 			req := &http.Request{
 				URL: url,
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _, err := client.Do(ctx, req)
-				if err != nil {
-					b.Fatalf("Query failed: %v", err)
-				}
+				require.NoErrorf(b, err, "Query failed: %v", err)
 			}
 			b.StopTimer()
 		})

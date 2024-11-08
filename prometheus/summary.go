@@ -22,9 +22,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	dto "github.com/prometheus/client_model/go"
-
 	"github.com/beorn7/perks/quantile"
+	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

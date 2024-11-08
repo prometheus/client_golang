@@ -25,11 +25,12 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 func benchmarkHistogramObserve(w int, b *testing.B) {
@@ -392,9 +393,7 @@ func TestHistogramAtomicObserve(t *testing.T) {
 
 	for i := 0; i < 100; i++ {
 		m := &dto.Metric{}
-		if err := his.Write(m); err != nil {
-			t.Fatal("unexpected error writing histogram:", err)
-		}
+		require.NoErrorf(t, his.Write(m), "unexpected error writing histogram")
 		h := m.GetHistogram()
 		if h.GetSampleCount() != uint64(h.GetSampleSum()) ||
 			h.GetSampleCount() != h.GetBucket()[1].GetCumulativeCount() ||
@@ -420,9 +419,7 @@ func TestHistogramExemplar(t *testing.T) {
 	}).(*histogram)
 
 	ts := timestamppb.New(now)
-	if err := ts.CheckValid(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ts.CheckValid())
 	expectedExemplars := []*dto.Exemplar{
 		nil,
 		{
@@ -994,13 +991,9 @@ func TestNativeHistogram(t *testing.T) {
 				}
 			}
 			m := &dto.Metric{}
-			if err := his.Write(m); err != nil {
-				t.Fatal("unexpected error writing metric", err)
-			}
+			require.NoErrorf(t, his.Write(m), "unexpected error writing metric")
 			got := m.Histogram
-			if !proto.Equal(s.want, got) {
-				t.Errorf("want histogram %q, got %q", s.want, got)
-			}
+			require.Truef(t, proto.Equal(s.want, got), "want histogram %q, got %q", s.want, got)
 		})
 	}
 }
@@ -1081,17 +1074,13 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 		current := 0
 		for _, delta := range m.Histogram.GetNegativeDelta() {
 			current += int(delta)
-			if current < 0 {
-				t.Fatalf("negative bucket population negative: %d", current)
-			}
+			require.GreaterOrEqualf(t, current, 0, "negative bucket population negative: %d", current)
 			sumBuckets += current
 		}
 		current = 0
 		for _, delta := range m.Histogram.GetPositiveDelta() {
 			current += int(delta)
-			if current < 0 {
-				t.Fatalf("positive bucket population negative: %d", current)
-			}
+			require.GreaterOrEqualf(t, current, 0, "positive bucket population negative: %d", current)
 			sumBuckets += current
 		}
 		if got, want := sumBuckets, int(*m.Histogram.SampleCount); got != want {
@@ -1208,9 +1197,7 @@ func TestHistogramCreatedTimestamp(t *testing.T) {
 	})
 
 	var metric dto.Metric
-	if err := histogram.Write(&metric); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, histogram.Write(&metric))
 
 	if metric.Histogram.CreatedTimestamp.AsTime().Unix() != now.Unix() {
 		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Histogram.CreatedTimestamp.AsTime().Unix())
@@ -1229,9 +1216,7 @@ func TestHistogramVecCreatedTimestamp(t *testing.T) {
 	histogram := histogramVec.WithLabelValues("value").(Histogram)
 
 	var metric dto.Metric
-	if err := histogram.Write(&metric); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, histogram.Write(&metric))
 
 	if metric.Histogram.CreatedTimestamp.AsTime().Unix() != now.Unix() {
 		t.Errorf("expected created timestamp %d, got %d", now.Unix(), metric.Histogram.CreatedTimestamp.AsTime().Unix())
@@ -1287,14 +1272,10 @@ func TestNewConstHistogramWithCreatedTimestamp(t *testing.T) {
 	createdTs := time.Unix(1719670764, 123)
 
 	h, err := NewConstHistogramWithCreatedTimestamp(metricDesc, 100, 200, buckets, createdTs)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	var metric dto.Metric
-	if err := h.Write(&metric); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, h.Write(&metric))
 
 	if metric.Histogram.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
 		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Histogram.CreatedTimestamp)

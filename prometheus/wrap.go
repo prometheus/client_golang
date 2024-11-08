@@ -17,10 +17,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 // WrapRegistererWith returns a Registerer wrapping the provided

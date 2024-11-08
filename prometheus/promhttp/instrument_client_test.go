@@ -24,11 +24,12 @@ import (
 	"testing"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-
-	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/proto"
 )
 
 func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry) {
@@ -124,12 +125,9 @@ func assetMetricAndExemplars(
 	t.Helper()
 
 	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want, got := expectedNumMetrics, len(mfs); want != got {
-		t.Fatalf("unexpected number of metric families gathered, want %d, got %d", want, got)
-	}
+	require.NoError(t, err)
+	want, got := expectedNumMetrics, len(mfs)
+	require.Equalf(t, want, got, "unexpected number of metric families gathered, want %d, got %d", want, got)
 
 	for _, mf := range mfs {
 		if len(mf.Metric) == 0 {
@@ -190,9 +188,7 @@ func TestClientMiddlewareAPI(t *testing.T) {
 	defer backend.Close()
 
 	resp, err := client.Get(backend.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	assetMetricAndExemplars(t, reg, 3, nil)
@@ -208,9 +204,7 @@ func TestClientMiddlewareAPI_WithExemplars(t *testing.T) {
 	defer backend.Close()
 
 	resp, err := client.Get(backend.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	assetMetricAndExemplars(t, reg, 3, labelsToLabelPair(exemplar))
@@ -224,9 +218,7 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	defer backend.Close()
 
 	req, err := http.NewRequest("GET", backend.URL, nil)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	require.NoError(t, err)
 
 	// Set a context with a long timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -234,18 +226,13 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want, got := 3, len(mfs); want != got {
-		t.Fatalf("unexpected number of metric families gathered, want %d, got %d", want, got)
-	}
+	require.NoError(t, err)
+	want, got := 3, len(mfs)
+	require.Equalf(t, want, got, "unexpected number of metric families gathered, want %d, got %d", want, got)
 	for _, mf := range mfs {
 		if len(mf.Metric) == 0 {
 			t.Errorf("metric family %s must not be empty", mf.GetName())
@@ -259,11 +246,9 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 		client_api_requests_total{code="200",method="get"} 1
 	`
 
-	if err := testutil.GatherAndCompare(reg, strings.NewReader(expected),
+	require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(expected),
 		"client_api_requests_total",
-	); err != nil {
-		t.Fatal(err)
-	}
+	))
 }
 
 func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
@@ -277,9 +262,7 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	defer backend.Close()
 
 	req, err := http.NewRequest("GET", backend.URL, nil)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
+	require.NoErrorf(t, err, "%v", err)
 
 	// Set a context with a short timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
@@ -287,13 +270,9 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	req = req.WithContext(ctx)
 
 	_, err = client.Do(req)
-	if err == nil {
-		t.Fatal("did not get timeout error")
-	}
+	require.Errorf(t, err, "did not get timeout error")
 	expectedMsg := "context deadline exceeded"
-	if !strings.Contains(err.Error(), expectedMsg) {
-		t.Fatalf("unexpected error: %q, expect error: %q", err.Error(), expectedMsg)
-	}
+	require.ErrorContainsf(t, err, expectedMsg, "unexpected error: %q, expect error: %q", err.Error(), expectedMsg)
 }
 
 func ExampleInstrumentRoundTripperDuration() {

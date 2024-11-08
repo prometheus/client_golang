@@ -20,11 +20,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 // ValueType is an enumeration of metric types that represent a simple value.

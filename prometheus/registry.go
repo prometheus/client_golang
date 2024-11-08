@@ -26,12 +26,12 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
-
 	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 const (

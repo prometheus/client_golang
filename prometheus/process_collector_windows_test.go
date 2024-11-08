@@ -20,31 +20,27 @@ import (
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWindowsProcessCollector(t *testing.T) {
 	registry := NewRegistry()
-	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{})); err != nil {
-		t.Fatal(err)
-	}
-	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{
+	err := registry.Register(NewProcessCollector(ProcessCollectorOpts{}))
+	require.False(t, err != nil)
+	err = registry.Register(NewProcessCollector(ProcessCollectorOpts{
 		PidFn:        func() (int, error) { return os.Getpid(), nil },
 		Namespace:    "foobar",
 		ReportErrors: true, // No errors expected, just to see if none are reported.
-	})); err != nil {
-		t.Fatal(err)
-	}
+	}))
+	require.False(t, err != nil)
 
 	mfs, err := registry.Gather()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.False(t, err != nil)
 
 	var buf bytes.Buffer
 	for _, mf := range mfs {
-		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
-			t.Fatal(err)
-		}
+		_, err := expfmt.MetricFamilyToText(&buf, mf)
+		require.False(t, err != nil)
 	}
 
 	for _, re := range []*regexp.Regexp{
