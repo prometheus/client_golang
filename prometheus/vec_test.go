@@ -16,6 +16,7 @@ package prometheus
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -291,7 +292,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 	expected := map[[2]string]int{}
 
 	for i := 0; i < 1000; i++ {
-		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // Varying combinations multiples.
+		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[pair]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
@@ -363,7 +364,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	expected := map[[2]string]int{}
 
 	for i := 0; i < 1000; i++ {
-		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // Varying combinations multiples.
+		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[[2]string{pair[0], constrain(pair[1])}]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 

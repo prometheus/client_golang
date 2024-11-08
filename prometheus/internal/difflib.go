@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -524,7 +525,7 @@ func formatRangeUnified(start, stop int) string {
 	beginning := start + 1 // lines start numbering with one
 	length := stop - start
 	if length == 1 {
-		return fmt.Sprintf("%d", beginning)
+		return strconv.Itoa(beginning)
 	}
 	if length == 0 {
 		beginning-- // empty ranges begin at line just before the range
