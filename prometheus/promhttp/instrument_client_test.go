@@ -223,7 +223,7 @@ func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	req, err := http.NewRequest("GET", backend.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, backend.URL, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -276,7 +276,7 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	req, err := http.NewRequest("GET", backend.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, backend.URL, nil)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}

@@ -714,7 +714,7 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 		}
 		writer := httptest.NewRecorder()
 		handler := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{})
-		request, _ := http.NewRequest("GET", "/", nil)
+		request, _ := http.NewRequest(http.MethodGet, "/", nil)
 		for key, value := range scenario.headers {
 			request.Header.Add(key, value)
 		}
