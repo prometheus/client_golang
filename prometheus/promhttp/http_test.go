@@ -98,7 +98,7 @@ func readCompressedBody(r io.Reader, comp Compression) (string, error) {
 		got, err := io.ReadAll(reader)
 		return string(got), err
 	}
-	return "", fmt.Errorf("Unsupported compression")
+	return "", errors.New("Unsupported compression")
 }
 
 func TestHandlerErrorHandling(t *testing.T) {

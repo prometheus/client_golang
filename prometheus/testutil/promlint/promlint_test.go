@@ -14,6 +14,7 @@
 package promlint_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -733,7 +734,7 @@ request_duration_seconds{httpService="foo"} 10
 func TestLintUnitAbbreviations(t *testing.T) {
 	genTest := func(n string) test {
 		return test{
-			name: fmt.Sprintf("%s with abbreviated unit", n),
+			name: n + " with abbreviated unit",
 			in: fmt.Sprintf(`
 # HELP %s Test metric.
 # TYPE %s gauge
@@ -820,7 +821,7 @@ mc_something_total 10
 
 	prefixValidation := func(mf *dto.MetricFamily) []error {
 		if !strings.HasPrefix(mf.GetName(), "memcached_") {
-			return []error{fmt.Errorf("expected metric name to start with 'memcached_'")}
+			return []error{errors.New("expected metric name to start with 'memcached_'")}
 		}
 		return nil
 	}

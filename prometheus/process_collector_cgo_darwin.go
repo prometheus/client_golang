@@ -22,9 +22,7 @@ import "C"
 import "fmt"
 
 func getMemory() (*memoryInfo, error) {
-	var (
-		rss, vsize C.ulonglong
-	)
+	var rss, vsize C.ulonglong
 
 	if err := C.get_memory_info(&rss, &vsize); err != 0 {
 		return nil, fmt.Errorf("task_info() failed with 0x%x", int(err))
