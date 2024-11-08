@@ -858,15 +858,35 @@ func (h *histogram) Write(out *dto.Metric) error {
 // findBucket returns the index of the bucket for the provided value, or
 // len(h.upperBounds) for the +Inf bucket.
 func (h *histogram) findBucket(v float64) int {
-	// TODO(beorn7): For small numbers of buckets (<30), a linear search is
-	// slightly faster than the binary search. If we really care, we could
-	// switch from one search strategy to the other depending on the number
-	// of buckets.
-	//
-	// Microbenchmarks (BenchmarkHistogramNoLabels):
-	// 11 buckets: 38.3 ns/op linear - binary 48.7 ns/op
-	// 100 buckets: 78.1 ns/op linear - binary 54.9 ns/op
-	// 300 buckets: 154 ns/op linear - binary 61.6 ns/op
+	n := len(h.upperBounds)
+	if n == 0 {
+		return 0
+	}
+
+	// Early exit: if v is less than or equal to the first upper bound, return 0
+	if v <= h.upperBounds[0] {
+		return 0
+	}
+
+	// Early exit: if v is greater than the last upper bound, return len(h.upperBounds)
+	if v > h.upperBounds[n-1] {
+		return n
+	}
+
+	// For small arrays, use simple linear search
+	// "magic number" 35 is result of tests on couple different (AWS and baremetal) servers
+	// see more details here: https://github.com/prometheus/client_golang/pull/1662
+	if n < 35 {
+		for i, bound := range h.upperBounds {
+			if v <= bound {
+				return i
+			}
+		}
+		// If v is greater than all upper bounds, return len(h.upperBounds)
+		return n
+	}
+
+	// For larger arrays, use stdlib's binary search
 	return sort.SearchFloat64s(h.upperBounds, v)
 }
 

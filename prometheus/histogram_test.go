@@ -1455,3 +1455,91 @@ func compareNativeExemplarValues(t *testing.T, exps []*dto.Exemplar, values []fl
 		}
 	}
 }
+
+var resultFindBucket int
+
+func benchmarkFindBucket(b *testing.B, l int) {
+	h := &histogram{upperBounds: make([]float64, l)}
+	for i := range h.upperBounds {
+		h.upperBounds[i] = float64(i)
+	}
+	v := float64(l / 2)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resultFindBucket = h.findBucket(v)
+	}
+}
+
+func BenchmarkFindBucketShort(b *testing.B) {
+	benchmarkFindBucket(b, 20)
+}
+
+func BenchmarkFindBucketMid(b *testing.B) {
+	benchmarkFindBucket(b, 40)
+}
+
+func BenchmarkFindBucketLarge(b *testing.B) {
+	benchmarkFindBucket(b, 100)
+}
+
+func BenchmarkFindBucketHuge(b *testing.B) {
+	benchmarkFindBucket(b, 500)
+}
+
+func BenchmarkFindBucketInf(b *testing.B) {
+	h := &histogram{upperBounds: make([]float64, 500)}
+	for i := range h.upperBounds {
+		h.upperBounds[i] = float64(i)
+	}
+	v := 1000.5
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resultFindBucket = h.findBucket(v)
+	}
+}
+
+func BenchmarkFindBucketLow(b *testing.B) {
+	h := &histogram{upperBounds: make([]float64, 500)}
+	for i := range h.upperBounds {
+		h.upperBounds[i] = float64(i)
+	}
+	v := -1.1
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		resultFindBucket = h.findBucket(v)
+	}
+}
+
+func TestFindBucket(t *testing.T) {
+	smallHistogram := &histogram{upperBounds: []float64{1, 2, 3, 4, 5}}
+	largeHistogram := &histogram{upperBounds: make([]float64, 50)}
+	for i := range largeHistogram.upperBounds {
+		largeHistogram.upperBounds[i] = float64(i)
+	}
+
+	tests := []struct {
+		h        *histogram
+		v        float64
+		expected int
+	}{
+		{smallHistogram, -1, 0},
+		{smallHistogram, 0.5, 0},
+		{smallHistogram, 2.5, 2},
+		{smallHistogram, 5.5, 5},
+		{largeHistogram, -1, 0},
+		{largeHistogram, 25.5, 26},
+		{largeHistogram, 49.5, 50},
+		{largeHistogram, 50.5, 50},
+		{largeHistogram, 5000.5, 50},
+	}
+
+	for _, tt := range tests {
+		result := tt.h.findBucket(tt.v)
+		if result != tt.expected {
+			t.Errorf("findBucket(%v) = %d; expected %d", tt.v, result, tt.expected)
+		}
+	}
+}
