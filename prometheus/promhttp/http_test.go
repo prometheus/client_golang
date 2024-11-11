@@ -131,7 +131,7 @@ func TestHandlerErrorHandling(t *testing.T) {
 	logger := log.New(logBuf, "", 0)
 
 	writer := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
 	mReg := &mockTransactionGatherer{g: reg}
@@ -252,7 +252,7 @@ func TestInstrumentMetricHandler(t *testing.T) {
 	// Do it again to test idempotency.
 	InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{}))
 	writer := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, acceptTextPlain)
 
 	handler.ServeHTTP(writer, request)
@@ -311,7 +311,7 @@ func TestHandlerMaxRequestsInFlight(t *testing.T) {
 	w1 := httptest.NewRecorder()
 	w2 := httptest.NewRecorder()
 	w3 := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, acceptTextPlain)
 
 	c := blockingCollector{Block: make(chan struct{}), CollectStarted: make(chan struct{}, 1)}
@@ -348,7 +348,7 @@ func TestHandlerTimeout(t *testing.T) {
 	handler := HandlerFor(reg, HandlerOpts{Timeout: time.Millisecond})
 	w := httptest.NewRecorder()
 
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add("Accept", "test/plain")
 
 	c := blockingCollector{Block: make(chan struct{}), CollectStarted: make(chan struct{}, 1)}
@@ -372,7 +372,7 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 	handler := InstrumentMetricHandler(reg, HandlerForTransactional(mReg, HandlerOpts{DisableCompression: false}))
 	compression := Zstd
 	writer := httptest.NewRecorder()
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, acceptTextPlain)
 	request.Header.Add(acceptEncodingHeader, string(compression))
 
@@ -533,7 +533,7 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		request, _ := http.NewRequest("GET", "/", nil)
+		request, _ := http.NewRequest(http.MethodGet, "/", nil)
 		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
 		rr := httptest.NewRecorder()
 		_, encodingHeader, _, err := negotiateEncodingWriter(request, rr, test.offeredCompressions)
@@ -631,7 +631,7 @@ func BenchmarkCompression(b *testing.B) {
 			b.Run(benchmark.name+"_"+size.name, func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					writer := httptest.NewRecorder()
-					request, _ := http.NewRequest("GET", "/", nil)
+					request, _ := http.NewRequest(http.MethodGet, "/", nil)
 					request.Header.Add(acceptEncodingHeader, benchmark.compressionType)
 					handler.ServeHTTP(writer, request)
 				}
