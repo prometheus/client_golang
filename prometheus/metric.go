@@ -187,6 +187,12 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
 	case pb.Histogram != nil:
 		for _, e := range m.exemplars {
+			if pb.Histogram.Schema != nil {
+				if *pb.Histogram.Schema > math.MinInt32 && e.GetTimestamp() != nil {
+					pb.Histogram.Exemplars = append(pb.Histogram.Exemplars, e)
+				}
+				continue
+			}
 			// pb.Histogram.Bucket are sorted by UpperBound.
 			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
 				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
