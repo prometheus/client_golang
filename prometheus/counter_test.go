@@ -14,7 +14,6 @@
 package prometheus
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -120,10 +119,10 @@ func TestCounterVecGetMetricWithInvalidLabelValues(t *testing.T) {
 
 		expectPanic(t, func() {
 			counterVec.WithLabelValues(labelValues...)
-		}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
+		}, "WithLabelValues: expected panic because: "+test.desc)
 		expectPanic(t, func() {
 			counterVec.With(test.labels)
-		}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
+		}, "WithLabelValues: expected panic because: "+test.desc)
 
 		if _, err := counterVec.GetMetricWithLabelValues(labelValues...); err == nil {
 			t.Errorf("GetMetricWithLabelValues: expected error because: %s", test.desc)
