@@ -382,6 +382,7 @@ func TestHistogramAtomicObserve(t *testing.T) {
 				return
 			default:
 				his.Observe(1)
+				time.Sleep(time.Nanosecond)
 			}
 		}
 	}
