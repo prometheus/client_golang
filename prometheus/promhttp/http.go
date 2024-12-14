@@ -418,7 +418,7 @@ type HandlerOpts struct {
 	// Created Timestamps for counters, histograms and summaries, which for the current
 	// version of OpenMetrics are defined as extra series with the same name and "_created"
 	// suffix. See also the OpenMetrics specification for more details
-	// https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#counter-1
+	// https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#counter-1
 	//
 	// Created timestamps are used to improve the accuracy of reset detection,
 	// but the way it's designed in OpenMetrics 1.0 it also dramatically increases cardinality
