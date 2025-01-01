@@ -1079,6 +1079,7 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 type apiOptions struct {
 	timeout time.Duration
 	limit   uint64
+	nocache bool
 }
 
 type Option func(c *apiOptions)
@@ -1099,6 +1100,13 @@ func WithLimit(limit uint64) Option {
 	}
 }
 
+// WithNoCache can be used to provide an optional nocache parameter for Query and QueryRange.
+func WithNoCache() Option {
+	return func(o *apiOptions) {
+		o.nocache = true
+	}
+}
+
 func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	opt := &apiOptions{}
 	for _, o := range opts {
@@ -1111,6 +1119,10 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 
 	if opt.limit > 0 {
 		q.Set("limit", strconv.FormatUint(opt.limit, 10))
+	}
+
+	if opt.nocache {
+		q.Set("nocache", "1")
 	}
 
 	return q
