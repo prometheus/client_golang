@@ -25,7 +25,7 @@ import (
 
 // notImplementedErr is returned by stub functions that replace cgo functions, when cgo
 // isn't available.
-var notImplementedErr = fmt.Errorf("not implemented")
+var notImplementedErr = errors.New("not implemented")
 
 type memoryInfo struct {
 	vsize uint64 // Virtual memory size in bytes
