@@ -233,6 +233,7 @@ type Exemplar struct {
 // Only last applicable exemplar is injected from the list.
 // For example for Counter it means last exemplar is injected.
 // For Histogram, it means last applicable exemplar for each bucket is injected.
+// Note that for a nativeHistogram, all valid exemplars are injected.
 //
 // NewMetricWithExemplars works best with MustNewConstMetric and
 // MustNewConstHistogram, see example.
