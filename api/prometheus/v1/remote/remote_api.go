@@ -51,6 +51,7 @@ type apiOpts struct {
 	logger           *slog.Logger
 	backoff          backoff.Config
 	compression      Compression
+	endpoint         string
 	retryOnRateLimit bool
 }
 
@@ -70,6 +71,22 @@ var defaultAPIOpts = &apiOpts{
 func WithAPILogger(logger *slog.Logger) APIOption {
 	return func(o *apiOpts) error {
 		o.logger = logger
+		return nil
+	}
+}
+
+// WithAPIEndpoint returns APIOption that allows providing endpoint.
+func WithAPIEndpoint(endpoint string) APIOption {
+	return func(o *apiOpts) error {
+		o.endpoint = endpoint
+		return nil
+	}
+}
+
+// WithAPIRetryOnRateLimit returns APIOption that allows providing retry on rate limit.
+func WithAPIRetryOnRateLimit(retry bool) APIOption {
+	return func(o *apiOpts) error {
+		o.retryOnRateLimit = retry
 		return nil
 	}
 }
@@ -214,7 +231,7 @@ func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []
 }
 
 func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WriteProtoFullName, payload []byte, attempt int) (WriteResponseStats, error) {
-	u := r.client.URL("api/v1/write", nil)
+	u := r.client.URL(r.opts.endpoint, nil)
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
@@ -241,9 +258,12 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WritePr
 		return WriteResponseStats{}, retryableError{err, 0}
 	}
 
-	rs, err := parseWriteResponseStats(resp)
-	if err != nil {
-		r.opts.logger.Warn("parsing rw write statistics failed; partial or no stats", "err", err)
+	rs := WriteResponseStats{}
+	if proto == WriteProtoFullNameV2 {
+		rs, err = parseWriteResponseStats(resp)
+		if err != nil {
+			r.opts.logger.Warn("parsing rw write statistics failed; partial or no stats", "err", err)
+		}
 	}
 
 	if resp.StatusCode/100 == 2 {
@@ -279,18 +299,32 @@ type writeStorage interface {
 	Store(ctx context.Context, proto WriteProtoFullName, serializedRequest []byte) (_ WriteResponseStats, code int, _ error)
 }
 
+// remoteWriteDecompressor is an interface that allows decompressing the body of the request.
+type remoteWriteDecompressor interface {
+	Decompress(ctx context.Context, body io.ReadCloser) (decompressed []byte, _ error)
+}
+
 type handler struct {
-	logger *slog.Logger
-	store  writeStorage
+	logger       *slog.Logger
+	store        writeStorage
+	decompressor remoteWriteDecompressor
 }
 
 // NewRemoteWriteHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
-func NewRemoteWriteHandler(logger *slog.Logger, store writeStorage) http.Handler {
-	return &handler{logger: logger, store: store}
+func NewRemoteWriteHandler(logger *slog.Logger, store writeStorage, decompressor remoteWriteDecompressor) http.Handler {
+	return &handler{logger: logger, store: store, decompressor: decompressor}
 }
 
-func parseProtoMsg(contentType string) (WriteProtoFullName, error) {
+// ParseProtoMsg parses the content-type header and returns the proto message type.
+//
+// The expected content-type will be of the form,
+//   - `application/x-protobuf;proto=io.prometheus.write.v2.Request` which will be treated as RW2.0 request,
+//   - `application/x-protobuf;proto=prometheus.WriteRequest` which will be treated as RW1.0 request,
+//   - `application/x-protobuf` which will be treated as RW1.0 request.
+//
+// If the content-type is not of the above forms, it will return an error.
+func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
 	contentType = strings.TrimSpace(contentType)
 
 	parts := strings.Split(contentType, ";")
@@ -323,7 +357,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentType = appProtoContentType
 	}
 
-	msgType, err := parseProtoMsg(contentType)
+	msgType, err := ParseProtoMsg(contentType)
 	if err != nil {
 		h.logger.Error("Error decoding remote write request", "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
@@ -341,17 +375,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 	}
 
-	// Read the request body.
-	body, err := io.ReadAll(r.Body)
+	// Decompress the request body.
+	decompressed, err := h.decompressor.Decompress(r.Context(), r.Body)
 	if err != nil {
-		h.logger.Error("Error decoding remote write request", "err", err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	decompressed, err := snappy.Decode(nil, body)
-	if err != nil {
-		// TODO(bwplotka): Add more context to responded error?
 		h.logger.Error("Error decompressing remote write request", "err", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -367,10 +393,31 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code = http.StatusInternalServerError
 		}
 		if code/5 == 100 { // 5xx
-			h.logger.Error("Error while remote writing the v2 request", "err", storeErr.Error())
+			h.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
 		}
 		http.Error(w, storeErr.Error(), code)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// SimpleSnappyDecompressor is a simple implementation of the remoteWriteDecompressor interface.
+type SimpleSnappyDecompressor struct{}
+
+func (s *SimpleSnappyDecompressor) Decompress(ctx context.Context, body io.ReadCloser) (decompressed []byte, _ error) {
+	// Read the request body.
+	bodyBytes, err := io.ReadAll(body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading request body: %w", err)
+	}
+
+	decompressed, err = snappy.Decode(nil, bodyBytes)
+	if err != nil {
+		// TODO(bwplotka): Add more context to responded error?
+		return nil, fmt.Errorf("error snappy decoding request body: %w", err)
+	}
+
+	return decompressed, nil
+}
+
+var _ remoteWriteDecompressor = &SimpleSnappyDecompressor{}

@@ -125,7 +125,7 @@ func stats(req *writev2.Request) (s WriteResponseStats) {
 func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	tLogger := slog.Default()
 	mStore := &mockStorage{}
-	srv := httptest.NewServer(NewRemoteWriteHandler(tLogger, mStore))
+	srv := httptest.NewServer(NewRemoteWriteHandler(tLogger, mStore, &SimpleSnappyDecompressor{}))
 	t.Cleanup(srv.Close)
 
 	cl, err := api.NewClient(api.Config{
@@ -135,7 +135,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := NewAPI(cl, WithAPILogger(tLogger))
+	client, err := NewAPI(cl, WithAPILogger(tLogger), WithAPIEndpoint("api/v1/write"))
 	if err != nil {
 		t.Fatal(err)
 	}
