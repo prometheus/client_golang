@@ -19,8 +19,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
@@ -43,7 +41,7 @@ const (
 // WriteProtoFullName represents the fully qualified name of the protobuf message
 // to use in Remote write 1.0 and 2.0 protocols.
 // See https://prometheus.io/docs/specs/remote_write_spec_2_0/#protocol.
-type WriteProtoFullName protoreflect.FullName
+type WriteProtoFullName string
 
 const (
 	// WriteProtoFullNameV1 represents the `prometheus.WriteRequest` protobuf

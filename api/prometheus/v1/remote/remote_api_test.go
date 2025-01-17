@@ -125,7 +125,7 @@ func stats(req *writev2.Request) (s WriteResponseStats) {
 func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	tLogger := slog.Default()
 	mStore := &mockStorage{}
-	srv := httptest.NewServer(NewRemoteWriteHandler(tLogger, mStore))
+	srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
 	t.Cleanup(srv.Close)
 
 	cl, err := api.NewClient(api.Config{
@@ -135,7 +135,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client, err := NewAPI(cl, WithAPILogger(tLogger))
+	client, err := NewAPI(cl, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		t.Fatal("unexpected stats", diff)
 	}
 	if len(mStore.v2Reqs) != 1 {
-		t.Fatal("expected 1 request stored, got", mStore.v2Reqs)
+		t.Fatal("expected 1 v2 request stored, got", mStore.v2Reqs)
 	}
 	if diff := cmp.Diff(req, mStore.v2Reqs[0], protocmp.Transform()); diff != "" {
 		t.Fatal("unexpected request received", diff)
