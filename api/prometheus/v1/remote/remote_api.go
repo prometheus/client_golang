@@ -51,7 +51,7 @@ type apiOpts struct {
 	logger           *slog.Logger
 	backoff          backoff.Config
 	compression      Compression
-	endpoint         string
+	path             string
 	retryOnRateLimit bool
 }
 
@@ -64,6 +64,7 @@ var defaultAPIOpts = &apiOpts{
 	// Hardcoded for now.
 	retryOnRateLimit: true,
 	compression:      SnappyBlockCompression,
+	path:             "api/v1/write",
 }
 
 // WithAPILogger returns APIOption that allows providing slog logger.
@@ -75,18 +76,18 @@ func WithAPILogger(logger *slog.Logger) APIOption {
 	}
 }
 
-// WithAPIEndpoint returns APIOption that allows providing endpoint.
-func WithAPIEndpoint(endpoint string) APIOption {
+// WithAPIPath returns APIOption that allows providing path to send remote write requests to.
+func WithAPIPath(path string) APIOption {
 	return func(o *apiOpts) error {
-		o.endpoint = endpoint
+		o.path = path
 		return nil
 	}
 }
 
-// WithAPIRetryOnRateLimit returns APIOption that allows providing retry on rate limit.
-func WithAPIRetryOnRateLimit(retry bool) APIOption {
+// WithAPIRetryOnRateLimit returns APIOption that disables retrying on rate limit status code.
+func WithAPINoRetryOnRateLimit() APIOption {
 	return func(o *apiOpts) error {
-		o.retryOnRateLimit = retry
+		o.retryOnRateLimit = false
 		return nil
 	}
 }
@@ -134,33 +135,67 @@ type vtProtoEnabled interface {
 	MarshalToSizedBufferVT(dAtA []byte) (int, error)
 }
 
+type gogoProtoEnabled interface {
+	Size() (n int)
+	MarshalToSizedBuffer(dAtA []byte) (n int, err error)
+}
+
+// Sort of a hack to identify v2 requests.
+// Under any marshaling scheme, v2 requests have a `Symbols` field of type []string.
+// So would always have a `GetSymbols()` method which doesn't rely on any other types.
+type v2Request interface {
+	GetSymbols() []string
+}
+
 // Write writes given, non-empty, protobuf message to a remote storage.
-// The https://github.com/planetscale/vtprotobuf methods will be used if your msg
-// supports those (e.g. SizeVT() and MarshalToSizedBufferVT(...)), for efficiency.
-func (r *API) Write(ctx context.Context, msg proto.Message) (_ WriteResponseStats, err error) {
+//
+// Depending on serialization methods,
+//   - https://github.com/planetscale/vtprotobuf methods will be used if your msg
+//     supports those (e.g. SizeVT() and MarshalToSizedBufferVT(...)), for efficiency
+//   - Otherwise https://github.com/gogo/protobuf methods (e.g. Size() and MarshalToSizedBuffer(...))
+//     will be used
+//   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
+//     error out on unknown scheme.
+func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err error) {
 	// Detect content-type.
-	cType := WriteProtoFullName(proto.MessageName(msg))
+	cType := WriteProtoFullNameV1
+	if _, ok := msg.(v2Request); ok {
+		cType = WriteProtoFullNameV2
+	}
+
 	if err := cType.Validate(); err != nil {
 		return WriteResponseStats{}, err
 	}
 
 	// Encode the payload.
-	if emsg, ok := msg.(vtProtoEnabled); ok {
+	switch m := msg.(type) {
+	case vtProtoEnabled:
 		// Use optimized vtprotobuf if supported.
-		size := emsg.SizeVT()
+		size := m.SizeVT()
 		if len(r.reqBuf) < size {
 			r.reqBuf = make([]byte, size)
 		}
-		if _, err := emsg.MarshalToSizedBufferVT(r.reqBuf[:size]); err != nil {
+		if _, err := m.MarshalToSizedBufferVT(r.reqBuf[:size]); err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
-	} else {
+	case gogoProtoEnabled:
+		// Gogo proto if supported.
+		size := m.Size()
+		if len(r.reqBuf) < size {
+			r.reqBuf = make([]byte, size)
+		}
+		if _, err := m.MarshalToSizedBuffer(r.reqBuf[:size]); err != nil {
+			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
+		}
+	case proto.Message:
 		// Generic proto.
 		r.reqBuf = r.reqBuf[:0]
-		r.reqBuf, err = (proto.MarshalOptions{}).MarshalAppend(r.reqBuf, msg)
+		r.reqBuf, err = (proto.MarshalOptions{}).MarshalAppend(r.reqBuf, m)
 		if err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
+	default:
+		return WriteResponseStats{}, fmt.Errorf("unknown message type %T", m)
 	}
 
 	payload, err := compressPayload(&r.comprBuf, r.opts.compression, r.reqBuf)
@@ -231,7 +266,7 @@ func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []
 }
 
 func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WriteProtoFullName, payload []byte, attempt int) (WriteResponseStats, error) {
-	u := r.client.URL(r.opts.endpoint, nil)
+	u := r.client.URL(r.opts.path, nil)
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
@@ -305,15 +340,42 @@ type remoteWriteDecompressor interface {
 }
 
 type handler struct {
+	store writeStorage
+	opts  handlerOpts
+}
+
+type handlerOpts struct {
 	logger       *slog.Logger
-	store        writeStorage
 	decompressor remoteWriteDecompressor
+}
+
+// HandlerOption represents an option for the handler.
+type HandlerOption func(o *handlerOpts)
+
+// WithHandlerLogger returns HandlerOption that allows providing slog logger.
+// By default, nothing is logged.
+func WithHandlerLogger(logger *slog.Logger) HandlerOption {
+	return func(o *handlerOpts) {
+		o.logger = logger
+	}
+}
+
+// WithHandlerDecompressor returns HandlerOption that allows providing remoteWriteDecompressor.
+// By default, SimpleSnappyDecompressor is used.
+func WithHandlerDecompressor(decompressor remoteWriteDecompressor) HandlerOption {
+	return func(o *handlerOpts) {
+		o.decompressor = decompressor
+	}
 }
 
 // NewRemoteWriteHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
-func NewRemoteWriteHandler(logger *slog.Logger, store writeStorage, decompressor remoteWriteDecompressor) http.Handler {
-	return &handler{logger: logger, store: store, decompressor: decompressor}
+func NewRemoteWriteHandler(store writeStorage, opts ...HandlerOption) http.Handler {
+	o := handlerOpts{logger: slog.New(nopSlogHandler{}), decompressor: &SimpleSnappyDecompressor{}}
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return &handler{opts: o, store: store}
 }
 
 // ParseProtoMsg parses the content-type header and returns the proto message type.
@@ -359,7 +421,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	msgType, err := ParseProtoMsg(contentType)
 	if err != nil {
-		h.logger.Error("Error decoding remote write request", "err", err)
+		h.opts.logger.Error("Error decoding remote write request", "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
@@ -371,14 +433,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// We could give http.StatusUnsupportedMediaType, but let's assume snappy by default.
 	} else if enc != string(SnappyBlockCompression) {
 		err := fmt.Errorf("%v encoding (compression) is not accepted by this server; only %v is acceptable", enc, SnappyBlockCompression)
-		h.logger.Error("Error decoding remote write request", "err", err)
+		h.opts.logger.Error("Error decoding remote write request", "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 	}
 
 	// Decompress the request body.
-	decompressed, err := h.decompressor.Decompress(r.Context(), r.Body)
+	decompressed, err := h.opts.decompressor.Decompress(r.Context(), r.Body)
 	if err != nil {
-		h.logger.Error("Error decompressing remote write request", "err", err.Error())
+		h.opts.logger.Error("Error decompressing remote write request", "err", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -393,7 +455,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			code = http.StatusInternalServerError
 		}
 		if code/5 == 100 { // 5xx
-			h.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
+			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
 		}
 		http.Error(w, storeErr.Error(), code)
 		return
