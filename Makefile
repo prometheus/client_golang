@@ -55,8 +55,8 @@ fmt: common-format $(GOIMPORTS)
 proto: ## Regenerate Go from remote write proto.
 proto: $(BUF)
 	@echo ">> regenerating Prometheus Remote Write proto"
-	@cd api/prometheus/v1/remote/genproto && $(BUF) generate
-	@cd api/prometheus/v1/remote && find genproto/ -type f -exec sed -i '' 's/protohelpers "github.com\/planetscale\/vtprotobuf\/protohelpers"/protohelpers "github.com\/prometheus\/client_golang\/internal\/github.com\/planetscale\/vtprotobuf\/protohelpers"/g' {} \;
+	@cd exp/api/remote/genproto && $(BUF) generate
+	@cd exp/api/remote && find genproto/ -type f -exec sed -i '' 's/protohelpers "github.com\/planetscale\/vtprotobuf\/protohelpers"/protohelpers "github.com\/prometheus\/client_golang\/internal\/github.com\/planetscale\/vtprotobuf\/protohelpers"/g' {} \;
 	# For some reasons buf generates this unused import, kill it manually for now and reformat.
-	@cd api/prometheus/v1/remote && find genproto/ -type f -exec sed -i '' 's/_ "github.com\/gogo\/protobuf\/gogoproto"//g' {} \;
-	@cd api/prometheus/v1/remote && go fmt ./genproto/...
+	@cd exp/api/remote && find genproto/ -type f -exec sed -i '' 's/_ "github.com\/gogo\/protobuf\/gogoproto"//g' {} \;
+	@cd exp/api/remote && go fmt ./genproto/...

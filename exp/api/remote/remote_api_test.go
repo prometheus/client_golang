@@ -27,7 +27,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/prometheus/client_golang/api"
-	writev2 "github.com/prometheus/client_golang/api/prometheus/v1/remote/genproto/v2"
+	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
 
 func TestRetryAfterDuration(t *testing.T) {
