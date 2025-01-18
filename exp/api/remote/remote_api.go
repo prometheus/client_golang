@@ -22,6 +22,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -29,7 +31,6 @@ import (
 	"github.com/klauspost/compress/snappy"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/client_golang/api"
 	"github.com/prometheus/client_golang/internal/github.com/efficientgo/core/backoff"
 )
 
@@ -37,8 +38,10 @@ import (
 // NOTE(bwplotka): Only https://prometheus.io/docs/specs/remote_write_spec_2_0/ is currently implemented,
 // read protocols to be implemented if there will be a demand.
 type API struct {
-	client api.Client
-	opts   apiOpts
+	baseURL *url.URL
+	client  *http.Client
+
+	opts apiOpts
 
 	reqBuf, comprBuf []byte
 }
@@ -103,7 +106,12 @@ func (n nopSlogHandler) WithGroup(string) slog.Handler             { return n }
 //
 // It is not safe to use the returned API from multiple goroutines, create a
 // separate *API for each goroutine.
-func NewAPI(c api.Client, opts ...APIOption) (*API, error) {
+func NewAPI(client *http.Client, baseURL string, opts ...APIOption) (*API, error) {
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base URL: %w", err)
+	}
+
 	o := *defaultAPIOpts
 	for _, opt := range opts {
 		if err := opt(&o); err != nil {
@@ -115,9 +123,14 @@ func NewAPI(c api.Client, opts ...APIOption) (*API, error) {
 		o.logger = slog.New(nopSlogHandler{})
 	}
 
+	if client == nil {
+		client = http.DefaultClient
+	}
+
 	return &API{
-		client: c,
-		opts:   o,
+		opts:    o,
+		client:  client,
+		baseURL: parsedURL,
 	}, nil
 }
 
@@ -266,8 +279,8 @@ func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []
 }
 
 func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WriteProtoFullName, payload []byte, attempt int) (WriteResponseStats, error) {
-	u := r.client.URL(r.opts.path, nil)
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(payload))
+	r.baseURL.Path = path.Join(r.baseURL.Path, r.opts.path)
+	req, err := http.NewRequest(http.MethodPost, r.baseURL.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
 		// recoverable.
@@ -287,10 +300,16 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WritePr
 		req.Header.Set("Retry-Attempt", strconv.Itoa(attempt))
 	}
 
-	resp, body, err := r.client.Do(ctx, req)
+	resp, err := r.client.Do(req.WithContext(ctx))
 	if err != nil {
 		// Errors from Client.Do are likely network errors, so recoverable.
 		return WriteResponseStats{}, retryableError{err, 0}
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return WriteResponseStats{}, fmt.Errorf("reading response body: %w", err)
 	}
 
 	rs := WriteResponseStats{}
@@ -334,19 +353,14 @@ type writeStorage interface {
 	Store(ctx context.Context, proto WriteProtoFullName, serializedRequest []byte) (_ WriteResponseStats, code int, _ error)
 }
 
-// remoteWriteDecompressor is an interface that allows decompressing the body of the request.
-type remoteWriteDecompressor interface {
-	Decompress(ctx context.Context, body io.ReadCloser) (decompressed []byte, _ error)
-}
-
 type handler struct {
 	store writeStorage
 	opts  handlerOpts
 }
 
 type handlerOpts struct {
-	logger       *slog.Logger
-	decompressor remoteWriteDecompressor
+	logger      *slog.Logger
+	middlewares []func(http.Handler) http.Handler
 }
 
 // HandlerOption represents an option for the handler.
@@ -360,22 +374,71 @@ func WithHandlerLogger(logger *slog.Logger) HandlerOption {
 	}
 }
 
-// WithHandlerDecompressor returns HandlerOption that allows providing remoteWriteDecompressor.
-// By default, SimpleSnappyDecompressor is used.
-func WithHandlerDecompressor(decompressor remoteWriteDecompressor) HandlerOption {
+// WithHandlerMiddleware returns HandlerOption that allows providing middlewares.
+// Multiple middlewares can be provided and will be applied in the order they are passed.
+// When using this option, SnappyDecompressorMiddleware is not applied by default so
+// it (or any other decompression middleware) needs to be added explicitly.
+func WithHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
 	return func(o *handlerOpts) {
-		o.decompressor = decompressor
+		o.middlewares = middlewares
+	}
+}
+
+// SnappyDecompressorMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
+// If the request body is not snappy-encoded, it returns an error.
+// Used by default in NewRemoteWriteHandler.
+func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			enc := r.Header.Get("Content-Encoding")
+			if enc != "" && enc != string(SnappyBlockCompression) {
+				err := fmt.Errorf("%v encoding (compression) is not accepted by this server; only %v is acceptable", enc, SnappyBlockCompression)
+				logger.Error("Error decoding remote write request", "err", err)
+				http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+				return
+			}
+
+			// Read the request body.
+			bodyBytes, err := io.ReadAll(r.Body)
+			if err != nil {
+				logger.Error("Error reading request body", "err", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			decompressed, err := snappy.Decode(nil, bodyBytes)
+			if err != nil {
+				// TODO(bwplotka): Add more context to responded error?
+				logger.Error("Error snappy decoding remote write request", "err", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			// Replace the body with decompressed data
+			r.Body = io.NopCloser(bytes.NewReader(decompressed))
+			next.ServeHTTP(w, r)
+		})
 	}
 }
 
 // NewRemoteWriteHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
 func NewRemoteWriteHandler(store writeStorage, opts ...HandlerOption) http.Handler {
-	o := handlerOpts{logger: slog.New(nopSlogHandler{}), decompressor: &SimpleSnappyDecompressor{}}
+	o := handlerOpts{
+		logger:      slog.New(nopSlogHandler{}),
+		middlewares: []func(http.Handler) http.Handler{SnappyDecompressorMiddleware(slog.New(nopSlogHandler{}))},
+	}
 	for _, opt := range opts {
 		opt(&o)
 	}
-	return &handler{opts: o, store: store}
+	h := &handler{opts: o, store: store}
+
+	// Apply all middlewares in order
+	var handler http.Handler = h
+	for i := len(o.middlewares) - 1; i >= 0; i-- {
+		handler = o.middlewares[i](handler)
+	}
+	return handler
 }
 
 // ParseProtoMsg parses the content-type header and returns the proto message type.
@@ -414,8 +477,6 @@ func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" {
-		// Don't break yolo 1.0 clients if not needed.
-		// We could give http.StatusUnsupportedMediaType, but let's assume 1.0 message by default.
 		contentType = appProtoContentType
 	}
 
@@ -426,26 +487,15 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	enc := r.Header.Get("Content-Encoding")
-	if enc == "" {
-		// Don't break yolo 1.0 clients if not needed. This is similar to what we did
-		// before 2.0: https://github.com/prometheus/prometheus/blob/d78253319daa62c8f28ed47e40bafcad2dd8b586/storage/remote/write_handler.go#L62
-		// We could give http.StatusUnsupportedMediaType, but let's assume snappy by default.
-	} else if enc != string(SnappyBlockCompression) {
-		err := fmt.Errorf("%v encoding (compression) is not accepted by this server; only %v is acceptable", enc, SnappyBlockCompression)
-		h.opts.logger.Error("Error decoding remote write request", "err", err)
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-	}
-
-	// Decompress the request body.
-	decompressed, err := h.opts.decompressor.Decompress(r.Context(), r.Body)
+	// Read the already decompressed body
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		h.opts.logger.Error("Error decompressing remote write request", "err", err.Error())
+		h.opts.logger.Error("Error reading request body", "err", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	stats, code, storeErr := h.store.Store(r.Context(), msgType, decompressed)
+	stats, code, storeErr := h.store.Store(r.Context(), msgType, body)
 
 	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases.
 	stats.SetHeaders(w)
@@ -462,24 +512,3 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-
-// SimpleSnappyDecompressor is a simple implementation of the remoteWriteDecompressor interface.
-type SimpleSnappyDecompressor struct{}
-
-func (s *SimpleSnappyDecompressor) Decompress(ctx context.Context, body io.ReadCloser) (decompressed []byte, _ error) {
-	// Read the request body.
-	bodyBytes, err := io.ReadAll(body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading request body: %w", err)
-	}
-
-	decompressed, err = snappy.Decode(nil, bodyBytes)
-	if err != nil {
-		// TODO(bwplotka): Add more context to responded error?
-		return nil, fmt.Errorf("error snappy decoding request body: %w", err)
-	}
-
-	return decompressed, nil
-}
-
-var _ remoteWriteDecompressor = &SimpleSnappyDecompressor{}

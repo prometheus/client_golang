@@ -26,7 +26,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
-	"github.com/prometheus/client_golang/api"
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
 
@@ -128,14 +127,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
 	t.Cleanup(srv.Close)
 
-	cl, err := api.NewClient(api.Config{
-		Address:      srv.URL,
-		RoundTripper: srv.Client().Transport,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	client, err := NewAPI(cl, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
+	client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
 	if err != nil {
 		t.Fatal(err)
 	}
