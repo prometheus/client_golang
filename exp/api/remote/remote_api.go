@@ -127,6 +127,8 @@ func NewAPI(client *http.Client, baseURL string, opts ...APIOption) (*API, error
 		client = http.DefaultClient
 	}
 
+	parsedURL.Path = path.Join(parsedURL.Path, o.path)
+
 	return &API{
 		opts:    o,
 		client:  client,
@@ -281,7 +283,6 @@ func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []
 }
 
 func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WriteProtoFullName, payload []byte, attempt int) (WriteResponseStats, error) {
-	r.baseURL.Path = path.Join(r.baseURL.Path, r.opts.path)
 	req, err := http.NewRequest(http.MethodPost, r.baseURL.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
