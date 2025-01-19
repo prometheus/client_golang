@@ -170,6 +170,9 @@ type v2Request interface {
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
 func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err error) {
+	// Reset the buffer.
+	r.reqBuf = r.reqBuf[:0]
+
 	// Detect content-type.
 	cType := WriteProtoFullNameV1
 	if _, ok := msg.(v2Request); ok {
@@ -202,7 +205,6 @@ func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err err
 		}
 	case proto.Message:
 		// Generic proto.
-		r.reqBuf = r.reqBuf[:0]
 		r.reqBuf, err = (proto.MarshalOptions{}).MarshalAppend(r.reqBuf, m)
 		if err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
