@@ -153,7 +153,7 @@ func TestWrap(t *testing.T) {
 			output: []Collector{simpleGge, labeledPreCnt},
 		},
 		"wrap counter with invalid prefix": {
-			prefix:      "1+1",
+			prefix:      "1\x801",
 			preRegister: []Collector{simpleGge},
 			toRegister: []struct {
 				collector         Collector
@@ -163,7 +163,7 @@ func TestWrap(t *testing.T) {
 		},
 		"wrap counter with invalid label": {
 			preRegister: []Collector{simpleGge},
-			labels:      Labels{"42": "bar"},
+			labels:      Labels{"\x80": "bar"},
 			toRegister: []struct {
 				collector         Collector
 				registrationFails bool

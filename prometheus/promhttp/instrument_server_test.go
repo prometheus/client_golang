@@ -66,7 +66,7 @@ func TestLabelCheck(t *testing.T) {
 		},
 		"all labels used with an invalid const label name": {
 			varLabels:     []string{"code", "method"},
-			constLabels:   []string{"in-valid", "bar"},
+			constLabels:   []string{"in\x80valid", "bar"},
 			curriedLabels: []string{"dings", "bums"},
 			dynamicLabels: []string{"dyn", "amics"},
 			ok:            false,
@@ -120,14 +120,14 @@ func TestLabelCheck(t *testing.T) {
 			ok:            false,
 		},
 		"invalid name and otherwise empty": {
-			metricName:    "in-valid",
+			metricName:    "in\x80valid",
 			varLabels:     []string{},
 			constLabels:   []string{},
 			curriedLabels: []string{},
 			ok:            false,
 		},
 		"invalid name with all the otherwise valid labels": {
-			metricName:    "in-valid",
+			metricName:    "in\x80valid",
 			varLabels:     []string{"code", "method"},
 			constLabels:   []string{"foo", "bar"},
 			curriedLabels: []string{"dings", "bums"},
