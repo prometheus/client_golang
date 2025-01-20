@@ -31,7 +31,7 @@ import (
 	"github.com/klauspost/compress/snappy"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/prometheus/client_golang/internal/github.com/efficientgo/core/backoff"
+	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
 // API is a client for Prometheus Remote Protocols.
