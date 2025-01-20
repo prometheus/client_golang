@@ -291,7 +291,7 @@ func TestCounterExemplar(t *testing.T) {
 			}
 		}()
 		// Should panic because of invalid label name.
-		counter.AddWithExemplar(42, Labels{":o)": "smile"})
+		counter.AddWithExemplar(42, Labels{"in\x80valid": "smile"})
 		return nil
 	}
 	if addExemplarWithInvalidLabel() == nil {
