@@ -52,17 +52,22 @@ We use [Semantic Versioning](https://semver.org/).
    git push origin "${tag}"
    ```
 
-6. For Release Candidates:
+6. Create a draft release.
+  - Copy Changelog section.
+  - You can also generate automatic changelog and put the `What's changed` section under `<summary>` HTML tag. This will render all contributors nicely as in the [example](https://github.com/prometheus/client_golang/releases/tag/v1.21.0-rc.0) release.
+
+7a. For Release Candidates:
+   - Release RC GitHub release with "pre-release" box checked
+   - Click "Publish release"!
    - Create PR against [prometheus/prometheus](https://github.com/prometheus/prometheus) using RC version
    - Create PR against [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) using RC version
    - Make sure the CI is green for the PRs
    - Allow 1-2 days for downstream testing
    - Fix any issues found before final release
    - Use `-rc.1`, `-rc.2` etc. for additional fixes
-   - For RCs, ensure "pre-release" box is checked
-
-7. For Final Release:
-   - Wait for CI completion
+  
+7b. For Final Release:
+   - Release GitHub release with "latest" box checked (default).
    - Click "Publish release"!
 
 8. Announce release:
