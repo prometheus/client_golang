@@ -16,7 +16,6 @@ permissions:
   contents: read
 
 jobs:
-
   supportedVersions:
     name: Fetch supported Go versions
     runs-on: ubuntu-latest
@@ -45,17 +44,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Run tests and check license
-        uses: dagger/dagger-for-github@847ae4458ef34fe9b5f566655957bde6d4891112 # v7.0.3
+      - name: Set up Go ${{ matrix.go_version }}
+        uses: actions/setup-go@v5.0.2
         with:
-          version: "latest"
-          verb: call
-          args: -vvv --src . make --go-version ${{matrix.go_version}} --args 'check_license test'
+          go-version: ${{ matrix.go_version }}
+
+      - name: Cache Go modules
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: v1-go${{ matrix.go_version }}
+
+      - name: Run tests and check license
+        run: make check_license test
+        env:
+          CI: true
 
       - name: Run style and unused
-        uses: dagger/dagger-for-github@847ae4458ef34fe9b5f566655957bde6d4891112 # v7.0.3
         if: ${{ matrix.go_version == '1.21' }}
-        with:
-          version: "latest"
-          verb: call
-          args: -vvv --src . make --args 'check_license test'
+        run: make style unused
