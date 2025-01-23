@@ -59,8 +59,8 @@ We use [Semantic Versioning](https://semver.org/).
 7a. For Release Candidates:
    - Release RC GitHub release with "pre-release" box checked
    - Click "Publish release"!
-   - Create PR against [prometheus/prometheus](https://github.com/prometheus/prometheus) using RC version
-   - Create PR against [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) using RC version
+   - Create PR against [prometheus/prometheus](https://github.com/prometheus/prometheus) using RC version (e.g. https://github.com/prometheus/prometheus/pull/15851)
+   - Create PR against [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) using RC version (e.g. https://github.com/kubernetes/kubernetes/pull/129752)
    - Make sure the CI is green for the PRs
    - Allow 1-2 days for downstream testing
    - Fix any issues found before final release
