@@ -95,6 +95,14 @@ func WithAPINoRetryOnRateLimit() APIOption {
 	}
 }
 
+// WithAPIBackoff returns APIOption that allows overriding backoff configuration.
+func WithAPIBackoff(backoff backoff.Config) APIOption {
+	return func(o *apiOpts) error {
+		o.backoff = backoff
+		return nil
+	}
+}
+
 type nopSlogHandler struct{}
 
 func (n nopSlogHandler) Enabled(context.Context, slog.Level) bool  { return false }
@@ -478,6 +486,11 @@ func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
 	contentType := r.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = appProtoContentType
@@ -507,7 +520,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if code == 0 {
 			code = http.StatusInternalServerError
 		}
-		if code/5 == 100 { // 5xx
+		if code/100 == 5 { // 5xx
 			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
 		}
 		http.Error(w, storeErr.Error(), code)

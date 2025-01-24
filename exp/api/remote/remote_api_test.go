@@ -15,9 +15,11 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
+	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
 func TestRetryAfterDuration(t *testing.T) {
@@ -122,28 +125,59 @@ func stats(req *writev2.Request) (s WriteResponseStats) {
 }
 
 func TestRemoteAPI_Write_WithHandler(t *testing.T) {
-	tLogger := slog.Default()
-	mStore := &mockStorage{}
-	srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
-	t.Cleanup(srv.Close)
+	t.Run("success", func(t *testing.T) {
+		tLogger := slog.Default()
+		mStore := &mockStorage{}
+		srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
 
-	client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
-	if err != nil {
-		t.Fatal(err)
-	}
+		client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	req := testV2()
-	s, err := client.Write(context.Background(), req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(stats(req), s); diff != "" {
-		t.Fatal("unexpected stats", diff)
-	}
-	if len(mStore.v2Reqs) != 1 {
-		t.Fatal("expected 1 v2 request stored, got", mStore.v2Reqs)
-	}
-	if diff := cmp.Diff(req, mStore.v2Reqs[0], protocmp.Transform()); diff != "" {
-		t.Fatal("unexpected request received", diff)
-	}
+		req := testV2()
+		s, err := client.Write(context.Background(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if diff := cmp.Diff(stats(req), s); diff != "" {
+			t.Fatal("unexpected stats", diff)
+		}
+		if len(mStore.v2Reqs) != 1 {
+			t.Fatal("expected 1 v2 request stored, got", mStore.v2Reqs)
+		}
+		if diff := cmp.Diff(req, mStore.v2Reqs[0], protocmp.Transform()); diff != "" {
+			t.Fatal("unexpected request received", diff)
+		}
+	})
+
+	t.Run("storage error", func(t *testing.T) {
+		tLogger := slog.Default()
+		mockCode := http.StatusInternalServerError
+		mStore := &mockStorage{
+			mockErr:  errors.New("storage error"),
+			mockCode: &mockCode,
+		}
+		srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"), WithAPIBackoff(backoff.Config{
+			Min:        1 * time.Second,
+			Max:        1 * time.Second,
+			MaxRetries: 2,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), req)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "storage error") {
+			t.Fatalf("expected error to contain 'storage error', got %v", err)
+		}
+	})
 }
