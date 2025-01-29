@@ -16,8 +16,8 @@ package prometheus
 // CollectorFunc is a convenient way to implement a Prometheus Collector
 // without interface boilerplate.
 // This implementation is based on prometheus.DescribeByCollect method.
-// familiarize yourself to it before using
-// checkout https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#DescribeByCollect
+// familiarize yourself to it before using.
+// Checkout https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#DescribeByCollect
 type CollectorFunc func(chan<- Metric)
 
 // Collect calls the defined CollectorFunc function with the provided Metrics channel
