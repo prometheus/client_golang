@@ -123,21 +123,9 @@ type CounterVec[T LabelsProviderMarker] struct {
 	inner *prometheus.CounterVec
 }
 
-// GetMetricWithLabelValues covers prometheus.CounterVec.GetMetricWithLabelValues
-// Deprecated: Use GetMetricWith() instead. We can't provide a []string safe implementation in promsafe
-func (c *CounterVec[T]) GetMetricWithLabelValues(_ ...string) (prometheus.Counter, error) {
-	panic("There can't be a SAFE GetMetricWithLabelValues(). Use GetMetricWith() instead")
-}
-
 // GetMetricWith behaves like prometheus.CounterVec.GetMetricWith but with type-safe labels.
 func (c *CounterVec[T]) GetMetricWith(labels T) (prometheus.Counter, error) {
 	return c.inner.GetMetricWith(extractLabelsWithValues(labels))
-}
-
-// WithLabelValues covers like prometheus.CounterVec.WithLabelValues.
-// Deprecated: Use With() instead. We can't provide a []string safe implementation in promsafe
-func (c *CounterVec[T]) WithLabelValues(_ ...string) prometheus.Counter {
-	panic("There can't be a SAFE WithLabelValues(). Use With() instead")
 }
 
 // With behaves like prometheus.CounterVec.With but with type-safe labels.
