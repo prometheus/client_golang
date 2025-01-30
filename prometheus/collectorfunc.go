@@ -1,4 +1,4 @@
-// Copyright 2014 The Prometheus Authors
+// Copyright 2025 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,9 +15,8 @@ package prometheus
 
 // CollectorFunc is a convenient way to implement a Prometheus Collector
 // without interface boilerplate.
-// This implementation is based on prometheus.DescribeByCollect method.
+// This implementation is based on DescribeByCollect method.
 // familiarize yourself to it before using.
-// Checkout https://pkg.go.dev/github.com/prometheus/client_golang/prometheus#DescribeByCollect
 type CollectorFunc func(chan<- Metric)
 
 // Collect calls the defined CollectorFunc function with the provided Metrics channel

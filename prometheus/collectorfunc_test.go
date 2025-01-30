@@ -68,8 +68,7 @@ func TestCollectorFuncWithRegistry(t *testing.T) {
 		)
 	})
 
-	err := reg.Register(cf)
-	if err != nil {
+	if err := reg.Register(cf); err != nil {
 		t.Errorf("Failed to register CollectorFunc: %v", err)
 	}
 
