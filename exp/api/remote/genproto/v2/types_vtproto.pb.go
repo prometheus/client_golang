@@ -7,10 +7,12 @@ package writev2
 import (
 	binary "encoding/binary"
 	fmt "fmt"
-	protohelpers "github.com/prometheus/client_golang/internal/github.com/planetscale/vtprotobuf/protohelpers"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	math "math"
+
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+
+	protohelpers "github.com/prometheus/client_golang/exp/internal/github.com/planetscale/vtprotobuf/protohelpers"
 )
 
 const (

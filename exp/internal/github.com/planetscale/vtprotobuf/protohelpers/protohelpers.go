@@ -5,6 +5,7 @@
 package protohelpers
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
@@ -12,11 +13,11 @@ import (
 
 var (
 	// ErrInvalidLength is returned when decoding a negative length.
-	ErrInvalidLength = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrInvalidLength = errors.New("proto: negative length found during unmarshaling")
 	// ErrIntOverflow is returned when decoding a varint representation of an integer that overflows 64 bits.
-	ErrIntOverflow = fmt.Errorf("proto: integer overflow")
+	ErrIntOverflow = errors.New("proto: integer overflow")
 	// ErrUnexpectedEndOfGroup is returned when decoding a group end without a corresponding group start.
-	ErrUnexpectedEndOfGroup = fmt.Errorf("proto: unexpected end of group")
+	ErrUnexpectedEndOfGroup = errors.New("proto: unexpected end of group")
 )
 
 // EncodeVarint encodes a uint64 into a varint-encoded byte slice and returns the offset of the encoded value.
