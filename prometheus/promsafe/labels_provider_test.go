@@ -21,11 +21,43 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// CustomType that will be stringified via String() method
+type CustomType int
+
+const (
+	CustomConst0 CustomType = iota
+	CustomConst1
+	CustomConst2
+)
+
+func (ct CustomType) String() string {
+	switch ct {
+	case CustomConst1:
+		return "c1"
+	case CustomConst2:
+		return "c2"
+
+	default:
+		return "c0"
+	}
+}
+
+// CustomTypeInt will remain as simple int
+type CustomTypeInt int
+
+const (
+	CustomConstInt100 CustomTypeInt = 100
+	CustomConstInt200 CustomTypeInt = 200
+)
+
 type TestLabels struct {
 	StructLabelProvider
 	Field1 string
 	Field2 int
 	Field3 bool
+
+	Field4 CustomType
+	Field5 CustomTypeInt
 }
 
 type TestLabelsWithTags struct {
@@ -74,11 +106,15 @@ func Test_extractLabelsWithValues(t *testing.T) {
 				Field1: "value1",
 				Field2: 123,
 				Field3: true,
+				Field4: CustomConst1,
+				Field5: CustomConstInt200,
 			},
 			expected: prometheus.Labels{
 				"field1": "value1",
 				"field2": "123",
 				"field3": "true",
+				"field4": "c1",
+				"field5": "200",
 			},
 		},
 		{

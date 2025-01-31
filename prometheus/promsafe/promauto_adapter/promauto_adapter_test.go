@@ -20,6 +20,26 @@ import (
 	promauto "github.com/prometheus/client_golang/prometheus/promsafe/promauto_adapter"
 )
 
+type EventType int64
+
+const (
+	EventTypeUndefined EventType = iota
+	EventTypeUser
+	EventTypeSystem
+)
+
+// String returns stringified value of EventType enum
+func (et EventType) String() string {
+	switch et {
+	case EventTypeUser:
+		return "user"
+	case EventTypeSystem:
+		return "system"
+	default:
+		return "undefined"
+	}
+}
+
 func ExampleNewCounterVec_promauto_adapted() {
 	// Examples on how to migrate from promauto to promsafe gently
 	//
@@ -45,13 +65,16 @@ func ExampleNewCounterVec_promauto_adapted() {
 
 	type MyLabels struct {
 		promsafe.StructLabelProvider
-		EventType string
+		EventType EventType
 		Source    string
 	}
+	// if declare Mylabels as global type you can add .ToPrometheusLabels() method
+	// that will use fast labels convertion instead of automatic reflect-based
+
 	c := promauto.With[MyLabels](myReg).NewCounterVec(counterOpts)
 
 	c.With(MyLabels{
-		EventType: "reservation", Source: "source1",
+		EventType: EventTypeUser, Source: "source1",
 	}).Inc()
 
 	// Output:
