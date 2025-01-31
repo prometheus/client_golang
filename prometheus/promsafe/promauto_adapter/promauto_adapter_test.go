@@ -69,7 +69,7 @@ func ExampleNewCounterVec_promauto_adapted() {
 		Source    string
 	}
 	// if declare Mylabels as global type you can add .ToPrometheusLabels() method
-	// that will use fast labels convertion instead of automatic reflect-based
+	// that will use fast labels conversion instead of automatic reflect-based
 
 	c := promauto.With[MyLabels](myReg).NewCounterVec(counterOpts)
 

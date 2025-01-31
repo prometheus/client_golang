@@ -196,8 +196,10 @@ func Test_extractLabelNames(t *testing.T) {
 				Field1: "value1",
 				Field2: 123,
 				Field3: true,
+				Field4: CustomConst1,
+				Field5: CustomConstInt100,
 			},
-			expected: []string{"field1", "field2", "field3"},
+			expected: []string{"field1", "field2", "field3", "field4", "field5"},
 		},
 		{
 			name: "Struct with custom tags and exclusions",
