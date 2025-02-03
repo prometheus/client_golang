@@ -18,3 +18,22 @@ package prometheus
 func getMemory() (*memoryInfo, error) {
 	return nil, notImplementedErr
 }
+
+// describe returns all descriptions of the collector for Darwin.
+// Ensure that this list of descriptors is kept in sync with the metrics collected
+// in the processCollect method. Any changes to the metrics in processCollect
+// (such as adding or removing metrics) should be reflected in this list of descriptors.
+func (c *processCollector) describe(ch chan<- *Desc) {
+	ch <- c.cpuTotal
+	ch <- c.openFDs
+	ch <- c.maxFDs
+	ch <- c.maxVsize
+	ch <- c.startTime
+
+	/* the process could be collected but not implemented yet
+	ch <- c.rss
+	ch <- c.vsize
+	ch <- c.inBytes
+	ch <- c.outBytes
+	*/
+}

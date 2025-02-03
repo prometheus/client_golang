@@ -15,11 +15,15 @@
 
 #include <mach/mach_init.h>
 #include <mach/task.h>
-// Compiler warns that shared_memory_server.h is deprecated, use this instead.
-// But this doesn't define SHARED_DATA_REGION_SIZE or SHARED_TEXT_REGION_SIZE.
-//#include <mach/shared_region.h>
-#include <mach/shared_memory_server.h>
 #include <mach/mach_vm.h>
+
+// The compiler warns that mach/shared_memory_server.h is deprecated, and to use
+// mach/shared_region.h instead.  But that doesn't define
+// SHARED_DATA_REGION_SIZE or SHARED_TEXT_REGION_SIZE, so redefine them here and
+// avoid a warning message when running tests.
+#define GLOBAL_SHARED_TEXT_SEGMENT      0x90000000U
+#define SHARED_DATA_REGION_SIZE         0x10000000
+#define SHARED_TEXT_REGION_SIZE         0x10000000
 
 
 int get_memory_info(unsigned long long *rss, unsigned long long *vsize)

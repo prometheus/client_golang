@@ -229,7 +229,7 @@ func TestPush(t *testing.T) {
 		t.Error("push with grouping contained in metrics succeeded")
 	}
 	if err := New(pgwOK.URL, "testjob").
-		Grouping("foo-bar", "bums").
+		Grouping("foo\x80bar", "bums").
 		Collector(metric1).
 		Collector(metric2).
 		Push(); err == nil {

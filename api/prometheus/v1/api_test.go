@@ -16,13 +16,13 @@ package v1
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -260,7 +260,7 @@ func TestAPIs(t *testing.T) {
 		},
 		{
 			do:    doQuery("2", testTime),
-			inErr: fmt.Errorf("some error"),
+			inErr: errors.New("some error"),
 
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query",
@@ -336,7 +336,7 @@ func TestAPIs(t *testing.T) {
 				End:   testTime,
 				Step:  1 * time.Minute,
 			}, WithTimeout(5*time.Second)),
-			inErr: fmt.Errorf("some error"),
+			inErr: errors.New("some error"),
 
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query_range",
@@ -361,14 +361,14 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
 			err:       errors.New("some error"),
 		},
 		{
 			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
-			inErr:      fmt.Errorf("some error"),
+			inErr:      errors.New("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "POST",
 			reqPath:    "/api/v1/labels",
@@ -400,14 +400,14 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
 			err:       errors.New("some error"),
 		},
 		{
 			do:         doLabelValues(nil, "mylabel", testTime.Add(-100*time.Hour), testTime),
-			inErr:      fmt.Errorf("some error"),
+			inErr:      errors.New("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "GET",
 			reqPath:    "/api/v1/label/mylabel/values",
@@ -464,7 +464,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doSeries("up", testTime.Add(-time.Minute), testTime),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/series",
 			err:       errors.New("some error"),
@@ -472,7 +472,7 @@ func TestAPIs(t *testing.T) {
 		// Series with error and warning.
 		{
 			do:         doSeries("up", testTime.Add(-time.Minute), testTime),
-			inErr:      fmt.Errorf("some error"),
+			inErr:      errors.New("some error"),
 			inWarnings: []string{"a"},
 			reqMethod:  "POST",
 			reqPath:    "/api/v1/series",
@@ -493,7 +493,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doSnapshot(true),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/snapshot",
 			err:       errors.New("some error"),
@@ -507,7 +507,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doCleanTombstones(),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/clean_tombstones",
 			err:       errors.New("some error"),
@@ -528,7 +528,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doDeleteSeries("up", testTime.Add(-time.Minute), testTime),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/admin/tsdb/delete_series",
 			err:       errors.New("some error"),
@@ -550,8 +550,8 @@ func TestAPIs(t *testing.T) {
 			do:        doConfig(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/config",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -578,16 +578,16 @@ func TestAPIs(t *testing.T) {
 			do:        doFlags(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/flags",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
 			do:        doBuildinfo(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/buildinfo",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -616,8 +616,8 @@ func TestAPIs(t *testing.T) {
 			do:        doRuntimeinfo(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/runtimeinfo",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -684,8 +684,8 @@ func TestAPIs(t *testing.T) {
 			do:        doAlertManagers(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/alertmanagers",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -891,8 +891,8 @@ func TestAPIs(t *testing.T) {
 			do:        doRules(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -971,8 +971,8 @@ func TestAPIs(t *testing.T) {
 			do:        doTargets(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/targets",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -1005,7 +1005,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/targets/metadata",
 			err:       errors.New("some error"),
@@ -1037,7 +1037,7 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do:        doMetadata("", "1"),
-			inErr:     fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/metadata",
 			err:       errors.New("some error"),
@@ -1047,8 +1047,8 @@ func TestAPIs(t *testing.T) {
 			do:        doTSDB(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -1127,8 +1127,8 @@ func TestAPIs(t *testing.T) {
 			do:        doWalReply(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/walreplay",
-			inErr:     fmt.Errorf("some error"),
-			err:       fmt.Errorf("some error"),
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
 		},
 
 		{
@@ -1212,7 +1212,7 @@ func TestAPIs(t *testing.T) {
 	tests = append(tests, queryTests...)
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.curTest = test
 
 			res, warnings, err := test.do()
@@ -1430,7 +1430,7 @@ func TestAPIClientDo(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
 			_, body, warnings, err := client.Do(context.Background(), tc.req)

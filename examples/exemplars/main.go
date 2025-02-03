@@ -17,10 +17,10 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,7 +50,7 @@ func main() {
 			// Record fictional latency.
 			now := time.Now()
 			requestDurations.(prometheus.ExemplarObserver).ObserveWithExemplar(
-				time.Since(now).Seconds(), prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+				time.Since(now).Seconds(), prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
 			)
 			time.Sleep(600 * time.Millisecond)
 		}

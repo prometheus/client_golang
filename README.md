@@ -3,6 +3,7 @@
 [![CI](https://github.com/prometheus/client_golang/actions/workflows/go.yml/badge.svg)](https://github.com/prometheus/client_golang/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/prometheus/client_golang)](https://goreportcard.com/report/github.com/prometheus/client_golang)
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang.svg)](https://pkg.go.dev/github.com/prometheus/client_golang)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/prometheus/client_golang/badge)](https://securityscorecards.dev/viewer/?uri=github.com/prometheus/client_golang)
 [![Slack](https://img.shields.io/badge/join%20slack-%23prometheus--client_golang-brightgreen.svg)](https://slack.cncf.io/)
 
 This is the [Go](http://golang.org) client library for
@@ -10,8 +11,12 @@ This is the [Go](http://golang.org) client library for
 instrumenting application code, and one for creating clients that talk to the
 Prometheus HTTP API.
 
-**This library requires Go1.21 or later.**
-> The library mandates the use of Go1.21 or subsequent versions. While it has demonstrated functionality with versions as old as Go 1.17, our commitment remains to offer support and rectifications for only the most recent three major releases.
+## Version Compatibility
+
+This library supports the three most recent major releases of Go. While it may function with older versions, we only provide fixes and support for the currently supported Go releases.
+
+> [!NOTE]
+> See our [Release Process](RELEASE.md#supported-go-versions) for details on compatibility and support policies.
 
 ## Important note about releases and stability
 
@@ -68,24 +73,3 @@ See the [contributing guidelines](CONTRIBUTING.md) and the
 [Community section](http://prometheus.io/community/) of the homepage.
 
 `client_golang` community is also present on the CNCF Slack `#prometheus-client_golang`.
-
-### For Maintainers: Release Process
-
-To cut a minor version:
-
-1. Create a new branch `release-<major>.<minor>` on top of the `main` commit you want to cut the version from and push it.
-2. Create a new branch on top of the release branch, e.g. `<yourname>/cut-<major>.<minor>.<patch>`,
-3. Change the `VERSION` file.
-4. Update `CHANGELOG` (only user-impacting changes to mention).
-5. Create PR, and get it reviewed.
-6. Once merged, create a release with the `release-<major>.<minor>` tag on GitHub with the `<version>` title.
-7. Announce on the prometheus-announce mailing list, slack and Twitter.
-8. Merge the release branch back to the `main` using the "merge without squashing" approach (!).
-
-> NOTE: In case of merge conflicts, you can checkout the release branch in a new branch, e.g. `<yourname>/resolve-conflicts`, fix the merge problems there, and then do a PR into main from the new branch. In that way, you still get all the commits in the release branch back into `main`, but leave the release branch alone.
-
-To cut the patch version:
-
-1. Create a branch on top of the release branch you want to use.
-2. Cherry-pick the fixes from the `main` branch (or add new commits) to fix critical bugs for that patch release.
-3. Follow steps 3-8 as above.
