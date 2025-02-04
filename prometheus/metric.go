@@ -191,7 +191,10 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 				if *pb.Histogram.Schema > math.MinInt32 && e.GetTimestamp() != nil {
 					pb.Histogram.Exemplars = append(pb.Histogram.Exemplars, e)
 				}
-				continue
+				if len(pb.Histogram.Bucket) == 0 {
+					// Don't proceed to classic buckets if there are none.
+					continue
+				}
 			}
 			// pb.Histogram.Bucket are sorted by UpperBound.
 			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
