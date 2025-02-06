@@ -94,7 +94,7 @@ func TestWithExemplarsMetric(t *testing.T) {
 }
 
 func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
-	t.Run("histogram", func(t *testing.T) {
+	t.Run("native histogram single exemplar", func(t *testing.T) {
 		// Create a constant histogram from values we got from a 3rd party telemetry system.
 		h := MustNewConstNativeHistogram(
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
@@ -109,6 +109,56 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		}
 		if want, got := 1, len(metric.GetHistogram().Exemplars); want != got {
 			t.Errorf("want %v, got %v", want, got)
+		}
+
+		for _, b := range metric.GetHistogram().Bucket {
+			if b.Exemplar != nil {
+				t.Error("Not expecting exemplar for bucket")
+			}
+		}
+	})
+	t.Run("native histogram multiple exemplar", func(t *testing.T) {
+		// Create a constant histogram from values we got from a 3rd party telemetry system.
+		h := MustNewConstNativeHistogram(
+			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
+			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
+				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
+		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
+			{Value: proto.Float64(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
+			{Value: proto.Float64(1000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 59, 3243244, time.UTC))},
+		}}
+		metric := dto.Metric{}
+		if err := m.Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+		if want, got := 2, len(metric.GetHistogram().Exemplars); want != got {
+			t.Errorf("want %v, got %v", want, got)
+		}
+
+		for _, b := range metric.GetHistogram().Bucket {
+			if b.Exemplar != nil {
+				t.Error("Not expecting exemplar for bucket")
+			}
+		}
+	})
+	t.Run("native histogram exemplar without timestamp", func(t *testing.T) {
+		// Create a constant histogram from values we got from a 3rd party telemetry system.
+		h := MustNewConstNativeHistogram(
+			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
+			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
+				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
+		m := MustNewMetricWithExemplars(h, Exemplar{
+			Value: 1000.0,
+		})
+		metric := dto.Metric{}
+		if err := m.Write(&metric); err != nil {
+			t.Fatal(err)
+		}
+		if want, got := 1, len(metric.GetHistogram().Exemplars); want != got {
+			t.Errorf("want %v, got %v", want, got)
+		}
+		if got := metric.GetHistogram().Exemplars[0].Timestamp; got == nil {
+			t.Errorf("Got nil timestamp")
 		}
 
 		for _, b := range metric.GetHistogram().Bucket {
