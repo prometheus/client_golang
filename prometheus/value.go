@@ -16,11 +16,8 @@ package prometheus
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 	"unicode/utf8"
-
-	"github.com/prometheus/client_golang/prometheus/internal"
 
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
@@ -215,24 +212,29 @@ func populateMetric(
 // This function is only needed for custom Metric implementations. See MetricVec
 // example.
 func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
-	totalLen := len(desc.variableLabels.names) + len(desc.constLabelPairs)
-	if totalLen == 0 {
+	if len(desc.labelPairs) == 0 {
 		// Super fast path.
 		return nil
 	}
 	if len(desc.variableLabels.names) == 0 {
 		// Moderately fast path.
-		return desc.constLabelPairs
+		return desc.labelPairs
 	}
-	labelPairs := make([]*dto.LabelPair, 0, totalLen)
-	for i, l := range desc.variableLabels.names {
-		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(l),
-			Value: proto.String(labelValues[i]),
-		})
+	labelPairs := make([]*dto.LabelPair, 0, len(desc.labelPairs))
+	for i, lp := range desc.labelPairs {
+		var labelToAdd *dto.LabelPair
+		// Variable labels have no value and need to be inserted with a new dto.LabelPair containing the labelValue
+		if lp.Value == nil {
+			variableLabelIndex := desc.variableLabelIndexesInLabelPairs[i]
+			labelToAdd = &dto.LabelPair{
+				Name:  lp.Name,
+				Value: proto.String(labelValues[variableLabelIndex]),
+			}
+		} else {
+			labelToAdd = lp
+		}
+		labelPairs = append(labelPairs, labelToAdd)
 	}
-	labelPairs = append(labelPairs, desc.constLabelPairs...)
-	sort.Sort(internal.LabelPairSorter(labelPairs))
 	return labelPairs
 }
 

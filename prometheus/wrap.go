@@ -188,17 +188,20 @@ func (m *wrappingMetric) Write(out *dto.Metric) error {
 
 func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 	constLabels := Labels{}
-	for _, lp := range desc.constLabelPairs {
-		constLabels[*lp.Name] = *lp.Value
+	for _, lp := range desc.labelPairs {
+		// Variable labels have no values
+		if lp.Value != nil {
+			constLabels[*lp.Name] = *lp.Value
+		}
 	}
 	for ln, lv := range labels {
 		if _, alreadyUsed := constLabels[ln]; alreadyUsed {
 			return &Desc{
-				fqName:          desc.fqName,
-				help:            desc.help,
-				variableLabels:  desc.variableLabels,
-				constLabelPairs: desc.constLabelPairs,
-				err:             fmt.Errorf("attempted wrapping with already existing label name %q", ln),
+				fqName:         desc.fqName,
+				help:           desc.help,
+				variableLabels: desc.variableLabels,
+				labelPairs:     desc.labelPairs,
+				err:            fmt.Errorf("attempted wrapping with already existing label name %q", ln),
 			}
 		}
 		constLabels[ln] = lv

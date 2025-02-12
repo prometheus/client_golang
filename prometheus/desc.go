@@ -47,12 +47,17 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
-	// constLabelPairs contains precalculated DTO label pairs based on
-	// the constant labels.
-	constLabelPairs []*dto.LabelPair
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
+	// labelPairs contains the sorted DTO label pairs based on the constant labels
+	// and variable labels
+	labelPairs []*dto.LabelPair
+	// variableLabelIndexesInLabelPairs holds all indexes variable labels in the
+	// labelPairs with the expected index of the variableLabel. This makes it easy
+	// to identify all variable labels in the labelPairs and where to get their value
+	// from when given the variable label values
+	variableLabelIndexesInLabelPairs map[int]int
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -160,14 +165,36 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	d.dimHash = xxh.Sum64()
 
-	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
+	d.labelPairs = make([]*dto.LabelPair, 0, len(constLabels)+len(d.variableLabels.names))
 	for n, v := range constLabels {
-		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
+		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
 			Name:  proto.String(n),
 			Value: proto.String(v),
 		})
 	}
-	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
+	for _, labelName := range d.variableLabels.names {
+		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
+			Name: proto.String(labelName),
+		})
+	}
+	sort.Sort(internal.LabelPairSorter(d.labelPairs))
+
+	// In order to facilitate mapping from the unsorted variable labels to
+	// the sorted variable labels we generate a mapping from output labelPair
+	// index -> variableLabel index for constructing the final label pairs later
+	d.variableLabelIndexesInLabelPairs = make(map[int]int, len(d.variableLabels.names))
+	for outputIndex, pair := range d.labelPairs {
+		// Constant labels have values variable labels do not
+		if pair.Value != nil {
+			continue
+		}
+		for sourceIndex, variableLabel := range d.variableLabels.names {
+			if variableLabel == pair.GetName() {
+				d.variableLabelIndexesInLabelPairs[outputIndex] = sourceIndex
+			}
+		}
+	}
+
 	return d
 }
 
@@ -182,8 +209,11 @@ func NewInvalidDesc(err error) *Desc {
 }
 
 func (d *Desc) String() string {
-	lpStrings := make([]string, 0, len(d.constLabelPairs))
-	for _, lp := range d.constLabelPairs {
+	lpStrings := make([]string, 0, len(d.labelPairs))
+	for _, lp := range d.labelPairs {
+		if lp.Value == nil {
+			continue
+		}
 		lpStrings = append(
 			lpStrings,
 			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),
