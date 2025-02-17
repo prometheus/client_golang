@@ -1,6 +1,6 @@
 ## Unreleased
 
-## 1.21.0-rc.0 / 2025-01-21
+## 1.21.0 / 2025-02-17
 
 :warning: This release contains potential breaking change if you upgrade `github.com/prometheus/common` to 0.62+ together with client_golang. :warning:
 
