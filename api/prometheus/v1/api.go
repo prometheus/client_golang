@@ -1077,8 +1077,10 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 }
 
 type apiOptions struct {
-	timeout time.Duration
-	limit   uint64
+	timeout            time.Duration
+	lookbackDelta      time.Duration
+	enablePerStepStats bool
+	limit              uint64
 }
 
 type Option func(c *apiOptions)
@@ -1088,6 +1090,24 @@ type Option func(c *apiOptions)
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *apiOptions) {
 		o.timeout = timeout
+	}
+}
+
+// WithLookbackDelta can be used to provide an optional query lookback delta for Query and QueryRange.
+// This URL variable is not documented on Prometheus HTTP API.
+// https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
+func WithLookbackDelta(lookbackDelta time.Duration) Option {
+	return func(o *apiOptions) {
+		o.lookbackDelta = lookbackDelta
+	}
+}
+
+// WithPerStepStats can be used to provide an optional per step stats for Query and QueryRange.
+// This URL variable is not documented on Prometheus HTTP API.
+// https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
+func WithPerStepStats(enablePerStepStats bool) Option {
+	return func(o *apiOptions) {
+		o.enablePerStepStats = enablePerStepStats
 	}
 }
 
@@ -1107,6 +1127,14 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 
 	if opt.timeout > 0 {
 		q.Set("timeout", opt.timeout.String())
+	}
+
+	if opt.lookbackDelta > 0 {
+		q.Set("lookback_delta", opt.lookbackDelta.String())
+	}
+
+	if opt.enablePerStepStats {
+		q.Set("stats", "all")
 	}
 
 	if opt.limit > 0 {
