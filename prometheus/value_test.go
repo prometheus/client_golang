@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -192,49 +193,87 @@ func TestMakeLabelPairs(t *testing.T) {
 	}
 }
 
-func Benchmark_MakeLabelPairs(b *testing.B) {
-	benchFunc := func(desc *Desc, variableLabelValues []string) {
-		MakeLabelPairs(desc, variableLabelValues)
-	}
+var new1LabelDescFunc = func() *Desc {
+	return NewDesc(
+		"metric",
+		"help",
+		[]string{"var-label-1"},
+		Labels{"const-label-1": "value"})
+}
 
-	benchmarks := []struct {
-		name                string
-		bench               func(desc *Desc, variableLabelValues []string)
+var new3LabelsDescFunc = func() *Desc {
+	return NewDesc(
+		"metric",
+		"help",
+		[]string{"var-label-1", "var-label-3", "var-label-2"},
+		Labels{"const-label-1": "value", "const-label-3": "value", "const-label-2": "value"})
+}
+
+var new10LabelsDescFunc = func() *Desc {
+	return NewDesc(
+		"metric",
+		"help",
+		[]string{"var-label-5", "var-label-1", "var-label-3", "var-label-2", "var-label-10", "var-label-4", "var-label-7", "var-label-8", "var-label-9", "var-label-6"},
+		Labels{"const-label-4": "value", "const-label-1": "value", "const-label-7": "value", "const-label-2": "value", "const-label-9": "value", "const-label-8": "value", "const-label-10": "value", "const-label-3": "value", "const-label-6": "value", "const-label-5": "value"})
+}
+
+func BenchmarkMakeLabelPairs(b *testing.B) {
+	for _, bm := range []struct {
 		desc                *Desc
-		variableLabelValues []string
+		makeLabelPairValues []string
 	}{
 		{
-			name: "1 label",
-			desc: NewDesc(
-				"metric",
-				"help",
-				[]string{"var-label-1"},
-				Labels{"const-label-1": "value"}),
-			variableLabelValues: []string{"value"},
+			desc:                new1LabelDescFunc(),
+			makeLabelPairValues: []string{"value"},
 		},
 		{
-			name: "3 labels",
-			desc: NewDesc(
-				"metric",
-				"help",
-				[]string{"var-label-1", "var-label-3", "var-label-2"},
-				Labels{"const-label-1": "value", "const-label-3": "value", "const-label-2": "value"}),
-			variableLabelValues: []string{"value", "value", "value"},
+			desc:                new3LabelsDescFunc(),
+			makeLabelPairValues: []string{"value", "value", "value"},
 		},
 		{
-			name: "10 labels",
-			desc: NewDesc(
-				"metric",
-				"help",
-				[]string{"var-label-5", "var-label-1", "var-label-3", "var-label-2", "var-label-10", "var-label-4", "var-label-7", "var-label-8", "var-label-9"},
-				Labels{"const-label-4": "value", "const-label-1": "value", "const-label-7": "value", "const-label-2": "value", "const-label-9": "value", "const-label-8": "value", "const-label-10": "value", "const-label-3": "value", "const-label-6": "value", "const-label-5": "value"}),
-			variableLabelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
+			desc:                new10LabelsDescFunc(),
+			makeLabelPairValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
 		},
-	}
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
+	} {
+		b.Run(fmt.Sprintf("labels=%v", len(bm.makeLabelPairValues)), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				benchFunc(bm.desc, bm.variableLabelValues)
+				MakeLabelPairs(bm.desc, bm.makeLabelPairValues)
+			}
+		})
+	}
+}
+
+func BenchmarkConstMetricFlow(b *testing.B) {
+	for _, bm := range []struct {
+		descFunc    func() *Desc
+		labelValues []string
+	}{
+		{
+			descFunc:    new1LabelDescFunc,
+			labelValues: []string{"value"},
+		},
+		{
+			descFunc:    new3LabelsDescFunc,
+			labelValues: []string{"value", "value", "value"},
+		},
+		{
+			descFunc:    new10LabelsDescFunc,
+			labelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
+		},
+	} {
+		b.Run(fmt.Sprintf("labels=%v", len(bm.labelValues)), func(b *testing.B) {
+			for _, metricsToCreate := range []int{1, 2, 3, 5} {
+				b.Run(fmt.Sprintf("metrics=%v", metricsToCreate), func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						desc := bm.descFunc()
+						for j := 0; j < metricsToCreate; j++ {
+							_, err := NewConstMetric(desc, GaugeValue, 1.0, bm.labelValues...)
+							if err != nil {
+								b.Fatal(err)
+							}
+						}
+					}
+				})
 			}
 		})
 	}

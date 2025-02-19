@@ -50,14 +50,13 @@ type Desc struct {
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
+	// variableLabelOrder maps variableLabels indexes to the position in the
+	// pre-computed labelPairs slice. This allows fast MakeLabelPair function
+	// that have to place ordered variable label values into pre-sorted labelPairs.
+	variableLabelOrder []int
 	// labelPairs contains the sorted DTO label pairs based on the constant labels
 	// and variable labels
 	labelPairs []*dto.LabelPair
-	// variableLabelIndexesInLabelPairs holds all indexes variable labels in the
-	// labelPairs with the expected index of the variableLabel. This makes it easy
-	// to identify all variable labels in the labelPairs and where to get their value
-	// from when given the variable label values
-	variableLabelIndexesInLabelPairs map[int]int
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -179,18 +178,15 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	sort.Sort(internal.LabelPairSorter(d.labelPairs))
 
-	// In order to facilitate mapping from the unsorted variable labels to
-	// the sorted variable labels we generate a mapping from output labelPair
-	// index -> variableLabel index for constructing the final label pairs later
-	d.variableLabelIndexesInLabelPairs = make(map[int]int, len(d.variableLabels.names))
+	d.variableLabelOrder = make([]int, len(d.variableLabels.names))
 	for outputIndex, pair := range d.labelPairs {
-		// Constant labels have values variable labels do not
+		// Constant labels have values variable labels do not.
 		if pair.Value != nil {
 			continue
 		}
 		for sourceIndex, variableLabel := range d.variableLabels.names {
 			if variableLabel == pair.GetName() {
-				d.variableLabelIndexesInLabelPairs[outputIndex] = sourceIndex
+				d.variableLabelOrder[sourceIndex] = outputIndex
 			}
 		}
 	}

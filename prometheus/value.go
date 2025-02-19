@@ -221,20 +221,22 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		return desc.labelPairs
 	}
 	labelPairs := make([]*dto.LabelPair, 0, len(desc.labelPairs))
-	for i, lp := range desc.labelPairs {
+	for _, lp := range desc.labelPairs {
 		var labelToAdd *dto.LabelPair
-		// Variable labels have no value and need to be inserted with a new dto.LabelPair containing the labelValue
+		// Variable labels have no value and need to be inserted with a new dto.LabelPair containing the labelValue.
 		if lp.Value == nil {
-			variableLabelIndex := desc.variableLabelIndexesInLabelPairs[i]
 			labelToAdd = &dto.LabelPair{
-				Name:  lp.Name,
-				Value: proto.String(labelValues[variableLabelIndex]),
+				Name: lp.Name,
 			}
 		} else {
 			labelToAdd = lp
 		}
 		labelPairs = append(labelPairs, labelToAdd)
 	}
+	for i, outputIndex := range desc.variableLabelOrder {
+		labelPairs[outputIndex].Value = proto.String(labelValues[i])
+	}
+
 	return labelPairs
 }
 
