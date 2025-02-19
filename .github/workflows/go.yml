@@ -62,5 +62,5 @@ jobs:
           CI: true
 
       - name: Run style and unused
-        if: ${{ matrix.go_version == '1.21' }}
+        if: ${{ matrix.go_version == '1.22' }}
         run: make style unused
