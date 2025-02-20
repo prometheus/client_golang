@@ -18,12 +18,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
+	"github.com/cespare/xxhash/v2"
+	"github.com/prometheus/common/model"
 )
 
 // Desc is the descriptor used by every Prometheus Metric. It is essentially
@@ -56,7 +54,7 @@ type Desc struct {
 	variableLabelOrder []int
 	// labelPairs contains the sorted DTO label pairs based on the constant labels
 	// and variable labels
-	labelPairs []*dto.LabelPair
+	labelPairs []fastdto.LabelPair
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -164,24 +162,23 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	d.dimHash = xxh.Sum64()
 
-	d.labelPairs = make([]*dto.LabelPair, 0, len(constLabels)+len(d.variableLabels.names))
+	d.labelPairs = make([]fastdto.LabelPair, len(constLabels)+len(d.variableLabels.names))
+	i := 0
 	for n, v := range constLabels {
-		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
-		})
+		d.labelPairs[i].Name = n
+		d.labelPairs[i].Value = v
+		i++
 	}
 	for _, labelName := range d.variableLabels.names {
-		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
-			Name: proto.String(labelName),
-		})
+		d.labelPairs[i].Name = labelName
+		i++
 	}
-	sort.Sort(internal.LabelPairSorter(d.labelPairs))
+	sort.Sort(fastdto.LabelPairSorter(d.labelPairs))
 
 	d.variableLabelOrder = make([]int, len(d.variableLabels.names))
 	for outputIndex, pair := range d.labelPairs {
 		// Constant labels have values variable labels do not.
-		if pair.Value != nil {
+		if pair.Value != "" {
 			continue
 		}
 		for sourceIndex, variableLabel := range d.variableLabels.names {
@@ -190,7 +187,6 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 			}
 		}
 	}
-
 	return d
 }
 
@@ -207,7 +203,7 @@ func NewInvalidDesc(err error) *Desc {
 func (d *Desc) String() string {
 	lpStrings := make([]string, 0, len(d.labelPairs))
 	for _, lp := range d.labelPairs {
-		if lp.Value == nil {
+		if lp.Value == "" {
 			continue
 		}
 		lpStrings = append(

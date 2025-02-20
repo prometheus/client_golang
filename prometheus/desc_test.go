@@ -63,6 +63,18 @@ func TestNewInvalidDesc_String(t *testing.T) {
 	}
 }
 
+/*
+	 export bench=newDesc && go test ./prometheus \
+		-run '^$' -bench '^BenchmarkNewDesc/labels=10' \
+		-benchtime 5s -benchmem -cpu 2 -timeout 999m \
+		-memprofile=${bench}.mem.pprof \
+		| tee ${bench}.txt
+
+	 export bench=newDesc-v2 && go test ./prometheus \
+		-run '^$' -bench '^BenchmarkNewDesc' \
+		-benchtime 5s -benchmem -count=6 -cpu 2 -timeout 999m \
+		| tee ${bench}.txt
+*/
 func BenchmarkNewDesc(b *testing.B) {
 	for _, bm := range []struct {
 		labelCount int
@@ -82,6 +94,8 @@ func BenchmarkNewDesc(b *testing.B) {
 		},
 	} {
 		b.Run(fmt.Sprintf("labels=%v", bm.labelCount), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				bm.descFunc()
 			}

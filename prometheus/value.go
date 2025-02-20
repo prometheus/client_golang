@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
+
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -216,28 +218,18 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		// Super fast path.
 		return nil
 	}
+
+	// Conversion copies all but strings.
+	ret := fastdto.ToDTOLabelPair(desc.labelPairs)
 	if len(desc.variableLabels.names) == 0 {
 		// Moderately fast path.
-		return desc.labelPairs
-	}
-	labelPairs := make([]*dto.LabelPair, 0, len(desc.labelPairs))
-	for _, lp := range desc.labelPairs {
-		var labelToAdd *dto.LabelPair
-		// Variable labels have no value and need to be inserted with a new dto.LabelPair containing the labelValue.
-		if lp.Value == nil {
-			labelToAdd = &dto.LabelPair{
-				Name: lp.Name,
-			}
-		} else {
-			labelToAdd = lp
-		}
-		labelPairs = append(labelPairs, labelToAdd)
-	}
-	for i, outputIndex := range desc.variableLabelOrder {
-		labelPairs[outputIndex].Value = proto.String(labelValues[i])
+		return ret
 	}
 
-	return labelPairs
+	for i, outputIndex := range desc.variableLabelOrder {
+		ret[outputIndex].Value = &labelValues[i] // Reusing string, assuming it's safe.
+	}
+	return ret
 }
 
 // ExemplarMaxRunes is the max total number of runes allowed in exemplar labels.

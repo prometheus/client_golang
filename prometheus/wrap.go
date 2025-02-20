@@ -190,8 +190,8 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 	constLabels := Labels{}
 	for _, lp := range desc.labelPairs {
 		// Variable labels have no values
-		if lp.Value != nil {
-			constLabels[*lp.Name] = *lp.Value
+		if lp.Value == "" {
+			constLabels[lp.Name] = lp.Value
 		}
 	}
 	for ln, lv := range labels {

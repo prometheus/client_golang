@@ -217,6 +217,18 @@ var new10LabelsDescFunc = func() *Desc {
 		Labels{"const-label-4": "value", "const-label-1": "value", "const-label-7": "value", "const-label-2": "value", "const-label-9": "value", "const-label-8": "value", "const-label-10": "value", "const-label-3": "value", "const-label-6": "value", "const-label-5": "value"})
 }
 
+/*
+	 export bench=makeLabelPairs-v2 && go test ./prometheus \
+		-run '^$' -bench '^BenchmarkMakeLabelPairs' \
+		-benchtime 5s -benchmem -count=6 -cpu 2 -timeout 999m \
+		| tee ${bench}.txt
+
+	export bench=makeLabelPairs-v2pp && go test ./prometheus \
+		-run '^$' -bench '^BenchmarkMakeLabelPairs' \
+		-benchtime 5s -benchmem -cpu 2 -timeout 999m \
+		-memprofile=${bench}.mem.pprof \
+		| tee ${bench}.txt
+*/
 func BenchmarkMakeLabelPairs(b *testing.B) {
 	for _, bm := range []struct {
 		desc                *Desc
@@ -236,6 +248,8 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 		},
 	} {
 		b.Run(fmt.Sprintf("labels=%v", len(bm.makeLabelPairValues)), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				MakeLabelPairs(bm.desc, bm.makeLabelPairValues)
 			}

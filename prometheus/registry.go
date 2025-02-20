@@ -971,7 +971,7 @@ func checkDescConsistency(
 	for i, lpFromDesc := range desc.labelPairs {
 		lpFromMetric := dtoMetric.Label[i]
 		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+			lpFromDesc.Value != "" && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
 			return fmt.Errorf(
 				"labels in collected metric %s %s are inconsistent with descriptor %s",
 				metricFamily.GetName(), dtoMetric, desc,
