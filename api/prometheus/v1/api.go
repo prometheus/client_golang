@@ -1076,11 +1076,19 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	return labelValues, w, err
 }
 
+// StatsValue is a type for `stats` query parameter.
+type StatsValue string
+
+// AllStatsValue is the query parameter value to return all the query statistics.
+const (
+	AllStatsValue StatsValue = "all"
+)
+
 type apiOptions struct {
-	timeout            time.Duration
-	lookbackDelta      time.Duration
-	enablePerStepStats bool
-	limit              uint64
+	timeout       time.Duration
+	lookbackDelta time.Duration
+	stats         StatsValue
+	limit         uint64
 }
 
 type Option func(c *apiOptions)
@@ -1102,14 +1110,9 @@ func WithLookbackDelta(lookbackDelta time.Duration) Option {
 	}
 }
 
-// WithPerStepStats can be used to provide an optional per step stats for Query and QueryRange.
+// WithStats can be used to provide an optional per step stats for Query and QueryRange.
 // This URL variable is not documented on Prometheus HTTP API.
 // https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
-type StatsValue string
-
-const (
-    AllStatsValue StatsValue = "all"
-)
 func WithStats(stats StatsValue) Option {
 	return func(o *apiOptions) {
 		o.stats = stats
@@ -1138,8 +1141,8 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 		q.Set("lookback_delta", opt.lookbackDelta.String())
 	}
 
-	if opt.enablePerStepStats {
-		q.Set("stats", "all")
+	if opt.stats != "" {
+		q.Set("stats", string(opt.stats))
 	}
 
 	if opt.limit > 0 {
