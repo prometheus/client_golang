@@ -1105,9 +1105,14 @@ func WithLookbackDelta(lookbackDelta time.Duration) Option {
 // WithPerStepStats can be used to provide an optional per step stats for Query and QueryRange.
 // This URL variable is not documented on Prometheus HTTP API.
 // https://github.com/prometheus/prometheus/blob/e04913aea2792a5c8bc7b3130c389ca1b027dd9b/promql/engine.go#L162-L167
-func WithPerStepStats(enablePerStepStats bool) Option {
+type StatsValue string
+
+const (
+    AllStatsValue StatsValue = "all"
+)
+func WithStats(stats StatsValue) Option {
 	return func(o *apiOptions) {
-		o.enablePerStepStats = enablePerStepStats
+		o.stats = stats
 	}
 }
 
