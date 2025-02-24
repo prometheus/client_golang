@@ -26,6 +26,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/klauspost/compress/snappy"
@@ -40,8 +41,8 @@ import (
 type API struct {
 	baseURL *url.URL
 
-	opts             apiOpts
-	reqBuf, comprBuf []byte
+	opts    apiOpts
+	bufPool sync.Pool
 }
 
 // APIOption represents a remote API option.
@@ -119,9 +120,6 @@ func (n nopSlogHandler) WithAttrs([]slog.Attr) slog.Handler        { return n }
 func (n nopSlogHandler) WithGroup(string) slog.Handler             { return n }
 
 // NewAPI returns a new API for the clients of Remote Write Protocol.
-//
-// It is not safe to use the returned API from multiple goroutines, create a
-// separate *API for each goroutine.
 func NewAPI(baseURL string, opts ...APIOption) (*API, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
@@ -141,10 +139,17 @@ func NewAPI(baseURL string, opts ...APIOption) (*API, error) {
 
 	parsedURL.Path = path.Join(parsedURL.Path, o.path)
 
-	return &API{
+	api := &API{
 		opts:    o,
 		baseURL: parsedURL,
-	}, nil
+		bufPool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 0, 1024*16) // Initial capacity of 16KB
+				return &b
+			},
+		},
+	}
+	return api, nil
 }
 
 type retryableError struct {
@@ -176,9 +181,8 @@ type gogoProtoEnabled interface {
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
 func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ WriteResponseStats, err error) {
-	// Reset the buffer.
-	// remove this buf or add lock
-	r.reqBuf = r.reqBuf[:0]
+	buf := r.bufPool.Get().(*[]byte)
+	defer r.bufPool.Put(buf)
 
 	if err := cType.Validate(); err != nil {
 		return WriteResponseStats{}, err
@@ -189,24 +193,30 @@ func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ Wri
 	case vtProtoEnabled:
 		// Use optimized vtprotobuf if supported.
 		size := m.SizeVT()
-		if len(r.reqBuf) < size {
-			r.reqBuf = make([]byte, size)
+		if cap(*buf) < size {
+			*buf = make([]byte, size)
+		} else {
+			*buf = (*buf)[:size]
 		}
-		if _, err := m.MarshalToSizedBufferVT(r.reqBuf[:size]); err != nil {
+
+		if _, err := m.MarshalToSizedBufferVT(*buf); err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
 	case gogoProtoEnabled:
 		// Gogo proto if supported.
 		size := m.Size()
-		if len(r.reqBuf) < size {
-			r.reqBuf = make([]byte, size)
+		if cap(*buf) < size {
+			*buf = make([]byte, size)
+		} else {
+			*buf = (*buf)[:size]
 		}
-		if _, err := m.MarshalToSizedBuffer(r.reqBuf[:size]); err != nil {
+
+		if _, err := m.MarshalToSizedBuffer(*buf); err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
 	case proto.Message:
 		// Generic proto.
-		r.reqBuf, err = (proto.MarshalOptions{}).MarshalAppend(r.reqBuf, m)
+		*buf, err = (proto.MarshalOptions{}).MarshalAppend(*buf, m)
 		if err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
@@ -214,7 +224,9 @@ func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ Wri
 		return WriteResponseStats{}, fmt.Errorf("unknown message type %T", m)
 	}
 
-	payload, err := compressPayload(&r.comprBuf, r.opts.compression, r.reqBuf)
+	comprBuf := r.bufPool.Get().(*[]byte)
+	defer r.bufPool.Put(comprBuf)
+	payload, err := compressPayload(comprBuf, r.opts.compression, *buf)
 	if err != nil {
 		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
 	}
@@ -270,11 +282,13 @@ func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ Wri
 func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []byte, _ error) {
 	switch enc {
 	case SnappyBlockCompression:
-		compressed = snappy.Encode(*tmpbuf, inp)
-		if n := snappy.MaxEncodedLen(len(inp)); n > len(*tmpbuf) {
-			// grow the buffer for the next time.
-			*tmpbuf = make([]byte, n)
+		if cap(*tmpbuf) < snappy.MaxEncodedLen(len(inp)) {
+			*tmpbuf = make([]byte, snappy.MaxEncodedLen(len(inp)))
+		} else {
+			*tmpbuf = (*tmpbuf)[:snappy.MaxEncodedLen(len(inp))]
 		}
+
+		compressed = snappy.Encode(*tmpbuf, inp)
 		return compressed, nil
 	default:
 		return compressed, fmt.Errorf("unknown compression scheme [%v]", enc)
@@ -394,6 +408,12 @@ func WithHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler) Hand
 // If the request body is not snappy-encoded, it returns an error.
 // Used by default in NewRemoteWriteHandler.
 func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+	bufPool := sync.Pool{
+		New: func() any {
+			return bytes.NewBuffer(nil)
+		},
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			enc := r.Header.Get("Content-Encoding")
@@ -404,8 +424,10 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 				return
 			}
 
-			// Read the request body.
-			bodyBytes, err := io.ReadAll(r.Body)
+			buf := bufPool.Get().(*bytes.Buffer)
+			defer bufPool.Put(buf)
+
+			bodyBytes, err := io.ReadAll(io.TeeReader(r.Body, buf))
 			if err != nil {
 				logger.Error("Error reading request body", "err", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
