@@ -38,34 +38,34 @@ const (
 	SnappyBlockCompression Compression = "snappy"
 )
 
-// WriteProtoFullName represents the fully qualified name of the protobuf message
+// WriteContentType represents the fully qualified name of the protobuf message
 // to use in Remote write 1.0 and 2.0 protocols.
 // See https://prometheus.io/docs/specs/remote_write_spec_2_0/#protocol.
-type WriteProtoFullName string
+type WriteContentType string
 
 const (
-	// WriteProtoFullNameV1 represents the `prometheus.WriteRequest` protobuf
+	// WriteV1ContentType represents the `prometheus.WriteRequest` protobuf
 	// message introduced in the https://prometheus.io/docs/specs/remote_write_spec/.
-	// DEPRECATED: Use WriteProtoFullNameV2 instead.
-	WriteProtoFullNameV1 WriteProtoFullName = "prometheus.WriteRequest"
-	// WriteProtoFullNameV2 represents the `io.prometheus.write.v2.Request` protobuf
+	// DEPRECATED: Use WriteV2ContentType instead.
+	WriteV1ContentType WriteContentType = "prometheus.WriteRequest"
+	// WriteV2ContentType represents the `io.prometheus.write.v2.Request` protobuf
 	// message introduced in https://prometheus.io/docs/specs/remote_write_spec_2_0/
-	WriteProtoFullNameV2 WriteProtoFullName = "io.prometheus.write.v2.Request"
+	WriteV2ContentType WriteContentType = "io.prometheus.write.v2.Request"
 )
 
 // Validate returns error if the given reference for the protobuf message is not supported.
-func (n WriteProtoFullName) Validate() error {
+func (n WriteContentType) Validate() error {
 	switch n {
-	case WriteProtoFullNameV1, WriteProtoFullNameV2:
+	case WriteV1ContentType, WriteV2ContentType:
 		return nil
 	default:
-		return fmt.Errorf("unknown remote write protobuf message %v, supported: %v", n, protoMsgs{WriteProtoFullNameV1, WriteProtoFullNameV2}.String())
+		return fmt.Errorf("unknown content type for remote write protobuf message %v, supported: %v", n, contentTypes{WriteV1ContentType, WriteV2ContentType}.String())
 	}
 }
 
-type protoMsgs []WriteProtoFullName
+type contentTypes []WriteContentType
 
-func (m protoMsgs) Strings() []string {
+func (m contentTypes) Strings() []string {
 	ret := make([]string, 0, len(m))
 	for _, typ := range m {
 		ret = append(ret, string(typ))
@@ -73,18 +73,18 @@ func (m protoMsgs) Strings() []string {
 	return ret
 }
 
-func (m protoMsgs) String() string {
+func (m contentTypes) String() string {
 	return strings.Join(m.Strings(), ", ")
 }
 
-var contentTypeHeaders = map[WriteProtoFullName]string{
-	WriteProtoFullNameV1: appProtoContentType, // Also application/x-protobuf;proto=prometheus.WriteRequest but simplified for compatibility with 1.x spec.
-	WriteProtoFullNameV2: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
+var contentTypeHeaders = map[WriteContentType]string{
+	WriteV1ContentType: appProtoContentType, // Also application/x-protobuf;proto=prometheus.WriteRequest but simplified for compatibility with 1.x spec.
+	WriteV2ContentType: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
 }
 
 // ContentTypeHeader returns content type header value for the given proto message
 // or empty string for unknown proto message.
-func contentTypeHeader(m WriteProtoFullName) string {
+func contentTypeHeader(m WriteContentType) string {
 	return contentTypeHeaders[m]
 }
 
@@ -93,6 +93,26 @@ const (
 	writtenHistogramsHeader = "X-Prometheus-Remote-Write-Histograms-Written"
 	writtenExemplarsHeader  = "X-Prometheus-Remote-Write-Exemplars-Written"
 )
+
+// WriteResponse represents the response from the remote storage upon receiving a remote write request.
+type WriteResponse struct {
+	// Stats represents the response, remote write statistics.
+	Stats WriteResponseStats
+	// StatusCode represents the response status code. http.StatusNoContent is the default unless 5xx is set.
+	StatusCode int
+	// ExtraHeaders represents additional headers to be set in the response (apart from stats headers).
+	ExtraHeaders http.Header
+}
+
+// SetHeaders sets response headers in a given response writer.
+func (r *WriteResponse) SetHeaders(w http.ResponseWriter) {
+	r.Stats.SetHeaders(w)
+	for k, v := range r.ExtraHeaders {
+		for _, vv := range v {
+			w.Header().Add(k, vv)
+		}
+	}
+}
 
 // WriteResponseStats represents the response, remote write statistics.
 type WriteResponseStats struct {

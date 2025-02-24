@@ -16,6 +16,7 @@ package remote
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -63,25 +64,42 @@ func TestRetryAfterDuration(t *testing.T) {
 
 type mockStorage struct {
 	v2Reqs []*writev2.Request
-	protos []WriteProtoFullName
+	protos []WriteContentType
 
 	mockCode *int
 	mockErr  error
 }
 
-func (m *mockStorage) Store(_ context.Context, msgFullName WriteProtoFullName, serializedRequest []byte) (w WriteResponseStats, code int, _ error) {
+func (m *mockStorage) Store(_ context.Context, cType WriteContentType, req *http.Request) (*WriteResponse, error) {
+	w := &WriteResponse{}
 	if m.mockErr != nil {
-		return w, *m.mockCode, m.mockErr
+		if m.mockCode != nil {
+			w.StatusCode = *m.mockCode
+		}
+		return w, m.mockErr
 	}
 
-	// This test expects v2 only.
+	// Read the request body
+	serializedRequest, err := io.ReadAll(req.Body)
+	if err != nil {
+		w.StatusCode = http.StatusBadRequest
+		return w, err
+	}
+
+	// This test expects v2 only
 	r := &writev2.Request{}
 	if err := proto.Unmarshal(serializedRequest, r); err != nil {
-		return WriteResponseStats{}, http.StatusInternalServerError, err
+		w.StatusCode = http.StatusInternalServerError
+		return w, err
 	}
 	m.v2Reqs = append(m.v2Reqs, r)
-	m.protos = append(m.protos, msgFullName)
-	return stats(r), http.StatusOK, nil
+	m.protos = append(m.protos, cType)
+
+	// Set stats in response headers
+	w.Stats = stats(r)
+	w.StatusCode = http.StatusNoContent
+
+	return w, nil
 }
 
 func testV2() *writev2.Request {
@@ -128,16 +146,20 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		tLogger := slog.Default()
 		mStore := &mockStorage{}
-		srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewHandler(mStore, WithHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
-		client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"))
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		req := testV2()
-		s, err := client.Write(context.Background(), req)
+		s, err := client.Write(context.Background(), WriteV2ContentType, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -159,20 +181,25 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			mockErr:  errors.New("storage error"),
 			mockCode: &mockCode,
 		}
-		srv := httptest.NewServer(NewRemoteWriteHandler(mStore, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewHandler(mStore, WithHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
-		client, err := NewAPI(srv.Client(), srv.URL, WithAPILogger(tLogger), WithAPIPath("api/v1/write"), WithAPIBackoff(backoff.Config{
-			Min:        1 * time.Second,
-			Max:        1 * time.Second,
-			MaxRetries: 2,
-		}))
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(backoff.Config{
+				Min:        1 * time.Second,
+				Max:        1 * time.Second,
+				MaxRetries: 2,
+			}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), req)
+		_, err = client.Write(context.Background(), WriteV2ContentType, req)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
