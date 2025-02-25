@@ -182,7 +182,6 @@ type gogoProtoEnabled interface {
 //     error out on unknown scheme.
 func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ WriteResponseStats, err error) {
 	buf := r.bufPool.Get().(*[]byte)
-	defer r.bufPool.Put(buf)
 
 	if err := msgType.Validate(); err != nil {
 		return WriteResponseStats{}, err
@@ -225,11 +224,12 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 	}
 
 	comprBuf := r.bufPool.Get().(*[]byte)
-	defer r.bufPool.Put(comprBuf)
 	payload, err := compressPayload(comprBuf, r.opts.compression, *buf)
 	if err != nil {
 		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
 	}
+	r.bufPool.Put(buf)
+	r.bufPool.Put(comprBuf)
 
 	// Since we retry writes we need to track the total amount of accepted data
 	// across the various attempts.
