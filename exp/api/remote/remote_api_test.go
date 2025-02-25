@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -64,17 +65,17 @@ func TestRetryAfterDuration(t *testing.T) {
 
 type mockStorage struct {
 	v2Reqs []*writev2.Request
-	protos []WriteContentType
+	protos []WriteMessageType
 
 	mockCode *int
 	mockErr  error
 }
 
-func (m *mockStorage) Store(_ context.Context, cType WriteContentType, req *http.Request) (*WriteResponse, error) {
+func (m *mockStorage) Store(_ context.Context, msgType WriteMessageType, req *http.Request) (*WriteResponse, error) {
 	w := &WriteResponse{}
 	if m.mockErr != nil {
 		if m.mockCode != nil {
-			w.StatusCode = *m.mockCode
+			w.SetStatusCode(*m.mockCode)
 		}
 		return w, m.mockErr
 	}
@@ -82,22 +83,22 @@ func (m *mockStorage) Store(_ context.Context, cType WriteContentType, req *http
 	// Read the request body
 	serializedRequest, err := io.ReadAll(req.Body)
 	if err != nil {
-		w.StatusCode = http.StatusBadRequest
+		w.SetStatusCode(http.StatusBadRequest)
 		return w, err
 	}
 
 	// This test expects v2 only
 	r := &writev2.Request{}
 	if err := proto.Unmarshal(serializedRequest, r); err != nil {
-		w.StatusCode = http.StatusInternalServerError
+		w.SetStatusCode(http.StatusInternalServerError)
 		return w, err
 	}
 	m.v2Reqs = append(m.v2Reqs, r)
-	m.protos = append(m.protos, cType)
+	m.protos = append(m.protos, msgType)
 
 	// Set stats in response headers
-	w.Stats = stats(r)
-	w.StatusCode = http.StatusNoContent
+	w.Add(stats(r))
+	w.SetStatusCode(http.StatusNoContent)
 
 	return w, nil
 }
@@ -133,7 +134,7 @@ func testV2() *writev2.Request {
 }
 
 func stats(req *writev2.Request) (s WriteResponseStats) {
-	s.Confirmed = true
+	s.confirmed = true
 	for _, ts := range req.Timeseries {
 		s.Samples += len(ts.Samples)
 		s.Histograms += len(ts.Histograms)
@@ -159,11 +160,11 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		s, err := client.Write(context.Background(), WriteV2ContentType, req)
+		s, err := client.Write(context.Background(), WriteV2MessageType, req)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(stats(req), s); diff != "" {
+		if diff := cmp.Diff(stats(req), s, cmpopts.IgnoreUnexported(WriteResponseStats{})); diff != "" {
 			t.Fatal("unexpected stats", diff)
 		}
 		if len(mStore.v2Reqs) != 1 {
@@ -199,7 +200,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2ContentType, req)
+		_, err = client.Write(context.Background(), WriteV2MessageType, req)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}

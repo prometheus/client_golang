@@ -144,7 +144,7 @@ func NewAPI(baseURL string, opts ...APIOption) (*API, error) {
 		baseURL: parsedURL,
 		bufPool: sync.Pool{
 			New: func() any {
-				b := make([]byte, 0, 1024*16) // Initial capacity of 16KB
+				b := make([]byte, 0, 1024*16) // Initial capacity of 16KB.
 				return &b
 			},
 		},
@@ -180,11 +180,11 @@ type gogoProtoEnabled interface {
 //     will be used
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
-func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ WriteResponseStats, err error) {
+func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ WriteResponseStats, err error) {
 	buf := r.bufPool.Get().(*[]byte)
 	defer r.bufPool.Put(buf)
 
-	if err := cType.Validate(); err != nil {
+	if err := msgType.Validate(); err != nil {
 		return WriteResponseStats{}, err
 	}
 
@@ -237,12 +237,12 @@ func (r *API) Write(ctx context.Context, cType WriteContentType, msg any) (_ Wri
 
 	b := backoff.New(ctx, r.opts.backoff)
 	for {
-		rs, err := r.attemptWrite(ctx, r.opts.compression, cType, payload, b.NumRetries())
-		accumulatedStats = accumulatedStats.Add(rs)
+		rs, err := r.attemptWrite(ctx, r.opts.compression, msgType, payload, b.NumRetries())
+		accumulatedStats.Add(rs)
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.
 			// https://prometheus.io/docs/specs/remote_write_spec_2_0/#required-written-response-headers.
-			if cType == WriteV2ContentType && !accumulatedStats.Confirmed && accumulatedStats.NoDataWritten() {
+			if msgType == WriteV2MessageType && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
 				// TODO(bwplotka): Allow users to disable this check or provide their stats for us to know if it's empty.
 				return accumulatedStats, fmt.Errorf("sent v2 request; "+
 					"got 2xx, but PRW 2.0 response header statistics indicate %v samples, %v histograms "+
@@ -295,7 +295,7 @@ func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []
 	}
 }
 
-func (r *API) attemptWrite(ctx context.Context, compr Compression, cType WriteContentType, payload []byte, attempt int) (WriteResponseStats, error) {
+func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType WriteMessageType, payload []byte, attempt int) (WriteResponseStats, error) {
 	req, err := http.NewRequest(http.MethodPost, r.baseURL.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
@@ -304,8 +304,8 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, cType WriteCo
 	}
 
 	req.Header.Add("Content-Encoding", string(compr))
-	req.Header.Set("Content-Type", contentTypeHeader(cType))
-	if cType == WriteV1ContentType {
+	req.Header.Set("Content-Type", contentTypeHeader(msgType))
+	if msgType == WriteV1MessageType {
 		// Compatibility mode for 1.0.
 		req.Header.Set(versionHeader, version1HeaderValue)
 	} else {
@@ -329,7 +329,7 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, cType WriteCo
 	}
 
 	rs := WriteResponseStats{}
-	if cType == WriteV2ContentType {
+	if msgType == WriteV2MessageType {
 		rs, err = parseWriteResponseStats(resp)
 		if err != nil {
 			r.opts.logger.Warn("parsing rw write statistics failed; partial or no stats", "err", err)
@@ -368,9 +368,12 @@ func retryAfterDuration(t string) time.Duration {
 type writeStorage interface {
 	// Store stores remote write metrics encoded in the given WriteContentType.
 	// Provided http.Request contains the encoded bytes in the req.Body with all the HTTP information,
-	// except "Content-Type" header which is provided in a separate, validated ctype. Other headers might be trimmed,
-	// depending on the configured middlewares e.g. a default SnappyMiddleware trims "Content-Encoding".
-	Store(ctx context.Context, cType WriteContentType, req *http.Request) (_ *WriteResponse, _ error)
+	// except "Content-Type" header which is provided in a separate, validated ctype.
+	//
+	// Other headers might be trimmed, depending on the configured middlewares
+	// e.g. a default SnappyMiddleware trims "Content-Encoding" and ensures that
+	// encoded body bytes are already decompressed.
+	Store(ctx context.Context, msgType WriteMessageType, req *http.Request) (_ *WriteResponse, _ error)
 }
 
 type handler struct {
@@ -442,7 +445,7 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 				return
 			}
 
-			// Replace the body with decompressed data and remove Content-Encoding header
+			// Replace the body with decompressed data and remove Content-Encoding header.
 			r.Body = io.NopCloser(bytes.NewReader(decompressed))
 			r.Header.Del("Content-Encoding")
 			next.ServeHTTP(w, r)
@@ -478,7 +481,7 @@ func NewHandler(store writeStorage, opts ...HandlerOption) http.Handler {
 //   - `application/x-protobuf` which will be treated as RW1.0 request.
 //
 // If the content-type is not of the above forms, it will return an error.
-func ParseProtoMsg(contentType string) (WriteContentType, error) {
+func ParseProtoMsg(contentType string) (WriteMessageType, error) {
 	contentType = strings.TrimSpace(contentType)
 
 	parts := strings.Split(contentType, ";")
@@ -492,7 +495,7 @@ func ParseProtoMsg(contentType string) (WriteContentType, error) {
 			return "", fmt.Errorf("as per https://www.rfc-editor.org/rfc/rfc9110#parameter expected parameters to be key-values, got %v in %v content-type", p, contentType)
 		}
 		if pair[0] == "proto" {
-			ret := WriteContentType(pair[1])
+			ret := WriteMessageType(pair[1])
 			if err := ret.Validate(); err != nil {
 				return "", fmt.Errorf("got %v content type; %w", contentType, err)
 			}
@@ -500,7 +503,7 @@ func ParseProtoMsg(contentType string) (WriteContentType, error) {
 		}
 	}
 	// No "proto=" parameter, assuming v1.
-	return WriteV1ContentType, nil
+	return WriteV1MessageType, nil
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -514,26 +517,26 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		contentType = appProtoContentType
 	}
 
-	cType, err := ParseProtoMsg(contentType)
+	msgType, err := ParseProtoMsg(contentType)
 	if err != nil {
 		h.opts.logger.Error("Error decoding remote write request", "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
 
-	writeResponse, storeErr := h.store.Store(r.Context(), cType, r)
+	writeResponse, storeErr := h.store.Store(r.Context(), msgType, r)
 
 	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, alongwith any user-defined headers.
 	writeResponse.SetHeaders(w)
 
 	if storeErr != nil {
-		if writeResponse.StatusCode == 0 {
-			writeResponse.StatusCode = http.StatusInternalServerError
+		if writeResponse.StatusCode() == 0 {
+			writeResponse.SetStatusCode(http.StatusInternalServerError)
 		}
-		if writeResponse.StatusCode/100 == 5 { // 5xx
+		if writeResponse.StatusCode()/100 == 5 { // 5xx
 			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
 		}
-		http.Error(w, storeErr.Error(), writeResponse.StatusCode)
+		http.Error(w, storeErr.Error(), writeResponse.StatusCode())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

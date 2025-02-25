@@ -38,34 +38,34 @@ const (
 	SnappyBlockCompression Compression = "snappy"
 )
 
-// WriteContentType represents the fully qualified name of the protobuf message
+// WriteMessageType represents the fully qualified name of the protobuf message
 // to use in Remote write 1.0 and 2.0 protocols.
 // See https://prometheus.io/docs/specs/remote_write_spec_2_0/#protocol.
-type WriteContentType string
+type WriteMessageType string
 
 const (
-	// WriteV1ContentType represents the `prometheus.WriteRequest` protobuf
+	// WriteV1MessageType represents the `prometheus.WriteRequest` protobuf
 	// message introduced in the https://prometheus.io/docs/specs/remote_write_spec/.
-	// DEPRECATED: Use WriteV2ContentType instead.
-	WriteV1ContentType WriteContentType = "prometheus.WriteRequest"
-	// WriteV2ContentType represents the `io.prometheus.write.v2.Request` protobuf
+	// DEPRECATED: Use WriteV2MessageType instead.
+	WriteV1MessageType WriteMessageType = "prometheus.WriteRequest"
+	// WriteV2MessageType represents the `io.prometheus.write.v2.Request` protobuf
 	// message introduced in https://prometheus.io/docs/specs/remote_write_spec_2_0/
-	WriteV2ContentType WriteContentType = "io.prometheus.write.v2.Request"
+	WriteV2MessageType WriteMessageType = "io.prometheus.write.v2.Request"
 )
 
 // Validate returns error if the given reference for the protobuf message is not supported.
-func (n WriteContentType) Validate() error {
+func (n WriteMessageType) Validate() error {
 	switch n {
-	case WriteV1ContentType, WriteV2ContentType:
+	case WriteV1MessageType, WriteV2MessageType:
 		return nil
 	default:
-		return fmt.Errorf("unknown content type for remote write protobuf message %v, supported: %v", n, contentTypes{WriteV1ContentType, WriteV2ContentType}.String())
+		return fmt.Errorf("unknown type for remote write protobuf message %v, supported: %v", n, messageTypes{WriteV1MessageType, WriteV2MessageType}.String())
 	}
 }
 
-type contentTypes []WriteContentType
+type messageTypes []WriteMessageType
 
-func (m contentTypes) Strings() []string {
+func (m messageTypes) Strings() []string {
 	ret := make([]string, 0, len(m))
 	for _, typ := range m {
 		ret = append(ret, string(typ))
@@ -73,18 +73,18 @@ func (m contentTypes) Strings() []string {
 	return ret
 }
 
-func (m contentTypes) String() string {
+func (m messageTypes) String() string {
 	return strings.Join(m.Strings(), ", ")
 }
 
-var contentTypeHeaders = map[WriteContentType]string{
-	WriteV1ContentType: appProtoContentType, // Also application/x-protobuf;proto=prometheus.WriteRequest but simplified for compatibility with 1.x spec.
-	WriteV2ContentType: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
+var contentTypeHeaders = map[WriteMessageType]string{
+	WriteV1MessageType: appProtoContentType, // Also application/x-protobuf;proto=prometheus.WriteRequest but simplified for compatibility with 1.x spec.
+	WriteV2MessageType: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
 }
 
 // ContentTypeHeader returns content type header value for the given proto message
 // or empty string for unknown proto message.
-func contentTypeHeader(m WriteContentType) string {
+func contentTypeHeader(m WriteMessageType) string {
 	return contentTypeHeaders[m]
 }
 
@@ -96,20 +96,55 @@ const (
 
 // WriteResponse represents the response from the remote storage upon receiving a remote write request.
 type WriteResponse struct {
-	// Stats represents the response, remote write statistics.
-	Stats WriteResponseStats
-	// StatusCode represents the response status code. http.StatusNoContent is the default unless 5xx is set.
-	StatusCode int
-	// ExtraHeaders represents additional headers to be set in the response (apart from stats headers).
-	ExtraHeaders http.Header
+	WriteResponseStats
+	statusCode   int
+	extraHeaders http.Header
+}
+
+// NewWriteResponse creates a new WriteResponse with empty stats and status code http.StatusNoContent.
+func NewWriteResponse() *WriteResponse {
+	return &WriteResponse{
+		WriteResponseStats: WriteResponseStats{},
+		statusCode:         http.StatusNoContent,
+		extraHeaders:       make(http.Header),
+	}
+}
+
+// Stats returns the current statistics.
+func (w *WriteResponse) Stats() WriteResponseStats {
+	return w.WriteResponseStats
+}
+
+// SetStatusCode sets the HTTP status code for the response. http.StatusNoContent is the default unless 5xx is set.
+func (w *WriteResponse) SetStatusCode(code int) {
+	w.statusCode = code
+}
+
+// StatusCode returns the current HTTP status code.
+func (w *WriteResponse) StatusCode() int {
+	return w.statusCode
+}
+
+// SetExtraHeader adds additional headers to be set in the response (apart from stats headers)
+func (w *WriteResponse) SetExtraHeader(key, value string) {
+	w.extraHeaders.Set(key, value)
+}
+
+// ExtraHeaders returns all additional headers to be set in the response (apart from stats headers).
+func (w *WriteResponse) ExtraHeaders() http.Header {
+	return w.extraHeaders
 }
 
 // SetHeaders sets response headers in a given response writer.
+// Make sure to use it before http.ResponseWriter.WriteHeader and .Write.
 func (r *WriteResponse) SetHeaders(w http.ResponseWriter) {
-	r.Stats.SetHeaders(w)
-	for k, v := range r.ExtraHeaders {
+	h := w.Header()
+	h.Set(writtenSamplesHeader, strconv.Itoa(r.Samples))
+	h.Set(writtenHistogramsHeader, strconv.Itoa(r.Histograms))
+	h.Set(writtenExemplarsHeader, strconv.Itoa(r.Exemplars))
+	for k, v := range r.ExtraHeaders() {
 		for _, vv := range v {
-			w.Header().Add(k, vv)
+			h.Add(k, vv)
 		}
 	}
 }
@@ -127,7 +162,7 @@ type WriteResponseStats struct {
 	// of the PRW 2.0 spec. When parsed from headers, it means we got at least one
 	// response header from the Receiver to confirm those numbers, meaning it must
 	// be at least 2.0 Receiver. See ParseWriteResponseStats for details.
-	Confirmed bool
+	confirmed bool
 }
 
 // NoDataWritten returns true if statistics indicate no data was written.
@@ -140,22 +175,13 @@ func (s WriteResponseStats) AllSamples() int {
 	return s.Samples + s.Histograms
 }
 
-// Add returns the sum of this WriteResponseStats plus the given WriteResponseStats.
-func (s WriteResponseStats) Add(rs WriteResponseStats) WriteResponseStats {
-	s.Confirmed = rs.Confirmed
+// Add adds the given WriteResponseStats to this WriteResponseStats.
+// If this WriteResponseStats is empty, it will be replaced by the given WriteResponseStats.
+func (s *WriteResponseStats) Add(rs WriteResponseStats) {
+	s.confirmed = rs.confirmed
 	s.Samples += rs.Samples
 	s.Histograms += rs.Histograms
 	s.Exemplars += rs.Exemplars
-	return s
-}
-
-// SetHeaders sets response headers in a given response writer.
-// Make sure to use it before http.ResponseWriter.WriteHeader and .Write.
-func (s WriteResponseStats) SetHeaders(w http.ResponseWriter) {
-	h := w.Header()
-	h.Set(writtenSamplesHeader, strconv.Itoa(s.Samples))
-	h.Set(writtenHistogramsHeader, strconv.Itoa(s.Histograms))
-	h.Set(writtenExemplarsHeader, strconv.Itoa(s.Exemplars))
 }
 
 // parseWriteResponseStats returns WriteResponseStats parsed from the response headers.
@@ -172,21 +198,21 @@ func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error)
 		h    = r.Header
 	)
 	if v := h.Get(writtenSamplesHeader); v != "" { // Empty means zero.
-		s.Confirmed = true
+		s.confirmed = true
 		if s.Samples, err = strconv.Atoi(v); err != nil {
 			s.Samples = 0
 			errs = append(errs, err)
 		}
 	}
 	if v := h.Get(writtenHistogramsHeader); v != "" { // Empty means zero.
-		s.Confirmed = true
+		s.confirmed = true
 		if s.Histograms, err = strconv.Atoi(v); err != nil {
 			s.Histograms = 0
 			errs = append(errs, err)
 		}
 	}
 	if v := h.Get(writtenExemplarsHeader); v != "" { // Empty means zero.
-		s.Confirmed = true
+		s.confirmed = true
 		if s.Exemplars, err = strconv.Atoi(v); err != nil {
 			s.Exemplars = 0
 			errs = append(errs, err)

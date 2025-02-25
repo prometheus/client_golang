@@ -18,19 +18,22 @@ Contains flexible method for building API clients, that can send remote write pr
     ...
 
 	remoteAPI, err := remote.NewAPI(
-		url,
+		"https://your-remote-endpoint",
 		remote.WithAPIHTTPClient(httpClient),
 		remote.WithAPILogger(logger.With("component", "remote_write_api")),
 	)
     ...
 
-    stats, err := remoteAPI.Write(ctx, remote.WriteV2ContentType, protoWriteReq)
+    stats, err := remoteAPI.Write(ctx, remote.WriteV2MessageType, protoWriteReq)
 ```
 
 Also contains handler methods for applications that would like to handle and store remote write requests.
 
 ```go
     import (
+        "net/http"
+        "log"
+
         "github.com/prometheus/client_golang/exp/api/remote"
     )
     ...
@@ -39,11 +42,21 @@ Also contains handler methods for applications that would like to handle and sto
 
     func NewStorage() *db {}
 
-    func (d *db) Store(ctx context.Context, cType remote.WriteContentType, req *http.Request) (*WriteResponse, error) {}
+    func (d *db) Store(ctx context.Context, msgType remote.WriteMessageType, req *http.Request) (*remote.WriteResponse, error) {}
     ...
 
-    storage = NewStorage()
-    remoteWriteHandler := remote.NewHandler(storage, remote.WithHandlerLogger(logger.With("component", "remote_write_handler")))
+	mux := http.NewServeMux()
+
+	remoteWriteHandler := remote.NewHandler(storage, remote.WithHandlerLogger(logger.With("component", "remote_write_handler")))
+	mux.Handle("/api/v1/write", remoteWriteHandler)
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 ```
 
 For more details, see [go doc](https://pkg.go.dev/github.com/prometheus/client_golang/exp/api/remote).
