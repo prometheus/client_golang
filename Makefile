@@ -14,11 +14,16 @@
 include .bingo/Variables.mk
 include Makefile.common
 
+.PHONY: deps
+deps:
+	$(GO) work sync
+	$(MAKE) common-deps
+
 .PHONY: test
-test: deps common-test
+test: deps common-test test-exp
 
 .PHONY: test-short
-test-short: deps common-test-short
+test-short: deps common-test-short test-exp-short
 
 .PHONY: generate-go-collector-test-files
 file := supported_go_versions.txt
@@ -35,5 +40,24 @@ generate-go-collector-test-files:
 	go mod tidy
 
 .PHONY: fmt
-fmt: common-format
+fmt: common-format $(GOIMPORTS)
 	$(GOIMPORTS) -local github.com/prometheus/client_golang -w .
+
+.PHONY: proto
+proto: ## Regenerate Go from remote write proto.
+proto: $(BUF)
+	@echo ">> regenerating Prometheus Remote Write proto"
+	@cd exp/api/remote/genproto && $(BUF) generate
+	@cd exp/api/remote && find genproto/ -type f -exec sed -i '' 's/protohelpers "github.com\/planetscale\/vtprotobuf\/protohelpers"/protohelpers "github.com\/prometheus\/client_golang\/exp\/internal\/github.com\/planetscale\/vtprotobuf\/protohelpers"/g' {} \;
+	# For some reasons buf generates this unused import, kill it manually for now and reformat.
+	@cd exp/api/remote && find genproto/ -type f -exec sed -i '' 's/_ "github.com\/gogo\/protobuf\/gogoproto"//g' {} \;
+	@cd exp/api/remote && go fmt ./genproto/...
+	$(MAKE) fmt
+
+.PHONY: test-exp
+test-exp:
+	cd exp && $(GOTEST) $(test-flags) $(GOOPTS) $(pkgs)
+
+.PHONY: test-exp-short
+test-exp-short:
+	cd exp && $(GOTEST) -short $(GOOPTS) $(pkgs)
