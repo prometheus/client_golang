@@ -26,6 +26,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/klauspost/compress/snappy"
@@ -39,11 +40,9 @@ import (
 // read protocols to be implemented if there will be a demand.
 type API struct {
 	baseURL *url.URL
-	client  *http.Client
 
-	opts apiOpts
-
-	reqBuf, comprBuf []byte
+	opts    apiOpts
+	bufPool sync.Pool
 }
 
 // APIOption represents a remote API option.
@@ -52,6 +51,7 @@ type APIOption func(o *apiOpts) error
 // TODO(bwplotka): Add "too old sample" handling one day.
 type apiOpts struct {
 	logger           *slog.Logger
+	client           *http.Client
 	backoff          backoff.Config
 	compression      Compression
 	path             string
@@ -64,6 +64,7 @@ var defaultAPIOpts = &apiOpts{
 		Max:        10 * time.Second,
 		MaxRetries: 10,
 	},
+	client: http.DefaultClient,
 	// Hardcoded for now.
 	retryOnRateLimit: true,
 	compression:      SnappyBlockCompression,
@@ -75,6 +76,14 @@ var defaultAPIOpts = &apiOpts{
 func WithAPILogger(logger *slog.Logger) APIOption {
 	return func(o *apiOpts) error {
 		o.logger = logger
+		return nil
+	}
+}
+
+// WithAPIHTTPClient returns APIOption that allows providing http client.
+func WithAPIHTTPClient(client *http.Client) APIOption {
+	return func(o *apiOpts) error {
+		o.client = client
 		return nil
 	}
 }
@@ -111,10 +120,7 @@ func (n nopSlogHandler) WithAttrs([]slog.Attr) slog.Handler        { return n }
 func (n nopSlogHandler) WithGroup(string) slog.Handler             { return n }
 
 // NewAPI returns a new API for the clients of Remote Write Protocol.
-//
-// It is not safe to use the returned API from multiple goroutines, create a
-// separate *API for each goroutine.
-func NewAPI(client *http.Client, baseURL string, opts ...APIOption) (*API, error) {
+func NewAPI(baseURL string, opts ...APIOption) (*API, error) {
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", err)
@@ -131,17 +137,19 @@ func NewAPI(client *http.Client, baseURL string, opts ...APIOption) (*API, error
 		o.logger = slog.New(nopSlogHandler{})
 	}
 
-	if client == nil {
-		client = http.DefaultClient
-	}
-
 	parsedURL.Path = path.Join(parsedURL.Path, o.path)
 
-	return &API{
+	api := &API{
 		opts:    o,
-		client:  client,
 		baseURL: parsedURL,
-	}, nil
+		bufPool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 0, 1024*16) // Initial capacity of 16KB.
+				return &b
+			},
+		},
+	}
+	return api, nil
 }
 
 type retryableError struct {
@@ -163,13 +171,6 @@ type gogoProtoEnabled interface {
 	MarshalToSizedBuffer(dAtA []byte) (n int, err error)
 }
 
-// Sort of a hack to identify v2 requests.
-// Under any marshaling scheme, v2 requests have a `Symbols` field of type []string.
-// So would always have a `GetSymbols()` method which doesn't rely on any other types.
-type v2Request interface {
-	GetSymbols() []string
-}
-
 // Write writes given, non-empty, protobuf message to a remote storage.
 //
 // Depending on serialization methods,
@@ -179,17 +180,10 @@ type v2Request interface {
 //     will be used
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
-func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err error) {
-	// Reset the buffer.
-	r.reqBuf = r.reqBuf[:0]
+func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ WriteResponseStats, err error) {
+	buf := r.bufPool.Get().(*[]byte)
 
-	// Detect content-type.
-	cType := WriteProtoFullNameV1
-	if _, ok := msg.(v2Request); ok {
-		cType = WriteProtoFullNameV2
-	}
-
-	if err := cType.Validate(); err != nil {
+	if err := msgType.Validate(); err != nil {
 		return WriteResponseStats{}, err
 	}
 
@@ -198,24 +192,30 @@ func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err err
 	case vtProtoEnabled:
 		// Use optimized vtprotobuf if supported.
 		size := m.SizeVT()
-		if len(r.reqBuf) < size {
-			r.reqBuf = make([]byte, size)
+		if cap(*buf) < size {
+			*buf = make([]byte, size)
+		} else {
+			*buf = (*buf)[:size]
 		}
-		if _, err := m.MarshalToSizedBufferVT(r.reqBuf[:size]); err != nil {
+
+		if _, err := m.MarshalToSizedBufferVT(*buf); err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
 	case gogoProtoEnabled:
 		// Gogo proto if supported.
 		size := m.Size()
-		if len(r.reqBuf) < size {
-			r.reqBuf = make([]byte, size)
+		if cap(*buf) < size {
+			*buf = make([]byte, size)
+		} else {
+			*buf = (*buf)[:size]
 		}
-		if _, err := m.MarshalToSizedBuffer(r.reqBuf[:size]); err != nil {
+
+		if _, err := m.MarshalToSizedBuffer(*buf); err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
 	case proto.Message:
 		// Generic proto.
-		r.reqBuf, err = (proto.MarshalOptions{}).MarshalAppend(r.reqBuf, m)
+		*buf, err = (proto.MarshalOptions{}).MarshalAppend(*buf, m)
 		if err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
@@ -223,10 +223,13 @@ func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err err
 		return WriteResponseStats{}, fmt.Errorf("unknown message type %T", m)
 	}
 
-	payload, err := compressPayload(&r.comprBuf, r.opts.compression, r.reqBuf)
+	comprBuf := r.bufPool.Get().(*[]byte)
+	payload, err := compressPayload(comprBuf, r.opts.compression, *buf)
 	if err != nil {
 		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
 	}
+	r.bufPool.Put(buf)
+	r.bufPool.Put(comprBuf)
 
 	// Since we retry writes we need to track the total amount of accepted data
 	// across the various attempts.
@@ -234,12 +237,12 @@ func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err err
 
 	b := backoff.New(ctx, r.opts.backoff)
 	for {
-		rs, err := r.attemptWrite(ctx, r.opts.compression, cType, payload, b.NumRetries())
-		accumulatedStats = accumulatedStats.Add(rs)
+		rs, err := r.attemptWrite(ctx, r.opts.compression, msgType, payload, b.NumRetries())
+		accumulatedStats.Add(rs)
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.
 			// https://prometheus.io/docs/specs/remote_write_spec_2_0/#required-written-response-headers.
-			if cType == WriteProtoFullNameV2 && !accumulatedStats.Confirmed && accumulatedStats.NoDataWritten() {
+			if msgType == WriteV2MessageType && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
 				// TODO(bwplotka): Allow users to disable this check or provide their stats for us to know if it's empty.
 				return accumulatedStats, fmt.Errorf("sent v2 request; "+
 					"got 2xx, but PRW 2.0 response header statistics indicate %v samples, %v histograms "+
@@ -279,18 +282,20 @@ func (r *API) Write(ctx context.Context, msg any) (_ WriteResponseStats, err err
 func compressPayload(tmpbuf *[]byte, enc Compression, inp []byte) (compressed []byte, _ error) {
 	switch enc {
 	case SnappyBlockCompression:
-		compressed = snappy.Encode(*tmpbuf, inp)
-		if n := snappy.MaxEncodedLen(len(inp)); n > len(*tmpbuf) {
-			// grow the buffer for the next time.
-			*tmpbuf = make([]byte, n)
+		if cap(*tmpbuf) < snappy.MaxEncodedLen(len(inp)) {
+			*tmpbuf = make([]byte, snappy.MaxEncodedLen(len(inp)))
+		} else {
+			*tmpbuf = (*tmpbuf)[:snappy.MaxEncodedLen(len(inp))]
 		}
+
+		compressed = snappy.Encode(*tmpbuf, inp)
 		return compressed, nil
 	default:
 		return compressed, fmt.Errorf("unknown compression scheme [%v]", enc)
 	}
 }
 
-func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WriteProtoFullName, payload []byte, attempt int) (WriteResponseStats, error) {
+func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType WriteMessageType, payload []byte, attempt int) (WriteResponseStats, error) {
 	req, err := http.NewRequest(http.MethodPost, r.baseURL.String(), bytes.NewReader(payload))
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
@@ -299,8 +304,8 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WritePr
 	}
 
 	req.Header.Add("Content-Encoding", string(compr))
-	req.Header.Set("Content-Type", contentTypeHeader(proto))
-	if proto == WriteProtoFullNameV1 {
+	req.Header.Set("Content-Type", contentTypeHeader(msgType))
+	if msgType == WriteV1MessageType {
 		// Compatibility mode for 1.0.
 		req.Header.Set(versionHeader, version1HeaderValue)
 	} else {
@@ -311,7 +316,7 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WritePr
 		req.Header.Set("Retry-Attempt", strconv.Itoa(attempt))
 	}
 
-	resp, err := r.client.Do(req.WithContext(ctx))
+	resp, err := r.opts.client.Do(req.WithContext(ctx))
 	if err != nil {
 		// Errors from Client.Do are likely network errors, so recoverable.
 		return WriteResponseStats{}, retryableError{err, 0}
@@ -324,7 +329,7 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, proto WritePr
 	}
 
 	rs := WriteResponseStats{}
-	if proto == WriteProtoFullNameV2 {
+	if msgType == WriteV2MessageType {
 		rs, err = parseWriteResponseStats(resp)
 		if err != nil {
 			r.opts.logger.Warn("parsing rw write statistics failed; partial or no stats", "err", err)
@@ -361,7 +366,14 @@ func retryAfterDuration(t string) time.Duration {
 // writeStorage represents the storage for RemoteWriteHandler.
 // This interface is intentionally private due its experimental state.
 type writeStorage interface {
-	Store(ctx context.Context, proto WriteProtoFullName, serializedRequest []byte) (_ WriteResponseStats, code int, _ error)
+	// Store stores remote write metrics encoded in the given WriteContentType.
+	// Provided http.Request contains the encoded bytes in the req.Body with all the HTTP information,
+	// except "Content-Type" header which is provided in a separate, validated ctype.
+	//
+	// Other headers might be trimmed, depending on the configured middlewares
+	// e.g. a default SnappyMiddleware trims "Content-Encoding" and ensures that
+	// encoded body bytes are already decompressed.
+	Store(ctx context.Context, msgType WriteMessageType, req *http.Request) (_ *WriteResponse, _ error)
 }
 
 type handler struct {
@@ -399,6 +411,12 @@ func WithHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler) Hand
 // If the request body is not snappy-encoded, it returns an error.
 // Used by default in NewRemoteWriteHandler.
 func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+	bufPool := sync.Pool{
+		New: func() any {
+			return bytes.NewBuffer(nil)
+		},
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			enc := r.Header.Get("Content-Encoding")
@@ -409,8 +427,10 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 				return
 			}
 
-			// Read the request body.
-			bodyBytes, err := io.ReadAll(r.Body)
+			buf := bufPool.Get().(*bytes.Buffer)
+			defer bufPool.Put(buf)
+
+			bodyBytes, err := io.ReadAll(io.TeeReader(r.Body, buf))
 			if err != nil {
 				logger.Error("Error reading request body", "err", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -425,16 +445,17 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 				return
 			}
 
-			// Replace the body with decompressed data
+			// Replace the body with decompressed data and remove Content-Encoding header.
 			r.Body = io.NopCloser(bytes.NewReader(decompressed))
+			r.Header.Del("Content-Encoding")
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-// NewRemoteWriteHandler returns HTTP handler that receives Remote Write 2.0
+// NewHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
-func NewRemoteWriteHandler(store writeStorage, opts ...HandlerOption) http.Handler {
+func NewHandler(store writeStorage, opts ...HandlerOption) http.Handler {
 	o := handlerOpts{
 		logger:      slog.New(nopSlogHandler{}),
 		middlewares: []func(http.Handler) http.Handler{SnappyDecompressorMiddleware(slog.New(nopSlogHandler{}))},
@@ -460,7 +481,7 @@ func NewRemoteWriteHandler(store writeStorage, opts ...HandlerOption) http.Handl
 //   - `application/x-protobuf` which will be treated as RW1.0 request.
 //
 // If the content-type is not of the above forms, it will return an error.
-func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
+func ParseProtoMsg(contentType string) (WriteMessageType, error) {
 	contentType = strings.TrimSpace(contentType)
 
 	parts := strings.Split(contentType, ";")
@@ -474,7 +495,7 @@ func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
 			return "", fmt.Errorf("as per https://www.rfc-editor.org/rfc/rfc9110#parameter expected parameters to be key-values, got %v in %v content-type", p, contentType)
 		}
 		if pair[0] == "proto" {
-			ret := WriteProtoFullName(pair[1])
+			ret := WriteMessageType(pair[1])
 			if err := ret.Validate(); err != nil {
 				return "", fmt.Errorf("got %v content type; %w", contentType, err)
 			}
@@ -482,7 +503,7 @@ func ParseProtoMsg(contentType string) (WriteProtoFullName, error) {
 		}
 	}
 	// No "proto=" parameter, assuming v1.
-	return WriteProtoFullNameV1, nil
+	return WriteV1MessageType, nil
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -503,27 +524,19 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read the already decompressed body
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		h.opts.logger.Error("Error reading request body", "err", err.Error())
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+	writeResponse, storeErr := h.store.Store(r.Context(), msgType, r)
 
-	stats, code, storeErr := h.store.Store(r.Context(), msgType, body)
-
-	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases.
-	stats.SetHeaders(w)
+	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, alongwith any user-defined headers.
+	writeResponse.SetHeaders(w)
 
 	if storeErr != nil {
-		if code == 0 {
-			code = http.StatusInternalServerError
+		if writeResponse.StatusCode() == 0 {
+			writeResponse.SetStatusCode(http.StatusInternalServerError)
 		}
-		if code/100 == 5 { // 5xx
+		if writeResponse.StatusCode()/100 == 5 { // 5xx
 			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
 		}
-		http.Error(w, storeErr.Error(), code)
+		http.Error(w, storeErr.Error(), writeResponse.StatusCode())
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
