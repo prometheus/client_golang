@@ -147,7 +147,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		tLogger := slog.Default()
 		mStore := &mockStorage{}
-		srv := httptest.NewServer(NewHandler(mStore, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewHandler(mStore, MessageTypes{WriteV2MessageType}, WithHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
 		client, err := NewAPI(srv.URL,
@@ -182,7 +182,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			mockErr:  errors.New("storage error"),
 			mockCode: &mockCode,
 		}
-		srv := httptest.NewServer(NewHandler(mStore, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewHandler(mStore, MessageTypes{WriteV2MessageType}, WithHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
 		client, err := NewAPI(srv.URL,

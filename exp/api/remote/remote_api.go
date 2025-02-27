@@ -377,8 +377,10 @@ type writeStorage interface {
 }
 
 type handler struct {
-	store writeStorage
-	opts  handlerOpts
+	store                writeStorage
+	acceptedMessageTypes MessageTypes
+	acceptedMap          map[WriteMessageType]struct{}
+	opts                 handlerOpts
 }
 
 type handlerOpts struct {
@@ -455,7 +457,7 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 
 // NewHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
-func NewHandler(store writeStorage, opts ...HandlerOption) http.Handler {
+func NewHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...HandlerOption) http.Handler {
 	o := handlerOpts{
 		logger:      slog.New(nopSlogHandler{}),
 		middlewares: []func(http.Handler) http.Handler{SnappyDecompressorMiddleware(slog.New(nopSlogHandler{}))},
@@ -463,7 +465,13 @@ func NewHandler(store writeStorage, opts ...HandlerOption) http.Handler {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	h := &handler{opts: o, store: store}
+
+	h := &handler{
+		opts:                 o,
+		store:                store,
+		acceptedMessageTypes: acceptedMessageTypes,
+		acceptedMap:          acceptedMessageTypes.Map(),
+	}
 
 	// Apply all middlewares in order
 	var handler http.Handler = h
@@ -520,6 +528,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	msgType, err := ParseProtoMsg(contentType)
 	if err != nil {
 		h.opts.logger.Error("Error decoding remote write request", "err", err)
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
+
+	if _, ok := h.acceptedMap[msgType]; !ok {
+		err := fmt.Errorf("%v protobuf message is not accepted by this server; only accepts %v", msgType, h.acceptedMessageTypes.String())
+		h.opts.logger.Error("Unaccepted message type", "msgType", msgType, "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
