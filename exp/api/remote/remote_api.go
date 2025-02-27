@@ -379,7 +379,6 @@ type writeStorage interface {
 type handler struct {
 	store                writeStorage
 	acceptedMessageTypes MessageTypes
-	acceptedMap          map[WriteMessageType]struct{}
 	opts                 handlerOpts
 }
 
@@ -470,7 +469,6 @@ func NewHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...H
 		opts:                 o,
 		store:                store,
 		acceptedMessageTypes: acceptedMessageTypes,
-		acceptedMap:          acceptedMessageTypes.Map(),
 	}
 
 	// Apply all middlewares in order
@@ -532,7 +530,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := h.acceptedMap[msgType]; !ok {
+	if !h.acceptedMessageTypes.Contains(msgType) {
 		err := fmt.Errorf("%v protobuf message is not accepted by this server; only accepts %v", msgType, h.acceptedMessageTypes.String())
 		h.opts.logger.Error("Unaccepted message type", "msgType", msgType, "err", err)
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)

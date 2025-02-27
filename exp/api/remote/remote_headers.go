@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -77,12 +78,8 @@ func (m MessageTypes) String() string {
 	return strings.Join(m.Strings(), ", ")
 }
 
-func (m MessageTypes) Map() map[WriteMessageType]struct{} {
-	ret := make(map[WriteMessageType]struct{}, len(m))
-	for _, typ := range m {
-		ret[typ] = struct{}{}
-	}
-	return ret
+func (m MessageTypes) Contains(mType WriteMessageType) bool {
+	return slices.Contains(m, mType)
 }
 
 var contentTypeHeaders = map[WriteMessageType]string{
