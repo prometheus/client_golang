@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -59,13 +60,13 @@ func (n WriteMessageType) Validate() error {
 	case WriteV1MessageType, WriteV2MessageType:
 		return nil
 	default:
-		return fmt.Errorf("unknown type for remote write protobuf message %v, supported: %v", n, messageTypes{WriteV1MessageType, WriteV2MessageType}.String())
+		return fmt.Errorf("unknown type for remote write protobuf message %v, supported: %v", n, MessageTypes{WriteV1MessageType, WriteV2MessageType}.String())
 	}
 }
 
-type messageTypes []WriteMessageType
+type MessageTypes []WriteMessageType
 
-func (m messageTypes) Strings() []string {
+func (m MessageTypes) Strings() []string {
 	ret := make([]string, 0, len(m))
 	for _, typ := range m {
 		ret = append(ret, string(typ))
@@ -73,8 +74,12 @@ func (m messageTypes) Strings() []string {
 	return ret
 }
 
-func (m messageTypes) String() string {
+func (m MessageTypes) String() string {
 	return strings.Join(m.Strings(), ", ")
+}
+
+func (m MessageTypes) Contains(mType WriteMessageType) bool {
+	return slices.Contains(m, mType)
 }
 
 var contentTypeHeaders = map[WriteMessageType]string{
