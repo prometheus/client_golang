@@ -82,7 +82,7 @@ func NewGauge(opts GaugeOpts) Gauge {
 		nil,
 		opts.ConstLabels,
 	)
-	result := &gauge{desc: desc, labelPairs: desc.constLabelPairs}
+	result := &gauge{desc: desc, labelPairs: desc.labelPairs}
 	result.init(result) // Init self-collection.
 	return result
 }
