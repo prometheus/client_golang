@@ -429,6 +429,7 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 			}
 
 			buf := bufPool.Get().(*bytes.Buffer)
+			buf.Reset()
 			defer bufPool.Put(buf)
 
 			bodyBytes, err := io.ReadAll(io.TeeReader(r.Body, buf))
