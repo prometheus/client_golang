@@ -3,6 +3,7 @@
 ## 1.21.1 / 2025-03-04
 
 * [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
+* [BUGFIX] prometheus: Fix GOOS=ios build, broken due to process_collector_* wrong build tags.
 
 ## 1.21.0 / 2025-02-17
 
