@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.21.1 / 2025-03-04
+
+* [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
+
 ## 1.21.0 / 2025-02-17
 
 :warning: This release contains potential breaking change if you upgrade `github.com/prometheus/common` to 0.62+ together with client_golang. :warning:
