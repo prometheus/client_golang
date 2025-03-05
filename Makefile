@@ -16,8 +16,8 @@ include Makefile.common
 
 .PHONY: deps
 deps:
-	$(GO) work sync
 	$(MAKE) common-deps
+	cd exp && $(GO) mod tidy && $(GO) mod download
 
 .PHONY: test
 test: deps common-test test-exp
