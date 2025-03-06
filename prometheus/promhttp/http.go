@@ -41,10 +41,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil"
+	"github.com/prometheus/client_golang/internal/github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -445,7 +445,7 @@ func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []strin
 
 	switch selected {
 	case "zstd":
-		// TODO(mrueg): Replace klauspost/compress with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
+		// TODO(mrueg): Replace klauspost/compress vendored lib with stdlib implementation once https://github.com/golang/go/issues/62513 is implemented.
 		z, err := zstd.NewWriter(rw, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		if err != nil {
 			return nil, "", func() {}, err
