@@ -51,7 +51,8 @@ type Desc struct {
 	// constLabelPairs contains the sorted DTO label pairs based on the constant labels
 	// and variable labels
 	constLabelPairs []*dto.LabelPair
-
+	// orderedLabels contains the sorted labels with necessary fields to construct the
+	// final label pairs when needed.
 	orderedLabels []labelMapping
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be

@@ -542,7 +542,6 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 			panic(errBucketLabelNotAllowed)
 		}
 	}
-
 	for _, lp := range desc.constLabelPairs {
 		if lp.GetName() == bucketLabel {
 			panic(errBucketLabelNotAllowed)

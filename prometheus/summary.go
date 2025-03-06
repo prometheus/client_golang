@@ -201,7 +201,6 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
-
 	for _, lp := range desc.constLabelPairs {
 		if lp.GetName() == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
