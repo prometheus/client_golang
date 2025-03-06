@@ -236,6 +236,8 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 		},
 	} {
 		b.Run(fmt.Sprintf("labels=%v", len(bm.makeLabelPairValues)), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				MakeLabelPairs(bm.desc, bm.makeLabelPairValues)
 			}
@@ -264,6 +266,8 @@ func BenchmarkConstMetricFlow(b *testing.B) {
 		b.Run(fmt.Sprintf("labels=%v", len(bm.labelValues)), func(b *testing.B) {
 			for _, metricsToCreate := range []int{1, 2, 3, 5} {
 				b.Run(fmt.Sprintf("metrics=%v", metricsToCreate), func(b *testing.B) {
+					b.ReportAllocs()
+					b.ResetTimer()
 					for i := 0; i < b.N; i++ {
 						desc := bm.descFunc()
 						for j := 0; j < metricsToCreate; j++ {

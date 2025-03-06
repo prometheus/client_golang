@@ -22,8 +22,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 // Desc is the descriptor used by every Prometheus Metric. It is essentially
@@ -50,13 +48,11 @@ type Desc struct {
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
-	// variableLabelOrder maps variableLabels indexes to the position in the
-	// pre-computed labelPairs slice. This allows fast MakeLabelPair function
-	// that have to place ordered variable label values into pre-sorted labelPairs.
-	variableLabelOrder []int
-	// labelPairs contains the sorted DTO label pairs based on the constant labels
+	// constLabelPairs contains the sorted DTO label pairs based on the constant labels
 	// and variable labels
-	labelPairs []*dto.LabelPair
+	constLabelPairs []*dto.LabelPair
+
+	orderedLabels []labelMapping
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -68,6 +64,21 @@ type Desc struct {
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
+}
+
+type labelMapping struct {
+	constLabelIndex int
+
+	variableLabelIndex int
+	variableLabelName  *string
+}
+
+func newLabelMapping() labelMapping {
+	return labelMapping{
+		constLabelIndex:    -1,
+		variableLabelIndex: -1,
+		variableLabelName:  nil,
+	}
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -137,7 +148,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", label, fqName)
 			return d
 		}
-		labelNames = append(labelNames, "$"+label)
+		labelNames = append(labelNames, label)
 		labelNameSet[label] = struct{}{}
 	}
 	if len(labelNames) != len(labelNameSet) {
@@ -164,31 +175,25 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	d.dimHash = xxh.Sum64()
 
-	d.labelPairs = make([]*dto.LabelPair, 0, len(constLabels)+len(d.variableLabels.names))
-	for n, v := range constLabels {
-		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
-		})
-	}
-	for _, labelName := range d.variableLabels.names {
-		d.labelPairs = append(d.labelPairs, &dto.LabelPair{
-			Name: proto.String(labelName),
-		})
-	}
-	sort.Sort(internal.LabelPairSorter(d.labelPairs))
-
-	d.variableLabelOrder = make([]int, len(d.variableLabels.names))
-	for outputIndex, pair := range d.labelPairs {
-		// Constant labels have values variable labels do not.
-		if pair.Value != nil {
-			continue
-		}
-		for sourceIndex, variableLabel := range d.variableLabels.names {
-			if variableLabel == pair.GetName() {
-				d.variableLabelOrder[sourceIndex] = outputIndex
+	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
+	d.orderedLabels = make([]labelMapping, len(labelNames))
+	for i, n := range labelNames {
+		lm := newLabelMapping()
+		if l, ok := constLabels[n]; ok {
+			d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
+				Name:  proto.String(n),
+				Value: proto.String(l),
+			})
+			lm.constLabelIndex = len(d.constLabelPairs) - 1
+		} else {
+			for variableLabelIndex, variableLabel := range variableLabels.labelNames() {
+				if variableLabel == n {
+					lm.variableLabelIndex = variableLabelIndex
+					lm.variableLabelName = proto.String(variableLabel)
+				}
 			}
 		}
+		d.orderedLabels[i] = lm
 	}
 
 	return d
@@ -205,11 +210,8 @@ func NewInvalidDesc(err error) *Desc {
 }
 
 func (d *Desc) String() string {
-	lpStrings := make([]string, 0, len(d.labelPairs))
-	for _, lp := range d.labelPairs {
-		if lp.Value == nil {
-			continue
-		}
+	lpStrings := make([]string, 0, len(d.constLabelPairs))
+	for _, lp := range d.constLabelPairs {
 		lpStrings = append(
 			lpStrings,
 			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),

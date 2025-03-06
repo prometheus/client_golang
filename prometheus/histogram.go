@@ -537,7 +537,13 @@ func newHistogram(desc *Desc, opts HistogramOpts, labelValues ...string) Histogr
 		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, labelValues))
 	}
 
-	for _, lp := range desc.labelPairs {
+	for _, n := range desc.variableLabels.names {
+		if n == bucketLabel {
+			panic(errBucketLabelNotAllowed)
+		}
+	}
+
+	for _, lp := range desc.constLabelPairs {
 		if lp.GetName() == bucketLabel {
 			panic(errBucketLabelNotAllowed)
 		}

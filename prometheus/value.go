@@ -212,31 +212,25 @@ func populateMetric(
 // This function is only needed for custom Metric implementations. See MetricVec
 // example.
 func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
-	if len(desc.labelPairs) == 0 {
+	if len(desc.orderedLabels) == 0 {
 		// Super fast path.
 		return nil
 	}
 	if len(desc.variableLabels.names) == 0 {
 		// Moderately fast path.
-		return desc.labelPairs
+		return desc.constLabelPairs
 	}
-	labelPairs := make([]*dto.LabelPair, 0, len(desc.labelPairs))
-	for _, lp := range desc.labelPairs {
-		var labelToAdd *dto.LabelPair
-		// Variable labels have no value and need to be inserted with a new dto.LabelPair containing the labelValue.
-		if lp.Value == nil {
-			labelToAdd = &dto.LabelPair{
-				Name: lp.Name,
-			}
+	labelPairs := make([]*dto.LabelPair, len(desc.orderedLabels))
+	for i, lm := range desc.orderedLabels {
+		if lm.constLabelIndex != -1 {
+			labelPairs[i] = desc.constLabelPairs[lm.constLabelIndex]
 		} else {
-			labelToAdd = lp
+			labelPairs[i] = &dto.LabelPair{
+				Name:  lm.variableLabelName,
+				Value: proto.String(labelValues[lm.variableLabelIndex]),
+			}
 		}
-		labelPairs = append(labelPairs, labelToAdd)
 	}
-	for i, outputIndex := range desc.variableLabelOrder {
-		labelPairs[outputIndex].Value = proto.String(labelValues[i])
-	}
-
 	return labelPairs
 }
 

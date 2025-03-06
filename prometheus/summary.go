@@ -196,7 +196,13 @@ func newSummary(desc *Desc, opts SummaryOpts, labelValues ...string) Summary {
 		panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, labelValues))
 	}
 
-	for _, lp := range desc.labelPairs {
+	for _, n := range desc.variableLabels.names {
+		if n == quantileLabel {
+			panic(errQuantileLabelNotAllowed)
+		}
+	}
+
+	for _, lp := range desc.constLabelPairs {
 		if lp.GetName() == quantileLabel {
 			panic(errQuantileLabelNotAllowed)
 		}
