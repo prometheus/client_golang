@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.22.0 / 2025-03-05
+
+TBD
+
 ## 1.21.1 / 2025-03-04
 
 * [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
