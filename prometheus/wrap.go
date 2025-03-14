@@ -198,6 +198,7 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 				help:            desc.help,
 				variableLabels:  desc.variableLabels,
 				constLabelPairs: desc.constLabelPairs,
+				orderedLabels:   desc.orderedLabels,
 				err:             fmt.Errorf("attempted wrapping with already existing label name %q", ln),
 			}
 		}
