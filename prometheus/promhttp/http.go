@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil"
 	"github.com/prometheus/client_golang/prometheus"
@@ -127,6 +128,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 	if opts.MaxRequestsInFlight > 0 {
 		inFlightSem = make(chan struct{}, opts.MaxRequestsInFlight)
 	}
+	var hasEscapedCollisions bool
 	if opts.Registry != nil {
 		// Initialize all possibilities that can occur below.
 		errCnt.WithLabelValues("gathering")
@@ -140,6 +142,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			}
 		}
 	}
+	hasEscapedCollisions = reg.HasEscapedCollision()
 
 	// Select compression formats to offer based on default or user choice.
 	var compressions []string
@@ -196,6 +199,19 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}
+
+		if hasEscapedCollisions {
+			switch contentType.ToEscapingScheme() {
+			case model.UnderscoreEscaping, model.DotsEscaping:
+				if opts.ErrorLog != nil {
+					opts.ErrorLog.Println("error: one or more metrics collide when escaped")
+				}
+				httpError(rsp, fmt.Errorf("one or more metrics collide when escaped"))
+				return
+			default:
+			}
+		}
+
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
 		w, encodingHeader, closeWriter, err := negotiateEncodingWriter(req, rsp, compressions)
