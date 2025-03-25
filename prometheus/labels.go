@@ -183,6 +183,14 @@ func validateLabelValues(vals []string, expectedNumberOfValues int) error {
 	return nil
 }
 
+// AllowReservedLabels relaxes the check for labels starting with __
+// TODO(bwplotka): Only for demo, if needed long term, it has to be part of desc option,
+// not global.
+var AllowReservedLabels bool
+
 func checkLabelName(l string) bool {
+	if AllowReservedLabels {
+		return model.LabelName(l).IsValid()
+	}
 	return model.LabelName(l).IsValid() && !strings.HasPrefix(l, reservedLabelPrefix)
 }
