@@ -371,6 +371,7 @@ type HistogramOpts struct {
 	Namespace string
 	Subsystem string
 	Name      string
+	Unit      string
 
 	// Help provides information about this Histogram.
 	//
@@ -522,9 +523,10 @@ type HistogramVecOpts struct {
 // for each bucket.
 func NewHistogram(opts HistogramOpts) Histogram {
 	return newHistogram(
-		NewDesc(
+		V2.NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
+			opts.Unit,
 			nil,
 			opts.ConstLabels,
 		),
@@ -1188,6 +1190,7 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)

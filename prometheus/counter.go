@@ -85,9 +85,10 @@ type CounterVecOpts struct {
 // Both internal tracking values are added up in the Write method. This has to
 // be taken into account when it comes to precision and overflow behavior.
 func NewCounter(opts CounterOpts) Counter {
-	desc := NewDesc(
+	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		nil,
 		opts.ConstLabels,
 	)
@@ -203,6 +204,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)

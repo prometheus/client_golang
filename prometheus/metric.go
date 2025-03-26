@@ -74,6 +74,7 @@ type Opts struct {
 	Namespace string
 	Subsystem string
 	Name      string
+	Unit      string
 
 	// Help provides information about this metric.
 	//

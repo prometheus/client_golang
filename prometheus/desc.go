@@ -47,6 +47,8 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
+	// unit is a OpenMetrics unit.
+	unit string
 	// constLabelPairs contains precalculated DTO label pairs based on
 	// the constant labels.
 	constLabelPairs []*dto.LabelPair
@@ -76,7 +78,7 @@ type Desc struct {
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
 func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *Desc {
-	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels)
+	return V2.NewDesc(fqName, help, "", UnconstrainedLabels(variableLabels), constLabels)
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -89,10 +91,14 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels) *Desc {
+func (v2) NewDesc(fqName, help, unit string, variableLabels ConstrainableLabels, constLabels Labels) *Desc {
+	if variableLabels == nil {
+		variableLabels = UnconstrainedLabels(nil)
+	}
 	d := &Desc{
 		fqName:         fqName,
 		help:           help,
+		unit:           unit,
 		variableLabels: variableLabels.compile(),
 	}
 	if !model.IsValidMetricName(model.LabelValue(fqName)) {

@@ -685,6 +685,10 @@ func processMetric(
 		metricFamily = &dto.MetricFamily{}
 		metricFamily.Name = proto.String(desc.fqName)
 		metricFamily.Help = proto.String(desc.help)
+		if desc.unit != "" {
+			metricFamily.Unit = proto.String(desc.unit)
+		}
+
 		// TODO(beorn7): Simplify switch once Desc has type.
 		switch {
 		case dtoMetric.Gauge != nil:

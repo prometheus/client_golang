@@ -576,6 +576,7 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		"", // TODO
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)

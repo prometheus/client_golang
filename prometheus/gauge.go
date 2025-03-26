@@ -76,9 +76,10 @@ type GaugeVecOpts struct {
 // scenarios for Gauges and Counters, where the former tends to be Set-heavy and
 // the latter Inc-heavy.
 func NewGauge(opts GaugeOpts) Gauge {
-	desc := NewDesc(
+	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		nil,
 		opts.ConstLabels,
 	)
@@ -161,6 +162,7 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)
