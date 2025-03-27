@@ -1,5 +1,27 @@
 ## Unreleased
 
+## 1.21.1 / 2025-03-04
+
+* [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
+* [BUGFIX] prometheus: Fix GOOS=ios build, broken due to process_collector_* wrong build tags.
+
+## 1.21.0 / 2025-02-17
+
+:warning: This release contains potential breaking change if you upgrade `github.com/prometheus/common` to 0.62+ together with client_golang. :warning:
+
+New common version [changes `model.NameValidationScheme` global variable](https://github.com/prometheus/common/pull/724), which relaxes the validation of label names and metric name, allowing all UTF-8 characters. Typically, this should not break any user, unless your test or usage expects strict certain names to panic/fail on client_golang metric registration, gathering or scrape. In case of problems change `model.NameValidationScheme` to old `model.LegacyValidation` value in your project `init` function.
+
+* [BUGFIX] gocollector: Fix help message for runtime/metric metrics. #1583
+* [BUGFIX] prometheus: Fix `Desc.String()` method for no labels case. #1687
+* [ENHANCEMENT] prometheus: Optimize popular `prometheus.BuildFQName` function; now up to 30% faster. #1665
+* [ENHANCEMENT] prometheus: Optimize `Inc`, `Add` and `Observe` cumulative metrics; now up to 50% faster under high concurrent contention. #1661
+* [CHANGE] Upgrade prometheus/common to 0.62.0 which changes `model.NameValidationScheme` global variable. #1712
+* [CHANGE] Add support for Go 1.23. #1602
+* [FEATURE] process_collector: Add support for Darwin systems. #1600 #1616 #1625 #1675 #1715
+* [FEATURE] api: Add ability to invoke `CloseIdleConnections` on api.Client using `api.Client.(CloseIdler).CloseIdleConnections()` casting. #1513
+* [FEATURE] promhttp: Add `promhttp.HandlerOpts.EnableOpenMetricsTextCreatedSamples` option to create OpenMetrics _created lines. Not recommended unless you want to use opt-in Created Timestamp feature. Community works on OpenMetrics 2.0 format that should make those lines obsolete (they increase cardinality significantly). #1408
+* [FEATURE] prometheus: Add `NewConstNativeHistogram` function. #1654
+
 ## 1.20.5 / 2024-10-15
 
 * [BUGFIX] testutil: Reverted #1424; functions using compareMetricFamilies are (again) only failing if filtered metricNames are in the expected input.
