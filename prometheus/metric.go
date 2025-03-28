@@ -187,6 +187,15 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
 	case pb.Histogram != nil:
 		for _, e := range m.exemplars {
+			if pb.Histogram.Schema != nil {
+				if *pb.Histogram.Schema > math.MinInt32 && e.GetTimestamp() != nil {
+					pb.Histogram.Exemplars = append(pb.Histogram.Exemplars, e)
+				}
+				if len(pb.Histogram.Bucket) == 0 {
+					// Don't proceed to classic buckets if there are none.
+					continue
+				}
+			}
 			// pb.Histogram.Bucket are sorted by UpperBound.
 			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
 				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
@@ -227,6 +236,7 @@ type Exemplar struct {
 // Only last applicable exemplar is injected from the list.
 // For example for Counter it means last exemplar is injected.
 // For Histogram, it means last applicable exemplar for each bucket is injected.
+// For a Native Histogram, all valid exemplars are injected.
 //
 // NewMetricWithExemplars works best with MustNewConstMetric and
 // MustNewConstHistogram, see example.
