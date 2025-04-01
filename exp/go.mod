@@ -5,7 +5,7 @@ go 1.22
 require (
 	github.com/google/go-cmp v0.7.0
 	github.com/klauspost/compress v1.18.0
-	github.com/prometheus/common v0.62.0
+	github.com/prometheus/common v0.63.0
 	google.golang.org/protobuf v1.36.6
 )
 
