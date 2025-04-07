@@ -157,10 +157,6 @@ func (c *baseGoCollector) Collect(ch chan<- Metric) {
 	ch <- MustNewConstMetric(c.goInfoDesc, GaugeValue, 1)
 }
 
-func memstatNamespace(s string) string {
-	return "go_memstats_" + s
-}
-
 // memStatsMetric provide description, evaluator, runtime/metrics name, and
 // value type for memstat metric.
 type memStatsMetric struct {
@@ -172,10 +168,10 @@ type memStatsMetric struct {
 func (m *memStatsMetric) update(memStats *runtime.MemStats) Metric {
 	current := m.eval(memStats)
 	switch value := m.metric.(type) {
-	case *counter:
-		value.Add(current - m.last)
-	case *gauge:
+	case Gauge:
 		value.Set(current)
+	case Counter:
+		value.Add(current - m.last)
 	default:
 		panic("unexpected metric type")
 	}
