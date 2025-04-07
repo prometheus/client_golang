@@ -170,16 +170,16 @@ type memStatsMetric struct {
 }
 
 func (m *memStatsMetric) update(memStats *runtime.MemStats) Metric {
-	last := m.eval(memStats)
-	switch actual := m.metric.(type) {
-	case Counter:
-		actual.Add(last - m.last)
-	case Gauge:
-		actual.Set(last)
+	current := m.eval(memStats)
+	switch value := m.metric.(type) {
+	case *counter:
+		value.Add(current - m.last)
+	case *gauge:
+		value.Set(current)
 	default:
 		panic("unexpected metric type")
 	}
-	m.last = last
+	m.last = current
 	return m.metric
 }
 
