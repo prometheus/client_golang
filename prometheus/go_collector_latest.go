@@ -295,7 +295,7 @@ func attachOriginalName(desc, origName string) string {
 func (c *goCollector) Describe(ch chan<- *Desc) {
 	c.base.Describe(ch)
 	for _, i := range c.msMetrics {
-		ch <- i.desc
+		ch <- i.metric.Desc()
 	}
 	for _, m := range c.rmExposedMetrics {
 		ch <- m.Desc()
@@ -364,7 +364,7 @@ func (c *goCollector) Collect(ch chan<- Metric) {
 		var ms runtime.MemStats
 		memStatsFromRM(&ms, c.sampleMap)
 		for _, i := range c.msMetrics {
-			ch <- MustNewConstMetric(i.desc, i.valType, i.eval(&ms))
+			ch <- i.update(&ms)
 		}
 	}
 }
