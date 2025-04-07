@@ -62,7 +62,7 @@ func expectedBaseMetrics() map[string]struct{} {
 
 func addExpectedRuntimeMemStats(metrics map[string]struct{}) map[string]struct{} {
 	for _, m := range goRuntimeMemStats() {
-		metrics[m.desc.fqName] = struct{}{}
+		metrics[m.metric.Desc().fqName] = struct{}{}
 	}
 	return metrics
 }
