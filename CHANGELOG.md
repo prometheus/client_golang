@@ -1,6 +1,6 @@
 ## Unreleased
 
-## 1.22.0-rc.0 / 2025-03-05
+## 1.22.0 / 2025-04-07
 
 :warning: This release contains potential breaking change if you use experimental `zstd` support introduce in #1496 :warning:
 
