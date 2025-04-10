@@ -39,6 +39,10 @@ jobs:
     strategy:
       matrix:
         go_version: ${{ fromJSON(needs.supportedVersions.outputs.supported_versions) }}
+        os:
+          - windows
+          - darwin
+          - linux
 
     steps:
       - name: Checkout code
@@ -60,6 +64,7 @@ jobs:
         run: make check_license test
         env:
           CI: true
+          GOOS: ${{ matrix.os }}
 
       - name: Run style and unused
         if: ${{ matrix.go_version == '1.22' }}
