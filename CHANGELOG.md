@@ -1,5 +1,27 @@
 ## Unreleased
 
+## 1.22.0 / 2025-04-07
+
+:warning: This release contains potential breaking change if you use experimental `zstd` support introduce in #1496 :warning:
+
+Experimental support for `zstd` on scrape was added, controlled by the request `Accept-Encoding` header.
+It was enabled by default since version 1.20, but now you need to add a blank import to enable it.
+The decision to make it opt-in by default was originally made because the Go standard library was expected to have default zstd support added soon,
+https://github.com/golang/go/issues/62513 however, the work took longer than anticipated and it will be postponed to upcoming major Go versions.
+
+
+e.g.:
+> ```go
+> import (
+>   _ "github.com/prometheus/client_golang/prometheus/promhttp/zstd"
+> )
+> ```
+
+* [FEATURE] prometheus: Add new CollectorFunc utility #1724
+* [CHANGE] Minimum required Go version is now 1.22 (we also test client_golang against latest go version - 1.24) #1738
+* [FEATURE] api: `WithLookbackDelta` and `WithStats` options have been added to API client. #1743
+* [CHANGE] :warning: promhttp: Isolate zstd support and klauspost/compress library use to promhttp/zstd package. #1765
+
 ## 1.21.1 / 2025-03-04
 
 * [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
