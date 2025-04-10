@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -783,4 +784,83 @@ func ExampleCollectorFunc() {
 
 	// Output:
 	// {"name":"http_requests_info","help":"Information about the received HTTP requests.","type":"COUNTER","metric":[{"label":[{"name":"code","value":"200"},{"name":"method","value":"GET"}],"counter":{"value":42}},{"label":[{"name":"code","value":"404"},{"name":"method","value":"POST"}],"counter":{"value":15}}]}
+}
+
+// Using WrapCollectorWith to un-register metrics registered by a third party lib.
+// newThirdPartyLibFoo illustrates a constructor from a third-party lib that does
+// not expose any way to un-register metrics.
+func ExampleWrapCollectorWith() {
+	reg := prometheus.NewRegistry()
+
+	// We want to create two instances of thirdPartyLibFoo, each one wrapped with
+	// its "instance" label.
+	firstReg := prometheus.NewRegistry()
+	_ = newThirdPartyLibFoo(firstReg)
+	firstCollector := prometheus.WrapCollectorWith(prometheus.Labels{"instance": "first"}, firstReg)
+	reg.MustRegister(firstCollector)
+
+	secondReg := prometheus.NewRegistry()
+	_ = newThirdPartyLibFoo(secondReg)
+	secondCollector := prometheus.WrapCollectorWith(prometheus.Labels{"instance": "second"}, secondReg)
+	reg.MustRegister(secondCollector)
+
+	// So far we have illustrated that we can create two instances of thirdPartyLibFoo,
+	// wrapping each one's metrics with some const label.
+	// This is something we could've achieved by doing:
+	// newThirdPartyLibFoo(prometheus.WrapRegistererWith(prometheus.Labels{"instance": "first"}, reg))
+	metricFamilies, err := reg.Gather()
+	if err != nil {
+		panic("unexpected behavior of registry")
+	}
+	fmt.Println("Both instances:")
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
+
+	// Now we want to unregister first Foo's metrics, and then register them again.
+	// This is not possible by passing a wrapped Registerer to newThirdPartyLibFoo,
+	// because we have already lost track of the registered Collectors,
+	// however since we've collected Foo's metrics in it's own Registry, and we have registered that
+	// as a specific Collector, we can now de-register them:
+	unregistered := reg.Unregister(firstCollector)
+	if !unregistered {
+		panic("unexpected behavior of registry")
+	}
+
+	metricFamilies, err = reg.Gather()
+	if err != nil {
+		panic("unexpected behavior of registry")
+	}
+	fmt.Println("First unregistered:")
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
+
+	// Now we can create another instance of Foo with {instance: "first"} label again.
+	firstRegAgain := prometheus.NewRegistry()
+	_ = newThirdPartyLibFoo(firstRegAgain)
+	firstCollectorAgain := prometheus.WrapCollectorWith(prometheus.Labels{"instance": "first"}, firstRegAgain)
+	reg.MustRegister(firstCollectorAgain)
+
+	metricFamilies, err = reg.Gather()
+	if err != nil {
+		panic("unexpected behavior of registry")
+	}
+	fmt.Println("Both again:")
+	fmt.Println(toNormalizedJSON(sanitizeMetricFamily(metricFamilies[0])))
+
+	// Output:
+	// Both instances:
+	// {"name":"foo","help":"Registered forever.","type":"GAUGE","metric":[{"label":[{"name":"instance","value":"first"}],"gauge":{"value":1}},{"label":[{"name":"instance","value":"second"}],"gauge":{"value":1}}]}
+	// First unregistered:
+	// {"name":"foo","help":"Registered forever.","type":"GAUGE","metric":[{"label":[{"name":"instance","value":"second"}],"gauge":{"value":1}}]}
+	// Both again:
+	// {"name":"foo","help":"Registered forever.","type":"GAUGE","metric":[{"label":[{"name":"instance","value":"first"}],"gauge":{"value":1}},{"label":[{"name":"instance","value":"second"}],"gauge":{"value":1}}]}
+}
+
+func newThirdPartyLibFoo(reg prometheus.Registerer) struct{} {
+	foo := struct{}{}
+	// Register the metrics of the third party lib.
+	c := promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		Name: "foo",
+		Help: "Registered forever.",
+	})
+	c.Set(1)
+	return foo
 }
