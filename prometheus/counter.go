@@ -19,6 +19,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
+
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -94,7 +96,7 @@ func NewCounter(opts CounterOpts) Counter {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: opts.now}
+	result := &counter{desc: desc, labelPairs: fastdto.ToDTOLabelPair(desc.labelPairs), now: opts.now}
 	result.init(result) // Init self-collection.
 	result.createdTs = timestamppb.New(opts.now())
 	return result
