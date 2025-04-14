@@ -14,6 +14,8 @@
 package prometheus
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -167,4 +169,191 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			}
 		}
 	})
+	t.Run("nativehistogram metric exemplars should be available in both buckets and exemplars", func(t *testing.T) {
+		now := time.Now()
+		tcs := []struct {
+			Name                         string
+			Count                        uint64
+			Sum                          float64
+			PositiveBuckets              map[int]int64
+			NegativeBuckets              map[int]int64
+			ZeroBucket                   uint64
+			NativeHistogramSchema        int32
+			NativeHistogramZeroThreshold float64
+			CreatedTimestamp             time.Time
+			Bucket                       []*dto.Bucket
+			Exemplars                    []Exemplar
+			Want                         *dto.Metric
+		}{
+			{
+				Name:  "nativehistogram metric exemplars should be available in both buckets and exemplars",
+				Count: 6,
+				Sum:   7.4,
+				PositiveBuckets: map[int]int64{
+					0: 1, 2: 2, 4: 2,
+				},
+				NegativeBuckets: map[int]int64{},
+				ZeroBucket:      1,
+
+				NativeHistogramSchema:        2,
+				NativeHistogramZeroThreshold: 2.938735877055719e-39,
+				CreatedTimestamp:             now,
+				Bucket: []*dto.Bucket{
+					{
+						CumulativeCount: PointOf(uint64(6)),
+						UpperBound:      PointOf(float64(1)),
+					},
+					{
+						CumulativeCount: PointOf(uint64(8)),
+						UpperBound:      PointOf(float64(2)),
+					},
+					{
+						CumulativeCount: PointOf(uint64(11)),
+						UpperBound:      PointOf(float64(5)),
+					},
+					{
+						CumulativeCount: PointOf(uint64(13)),
+						UpperBound:      PointOf(float64(10)),
+					},
+				},
+				Exemplars: []Exemplar{
+					{
+						Timestamp: now,
+						Value:     10,
+					},
+				},
+				Want: &dto.Metric{
+					Histogram: &dto.Histogram{
+						SampleCount:   proto.Uint64(6),
+						SampleSum:     proto.Float64(7.4),
+						Schema:        proto.Int32(2),
+						ZeroThreshold: proto.Float64(2.938735877055719e-39),
+						ZeroCount:     proto.Uint64(1),
+						PositiveSpan: []*dto.BucketSpan{
+							{Offset: proto.Int32(0), Length: proto.Uint32(5)},
+						},
+						PositiveDelta: []int64{1, -1, 2, -2, 2},
+						Exemplars: []*dto.Exemplar{
+							{
+								Value:     PointOf(float64(10)),
+								Timestamp: timestamppb.New(now),
+							},
+						},
+						Bucket: []*dto.Bucket{
+							{
+								CumulativeCount: PointOf(uint64(6)),
+								UpperBound:      PointOf(float64(1)),
+							},
+							{
+								CumulativeCount: PointOf(uint64(8)),
+								UpperBound:      PointOf(float64(2)),
+							},
+							{
+								CumulativeCount: PointOf(uint64(11)),
+								UpperBound:      PointOf(float64(5)),
+							},
+							{
+								CumulativeCount: PointOf(uint64(13)),
+								UpperBound:      PointOf(float64(10)),
+								Exemplar: &dto.Exemplar{
+									Timestamp: timestamppb.New(now),
+									Value:     PointOf(float64(10)),
+								},
+							},
+						},
+						CreatedTimestamp: timestamppb.New(now),
+					},
+				},
+			},
+		}
+
+		for _, tc := range tcs {
+			m, err := NewDummyConstNativeHistogram(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
+			if err != nil {
+				fmt.Println(err)
+				t.Fail()
+			}
+			metricWithExemplar, err := NewMetricWithExemplars(m, tc.Exemplars[0])
+			if err != nil {
+				fmt.Println(err)
+				t.Fail()
+			}
+			got := &dto.Metric{}
+			err = metricWithExemplar.Write(got)
+			if err != nil {
+				fmt.Println(err)
+				t.Fail()
+			}
+
+			if !proto.Equal(tc.Want, got) {
+				t.Errorf("want histogram %q, got %q", tc.Want, got)
+			}
+
+		}
+	})
+}
+
+func PointOf[T any](value T) *T {
+	return &value
+}
+
+// This is a dummy Histogram which has both buckets and nativehistogram
+// to test metrics with exemplars
+func NewDummyConstNativeHistogram(
+	desc *Desc,
+	count uint64,
+	sum float64,
+	positiveBuckets, negativeBuckets map[int]int64,
+	zeroBucket uint64,
+	schema int32,
+	zeroThreshold float64,
+	createdTimestamp time.Time,
+	// DummyNativeHistogram also defines buckets in the metric for testing
+	buckets []*dto.Bucket,
+	labelValues ...string,
+) (Metric, error) {
+	if desc.err != nil {
+		return nil, desc.err
+	}
+	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
+		return nil, err
+	}
+	if schema > nativeHistogramSchemaMaximum || schema < nativeHistogramSchemaMinimum {
+		return nil, errors.New("invalid native histogram schema")
+	}
+	if err := validateCount(sum, count, negativeBuckets, positiveBuckets, zeroBucket); err != nil {
+		return nil, err
+	}
+
+	NegativeSpan, NegativeDelta := makeBucketsFromMap(negativeBuckets)
+	PositiveSpan, PositiveDelta := makeBucketsFromMap(positiveBuckets)
+	ret := &constNativeHistogram{
+		desc: desc,
+		Histogram: dto.Histogram{
+			CreatedTimestamp: timestamppb.New(createdTimestamp),
+			Schema:           &schema,
+			ZeroThreshold:    &zeroThreshold,
+			SampleCount:      &count,
+			SampleSum:        &sum,
+
+			NegativeSpan:  NegativeSpan,
+			NegativeDelta: NegativeDelta,
+
+			PositiveSpan:  PositiveSpan,
+			PositiveDelta: PositiveDelta,
+
+			ZeroCount: proto.Uint64(zeroBucket),
+
+			// DummyNativeHistogram also defines buckets in the metric
+			Bucket: buckets,
+		},
+		labelPairs: MakeLabelPairs(desc, labelValues),
+	}
+	if *ret.ZeroThreshold == 0 && *ret.ZeroCount == 0 && len(ret.PositiveSpan) == 0 && len(ret.NegativeSpan) == 0 {
+		ret.PositiveSpan = []*dto.BucketSpan{{
+			Offset: proto.Int32(0),
+			Length: proto.Uint32(0),
+		}}
+	}
+	return ret, nil
 }
