@@ -15,7 +15,6 @@ package prometheus
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -270,18 +269,15 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		for _, tc := range tcs {
 			m, err := NewDummyConstNativeHistogram(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
 			if err != nil {
-				fmt.Println(err)
 				t.Fail()
 			}
 			metricWithExemplar, err := NewMetricWithExemplars(m, tc.Exemplars[0])
 			if err != nil {
-				fmt.Println(err)
 				t.Fail()
 			}
 			got := &dto.Metric{}
 			err = metricWithExemplar.Write(got)
 			if err != nil {
-				fmt.Println(err)
 				t.Fail()
 			}
 
