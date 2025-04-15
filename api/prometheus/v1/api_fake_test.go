@@ -14,7 +14,7 @@ package v1
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -51,7 +51,7 @@ func TestFakeAPI_Query(t *testing.T) {
 		{
 			name:          "Error query",
 			query:         "invalid_query",
-			expectedError: fmt.Errorf("mock error"),
+			expectedError: errors.New("mock error"),
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestFakeAPI_LabelNames(t *testing.T) {
 			matches:          []string{"error"},
 			expectedLabels:   nil,
 			expectedWarnings: nil,
-			expectedError:    fmt.Errorf("mock label error"),
+			expectedError:    errors.New("mock label error"),
 		},
 	}
 

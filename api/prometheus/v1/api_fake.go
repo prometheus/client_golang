@@ -108,6 +108,7 @@ func (f *FakeAPI) Config(ctx context.Context) (ConfigResult, error) {
 func (f *FakeAPI) DeleteSeries(ctx context.Context, matches []string, startTime, endTime time.Time) error {
 	return f.ExpectedDeleteSeriesError
 }
+
 func (f *FakeAPI) Flags(ctx context.Context) (FlagsResult, error) {
 	return f.ExpectedFlagsResult, f.ExpectedFlagsError
 }
