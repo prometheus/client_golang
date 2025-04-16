@@ -186,30 +186,33 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 	case pb.Counter != nil:
 		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
 	case pb.Histogram != nil:
+		h := pb.Histogram
 		for _, e := range m.exemplars {
-			if pb.Histogram.Schema != nil {
-				if *pb.Histogram.Schema > math.MinInt32 && e.GetTimestamp() != nil {
-					pb.Histogram.Exemplars = append(pb.Histogram.Exemplars, e)
+			if ((h.ZeroThreshold != nil && *h.ZeroThreshold != 0) ||
+				(h.ZeroCount != nil && *h.ZeroCount != 0) || len(h.PositiveSpan) != 0 ||
+				len(h.NegativeSpan) != 0) && e.GetTimestamp() != nil {
+				if h.Schema != nil {
+					h.Exemplars = append(h.Exemplars, e)
 				}
-				if len(pb.Histogram.Bucket) == 0 {
+				if len(h.Bucket) == 0 {
 					// Don't proceed to classic buckets if there are none.
 					continue
 				}
 			}
-			// pb.Histogram.Bucket are sorted by UpperBound.
-			i := sort.Search(len(pb.Histogram.Bucket), func(i int) bool {
-				return pb.Histogram.Bucket[i].GetUpperBound() >= e.GetValue()
+			// h.Bucket are sorted by UpperBound.
+			i := sort.Search(len(h.Bucket), func(i int) bool {
+				return h.Bucket[i].GetUpperBound() >= e.GetValue()
 			})
-			if i < len(pb.Histogram.Bucket) {
-				pb.Histogram.Bucket[i].Exemplar = e
+			if i < len(h.Bucket) {
+				h.Bucket[i].Exemplar = e
 			} else {
 				// The +Inf bucket should be explicitly added if there is an exemplar for it, similar to non-const histogram logic in https://github.com/prometheus/client_golang/blob/main/prometheus/histogram.go#L357-L365.
 				b := &dto.Bucket{
-					CumulativeCount: proto.Uint64(pb.Histogram.GetSampleCount()),
+					CumulativeCount: proto.Uint64(h.GetSampleCount()),
 					UpperBound:      proto.Float64(math.Inf(1)),
 					Exemplar:        e,
 				}
-				pb.Histogram.Bucket = append(pb.Histogram.Bucket, b)
+				h.Bucket = append(h.Bucket, b)
 			}
 		}
 	default:

@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -185,7 +186,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			Want                         *dto.Metric
 		}{
 			{
-				Name:  "nativehistogram metric exemplars should be available in both buckets and exemplars",
+				Name:  "test_metric",
 				Count: 6,
 				Sum:   7.4,
 				PositiveBuckets: map[int]int64{
@@ -267,7 +268,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		}
 
 		for _, tc := range tcs {
-			m, err := NewDummyConstNativeHistogram(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
+			m, err := newDummyConstNativeHistogram(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
 			if err != nil {
 				t.Fail()
 			}
@@ -293,9 +294,9 @@ func PointOf[T any](value T) *T {
 	return &value
 }
 
-// This is a dummy Histogram which has both buckets and nativehistogram
-// to test metrics with exemplars
-func NewDummyConstNativeHistogram(
+// newNativeHistogramWithClassicBuckets returns a Metric representing
+// a native histogram that also has classic buckets. This is for testing purposes.
+func newDummyConstNativeHistogram(
 	desc *Desc,
 	count uint64,
 	sum float64,
@@ -309,6 +310,7 @@ func NewDummyConstNativeHistogram(
 	labelValues ...string,
 ) (Metric, error) {
 	if desc.err != nil {
+		fmt.Println("error", desc.err)
 		return nil, desc.err
 	}
 	if err := validateLabelValues(labelValues, len(desc.variableLabels.names)); err != nil {
