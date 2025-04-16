@@ -268,7 +268,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		}
 
 		for _, tc := range tcs {
-			m, err := newDummyConstNativeHistogram(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
+			m, err := newNativeHistogramWithClassicBuckets(NewDesc(tc.Name, "None", []string{}, map[string]string{}), tc.Count, tc.Sum, tc.PositiveBuckets, tc.NegativeBuckets, tc.ZeroBucket, tc.NativeHistogramSchema, tc.NativeHistogramZeroThreshold, tc.CreatedTimestamp, tc.Bucket)
 			if err != nil {
 				t.Fail()
 			}
@@ -296,7 +296,7 @@ func PointOf[T any](value T) *T {
 
 // newNativeHistogramWithClassicBuckets returns a Metric representing
 // a native histogram that also has classic buckets. This is for testing purposes.
-func newDummyConstNativeHistogram(
+func newNativeHistogramWithClassicBuckets(
 	desc *Desc,
 	count uint64,
 	sum float64,
