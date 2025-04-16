@@ -307,7 +307,8 @@ func replaceInvalidRune(c rune) rune {
 	if c == ' ' {
 		return '.'
 	}
-	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || c == '-' || (c >= '0' && c <= '9')) {
+	// TODO: Apply De Morgan's law to the condition. Make sure to test the condition first.
+	if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || c == '-' || (c >= '0' && c <= '9')) { //nolint:staticcheck
 		return '_'
 	}
 	return c

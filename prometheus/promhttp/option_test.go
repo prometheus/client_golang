@@ -27,7 +27,7 @@ const (
 	CtxResolverKey key = iota
 )
 
-func ExampleInstrumentHandlerWithExtraMethods() {
+func ExampleWithExtraMethods() {
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "api_requests_total",
@@ -70,7 +70,7 @@ func ExampleInstrumentHandlerWithExtraMethods() {
 	}
 }
 
-func ExampleInstrumentHandlerWithLabelResolver() {
+func ExampleWithLabelFromCtx() {
 	counter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "api_requests_total",

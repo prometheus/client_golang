@@ -30,6 +30,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
+	_ "github.com/prometheus/client_golang/prometheus/promhttp/zstd"
 )
 
 type errorCollector struct{}
@@ -484,7 +485,7 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 func TestNegotiateEncodingWriter(t *testing.T) {
 	var defaultCompressions []string
 
-	for _, comp := range defaultCompressionFormats {
+	for _, comp := range defaultCompressionFormats() {
 		defaultCompressions = append(defaultCompressions, string(comp))
 	}
 
