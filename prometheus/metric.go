@@ -191,9 +191,7 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 			if ((h.ZeroThreshold != nil && *h.ZeroThreshold != 0) ||
 				(h.ZeroCount != nil && *h.ZeroCount != 0) || len(h.PositiveSpan) != 0 ||
 				len(h.NegativeSpan) != 0) && e.GetTimestamp() != nil {
-				if h.Schema != nil {
-					h.Exemplars = append(h.Exemplars, e)
-				}
+				h.Exemplars = append(h.Exemplars, e)
 				if len(h.Bucket) == 0 {
 					// Don't proceed to classic buckets if there are none.
 					continue
