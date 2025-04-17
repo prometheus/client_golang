@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build wasip1 || js
-// +build wasip1 js
+//go:build wasip1 || js || ios
+// +build wasip1 js ios
 
 package prometheus
 

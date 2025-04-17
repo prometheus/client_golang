@@ -43,7 +43,7 @@ func toMetricFamilies(cs ...Collector) []*dto.MetricFamily {
 	return out
 }
 
-func TestWrap(t *testing.T) {
+func TestWrapRegisterer(t *testing.T) {
 	now := time.Now()
 	nowFn := func() time.Time { return now }
 	simpleCnt := NewCounter(CounterOpts{
@@ -153,7 +153,7 @@ func TestWrap(t *testing.T) {
 			output: []Collector{simpleGge, labeledPreCnt},
 		},
 		"wrap counter with invalid prefix": {
-			prefix:      "1+1",
+			prefix:      "1\x801",
 			preRegister: []Collector{simpleGge},
 			toRegister: []struct {
 				collector         Collector
@@ -163,7 +163,7 @@ func TestWrap(t *testing.T) {
 		},
 		"wrap counter with invalid label": {
 			preRegister: []Collector{simpleGge},
-			labels:      Labels{"42": "bar"},
+			labels:      Labels{"\x80": "bar"},
 			toRegister: []struct {
 				collector         Collector
 				registrationFails bool
@@ -306,28 +306,34 @@ func TestWrap(t *testing.T) {
 			if !s.gatherFails && err != nil {
 				t.Fatal("gathering failed:", err)
 			}
-			if len(wantMF) != len(gotMF) {
-				t.Fatalf("Expected %d metricFamilies, got %d", len(wantMF), len(gotMF))
-			}
-			for i := range gotMF {
-				if !proto.Equal(gotMF[i], wantMF[i]) {
-					var want, got []string
-
-					for i, mf := range wantMF {
-						want = append(want, fmt.Sprintf("%3d: %s", i, mf))
-					}
-					for i, mf := range gotMF {
-						got = append(got, fmt.Sprintf("%3d: %s", i, mf))
-					}
-
-					t.Fatalf(
-						"unexpected output of gathering:\n\nWANT:\n%s\n\nGOT:\n%s\n",
-						strings.Join(want, "\n"),
-						strings.Join(got, "\n"),
-					)
-				}
-			}
+			assertEqualMFs(t, wantMF, gotMF)
 		})
+	}
+}
+
+func assertEqualMFs(t *testing.T, wantMF, gotMF []*dto.MetricFamily) {
+	t.Helper()
+
+	if len(wantMF) != len(gotMF) {
+		t.Fatalf("Expected %d metricFamilies, got %d", len(wantMF), len(gotMF))
+	}
+	for i := range gotMF {
+		if !proto.Equal(gotMF[i], wantMF[i]) {
+			var want, got []string
+
+			for i, mf := range wantMF {
+				want = append(want, fmt.Sprintf("%3d: %s", i, mf))
+			}
+			for i, mf := range gotMF {
+				got = append(got, fmt.Sprintf("%3d: %s", i, mf))
+			}
+
+			t.Fatalf(
+				"unexpected output of gathering:\n\nWANT:\n%s\n\nGOT:\n%s\n",
+				strings.Join(want, "\n"),
+				strings.Join(got, "\n"),
+			)
+		}
 	}
 }
 
@@ -338,4 +344,125 @@ func TestNil(t *testing.T) {
 	if err != nil {
 		t.Fatal("registering failed:", err)
 	}
+}
+
+func TestWrapCollector(t *testing.T) {
+	t.Run("can be registered and un-registered", func(t *testing.T) {
+		inner := NewPedanticRegistry()
+		g := NewGauge(GaugeOpts{Name: "testing"})
+		g.Set(42)
+		err := inner.Register(g)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		wrappedWithLabels := WrapCollectorWith(Labels{"lbl": "1"}, inner)
+		wrappedWithPrefix := WrapCollectorWithPrefix("prefix", inner)
+		reg := NewPedanticRegistry()
+		err = reg.Register(wrappedWithLabels)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+		err = reg.Register(wrappedWithPrefix)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		gathered, err := reg.Gather()
+		if err != nil {
+			t.Fatal("gathering failed:", err)
+		}
+
+		lg := NewGauge(GaugeOpts{Name: "testing", ConstLabels: Labels{"lbl": "1"}})
+		lg.Set(42)
+		pg := NewGauge(GaugeOpts{Name: "prefixtesting"})
+		pg.Set(42)
+		expected := toMetricFamilies(lg, pg)
+		assertEqualMFs(t, expected, gathered)
+
+		if !reg.Unregister(wrappedWithLabels) {
+			t.Fatal("unregistering failed")
+		}
+		if !reg.Unregister(wrappedWithPrefix) {
+			t.Fatal("unregistering failed")
+		}
+
+		gathered, err = reg.Gather()
+		if err != nil {
+			t.Fatal("gathering failed:", err)
+		}
+		if len(gathered) != 0 {
+			t.Fatalf("expected 0 metric families, got %d", len(gathered))
+		}
+	})
+
+	t.Run("can wrap same collector twice", func(t *testing.T) {
+		inner := NewPedanticRegistry()
+		g := NewGauge(GaugeOpts{Name: "testing"})
+		g.Set(42)
+		err := inner.Register(g)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		wrapped := WrapCollectorWith(Labels{"lbl": "1"}, inner)
+		reg := NewPedanticRegistry()
+		err = reg.Register(wrapped)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		wrapped2 := WrapCollectorWith(Labels{"lbl": "2"}, inner)
+		err = reg.Register(wrapped2)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		gathered, err := reg.Gather()
+		if err != nil {
+			t.Fatal("gathering failed:", err)
+		}
+
+		lg := NewGauge(GaugeOpts{Name: "testing", ConstLabels: Labels{"lbl": "1"}})
+		lg.Set(42)
+		lg2 := NewGauge(GaugeOpts{Name: "testing", ConstLabels: Labels{"lbl": "2"}})
+		lg2.Set(42)
+		expected := toMetricFamilies(lg, lg2)
+		assertEqualMFs(t, expected, gathered)
+	})
+
+	t.Run("can be registered again after un-registering", func(t *testing.T) {
+		inner := NewPedanticRegistry()
+		g := NewGauge(GaugeOpts{Name: "testing"})
+		g.Set(42)
+		err := inner.Register(g)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		wrapped := WrapCollectorWith(Labels{"lbl": "1"}, inner)
+		reg := NewPedanticRegistry()
+		err = reg.Register(wrapped)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		if !reg.Unregister(wrapped) {
+			t.Fatal("unregistering failed")
+		}
+		err = reg.Register(wrapped)
+		if err != nil {
+			t.Fatal("registering failed:", err)
+		}
+
+		gathered, err := reg.Gather()
+		if err != nil {
+			t.Fatal("gathering failed:", err)
+		}
+
+		lg := NewGauge(GaugeOpts{Name: "testing", ConstLabels: Labels{"lbl": "1"}})
+		lg.Set(42)
+		expected := toMetricFamilies(lg)
+		assertEqualMFs(t, expected, gathered)
+	})
 }

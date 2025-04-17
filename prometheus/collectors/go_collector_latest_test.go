@@ -258,7 +258,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 	}
 }
 
-func ExampleGoCollector() {
+func ExampleNewGoCollector() {
 	reg := prometheus.NewPedanticRegistry()
 
 	// Register the GoCollector with the default options. Only the base metrics, default runtime metrics and memstats are enabled.
@@ -268,7 +268,7 @@ func ExampleGoCollector() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func ExampleGoCollector_WithAdvancedGoMetrics() {
+func ExampleNewGoCollector_withAdvancedGoMetrics() {
 	reg := prometheus.NewPedanticRegistry()
 
 	// Enable Go metrics with pre-defined rules. Or your custom rules.
@@ -289,7 +289,7 @@ func ExampleGoCollector_WithAdvancedGoMetrics() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func ExampleGoCollector_DefaultRegister() {
+func ExampleNewGoCollector_defaultRegister() {
 	// Unregister the default GoCollector.
 	prometheus.Unregister(NewGoCollector())
 

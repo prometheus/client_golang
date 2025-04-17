@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build darwin && !ios
+
 package prometheus
 
 import (
@@ -23,9 +25,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// notImplementedErr is returned by stub functions that replace cgo functions, when cgo
+// errNotImplemented is returned by stub functions that replace cgo functions, when cgo
 // isn't available.
-var notImplementedErr = errors.New("not implemented")
+var errNotImplemented = errors.New("not implemented")
 
 type memoryInfo struct {
 	vsize uint64 // Virtual memory size in bytes
@@ -69,25 +71,6 @@ func getOpenFileCount() (float64, error) {
 	}
 }
 
-// describe returns all descriptions of the collector for Darwin.
-// Ensure that this list of descriptors is kept in sync with the metrics collected
-// in the processCollect method. Any changes to the metrics in processCollect
-// (such as adding or removing metrics) should be reflected in this list of descriptors.
-func (c *processCollector) describe(ch chan<- *Desc) {
-	ch <- c.cpuTotal
-	ch <- c.openFDs
-	ch <- c.maxFDs
-	ch <- c.maxVsize
-	ch <- c.startTime
-
-	/* the process could be collected but not implemented yet
-	ch <- c.rss
-	ch <- c.vsize
-	ch <- c.inBytes
-	ch <- c.outBytes
-	*/
-}
-
 func (c *processCollector) processCollect(ch chan<- Metric) {
 	if procs, err := unix.SysctlKinfoProcSlice("kern.proc.pid", os.Getpid()); err == nil {
 		if len(procs) == 1 {
@@ -118,7 +101,7 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	if memInfo, err := getMemory(); err == nil {
 		ch <- MustNewConstMetric(c.rss, GaugeValue, float64(memInfo.rss))
 		ch <- MustNewConstMetric(c.vsize, GaugeValue, float64(memInfo.vsize))
-	} else if !errors.Is(err, notImplementedErr) {
+	} else if !errors.Is(err, errNotImplemented) {
 		// Don't report an error when support is not compiled in.
 		c.reportError(ch, c.rss, err)
 		c.reportError(ch, c.vsize, err)
