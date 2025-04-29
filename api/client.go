@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
