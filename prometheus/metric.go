@@ -188,7 +188,7 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 	case pb.Histogram != nil:
 		h := pb.Histogram
 		for _, e := range m.exemplars {
-			if ((h.ZeroThreshold != nil && *h.ZeroThreshold != 0) ||
+			if (h.GetZeroThreshold() != 0 ||
 				(h.ZeroCount != nil && *h.ZeroCount != 0) || len(h.PositiveSpan) != 0 ||
 				len(h.NegativeSpan) != 0) && e.GetTimestamp() != nil {
 				h.Exemplars = append(h.Exemplars, e)
