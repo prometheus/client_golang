@@ -16,6 +16,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -123,10 +124,10 @@ func TestDoContextCancellation(t *testing.T) {
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		
+
 		<-r.Context().Done()
 	}))
-	
+
 	defer ts.Close()
 
 	client, err := NewClient(Config{
@@ -136,7 +137,7 @@ func TestDoContextCancellation(t *testing.T) {
 		t.Fatalf("failed to create client: %v", err)
 	}
 
-	req, err := http.NewRequest("GET", ts.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestDoContextCancellation(t *testing.T) {
 	resp, body, err := client.Do(ctx, req)
 	elapsed := time.Since(start)
 
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("expected error %v, got: %v", context.DeadlineExceeded, err)
 	}
 	if body != nil {
