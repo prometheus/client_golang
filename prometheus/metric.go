@@ -189,7 +189,7 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 		h := pb.Histogram
 		for _, e := range m.exemplars {
 			if (h.GetZeroThreshold() != 0 ||
-				(h.ZeroCount != nil && *h.ZeroCount != 0) || len(h.PositiveSpan) != 0 ||
+				h.GetZeroCount() != 0 || len(h.PositiveSpan) != 0 ||
 				len(h.NegativeSpan) != 0) && e.GetTimestamp() != nil {
 				h.Exemplars = append(h.Exemplars, e)
 				if len(h.Bucket) == 0 {
