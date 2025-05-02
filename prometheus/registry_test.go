@@ -37,6 +37,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -1338,4 +1339,29 @@ func TestCheckMetricConsistency(t *testing.T) {
 		t.Error("metric validation should return an error")
 	}
 	reg.Unregister(invalidCollector)
+}
+
+func TestGatherDoesNotLeakGoroutines(t *testing.T) {
+	// Use goleak to verify that no unexpected goroutines are leaked during the test.
+	defer goleak.VerifyNone(t)
+
+	// Create a new Prometheus registry without any default collectors.
+	reg := prometheus.NewRegistry()
+
+	// Register 100 simple Gauge metrics with distinct names and constant labels.
+	for i := 0; i < 100; i++ {
+		reg.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
+			Name:        "test_metric_" + string(rune(i)),
+			Help:        "Test metric",
+			ConstLabels: prometheus.Labels{"id": string(rune(i))},
+		}))
+	}
+
+	// Call Gather repeatedly to simulate stress and check for potential goroutine leaks.
+	for i := 0; i < 1000; i++ {
+		_, err := reg.Gather()
+		if err != nil {
+			t.Fatalf("unexpected error from Gather: %v", err)
+		}
+	}
 }
