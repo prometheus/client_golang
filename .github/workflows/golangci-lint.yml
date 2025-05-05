@@ -34,7 +34,7 @@ jobs:
         if: github.repository == 'prometheus/snmp_exporter'
       - name: Check for Go file changes
         id: go-changes
-        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50 # v2.11.1
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         with:
           filters: |
             go:
