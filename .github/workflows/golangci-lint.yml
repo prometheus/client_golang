@@ -32,17 +32,8 @@ jobs:
       - name: Install snmp_exporter/generator dependencies
         run: sudo apt-get update && sudo apt-get -y install libsnmp-dev
         if: github.repository == 'prometheus/snmp_exporter'
-      - name: Check for Go file changes
-        id: go-changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        with:
-          filters: |
-            go:
-              - '**/*.go'
-
       - name: Lint
-        if: steps.go-changes.outputs.go == 'true'
         uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
           args: --verbose
-          version: v2.0.2
+          version: v2.1.5
