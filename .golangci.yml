@@ -1,7 +1,20 @@
-version: "2"
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: strict
+    paths:
+      - ^.*\.(pb|y)\.go$
+  settings:
+    gofumpt:
+      extra-rules: true
+    goimports:
+      local-prefixes:
+        - github.com/prometheus/client_golang
 issues:
   max-same-issues: 0
-
 linters:
   enable:
     - copyloopvar
@@ -17,7 +30,9 @@ linters:
     - usestdlibvars
     - wastedassign
   exclusions:
-      generated: lax
+      generated: strict
+      paths:
+        - ^.*\.(pb|y)\.go$
       presets:
         - comments
         - common-false-positives
@@ -30,11 +45,7 @@ linters:
             - structcheck
             - nolintlint
           path: _test.go
-      paths:
-        - ^.*\.(pb|y)\.go$
-        - third_party$
-        - builtin$
-        - examples$
+      warn-unused: true
   settings:
     depguard:
       rules:
@@ -65,26 +76,7 @@ linters:
       strconcat: true
     revive:
       rules:
-
         - name: unused-parameter
           severity: warning
           disabled: true
-
-formatters:
-  enable:
-    - gofmt
-    - gofumpt
-    - goimports
-  settings:
-    gofumpt:
-      extra-rules: true
-    goimports:
-      local-prefixes:
-        - github.com/prometheus/client_golang
-  exclusions:
-    generated: lax
-    paths:
-      - ^.*\.(pb|y)\.go$
-      - third_party$
-      - builtin$
-      - examples$
+version: "2"
