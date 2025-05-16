@@ -23,9 +23,3 @@ $(BUF): $(BINGO_DIR)/buf.mod
 	@echo "(re)installing $(GOBIN)/buf-v1.39.0"
 	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=buf.mod -o=$(GOBIN)/buf-v1.39.0 "github.com/bufbuild/buf/cmd/buf"
 
-GOIMPORTS := $(GOBIN)/goimports-v0.9.3
-$(GOIMPORTS): $(BINGO_DIR)/goimports.mod
-	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/goimports-v0.9.3"
-	@cd $(BINGO_DIR) && GOWORK=off $(GO) build -mod=mod -modfile=goimports.mod -o=$(GOBIN)/goimports-v0.9.3 "golang.org/x/tools/cmd/goimports"
-

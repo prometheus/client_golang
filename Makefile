@@ -40,8 +40,7 @@ generate-go-collector-test-files:
 	go mod tidy
 
 .PHONY: fmt
-fmt: common-format $(GOIMPORTS)
-	$(GOIMPORTS) -local github.com/prometheus/client_golang -w .
+fmt: common-format
 
 .PHONY: proto
 proto: ## Regenerate Go from remote write proto.
