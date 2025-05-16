@@ -121,7 +121,7 @@ If conflicts occur merging to main:
 
 ### Supported Go Versions
 
-- Support provided only for the three most recent major Go releases
+- Support provided only for the two most recent major Go releases
 - While the library may work with older Go versions, support and fixes are best-effort for those.
 - Each release documents the minimum required Go version
 
