@@ -2,6 +2,10 @@ module github.com/prometheus/client_golang
 
 go 1.23.0
 
+toolchain go1.24.4
+
+toolchain go1.24.4
+
 require (
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.3.0
@@ -10,7 +14,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.65.1-0.20250704063051-dd764ff5ada2
 	github.com/prometheus/procfs v0.16.1
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sys v0.33.0
@@ -24,9 +28,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
