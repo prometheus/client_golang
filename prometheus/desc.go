@@ -95,7 +95,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		help:           help,
 		variableLabels: variableLabels.compile(),
 	}
-	if !model.IsValidMetricName(model.LabelValue(fqName)) {
+	if !model.IsValidMetricName(model.LabelValue(fqName), model.UTF8Validation) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
 		return d
 	}
@@ -107,7 +107,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	labelNameSet := map[string]struct{}{}
 	// First add only the const label names and sort them...
 	for labelName := range constLabels {
-		if !checkLabelName(labelName) {
+		if !checkLabelName(labelName, model.UTF8Validation) {
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", labelName, fqName)
 			return d
 		}
@@ -129,7 +129,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	// cannot be in a regular label name. That prevents matching the label
 	// dimension with a different mix between preset and variable labels.
 	for _, label := range d.variableLabels.names {
-		if !checkLabelName(label) {
+		if !checkLabelName(label, model.UTF8Validation) {
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", label, fqName)
 			return d
 		}
