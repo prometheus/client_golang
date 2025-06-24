@@ -553,5 +553,5 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, storeErr.Error(), writeResponse.StatusCode())
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(writeResponse.StatusCode())
 }
