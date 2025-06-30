@@ -1089,6 +1089,7 @@ type apiOptions struct {
 	lookbackDelta time.Duration
 	stats         StatsValue
 	limit         uint64
+	customOptions map[string]string
 }
 
 type Option func(c *apiOptions)
@@ -1127,6 +1128,16 @@ func WithLimit(limit uint64) Option {
 	}
 }
 
+// WithCustomOption sets an arbitrary key/value pair on the API request.
+func WithCustomOption(key, value string) Option {
+	return func(c *apiOptions) {
+		if c.customOptions == nil {
+			c.customOptions = make(map[string]string)
+		}
+		c.customOptions[key] = value
+	}
+}
+
 func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	opt := &apiOptions{}
 	for _, o := range opts {
@@ -1147,6 +1158,15 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 
 	if opt.limit > 0 {
 		q.Set("limit", strconv.FormatUint(opt.limit, 10))
+	}
+
+	if opt.customOptions != nil {
+		for k, v := range opt.customOptions {
+			if k == "" || v == "" {
+				continue
+			}
+			q.Set(k, v)
+		}
 	}
 
 	return q
