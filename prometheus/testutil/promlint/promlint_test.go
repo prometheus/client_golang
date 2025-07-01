@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
 )
@@ -424,7 +425,7 @@ x_ounces 10
 		t.Run(tt.name, func(t *testing.T) {
 			l := promlint.New(strings.NewReader(tt.in))
 
-			problems, err := l.Lint()
+			problems, err := l.Lint(model.UTF8Validation)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -776,7 +777,7 @@ func runTests(t *testing.T, tests []test) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := promlint.New(strings.NewReader(tt.in))
 
-			problems, err := l.Lint()
+			problems, err := l.Lint(model.UTF8Validation)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -791,7 +792,7 @@ func runTests(t *testing.T, tests []test) {
 
 func TestCustomValidations(t *testing.T) {
 	lintAndVerify := func(l *promlint.Linter, cv test) {
-		problems, err := l.Lint()
+		problems, err := l.Lint(model.UTF8Validation)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
