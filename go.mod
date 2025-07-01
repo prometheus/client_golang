@@ -9,11 +9,12 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/klauspost/compress v1.18.0
 	github.com/kylelemons/godebug v1.1.0
-	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.62.0
-	github.com/prometheus/procfs v0.15.1
-	golang.org/x/sys v0.30.0
-	google.golang.org/protobuf v1.36.5
+	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/common v0.65.0
+	github.com/prometheus/procfs v0.16.1
+	go.uber.org/goleak v1.3.0
+	golang.org/x/sys v0.33.0
+	google.golang.org/protobuf v1.36.6
 )
 
 require (
