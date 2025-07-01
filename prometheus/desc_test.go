@@ -15,30 +15,86 @@ package prometheus
 
 import (
 	"testing"
+
+	"github.com/prometheus/common/model"
 )
 
-func TestNewDescInvalidLabelValues(t *testing.T) {
-	desc := NewDesc(
-		"sample_label",
-		"sample label",
-		nil,
-		Labels{"a": "\xFF"},
-	)
-	if desc.err == nil {
-		t.Errorf("NewDesc: expected error because: %s", desc.err)
+func TestNewDesc(t *testing.T) {
+	testCases := []struct {
+		name           string
+		fqName         string
+		help           string
+		variableLabels []string
+		labels         Labels
+		opts           []DescOption
+		wantErr        string
+	}{
+		{
+			name:           "invalid label value",
+			fqName:         "sample_label",
+			help:           "sample label",
+			variableLabels: nil,
+			labels:         Labels{"a": "\xff"},
+			wantErr:        `label value "\xff" is not valid UTF-8`,
+		},
+		{
+			name:           "nil label values",
+			fqName:         "sample_label",
+			help:           "sample label",
+			variableLabels: nil,
+			labels:         nil,
+		},
+		{
+			name:           "invalid label name",
+			fqName:         "sample_label",
+			help:           "sample label",
+			variableLabels: nil,
+			labels:         Labels{"\xff": "test"},
+			wantErr:        `"\xff" is not a valid label name for metric "sample_label"`,
+		},
+		{
+			name:           "invalid legacy label name",
+			fqName:         "sample_label",
+			help:           "sample label",
+			variableLabels: nil,
+			labels:         Labels{"test😀": "test"},
+			opts:           []DescOption{WithValidationScheme(model.LegacyValidation)},
+			wantErr:        `"test😀" is not a valid label name for metric "sample_label"`,
+		},
+		{
+			name:    "invalid legacy metric name",
+			fqName:  "sample_label😀",
+			help:    "sample label",
+			opts:    []DescOption{WithValidationScheme(model.LegacyValidation)},
+			wantErr: `"sample_label😀" is not a valid metric name`,
+		},
+		{
+			name:           "valid utf8 label name",
+			fqName:         "sample_label",
+			help:           "sample label",
+			variableLabels: nil,
+			labels:         Labels{"test😀": "test"},
+		},
 	}
-}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			desc := NewDesc(
+				tc.fqName,
+				tc.help,
+				tc.variableLabels,
+				tc.labels,
+				tc.opts...,
+			)
+			if desc.err != nil && tc.wantErr != desc.err.Error() {
+				t.Fatalf("NewDesc: expected error %q but got %+v", tc.wantErr, desc.err)
+			} else if desc.err == nil && tc.wantErr != "" {
+				t.Fatalf("NewDesc: expected error %q but got nil", tc.wantErr)
+			} else if desc.err != nil && tc.wantErr == "" {
+				t.Fatalf("NewDesc: %+v", desc.err)
+			}
+		})
+	}
 
-func TestNewDescNilLabelValues(t *testing.T) {
-	desc := NewDesc(
-		"sample_label",
-		"sample label",
-		nil,
-		nil,
-	)
-	if desc.err != nil {
-		t.Errorf("NewDesc: unexpected error: %s", desc.err)
-	}
 }
 
 func TestNewDescWithNilLabelValues_String(t *testing.T) {
