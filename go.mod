@@ -34,4 +34,4 @@ require (
 
 exclude github.com/prometheus/client_golang v1.12.1
 
-replace github.com/prometheus/common => github.com/prometheus/common v0.65.1-0.20250630090155-0c40a7a661aa
+replace github.com/prometheus/common => github.com/juliusmh/common v0.65.1-0.20250701090419-a09de840631d
