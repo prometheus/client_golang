@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -49,8 +51,11 @@ func main() {
 		for {
 			// Record fictional latency.
 			now := time.Now()
-			requestDurations.(prometheus.ExemplarObserver).ObserveWithExemplar(
-				time.Since(now).Seconds(), prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
+			observeWithExemplar(
+				requestDurations.(prometheus.ExemplarObserver),
+				time.Since(now).Seconds(),
+				prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
+				model.UTF8Validation,
 			)
 			time.Sleep(600 * time.Millisecond)
 		}

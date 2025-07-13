@@ -15,8 +15,6 @@ package prometheus
 
 import (
 	"testing"
-
-	"github.com/prometheus/common/model"
 )
 
 func TestNewDesc(t *testing.T) {
@@ -26,7 +24,6 @@ func TestNewDesc(t *testing.T) {
 		help           string
 		variableLabels []string
 		labels         Labels
-		opts           []DescOption
 		wantErr        string
 	}{
 		{
@@ -53,22 +50,6 @@ func TestNewDesc(t *testing.T) {
 			wantErr:        `"\xff" is not a valid label name for metric "sample_label"`,
 		},
 		{
-			name:           "invalid legacy label name",
-			fqName:         "sample_label",
-			help:           "sample label",
-			variableLabels: nil,
-			labels:         Labels{"test😀": "test"},
-			opts:           []DescOption{WithValidationScheme(model.LegacyValidation)},
-			wantErr:        `"test😀" is not a valid label name for metric "sample_label"`,
-		},
-		{
-			name:    "invalid legacy metric name",
-			fqName:  "sample_label😀",
-			help:    "sample label",
-			opts:    []DescOption{WithValidationScheme(model.LegacyValidation)},
-			wantErr: `"sample_label😀" is not a valid metric name`,
-		},
-		{
 			name:           "valid utf8 label name",
 			fqName:         "sample_label",
 			help:           "sample label",
@@ -83,7 +64,6 @@ func TestNewDesc(t *testing.T) {
 				tc.help,
 				tc.variableLabels,
 				tc.labels,
-				tc.opts...,
 			)
 			if desc.err != nil && tc.wantErr != desc.err.Error() {
 				t.Fatalf("NewDesc: expected error %q but got %+v", tc.wantErr, desc.err)
@@ -94,7 +74,6 @@ func TestNewDesc(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestNewDescWithNilLabelValues_String(t *testing.T) {

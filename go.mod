@@ -4,8 +4,6 @@ go 1.23.0
 
 toolchain go1.24.4
 
-toolchain go1.24.4
-
 require (
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.3.0

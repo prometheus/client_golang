@@ -243,7 +243,7 @@ const ExemplarMaxRunes = 128
 // newExemplar creates a new dto.Exemplar from the provided values. An error is
 // returned if any of the label names or values are invalid or if the total
 // number of runes in the label names and values exceeds ExemplarMaxRunes.
-func newExemplar(value float64, ts time.Time, l Labels) (*dto.Exemplar, error) {
+func newExemplar(value float64, ts time.Time, l Labels, scheme model.ValidationScheme) (*dto.Exemplar, error) {
 	e := &dto.Exemplar{}
 	e.Value = proto.Float64(value)
 	tsProto := timestamppb.New(ts)
@@ -254,8 +254,7 @@ func newExemplar(value float64, ts time.Time, l Labels) (*dto.Exemplar, error) {
 	labelPairs := make([]*dto.LabelPair, 0, len(l))
 	var runes int
 	for name, value := range l {
-		// TODO(juliusmh): hardcoded UTF8 validation
-		if !checkLabelName(name, model.UTF8Validation) {
+		if !checkLabelName(name, scheme) {
 			return nil, fmt.Errorf("exemplar label name %q is invalid", name)
 		}
 		runes += utf8.RuneCountInString(name)

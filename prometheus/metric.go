@@ -231,17 +231,7 @@ type Exemplar struct {
 	Timestamp time.Time
 }
 
-// NewMetricWithExemplars returns a new Metric wrapping the provided Metric with given
-// exemplars. Exemplars are validated.
-//
-// Only last applicable exemplar is injected from the list.
-// For example for Counter it means last exemplar is injected.
-// For Histogram, it means last applicable exemplar for each bucket is injected.
-// For a Native Histogram, all valid exemplars are injected.
-//
-// NewMetricWithExemplars works best with MustNewConstMetric and
-// MustNewConstHistogram, see example.
-func NewMetricWithExemplars(m Metric, exemplars ...Exemplar) (Metric, error) {
+func newMetricWithExemplars(m Metric, scheme model.ValidationScheme, exemplars ...Exemplar) (Metric, error) {
 	if len(exemplars) == 0 {
 		return nil, errors.New("no exemplar was passed for NewMetricWithExemplars")
 	}
@@ -256,21 +246,11 @@ func NewMetricWithExemplars(m Metric, exemplars ...Exemplar) (Metric, error) {
 		if ts.IsZero() {
 			ts = now
 		}
-		exs[i], err = newExemplar(e.Value, ts, e.Labels)
+		exs[i], err = newExemplar(e.Value, ts, e.Labels, scheme)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return &withExemplarsMetric{Metric: m, exemplars: exs}, nil
-}
-
-// MustNewMetricWithExemplars is a version of NewMetricWithExemplars that panics where
-// NewMetricWithExemplars would have returned an error.
-func MustNewMetricWithExemplars(m Metric, exemplars ...Exemplar) Metric {
-	ret, err := NewMetricWithExemplars(m, exemplars...)
-	if err != nil {
-		panic(err)
-	}
-	return ret
 }

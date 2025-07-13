@@ -26,6 +26,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -191,7 +192,7 @@ func TestHistogramConcurrency(t *testing.T) {
 					if n%2 == 0 {
 						his.Observe(v)
 					} else {
-						his.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
+						observeWithExemplar(his.(ExemplarObserver), v, Labels{"foo": "bar"}, model.UTF8Validation)
 					}
 				}
 				end.Done()
@@ -450,10 +451,10 @@ func TestHistogramExemplar(t *testing.T) {
 		},
 	}
 
-	histogram.ObserveWithExemplar(1.5, Labels{"id": "1"})
-	histogram.ObserveWithExemplar(1.6, Labels{"id": "2"}) // To replace exemplar in bucket 0.
-	histogram.ObserveWithExemplar(4, Labels{"id": "3"})
-	histogram.ObserveWithExemplar(4.5, Labels{"id": "4"}) // Should go to +Inf bucket.
+	observeWithExemplar(histogram, 1.5, Labels{"id": "1"}, model.UTF8Validation)
+	observeWithExemplar(histogram, 1.6, Labels{"id": "2"}, model.UTF8Validation) // To replace exemplar in bucket 0.
+	observeWithExemplar(histogram, 4, Labels{"id": "3"}, model.UTF8Validation)
+	observeWithExemplar(histogram, 4.5, Labels{"id": "4"}, model.UTF8Validation) // Should go to +Inf bucket.
 
 	for i, ex := range histogram.exemplars {
 		var got, expected string
@@ -1056,7 +1057,7 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 					if i%2 == 0 {
 						his.Observe(v)
 					} else {
-						his.(ExemplarObserver).ObserveWithExemplar(v, Labels{"foo": "bar"})
+						observeWithExemplar(his.(ExemplarObserver), v, Labels{"foo": "bar"}, model.UTF8Validation)
 					}
 				}
 				end.Done()
@@ -1321,23 +1322,23 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "add exemplars to the limit",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(1, Labels{"id": "1"})
-				h.ObserveWithExemplar(3, Labels{"id": "1"})
-				h.ObserveWithExemplar(5, Labels{"id": "1"})
+				observeWithExemplar(h, 1, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 3, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 5, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{1, 3, 5},
 		},
 		{
 			name: "remove exemplar in closest pair, the removed index equals to inserted index",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(4, Labels{"id": "1"})
+				observeWithExemplar(h, 4, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{1, 3, 4},
 		},
 		{
 			name: "remove exemplar in closest pair, the removed index is bigger than inserted index",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(0, Labels{"id": "1"})
+				observeWithExemplar(h, 0, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{0, 1, 4},
 		},
@@ -1345,7 +1346,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 			name: "remove exemplar with oldest timestamp, the removed index is smaller than inserted index",
 			addFunc: func(h *histogram) {
 				h.now = func() time.Time { return time.Now().Add(time.Second * 11) }
-				h.ObserveWithExemplar(6, Labels{"id": "1"})
+				observeWithExemplar(h, 6, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{0, 4, 6},
 		},
@@ -1376,30 +1377,30 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "add exemplars to the limit",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(1, Labels{"id": "1"})
-				h.ObserveWithExemplar(3, Labels{"id": "1"})
-				h.ObserveWithExemplar(5, Labels{"id": "1"})
+				observeWithExemplar(h, 1, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 3, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 5, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{1, 3, 5},
 		},
 		{
 			name: "remove exemplar with oldest timestamp, the removed index is smaller than inserted index",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(4, Labels{"id": "1"})
+				observeWithExemplar(h, 4, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{3, 4, 5},
 		},
 		{
 			name: "remove exemplar with oldest timestamp, the removed index equals to inserted index",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(0, Labels{"id": "1"})
+				observeWithExemplar(h, 0, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{0, 4, 5},
 		},
 		{
 			name: "remove exemplar with oldest timestamp, the removed index is bigger than inserted index",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(3, Labels{"id": "1"})
+				observeWithExemplar(h, 3, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{0, 3, 4},
 		},
@@ -1430,9 +1431,9 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "add exemplars to the limit, but no effect",
 			addFunc: func(h *histogram) {
-				h.ObserveWithExemplar(1, Labels{"id": "1"})
-				h.ObserveWithExemplar(3, Labels{"id": "1"})
-				h.ObserveWithExemplar(5, Labels{"id": "1"})
+				observeWithExemplar(h, 1, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 3, Labels{"id": "1"}, model.UTF8Validation)
+				observeWithExemplar(h, 5, Labels{"id": "1"}, model.UTF8Validation)
 			},
 			expectedValues: []float64{},
 		},

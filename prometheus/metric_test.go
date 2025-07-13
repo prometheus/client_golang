@@ -21,6 +21,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -149,7 +150,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
 			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
 				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
-		m := MustNewMetricWithExemplars(h, Exemplar{
+		m := mustNewMetricWithExemplars(h, model.UTF8Validation, Exemplar{
 			Value: 1000.0,
 		})
 		metric := dto.Metric{}
@@ -272,10 +273,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			if err != nil {
 				t.Fail()
 			}
-			metricWithExemplar, err := NewMetricWithExemplars(m, tc.Exemplars[0])
-			if err != nil {
-				t.Fail()
-			}
+			metricWithExemplar := mustNewMetricWithExemplars(m, model.UTF8Validation, tc.Exemplars[0])
 			got := &dto.Metric{}
 			err = metricWithExemplar.Write(got)
 			if err != nil {

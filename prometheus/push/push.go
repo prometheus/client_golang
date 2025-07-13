@@ -85,22 +85,7 @@ type Pusher struct {
 	expfmt expfmt.Format
 }
 
-// Option used to create Pusher instances.
-type Option func(*Pusher)
-
-// WithValidationScheme sets the validation used for label and metric names.
-// Default is model.UTF8Validation.
-func WithValidationScheme(scheme model.ValidationScheme) Option {
-	return func(p *Pusher) {
-		p.validationScheme = scheme
-	}
-}
-
-// New creates a new Pusher to push to the provided URL with the provided job
-// name (which must not be empty). You can use just host:port or ip:port as url,
-// in which case “http://” is added automatically. Alternatively, include the
-// schema in the URL. However, do not include the “/metrics/jobs/…” part.
-func New(url, job string, opts ...Option) *Pusher {
+func newPusher(url, job string, validationScheme model.ValidationScheme) *Pusher {
 	var (
 		reg = prometheus.NewRegistry()
 		err error
@@ -113,21 +98,17 @@ func New(url, job string, opts ...Option) *Pusher {
 	}
 	url = strings.TrimSuffix(url, "/")
 
-	pusher := &Pusher{
+	return &Pusher{
 		error:            err,
 		url:              url,
 		job:              job,
 		grouping:         map[string]string{},
-		gatherers:        prometheus.Gatherers{reg},
+		validationScheme: validationScheme,
+		gatherers:        newGatherers([]prometheus.Gatherer{reg}, validationScheme),
 		registerer:       reg,
 		client:           &http.Client{},
 		expfmt:           expfmt.NewFormat(expfmt.TypeProtoDelim),
-		validationScheme: model.UTF8Validation,
 	}
-	for _, opt := range opts {
-		opt(pusher)
-	}
-	return pusher
 }
 
 // Push collects/gathers all metrics from all Collectors and Gatherers added to
@@ -164,16 +145,6 @@ func (p *Pusher) AddContext(ctx context.Context) error {
 	return p.push(ctx, http.MethodPost)
 }
 
-// Gatherer adds a Gatherer to the Pusher, from which metrics will be gathered
-// to push them to the Pushgateway. The gathered metrics must not contain a job
-// label of their own.
-//
-// For convenience, this method returns a pointer to the Pusher itself.
-func (p *Pusher) Gatherer(g prometheus.Gatherer) *Pusher {
-	p.gatherers = append(p.gatherers, g)
-	return p
-}
-
 // Collector adds a Collector to the Pusher, from which metrics will be
 // collected to push them to the Pushgateway. The collected metrics must not
 // contain a job label of their own.
@@ -199,7 +170,7 @@ func (p *Pusher) Error() error {
 // For convenience, this method returns a pointer to the Pusher itself.
 func (p *Pusher) Grouping(name, value string) *Pusher {
 	if p.error == nil {
-		if !model.LabelName(name).IsValid(p.validationScheme) {
+		if !isLabelNameValid(name, p.validationScheme) {
 			p.error = fmt.Errorf("grouping label has invalid name: %s", name)
 			return p
 		}

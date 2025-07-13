@@ -63,45 +63,6 @@ func init() {
 	MustRegister(NewGoCollector())
 }
 
-type RegistryOption func(*Registry)
-
-func WithNameValidationScheme(scheme model.ValidationScheme) RegistryOption {
-	return func(r *Registry) {
-		r.nameValidationScheme = scheme
-	}
-}
-
-// NewRegistry creates a new vanilla Registry without any Collectors
-// pre-registered.
-func NewRegistry(opts ...RegistryOption) *Registry {
-	reg := &Registry{
-		collectorsByID:       map[uint64]Collector{},
-		descIDs:              map[uint64]struct{}{},
-		dimHashesByName:      map[string]uint64{},
-		nameValidationScheme: model.UTF8Validation,
-	}
-	for _, opt := range opts {
-		opt(reg)
-	}
-	return reg
-}
-
-// NewPedanticRegistry returns a registry that checks during collection if each
-// collected Metric is consistent with its reported Desc, and if the Desc has
-// actually been registered with the registry. Unchecked Collectors (those whose
-// Describe method does not yield any descriptors) are excluded from the check.
-//
-// Usually, a Registry will be happy as long as the union of all collected
-// Metrics is consistent and valid even if some metrics are not consistent with
-// their own Desc or a Desc provided by their registered Collector. Well-behaved
-// Collectors and Metrics will only provide consistent Descs. This Registry is
-// useful to test the implementation of Collectors and Metrics.
-func NewPedanticRegistry() *Registry {
-	r := NewRegistry()
-	r.pedanticChecksEnabled = true
-	return r
-}
-
 // Registerer is the interface for the part of a registry in charge of
 // registering and unregistering. Users of custom registries should use
 // Registerer as type for registration purposes (rather than the Registry type
@@ -744,33 +705,15 @@ func processMetric(
 	return nil
 }
 
-// Gatherers is a slice of Gatherer instances that implements the Gatherer
-// interface itself. Its Gather method calls Gather on all Gatherers in the
-// slice in order and returns the merged results. Errors returned from the
-// Gather calls are all returned in a flattened MultiError. Duplicate and
-// inconsistent Metrics are skipped (first occurrence in slice order wins) and
-// reported in the returned error.
-//
-// Gatherers can be used to merge the Gather results from multiple
-// Registries. It also provides a way to directly inject existing MetricFamily
-// protobufs into the gathering by creating a custom Gatherer with a Gather
-// method that simply returns the existing MetricFamily protobufs. Note that no
-// registration is involved (in contrast to Collector registration), so
-// obviously registration-time checks cannot happen. Any inconsistencies between
-// the gathered MetricFamilies are reported as errors by the Gather method, and
-// inconsistent Metrics are dropped. Invalid parts of the MetricFamilies
-// (e.g. syntactically invalid metric or label names) will go undetected.
-type Gatherers []Gatherer
-
 // Gather implements Gatherer.
-func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
+func (gs Gatherers) gather(gatherers []Gatherer, scheme model.ValidationScheme) ([]*dto.MetricFamily, error) {
 	var (
 		metricFamiliesByName = map[string]*dto.MetricFamily{}
 		metricHashes         = map[uint64]struct{}{}
 		errs                 MultiError // The collected errors to return in the end.
 	)
 
-	for i, g := range gs {
+	for i, g := range gatherers {
 		mfs, err := g.Gather()
 		if err != nil {
 			multiErr := MultiError{}
@@ -811,8 +754,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
 			for _, m := range mf.Metric {
-				// TODO(juliusmh): hardcoded UTF8 validation
-				if err := checkMetricConsistency(existingMF, m, metricHashes, model.UTF8Validation); err != nil {
+				if err := checkMetricConsistency(existingMF, m, metricHashes, scheme); err != nil {
 					errs = append(errs, err)
 					continue
 				}

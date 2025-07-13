@@ -1,4 +1,4 @@
-// Copyright 2020 The Prometheus Authors
+// Copyright 2025 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -11,6 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !localvalidationscheme
+
 package testutil
 
 import (
@@ -18,24 +20,23 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil/promlint"
-	"github.com/prometheus/common/model"
 )
 
 // CollectAndLint registers the provided Collector with a newly created pedantic
 // Registry. It then calls GatherAndLint with that Registry and with the
 // provided metricNames.
-func CollectAndLint(c prometheus.Collector, validationScheme model.ValidationScheme, metricNames ...string) ([]promlint.Problem, error) {
+func CollectAndLint(c prometheus.Collector, metricNames ...string) ([]promlint.Problem, error) {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
 		return nil, fmt.Errorf("registering collector failed: %w", err)
 	}
-	return GatherAndLint(reg, validationScheme, metricNames...)
+	return GatherAndLint(reg, metricNames...)
 }
 
 // GatherAndLint gathers all metrics from the provided Gatherer and checks them
 // with the linter in the promlint package. If any metricNames are provided,
 // only metrics with those names are checked.
-func GatherAndLint(g prometheus.Gatherer, validationScheme model.ValidationScheme, metricNames ...string) ([]promlint.Problem, error) {
+func GatherAndLint(g prometheus.Gatherer, metricNames ...string) ([]promlint.Problem, error) {
 	got, err := g.Gather()
 	if err != nil {
 		return nil, fmt.Errorf("gathering metrics failed: %w", err)
@@ -43,5 +44,5 @@ func GatherAndLint(g prometheus.Gatherer, validationScheme model.ValidationSchem
 	if metricNames != nil {
 		got = filterMetrics(got, metricNames)
 	}
-	return promlint.NewWithMetricFamilies(got).Lint(validationScheme)
+	return promlint.NewWithMetricFamilies(got).Lint()
 }

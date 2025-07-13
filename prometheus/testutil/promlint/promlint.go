@@ -62,18 +62,16 @@ func (l *Linter) AddCustomValidations(vs ...Validation) {
 	l.customValidations = append(l.customValidations, vs...)
 }
 
-// Lint performs a linting pass, returning a slice of Problems indicating any
-// issues found in the metrics stream. The slice is sorted by metric name
-// and issue description.
-func (l *Linter) Lint(nameValidationScheme model.ValidationScheme) ([]Problem, error) {
+func (l *Linter) lint(scheme model.ValidationScheme) ([]Problem, error) {
 	var problems []Problem
 
 	if l.r != nil {
-		d := expfmt.NewDecoder(l.r, expfmt.NewFormat(expfmt.TypeTextPlain))
+		d, cleanup := newDecoder(l.r, expfmt.NewFormat(expfmt.TypeTextPlain), scheme)
+		defer cleanup()
 
 		mf := &dto.MetricFamily{}
 		for {
-			if err := d.Decode(mf, nameValidationScheme); err != nil {
+			if err := d.Decode(mf); err != nil {
 				if errors.Is(err, io.EOF) {
 					break
 				}
@@ -81,11 +79,11 @@ func (l *Linter) Lint(nameValidationScheme model.ValidationScheme) ([]Problem, e
 				return nil, err
 			}
 
-			problems = append(problems, l.lint(mf)...)
+			problems = append(problems, l.lintMetric(mf)...)
 		}
 	}
 	for _, mf := range l.mfs {
-		problems = append(problems, l.lint(mf)...)
+		problems = append(problems, l.lintMetric(mf)...)
 	}
 
 	// Ensure deterministic output.
@@ -99,8 +97,8 @@ func (l *Linter) Lint(nameValidationScheme model.ValidationScheme) ([]Problem, e
 	return problems, nil
 }
 
-// lint is the entry point for linting a single metric.
-func (l *Linter) lint(mf *dto.MetricFamily) []Problem {
+// lintMetric is the entry point for linting a single metric.
+func (l *Linter) lintMetric(mf *dto.MetricFamily) []Problem {
 	var problems []Problem
 
 	for _, fn := range defaultValidations {
