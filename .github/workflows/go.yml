@@ -52,7 +52,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Go ${{ matrix.go_version }}
-        uses: actions/setup-go@v5.4.0
+        uses: actions/setup-go@v5.5.0
         with:
           go-version: ${{ matrix.go_version }}
           check-latest: true

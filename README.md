@@ -13,7 +13,7 @@ Prometheus HTTP API.
 
 ## Version Compatibility
 
-This library supports the three most recent major releases of Go. While it may function with older versions, we only provide fixes and support for the currently supported Go releases.
+This library supports the two most recent major releases of Go. While it may function with older versions, we only provide fixes and support for the currently supported Go releases.
 
 > [!NOTE]
 > See our [Release Process](RELEASE.md#supported-go-versions) for details on compatibility and support policies.

@@ -11,8 +11,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include .bingo/Variables.mk
 include Makefile.common
+
+BUF := $(FIRST_GOPATH)/bin/buf
+BUF_VERSION ?= v1.39.0
+
+$(BUF):
+	go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
 
 .PHONY: deps
 deps:
@@ -40,8 +45,7 @@ generate-go-collector-test-files:
 	go mod tidy
 
 .PHONY: fmt
-fmt: common-format $(GOIMPORTS)
-	$(GOIMPORTS) -local github.com/prometheus/client_golang -w .
+fmt: common-format
 
 .PHONY: proto
 proto: ## Regenerate Go from remote write proto.
