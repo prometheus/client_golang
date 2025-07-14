@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 )
 
 func TestTimerObserve(t *testing.T) {
@@ -67,10 +68,10 @@ func TestTimerObserveWithExemplar(t *testing.T) {
 		hisTimer := NewTimer(his)
 		sumTimer := NewTimer(sum)
 		gaugeTimer := NewTimer(ObserverFunc(gauge.Set))
-		defer hisTimer.ObserveDurationWithExemplar(exemplar)
+		defer observeDurationWithExemplar(hisTimer, exemplar, model.UTF8Validation)
 		// Gauges and summaries does not implement ExemplarObserver, so we expect them to ignore exemplar.
-		defer sumTimer.ObserveDurationWithExemplar(exemplar)
-		defer gaugeTimer.ObserveDurationWithExemplar(exemplar)
+		defer observeDurationWithExemplar(sumTimer, exemplar, model.UTF8Validation)
+		defer observeDurationWithExemplar(gaugeTimer, exemplar, model.UTF8Validation)
 	}()
 
 	m := &dto.Metric{}

@@ -37,6 +37,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"go.uber.org/goleak"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -702,12 +703,12 @@ collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"
 		registry := prometheus.NewPedanticRegistry()
 		gatherer := prometheus.Gatherer(registry)
 		if scenario.externalMF != nil {
-			gatherer = prometheus.Gatherers{
+			gatherer = newGatherers([]prometheus.Gatherer{
 				registry,
 				prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
 					return scenario.externalMF, nil
 				}),
-			}
+			}, model.UTF8Validation)
 		}
 
 		if scenario.collector != nil {

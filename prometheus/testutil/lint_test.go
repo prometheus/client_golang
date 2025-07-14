@@ -16,6 +16,8 @@ package testutil
 import (
 	"testing"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -33,7 +35,7 @@ func TestCollectAndLintGood(t *testing.T) {
 	cnt.WithLabelValues("bar")
 	cnt.WithLabelValues("baz")
 
-	problems, err := CollectAndLint(cnt)
+	problems, err := collectAndLint(cnt, model.UTF8Validation)
 	if err != nil {
 		t.Error("Unexpected error:", err)
 	}
@@ -56,7 +58,7 @@ func TestCollectAndLintBad(t *testing.T) {
 	cnt.WithLabelValues("bar")
 	cnt.WithLabelValues("baz")
 
-	problems, err := CollectAndLint(cnt)
+	problems, err := collectAndLint(cnt, model.UTF8Validation)
 	if err != nil {
 		t.Error("Unexpected error:", err)
 	}

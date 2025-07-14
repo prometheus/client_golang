@@ -424,7 +424,7 @@ x_ounces 10
 		t.Run(tt.name, func(t *testing.T) {
 			l := promlint.New(strings.NewReader(tt.in))
 
-			problems, err := l.Lint()
+			problems, err := lint(l)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -776,7 +776,7 @@ func runTests(t *testing.T, tests []test) {
 		t.Run(tt.name, func(t *testing.T) {
 			l := promlint.New(strings.NewReader(tt.in))
 
-			problems, err := l.Lint()
+			problems, err := lint(l)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -791,7 +791,7 @@ func runTests(t *testing.T, tests []test) {
 
 func TestCustomValidations(t *testing.T) {
 	lintAndVerify := func(l *promlint.Linter, cv test) {
-		problems, err := l.Lint()
+		problems, err := lint(l)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

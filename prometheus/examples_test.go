@@ -25,6 +25,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -533,8 +534,9 @@ func ExampleNewConstHistogram_withExemplar() {
 	// Wrap const histogram with exemplars for each bucket.
 	exemplarTs, _ := time.Parse(time.RFC850, "Monday, 02-Jan-06 15:04:05 GMT")
 	exemplarLabels := prometheus.Labels{"testName": "testVal"}
-	h = prometheus.MustNewMetricWithExemplars(
+	h = mustNewMetricWithExemplars(
 		h,
+		model.UTF8Validation,
 		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 24.0},
 		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 42.0},
 		prometheus.Exemplar{Labels: exemplarLabels, Timestamp: exemplarTs, Value: 89.0},
@@ -608,10 +610,10 @@ temperature_kelvin{location="somewhere else"} 4.5
 		return result, nil
 	}
 
-	gatherers := prometheus.Gatherers{
+	gatherers := newGatherers([]prometheus.Gatherer{
 		reg,
 		prometheus.GathererFunc(parseText),
-	}
+	}, model.UTF8Validation)
 
 	gathering, err := gatherers.Gather()
 	if err != nil {

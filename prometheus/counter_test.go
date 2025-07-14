@@ -20,6 +20,7 @@ import (
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -279,7 +280,7 @@ func TestCounterExemplar(t *testing.T) {
 		Timestamp: ts,
 	}
 
-	counter.AddWithExemplar(42, Labels{"foo": "bar"})
+	addToCounterWithExemplar(counter, 42, Labels{"foo": "bar"}, model.UTF8Validation)
 	if expected, got := expectedExemplar.String(), counter.exemplar.Load().(*dto.Exemplar).String(); expected != got {
 		t.Errorf("expected exemplar %s, got %s.", expected, got)
 	}
@@ -291,7 +292,7 @@ func TestCounterExemplar(t *testing.T) {
 			}
 		}()
 		// Should panic because of invalid label name.
-		counter.AddWithExemplar(42, Labels{"in\x80valid": "smile"})
+		addToCounterWithExemplar(counter, 42, Labels{"in\x80valid": "smile"}, model.UTF8Validation)
 		return nil
 	}
 	if addExemplarWithInvalidLabel() == nil {
@@ -305,11 +306,11 @@ func TestCounterExemplar(t *testing.T) {
 			}
 		}()
 		// Should panic because of 129 runes.
-		counter.AddWithExemplar(42, Labels{
+		addToCounterWithExemplar(counter, 42, Labels{
 			"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
 			"x1234567":                   "8+15 characters",
 			"z":                          strings.Repeat("x", 63),
-		})
+		}, model.UTF8Validation)
 		return nil
 	}
 	if addExemplarWithOversizedLabels() == nil {

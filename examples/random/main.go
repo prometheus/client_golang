@@ -25,6 +25,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/prometheus/common/model"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -115,8 +117,11 @@ func main() {
 			// already know that rpcDurationsHistogram implements
 			// the ExemplarObserver interface and thus don't need to
 			// check the outcome of the type assertion.
-			m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
-				v, prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
+			observeWithExemplar(
+				m.rpcDurationsHistogram.(prometheus.ExemplarObserver),
+				v,
+				prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
+				model.UTF8Validation,
 			)
 			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
 		}
