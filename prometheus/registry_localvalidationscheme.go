@@ -94,3 +94,10 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 func (gs *Gatherers) AddGatherer(g Gatherer) {
 	gs.gatherers = append(gs.gatherers, g)
 }
+
+// Range calls f for every Gatherer in gs.
+func (gs *Gatherers) Range(f func(Gatherer)) {
+	for _, g := range gs.gatherers {
+		f(g)
+	}
+}
