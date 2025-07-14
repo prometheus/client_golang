@@ -52,6 +52,7 @@ func withAllMetrics() []string {
 		"go_gc_scan_stack_bytes",
 		"go_gc_scan_total_bytes",
 		"go_gc_stack_starting_size_bytes",
+		"go_godebug_non_default_behavior_allowmultiplevcs_events_total",
 		"go_godebug_non_default_behavior_asynctimerchan_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
@@ -169,6 +170,7 @@ func withSchedulerMetrics() []string {
 
 func withDebugMetrics() []string {
 	return withBaseMetrics([]string{
+		"go_godebug_non_default_behavior_allowmultiplevcs_events_total",
 		"go_godebug_non_default_behavior_asynctimerchan_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
