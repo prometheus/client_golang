@@ -42,6 +42,7 @@ var (
 		"/gc/scan/stack:bytes":                                             "go_gc_scan_stack_bytes",
 		"/gc/scan/total:bytes":                                             "go_gc_scan_total_bytes",
 		"/gc/stack/starting-size:bytes":                                    "go_gc_stack_starting_size_bytes",
+		"/godebug/non-default-behavior/allowmultiplevcs:events":            "go_godebug_non_default_behavior_allowmultiplevcs_events_total",
 		"/godebug/non-default-behavior/asynctimerchan:events":              "go_godebug_non_default_behavior_asynctimerchan_events_total",
 		"/godebug/non-default-behavior/execerrdot:events":                  "go_godebug_non_default_behavior_execerrdot_events_total",
 		"/godebug/non-default-behavior/gocachehash:events":                 "go_godebug_non_default_behavior_gocachehash_events_total",
@@ -105,4 +106,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 168
+const expectedRuntimeMetricsCardinality = 169
