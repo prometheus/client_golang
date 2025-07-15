@@ -11,7 +11,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.65.0
-	github.com/prometheus/procfs v0.16.1
+	github.com/prometheus/procfs v0.17.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sys v0.33.0
 	google.golang.org/protobuf v1.36.6
