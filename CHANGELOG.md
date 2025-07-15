@@ -6,7 +6,7 @@
 * [FEATURE] Add WrapCollectorWith and WrapCollectorWithPrefix #1766
 * [FEATURE] Add exemplars for native histograms #1686
 * [ENHANCEMENT] exp/api: Bubble up status code from writeResponse #1823
-* [ENHANCEMENT] Update runtime metrics for Go v1.23 and v1.24 #1833
+* [ENHANCEMENT] collector/go: Update runtime metrics for Go v1.23 and v1.24 #1833
 * [BUGFIX] exp/api: client prompt return on context cancellation #1729
 * [BUGIFX] Fix errNotImplemented reference #1835
 
