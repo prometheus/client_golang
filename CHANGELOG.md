@@ -1,5 +1,15 @@
 ## Unreleased
 
+## 1.23.0-rc.0 / 2025-07-15
+
+* [CHANGE] Minimum required Go version is now 1.23, only the two latest Go versions are supported from now on. #1812
+* [FEATURE] Add WrapCollectorWith and WrapCollectorWithPrefix #1766
+* [FEATURE] Add exemplars for native histograms #1686
+* [ENHANCEMENT] exp/api: Bubble up status code from writeResponse #1823
+* [ENHANCEMENT] Update runtime metrics for Go v1.23 and v1.24 #1833
+* [BUGFIX] fix: client prompt return on context cancellation #1729
+* [BUGIFX] Fix errNotImplemented reference #1835
+
 ## 1.22.0 / 2025-04-07
 
 :warning: This release contains potential breaking change if you use experimental `zstd` support introduce in #1496 :warning:
