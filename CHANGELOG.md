@@ -7,7 +7,7 @@
 * [FEATURE] Add exemplars for native histograms #1686
 * [ENHANCEMENT] exp/api: Bubble up status code from writeResponse #1823
 * [ENHANCEMENT] Update runtime metrics for Go v1.23 and v1.24 #1833
-* [BUGFIX] fix: client prompt return on context cancellation #1729
+* [BUGFIX] exp/api: client prompt return on context cancellation #1729
 * [BUGIFX] Fix errNotImplemented reference #1835
 
 ## 1.22.0 / 2025-04-07
