@@ -1,6 +1,6 @@
 ## Unreleased
 
-## 1.23.0-rc.0 / 2025-07-15
+## 1.23.0-rc.1 / 2025-07-15
 
 * [CHANGE] Minimum required Go version is now 1.23, only the two latest Go versions are supported from now on. #1812
 * [FEATURE] Add WrapCollectorWith and WrapCollectorWithPrefix #1766
