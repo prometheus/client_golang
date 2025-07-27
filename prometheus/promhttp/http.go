@@ -460,7 +460,7 @@ func httpError(rsp http.ResponseWriter, err error) {
 
 // negotiateEncodingWriter reads the Accept-Encoding header from a request and
 // selects the right compression based on an allow-list of supported
-// compressions. It returns a writer implementing the compression and an the
+// compressions. It returns a writer implementing the compression and the
 // correct value that the caller can set in the response header.
 func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []string) (_ io.Writer, encodingHeaderValue string, closeWriter func(), _ error) {
 	if len(compressions) == 0 {
