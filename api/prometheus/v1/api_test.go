@@ -240,6 +240,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doFormatQuery := func(query string) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.FormatQuery(context.Background(), query)
+			return v, nil, err
+		}
+	}
+
 	queryTests := []apiTest{
 		{
 			do: doQuery("2", testTime, WithTimeout(5*time.Second)),
@@ -1205,6 +1212,13 @@ func TestAPIs(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			do:        doFormatQuery("foo/bar"),
+			reqMethod: "POST",
+			reqPath:   "/api/v1/format_query",
+			inRes:     "foo / bar",
+			res:       "\"foo / bar\"",
 		},
 	}
 
