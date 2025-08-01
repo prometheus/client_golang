@@ -348,7 +348,7 @@ func TestAPIs(t *testing.T) {
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
-			res:       []string{"val1", "val2"},
+			res:       model.LabelNames{"val1", "val2"},
 		},
 		{
 			do:         doLabelNames(nil, testTime.Add(-100*time.Hour), testTime),
@@ -356,7 +356,7 @@ func TestAPIs(t *testing.T) {
 			inWarnings: []string{"a"},
 			reqMethod:  "POST",
 			reqPath:    "/api/v1/labels",
-			res:        []string{"val1", "val2"},
+			res:        model.LabelNames{"val1", "val2"},
 		},
 
 		{
@@ -379,7 +379,7 @@ func TestAPIs(t *testing.T) {
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "POST",
 			reqPath:   "/api/v1/labels",
-			res:       []string{"val1", "val2"},
+			res:       model.LabelNames{"val1", "val2"},
 		},
 
 		{

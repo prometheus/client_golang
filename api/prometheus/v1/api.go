@@ -475,7 +475,7 @@ type API interface {
 	// Flags returns the flag values that Prometheus was launched with.
 	Flags(ctx context.Context) (FlagsResult, error)
 	// LabelNames returns the unique label names present in the block in sorted order by given time range and matchers.
-	LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]string, Warnings, error)
+	LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelNames, Warnings, error)
 	// LabelValues performs a query for the values of the given label, time range and matchers.
 	LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, error)
 	// Query performs a query for the given time.
@@ -1024,7 +1024,7 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 	return res, err
 }
 
-func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]string, Warnings, error) {
+func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelNames, Warnings, error) {
 	u := h.client.URL(epLabels, nil)
 	q := addOptionalURLParams(u.Query(), opts)
 
@@ -1042,7 +1042,7 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 	if err != nil {
 		return nil, w, err
 	}
-	var labelNames []string
+	var labelNames model.LabelNames
 	err = json.Unmarshal(body, &labelNames)
 	return labelNames, w, err
 }
