@@ -13,9 +13,7 @@
 
 package prometheus
 
-import (
-	"time"
-)
+import "time"
 
 // Timer is a helper type to time functions. Use NewTimer to create new
 // instances.
@@ -154,7 +152,7 @@ func (t *TimerHistogramVec) Wrap(labels map[string]string, fn func()) {
 	fn()
 }
 
-func (t *TimerHistogramVec) WrapLV(values []string, fn func()) {
+func (t *TimerHistogramVec) WrapLabelValues(values []string, fn func()) {
 	defer t.ObserveLabelValues(values...)()
 	fn()
 }
@@ -201,7 +199,7 @@ func (t *TimerCounter) Observe() func() {
 
 	return func() {
 		d := time.Since(start)
-		t.Counter.Add(d.Seconds())
+		t.Add(d.Seconds())
 	}
 }
 
@@ -227,7 +225,7 @@ func (t *TimerCounterVec) Observe(labels map[string]string) func() {
 
 	return func() {
 		d := time.Since(start)
-		t.CounterVec.With(labels).Add(d.Seconds())
+		t.With(labels).Add(d.Seconds())
 	}
 }
 
@@ -235,7 +233,7 @@ func (t *TimerCounterVec) ObserveLabelValues(values ...string) func() {
 	start := time.Now()
 	return func() {
 		d := time.Since(start)
-		t.CounterVec.WithLabelValues(values...).Add(d.Seconds())
+		t.WithLabelValues(values...).Add(d.Seconds())
 	}
 }
 
@@ -292,13 +290,13 @@ func (t *TimerContinuous) Observe() func() {
 			case <-ch:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.Counter.Add(diff)
+					t.Add(diff)
 				}
 				return
 			case <-ticker.C:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.Counter.Add(diff)
+					t.Add(diff)
 					added += diff
 				}
 			}
@@ -340,13 +338,13 @@ func (t *TimerContinuousVec) Observe(labels map[string]string) func() {
 			case <-ch:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.CounterVec.With(labels).Add(diff)
+					t.With(labels).Add(diff)
 				}
 				return
 			case <-ticker.C:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.CounterVec.With(labels).Add(diff)
+					t.With(labels).Add(diff)
 					added += diff
 				}
 			}
@@ -371,13 +369,13 @@ func (t *TimerContinuousVec) ObserveLabelValues(values ...string) func() {
 			case <-ch:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.CounterVec.WithLabelValues(values...).Add(diff)
+					t.WithLabelValues(values...).Add(diff)
 				}
 				return
 			case <-ticker.C:
 				d := time.Since(start)
 				if diff := d.Seconds() - added; diff > 0 {
-					t.CounterVec.WithLabelValues(values...).Add(diff)
+					t.WithLabelValues(values...).Add(diff)
 					added += diff
 				}
 			}
