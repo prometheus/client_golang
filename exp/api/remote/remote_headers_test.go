@@ -25,16 +25,16 @@ import (
 func TestWriteResponse(t *testing.T) {
 	t.Run("new response has empty headers", func(t *testing.T) {
 		resp := NewWriteResponse()
-		if len(resp.ExtraHeaders()) != 0 {
-			t.Errorf("expected empty headers, got %v", resp.ExtraHeaders())
+		if len(resp.extraHeaders) != 0 {
+			t.Errorf("expected empty headers, got %v", resp.extraHeaders)
 		}
 	})
 
-	t.Run("setters and getters", func(t *testing.T) {
+	t.Run("setters", func(t *testing.T) {
 		resp := NewWriteResponse()
 
 		resp.SetStatusCode(http.StatusOK)
-		if got := resp.StatusCode(); got != http.StatusOK {
+		if got := resp.statusCode; got != http.StatusOK {
 			t.Errorf("expected status code %d, got %d", http.StatusOK, got)
 		}
 
@@ -66,12 +66,12 @@ func TestWriteResponse(t *testing.T) {
 		}
 
 		resp.SetExtraHeader("Test-Header", "test-value")
-		if got := resp.ExtraHeaders().Get("Test-Header"); got != "test-value" {
+		if got := resp.extraHeaders.Get("Test-Header"); got != "test-value" {
 			t.Errorf("expected header value %q, got %q", "test-value", got)
 		}
 	})
 
-	t.Run("set headers on response writer", func(t *testing.T) {
+	t.Run("writeHeaders", func(t *testing.T) {
 		resp := NewWriteResponse()
 		resp.Add(WriteResponseStats{
 			Samples:    10,
@@ -82,7 +82,7 @@ func TestWriteResponse(t *testing.T) {
 		resp.SetExtraHeader("Custom-Header", "custom-value")
 
 		w := httptest.NewRecorder()
-		resp.SetHeaders(w)
+		resp.writeHeaders(w)
 
 		expectedHeaders := map[string]string{
 			"Custom-Header": "custom-value",

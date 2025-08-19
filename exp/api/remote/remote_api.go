@@ -64,8 +64,7 @@ var defaultAPIOpts = &apiOpts{
 		Max:        10 * time.Second,
 		MaxRetries: 10,
 	},
-	client: http.DefaultClient,
-	// Hardcoded for now.
+	client:           http.DefaultClient,
 	retryOnRateLimit: true,
 	compression:      SnappyBlockCompression,
 	path:             "api/v1/write",
@@ -96,7 +95,7 @@ func WithAPIPath(path string) APIOption {
 	}
 }
 
-// WithAPIRetryOnRateLimit returns APIOption that disables retrying on rate limit status code.
+// WithAPINoRetryOnRateLimit returns APIOption that disables retrying on rate limit status code.
 func WithAPINoRetryOnRateLimit() APIOption {
 	return func(o *apiOpts) error {
 		o.retryOnRateLimit = false
@@ -373,45 +372,46 @@ type writeStorage interface {
 	// Other headers might be trimmed, depending on the configured middlewares
 	// e.g. a default SnappyMiddleware trims "Content-Encoding" and ensures that
 	// encoded body bytes are already decompressed.
-	Store(ctx context.Context, msgType WriteMessageType, req *http.Request) (_ *WriteResponse, _ error)
+	Store(req *http.Request, msgType WriteMessageType) (_ *WriteResponse, _ error)
 }
 
-type handler struct {
+type writeHandler struct {
 	store                writeStorage
 	acceptedMessageTypes MessageTypes
-	opts                 handlerOpts
+	opts                 writeHandlerOpts
 }
 
-type handlerOpts struct {
+type writeHandlerOpts struct {
 	logger      *slog.Logger
 	middlewares []func(http.Handler) http.Handler
 }
 
-// HandlerOption represents an option for the handler.
-type HandlerOption func(o *handlerOpts)
+// WriteHandlerOption represents an option for the write handler.
+type WriteHandlerOption func(o *writeHandlerOpts)
 
-// WithHandlerLogger returns HandlerOption that allows providing slog logger.
+// WithWriteHandlerLogger returns WriteHandlerOption that allows providing slog logger.
 // By default, nothing is logged.
-func WithHandlerLogger(logger *slog.Logger) HandlerOption {
-	return func(o *handlerOpts) {
+func WithWriteHandlerLogger(logger *slog.Logger) WriteHandlerOption {
+	return func(o *writeHandlerOpts) {
 		o.logger = logger
 	}
 }
 
-// WithHandlerMiddleware returns HandlerOption that allows providing middlewares.
+// WithWriteHandlerMiddlewares returns WriteHandlerOption that allows providing middlewares.
 // Multiple middlewares can be provided and will be applied in the order they are passed.
-// When using this option, SnappyDecompressorMiddleware is not applied by default so
-// it (or any other decompression middleware) needs to be added explicitly.
-func WithHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler) HandlerOption {
-	return func(o *handlerOpts) {
+// This option replaces the default middlewares (SnappyDecompressorMiddleware), so if
+// you want to have handler that works with the default Remote Write 2.0 protocol,
+// SnappyDecompressorMiddleware (or any other decompression middleware) needs to be added explicitly.
+func WithWriteHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler) WriteHandlerOption {
+	return func(o *writeHandlerOpts) {
 		o.middlewares = middlewares
 	}
 }
 
-// SnappyDecompressorMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
+// SnappyDecodeMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
 // If the request body is not snappy-encoded, it returns an error.
-// Used by default in NewRemoteWriteHandler.
-func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
+// Used by default in NewHandler.
+func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	bufPool := sync.Pool{
 		New: func() any {
 			return bytes.NewBuffer(nil)
@@ -455,18 +455,18 @@ func SnappyDecompressorMiddleware(logger *slog.Logger) func(http.Handler) http.H
 	}
 }
 
-// NewHandler returns HTTP handler that receives Remote Write 2.0
+// NewWriteHandler returns HTTP handler that receives Remote Write 2.0
 // protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
-func NewHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...HandlerOption) http.Handler {
-	o := handlerOpts{
+func NewWriteHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...WriteHandlerOption) http.Handler {
+	o := writeHandlerOpts{
 		logger:      slog.New(nopSlogHandler{}),
-		middlewares: []func(http.Handler) http.Handler{SnappyDecompressorMiddleware(slog.New(nopSlogHandler{}))},
+		middlewares: []func(http.Handler) http.Handler{SnappyDecodeMiddleware(slog.New(nopSlogHandler{}))},
 	}
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	h := &handler{
+	h := &writeHandler{
 		opts:                 o,
 		store:                store,
 		acceptedMessageTypes: acceptedMessageTypes,
@@ -513,7 +513,7 @@ func ParseProtoMsg(contentType string) (WriteMessageType, error) {
 	return WriteV1MessageType, nil
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *writeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -538,20 +538,25 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeResponse, storeErr := h.store.Store(r.Context(), msgType, r)
+	writeResponse, storeErr := h.store.Store(r, msgType)
+	if writeResponse == nil {
+		// User could forget to return write response; in this case we assume 0 samples
+		// were written.
+		writeResponse = NewWriteResponse()
+	}
 
-	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, alongwith any user-defined headers.
-	writeResponse.SetHeaders(w)
+	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, along with any user-defined headers.
+	writeResponse.writeHeaders(w)
 
 	if storeErr != nil {
-		if writeResponse.StatusCode() == 0 {
+		if writeResponse.statusCode == 0 {
 			writeResponse.SetStatusCode(http.StatusInternalServerError)
 		}
-		if writeResponse.StatusCode()/100 == 5 { // 5xx
-			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr.Error())
+		if writeResponse.statusCode/100 == 5 { // 5xx
+			h.opts.logger.Error("Error while storing the remote write request", "err", storeErr)
 		}
-		http.Error(w, storeErr.Error(), writeResponse.StatusCode())
+		http.Error(w, storeErr.Error(), writeResponse.statusCode)
 		return
 	}
-	w.WriteHeader(writeResponse.StatusCode())
+	w.WriteHeader(writeResponse.statusCode)
 }
