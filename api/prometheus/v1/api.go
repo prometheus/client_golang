@@ -506,6 +506,8 @@ type API interface {
 	TSDB(ctx context.Context, opts ...Option) (TSDBResult, error)
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
+	// FormatQuery formats a PromQL expression in a prettified way.
+	FormatQuery(ctx context.Context, query string) (string, error)
 }
 
 // AlertsResult contains the result from querying the alerts endpoint.
