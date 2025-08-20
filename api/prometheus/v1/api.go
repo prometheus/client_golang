@@ -1391,7 +1391,6 @@ func (h *httpAPI) FormatQuery(ctx context.Context, query string) (string, error)
 		return "", err
 	}
 
-	// var qres queryResult
 	return string(body), nil
 }
 
