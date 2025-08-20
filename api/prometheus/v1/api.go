@@ -381,6 +381,7 @@ const (
 	epRuntimeinfo     = apiPrefix + "/status/runtimeinfo"
 	epTSDB            = apiPrefix + "/status/tsdb"
 	epWalReplay       = apiPrefix + "/status/walreplay"
+	epFormatQuery     = apiPrefix + "/format_query"
 )
 
 // AlertState models the state of an alert.
@@ -1378,6 +1379,19 @@ func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime, e
 	var res []ExemplarQueryResult
 	err = json.Unmarshal(body, &res)
 	return res, err
+}
+
+func (h *httpAPI) FormatQuery(ctx context.Context, query string) (string, error) {
+	u := h.client.URL(epFormatQuery, nil)
+	q := u.Query()
+	q.Set("query", query)
+
+	_, body, _, err := h.client.DoGetFallback(ctx, u, q)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
 }
 
 // Warnings is an array of non critical errors
