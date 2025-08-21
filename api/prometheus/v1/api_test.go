@@ -191,9 +191,9 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doRules := func() func() (interface{}, Warnings, error) {
+	doRules := func(matches []string) func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
-			v, err := promAPI.Rules(context.Background())
+			v, err := promAPI.Rules(context.Background(), matches)
 			return v, nil, err
 		}
 	}
@@ -696,7 +696,7 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doRules(),
+			do:        doRules(nil),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
 			inRes: map[string]interface{}{
@@ -791,7 +791,7 @@ func TestAPIs(t *testing.T) {
 
 		// This has the newer API elements like lastEvaluation, evaluationTime, etc.
 		{
-			do:        doRules(),
+			do:        doRules(nil),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
 			inRes: map[string]interface{}{
@@ -895,7 +895,63 @@ func TestAPIs(t *testing.T) {
 		},
 
 		{
-			do:        doRules(),
+			do:        doRules([]string{`severity="info"`}),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/rules",
+			inRes: map[string]interface{}{
+				"groups": []map[string]interface{}{
+					{
+						"file":     "/rules.yaml",
+						"interval": 60,
+						"name":     "example",
+						"rules": []map[string]interface{}{
+							{
+								"alerts": []map[string]interface{}{},
+								"annotations": map[string]interface{}{
+									"summary": "High request latency",
+								},
+								"duration": 600,
+								"health":   "ok",
+								"labels": map[string]interface{}{
+									"severity": "info",
+								},
+								"name":  "HighRequestLatency",
+								"query": "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								"type":  "alerting",
+							},
+						},
+					},
+				},
+			},
+			res: RulesResult{
+				Groups: []RuleGroup{
+					{
+						Name:     "example",
+						File:     "/rules.yaml",
+						Interval: 60,
+						Rules: []interface{}{
+							AlertingRule{
+								Alerts: []*Alert{},
+								Annotations: model.LabelSet{
+									"summary": "High request latency",
+								},
+								Labels: model.LabelSet{
+									"severity": "info",
+								},
+								Duration:  600,
+								Health:    RuleHealthGood,
+								Name:      "HighRequestLatency",
+								Query:     "job:request_latency_seconds:mean5m{job=\"myjob\"} > 0.5",
+								LastError: "",
+							},
+						},
+					},
+				},
+			},
+		},
+
+		{
+			do:        doRules(nil),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
 			inErr:     errors.New("some error"),

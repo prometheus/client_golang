@@ -495,7 +495,7 @@ type API interface {
 	// under the TSDB's data directory and returns the directory as response.
 	Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error)
 	// Rules returns a list of alerting and recording rules that are currently loaded.
-	Rules(ctx context.Context) (RulesResult, error)
+	Rules(ctx context.Context, matches []string) (RulesResult, error)
 	// Targets returns an overview of the current state of the Prometheus target discovery.
 	Targets(ctx context.Context) (TargetsResult, error)
 	// TargetsMetadata returns metadata about metrics currently scraped by the target.
@@ -1238,8 +1238,15 @@ func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, 
 	return res, err
 }
 
-func (h *httpAPI) Rules(ctx context.Context) (RulesResult, error) {
+func (h *httpAPI) Rules(ctx context.Context, matches []string) (RulesResult, error) {
 	u := h.client.URL(epRules, nil)
+	q := u.Query()
+
+	for _, m := range matches {
+		q.Add("match[]", m)
+	}
+
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
