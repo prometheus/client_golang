@@ -618,7 +618,7 @@ func BenchmarkCompression(b *testing.B) {
 		for idx := 0; idx < size.labelCount; idx++ {
 			labelValues[idx] = fmt.Sprintf("label_val_%s_%v", strings.Repeat("v", size.labelLength), idx)
 		}
-		metrics := make([]*prometheus.GaugeVec, size.metricCount)
+		metrics := make([]prometheus.GaugeVec, size.metricCount)
 		for idx := 0; idx < size.metricCount; idx++ {
 			gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 				Name: fmt.Sprintf("avalanche_metric_%s_%v_%v", strings.Repeat("m", size.metricLength), 0, idx),

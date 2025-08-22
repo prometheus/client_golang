@@ -33,7 +33,21 @@ import (
 // (*FooVec, error) rather than (*MetricVec, error). It is recommended to also
 // add the convenience methods WithLabelValues, With, and MustCurryWith, which
 // panic instead of returning errors. See also the MetricVec example.
-type MetricVec struct {
+type MetricVec interface {
+	Delete(labels Labels) bool
+	DeleteLabelValues(lvs ...string) bool
+	DeletePartialMatch(labels Labels) int
+	GetMetricWith(Labels) (Metric, error)
+	GetMetricWithLabelValues(lvs ...string) (Metric, error)
+	With(Labels) Metric
+	WithLabelValues(...string) Metric
+	CurryWith(Labels) (MetricVec, error)
+	MustCurryWith(Labels) MetricVec
+	Reset()
+	Collector
+}
+
+type metricVec struct {
 	*metricMap
 
 	curry []curriedLabelValue
@@ -43,9 +57,8 @@ type MetricVec struct {
 	hashAddByte func(h uint64, b byte) uint64
 }
 
-// NewMetricVec returns an initialized metricVec.
-func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
-	return &MetricVec{
+func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
+	return &metricVec{
 		metricMap: &metricMap{
 			metrics:   map[uint64][]metricWithLabelValues{},
 			desc:      desc,
@@ -54,6 +67,11 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 		hashAdd:     hashAdd,
 		hashAddByte: hashAddByte,
 	}
+}
+
+// NewMetricVec returns an initialized metricVec.
+func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) MetricVec {
+	return newMetricVec(desc, newMetric)
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
@@ -71,7 +89,7 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the CounterVec example.
-func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
+func (m *metricVec) DeleteLabelValues(lvs ...string) bool {
 	lvs = constrainLabelValues(m.desc, lvs, m.curry)
 
 	h, err := m.hashLabelValues(lvs)
@@ -92,7 +110,7 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 //
 // This method is used for the same purpose as DeleteLabelValues(...string). See
 // there for pros and cons of the two methods.
-func (m *MetricVec) Delete(labels Labels) bool {
+func (m *metricVec) Delete(labels Labels) bool {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
 
@@ -110,7 +128,7 @@ func (m *MetricVec) Delete(labels Labels) bool {
 //
 // Note that curried labels will never be matched if deleting from the curried vector.
 // To match curried labels with DeletePartialMatch, it must be called on the base vector.
-func (m *MetricVec) DeletePartialMatch(labels Labels) int {
+func (m *metricVec) DeletePartialMatch(labels Labels) int {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
 
@@ -121,13 +139,13 @@ func (m *MetricVec) DeletePartialMatch(labels Labels) int {
 // show up in GoDoc.
 
 // Describe implements Collector.
-func (m *MetricVec) Describe(ch chan<- *Desc) { m.metricMap.Describe(ch) }
+func (m *metricVec) Describe(ch chan<- *Desc) { m.metricMap.Describe(ch) }
 
 // Collect implements Collector.
-func (m *MetricVec) Collect(ch chan<- Metric) { m.metricMap.Collect(ch) }
+func (m *metricVec) Collect(ch chan<- Metric) { m.metricMap.Collect(ch) }
 
 // Reset deletes all metrics in this vector.
-func (m *MetricVec) Reset() { m.metricMap.Reset() }
+func (m *metricVec) Reset() { m.metricMap.Reset() }
 
 // CurryWith returns a vector curried with the provided labels, i.e. the
 // returned vector has those labels pre-set for all labeled operations performed
@@ -146,7 +164,7 @@ func (m *MetricVec) Reset() { m.metricMap.Reset() }
 // Note that CurryWith is usually not called directly but through a wrapper
 // around MetricVec, implementing a vector for a specific Metric
 // implementation, for example GaugeVec.
-func (m *MetricVec) CurryWith(labels Labels) (*MetricVec, error) {
+func (m *metricVec) CurryWith(labels Labels) (MetricVec, error) {
 	var (
 		newCurry []curriedLabelValue
 		oldCurry = m.curry
@@ -174,12 +192,22 @@ func (m *MetricVec) CurryWith(labels Labels) (*MetricVec, error) {
 		return nil, fmt.Errorf("%d unknown label(s) found during currying", l)
 	}
 
-	return &MetricVec{
+	return &metricVec{
 		metricMap:   m.metricMap,
 		curry:       newCurry,
 		hashAdd:     m.hashAdd,
 		hashAddByte: m.hashAddByte,
 	}, nil
+}
+
+// MustCurryWith works as CurryWith but panics where CurryWith would have
+// returned an error.
+func (m *metricVec) MustCurryWith(labels Labels) MetricVec {
+	vec, err := m.CurryWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return vec
 }
 
 // GetMetricWithLabelValues returns the Metric for the given slice of label
@@ -209,7 +237,7 @@ func (m *MetricVec) CurryWith(labels Labels) (*MetricVec, error) {
 // Note that GetMetricWithLabelValues is usually not called directly but through
 // a wrapper around MetricVec, implementing a vector for a specific Metric
 // implementation, for example GaugeVec.
-func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
+func (m *metricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 	lvs = constrainLabelValues(m.desc, lvs, m.curry)
 	h, err := m.hashLabelValues(lvs)
 	if err != nil {
@@ -235,7 +263,7 @@ func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 // Note that GetMetricWith is usually not called directly but through a wrapper
 // around MetricVec, implementing a vector for a specific Metric implementation,
 // for example GaugeVec.
-func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
+func (m *metricVec) GetMetricWith(labels Labels) (Metric, error) {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
 
@@ -247,7 +275,32 @@ func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
 	return m.getOrCreateMetricWithLabels(h, labels, m.curry), nil
 }
 
-func (m *MetricVec) hashLabelValues(vals []string) (uint64, error) {
+// With works as GetMetricWith, but panics where GetMetricWithLabels would have
+// returned an error. Not returning an error allows shortcuts like
+//
+//	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Add(42)
+func (m *metricVec) With(labels Labels) Metric {
+	metric, err := m.GetMetricWith(labels)
+	if err != nil {
+		panic(err)
+	}
+	return metric
+}
+
+// WithLabelValues works as GetMetricWithLabelValues, but panics where
+// GetMetricWithLabelValues would have returned an error. Not returning an
+// error allows shortcuts like
+//
+//	myVec.WithLabelValues("404", "GET").Add(42)
+func (m *metricVec) WithLabelValues(lvs ...string) Metric {
+	metric, err := m.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		panic(err)
+	}
+	return metric
+}
+
+func (m *metricVec) hashLabelValues(vals []string) (uint64, error) {
 	if err := validateLabelValues(vals, len(m.desc.variableLabels.names)-len(m.curry)); err != nil {
 		return 0, err
 	}
@@ -270,7 +323,7 @@ func (m *MetricVec) hashLabelValues(vals []string) (uint64, error) {
 	return h, nil
 }
 
-func (m *MetricVec) hashLabels(labels Labels) (uint64, error) {
+func (m *metricVec) hashLabels(labels Labels) (uint64, error) {
 	if err := validateValuesInLabels(labels, len(m.desc.variableLabels.names)-len(m.curry)); err != nil {
 		return 0, err
 	}

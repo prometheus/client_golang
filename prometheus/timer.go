@@ -19,11 +19,11 @@ import "time"
 // instances.
 type Timer struct {
 	begin    time.Time
-	observer Observer
+	observer ObserverMethod
 }
 
-// NewTimer creates a new Timer. The provided Observer is used to observe a
-// duration in seconds. If the Observer implements ExemplarObserver, passing exemplar
+// NewTimer creates a new Timer. The provided ObserverMethod is used to observe a
+// duration in seconds. If the ObserverMethod implements ExemplarObserver, passing exemplar
 // later on will be also supported.
 // Timer is usually used to time a function call in the
 // following way:
@@ -41,7 +41,7 @@ type Timer struct {
 //		    defer timer.ObserveDurationWithExemplar(exemplar)
 //		    // Do actual work.
 //		}
-func NewTimer(o Observer) *Timer {
+func NewTimer(o ObserverMethod) *Timer {
 	return &Timer{
 		begin:    time.Now(),
 		observer: o,
@@ -49,7 +49,7 @@ func NewTimer(o Observer) *Timer {
 }
 
 // ObserveDuration records the duration passed since the Timer was created with
-// NewTimer. It calls the Observe method of the Observer provided during
+// NewTimer. It calls the Observe method of the ObserverMethod provided during
 // construction with the duration in seconds as an argument. The observed
 // duration is also returned. ObserveDuration is usually called with a defer
 // statement.
@@ -65,7 +65,7 @@ func (t *Timer) ObserveDuration() time.Duration {
 }
 
 // ObserveDurationWithExemplar is like ObserveDuration, but it will also
-// observe exemplar with the duration unless exemplar is nil or provided Observer can't
+// observe exemplar with the duration unless exemplar is nil or provided ObserverMethod can't
 // be casted to ExemplarObserver.
 func (t *Timer) ObserveDurationWithExemplar(exemplar Labels) time.Duration {
 	d := time.Since(t.begin)

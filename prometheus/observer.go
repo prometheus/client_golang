@@ -13,47 +13,52 @@
 
 package prometheus
 
-// Observer is the interface that wraps the Observe method, which is used by
+// ObserverMethod is the interface that wraps the Observe method, which is used by
 // Histogram and Summary to add observations.
-type Observer interface {
+type ObserverMethod interface {
 	Observe(float64)
+}
+
+type Observer interface {
+	ObserverMethod
+	Collector
+	Metric
 }
 
 // The ObserverFunc type is an adapter to allow the use of ordinary
 // functions as Observers. If f is a function with the appropriate
-// signature, ObserverFunc(f) is an Observer that calls f.
+// signature, ObserverFunc(f) is an ObserverMethod that calls f.
 //
 // This adapter is usually used in connection with the Timer type, and there are
 // two general use cases:
 //
-// The most common one is to use a Gauge as the Observer for a Timer.
+// The most common one is to use a Gauge as the ObserverMethod for a Timer.
 // See the "Gauge" Timer example.
 //
 // The more advanced use case is to create a function that dynamically decides
-// which Observer to use for observing the duration. See the "Complex" Timer
+// which ObserverMethod to use for observing the duration. See the "Complex" Timer
 // example.
 type ObserverFunc func(float64)
 
-// Observe calls f(value). It implements Observer.
+// Observe calls f(value). It implements ObserverMethod.
 func (f ObserverFunc) Observe(value float64) {
 	f(value)
 }
 
 // ObserverVec is an interface implemented by `HistogramVec` and `SummaryVec`.
 type ObserverVec interface {
-	GetMetricWith(Labels) (Observer, error)
-	GetMetricWithLabelValues(lvs ...string) (Observer, error)
-	With(Labels) Observer
-	WithLabelValues(...string) Observer
+	GetMetricWith(Labels) (ObserverMethod, error)
+	GetMetricWithLabelValues(lvs ...string) (ObserverMethod, error)
+	With(Labels) ObserverMethod
+	WithLabelValues(...string) ObserverMethod
 	CurryWith(Labels) (ObserverVec, error)
 	MustCurryWith(Labels) ObserverVec
-
 	Collector
 }
 
 // ExemplarObserver is implemented by Observers that offer the option of
 // observing a value together with an exemplar. Its ObserveWithExemplar method
-// works like the Observe method of an Observer but also replaces the currently
+// works like the Observe method of an ObserverMethod but also replaces the currently
 // saved exemplar (if any) with a new one, created from the provided value, the
 // current time as timestamp, and the provided Labels. Empty Labels will lead to
 // a valid (label-less) exemplar. But if Labels is nil, the current exemplar is

@@ -143,13 +143,27 @@ func (g *gauge) Write(out *dto.Metric) error {
 // you want to count the same thing partitioned by various dimensions
 // (e.g. number of operations queued, partitioned by user and operation
 // type). Create instances with NewGaugeVec.
-type GaugeVec struct {
-	*MetricVec
+type GaugeVec interface {
+	Delete(labels Labels) bool
+	DeleteLabelValues(...string) bool
+	DeletePartialMatch(Labels) int
+	GetMetricWith(Labels) (Gauge, error)
+	GetMetricWithLabelValues(...string) (Gauge, error)
+	With(Labels) Gauge
+	WithLabelValues(...string) Gauge
+	CurryWith(Labels) (GaugeVec, error)
+	MustCurryWith(Labels) GaugeVec
+	Reset()
+	Collector
+}
+
+type gaugeVec struct {
+	MetricVec
 }
 
 // NewGaugeVec creates a new GaugeVec based on the provided GaugeOpts and
 // partitioned by the given label names.
-func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
+func NewGaugeVec(opts GaugeOpts, labelNames []string) GaugeVec {
 	return V2.NewGaugeVec(GaugeVecOpts{
 		GaugeOpts:      opts,
 		VariableLabels: UnconstrainedLabels(labelNames),
@@ -157,15 +171,15 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 }
 
 // NewGaugeVec creates a new GaugeVec based on the provided GaugeVecOpts.
-func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
+func (v2) NewGaugeVec(opts GaugeVecOpts) GaugeVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)
-	return &GaugeVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
+	return &gaugeVec{
+		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
 			}
@@ -199,7 +213,7 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 // an alternative to avoid that type of mistake. For higher label numbers, the
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
-func (v *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
+func (v *gaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
 	metric, err := v.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Gauge), err
@@ -219,7 +233,7 @@ func (v *GaugeVec) GetMetricWithLabelValues(lvs ...string) (Gauge, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (v *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
+func (v *gaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
 	metric, err := v.MetricVec.GetMetricWith(labels)
 	if metric != nil {
 		return metric.(Gauge), err
@@ -232,7 +246,7 @@ func (v *GaugeVec) GetMetricWith(labels Labels) (Gauge, error) {
 // error allows shortcuts like
 //
 //	myVec.WithLabelValues("404", "GET").Add(42)
-func (v *GaugeVec) WithLabelValues(lvs ...string) Gauge {
+func (v *gaugeVec) WithLabelValues(lvs ...string) Gauge {
 	g, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
@@ -244,7 +258,7 @@ func (v *GaugeVec) WithLabelValues(lvs ...string) Gauge {
 // returned an error. Not returning an error allows shortcuts like
 //
 //	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Add(42)
-func (v *GaugeVec) With(labels Labels) Gauge {
+func (v *gaugeVec) With(labels Labels) Gauge {
 	g, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
@@ -265,17 +279,17 @@ func (v *GaugeVec) With(labels Labels) Gauge {
 // vectors behave identically in terms of collection. Only one must be
 // registered with a given registry (usually the uncurried version). The Reset
 // method deletes all metrics, even if called on a curried vector.
-func (v *GaugeVec) CurryWith(labels Labels) (*GaugeVec, error) {
+func (v *gaugeVec) CurryWith(labels Labels) (GaugeVec, error) {
 	vec, err := v.MetricVec.CurryWith(labels)
 	if vec != nil {
-		return &GaugeVec{vec}, err
+		return &gaugeVec{vec}, err
 	}
 	return nil, err
 }
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have
 // returned an error.
-func (v *GaugeVec) MustCurryWith(labels Labels) *GaugeVec {
+func (v *gaugeVec) MustCurryWith(labels Labels) GaugeVec {
 	vec, err := v.CurryWith(labels)
 	if err != nil {
 		panic(err)
