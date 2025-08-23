@@ -71,8 +71,8 @@ type mockStorage struct {
 	mockErr  error
 }
 
-func (m *mockStorage) Store(_ context.Context, msgType WriteMessageType, req *http.Request) (*WriteResponse, error) {
-	w := &WriteResponse{}
+func (m *mockStorage) Store(req *http.Request, msgType WriteMessageType) (*WriteResponse, error) {
+	w := NewWriteResponse()
 	if m.mockErr != nil {
 		if m.mockCode != nil {
 			w.SetStatusCode(*m.mockCode)
@@ -147,7 +147,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		tLogger := slog.Default()
 		mStore := &mockStorage{}
-		srv := httptest.NewServer(NewHandler(mStore, MessageTypes{WriteV2MessageType}, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
 		client, err := NewAPI(srv.URL,
@@ -182,7 +182,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			mockErr:  errors.New("storage error"),
 			mockCode: &mockCode,
 		}
-		srv := httptest.NewServer(NewHandler(mStore, MessageTypes{WriteV2MessageType}, WithHandlerLogger(tLogger)))
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
 		client, err := NewAPI(srv.URL,

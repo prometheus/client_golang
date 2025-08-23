@@ -125,29 +125,19 @@ func (w *WriteResponse) SetStatusCode(code int) {
 	w.statusCode = code
 }
 
-// StatusCode returns the current HTTP status code.
-func (w *WriteResponse) StatusCode() int {
-	return w.statusCode
-}
-
 // SetExtraHeader adds additional headers to be set in the response (apart from stats headers)
 func (w *WriteResponse) SetExtraHeader(key, value string) {
 	w.extraHeaders.Set(key, value)
 }
 
-// ExtraHeaders returns all additional headers to be set in the response (apart from stats headers).
-func (w *WriteResponse) ExtraHeaders() http.Header {
-	return w.extraHeaders
-}
-
-// SetHeaders sets response headers in a given response writer.
+// writeHeaders sets response headers in a given response writer.
 // Make sure to use it before http.ResponseWriter.WriteHeader and .Write.
-func (r *WriteResponse) SetHeaders(w http.ResponseWriter) {
-	h := w.Header()
-	h.Set(writtenSamplesHeader, strconv.Itoa(r.Samples))
-	h.Set(writtenHistogramsHeader, strconv.Itoa(r.Histograms))
-	h.Set(writtenExemplarsHeader, strconv.Itoa(r.Exemplars))
-	for k, v := range r.ExtraHeaders() {
+func (w *WriteResponse) writeHeaders(rw http.ResponseWriter) {
+	h := rw.Header()
+	h.Set(writtenSamplesHeader, strconv.Itoa(w.Samples))
+	h.Set(writtenHistogramsHeader, strconv.Itoa(w.Histograms))
+	h.Set(writtenExemplarsHeader, strconv.Itoa(w.Exemplars))
+	for k, v := range w.extraHeaders {
 		for _, vv := range v {
 			h.Add(k, vv)
 		}
