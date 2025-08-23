@@ -179,7 +179,7 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) GaugeVec {
 		opts.ConstLabels,
 	)
 	return &gaugeVec{
-		MetricVec: newMetricVec(desc, func(lvs ...string) Metric {
+		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
 			}

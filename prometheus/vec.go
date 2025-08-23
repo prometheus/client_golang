@@ -57,7 +57,8 @@ type metricVec struct {
 	hashAddByte func(h uint64, b byte) uint64
 }
 
-func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
+// NewMetricVec returns an initialized metricVec.
+func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) MetricVec {
 	return &metricVec{
 		metricMap: &metricMap{
 			metrics:   map[uint64][]metricWithLabelValues{},
@@ -67,11 +68,6 @@ func newMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *metricVec {
 		hashAdd:     hashAdd,
 		hashAddByte: hashAddByte,
 	}
-}
-
-// NewMetricVec returns an initialized metricVec.
-func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) MetricVec {
-	return newMetricVec(desc, newMetric)
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
