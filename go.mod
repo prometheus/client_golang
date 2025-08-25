@@ -10,7 +10,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.65.0
+	github.com/prometheus/common v0.65.1-0.20250825082953-9deefbac4820
 	github.com/prometheus/procfs v0.17.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sys v0.34.0
@@ -24,9 +24,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
