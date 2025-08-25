@@ -15,6 +15,7 @@ package version
 
 import (
 	"fmt"
+	"maps"
 
 	"github.com/prometheus/common/version"
 
@@ -24,6 +25,23 @@ import (
 // NewCollector returns a collector that exports metrics about current version
 // information.
 func NewCollector(program string) prometheus.Collector {
+	return NewCollectorWithLabels(program, nil)
+}
+
+// NewCollectorWithLabels returns a collector that exports metrics about current
+// version information and allows to set additional custom labels.
+func NewCollectorWithLabels(program string, labels prometheus.Labels) prometheus.Collector {
+	constLabels := prometheus.Labels{
+		"version":   version.Version,
+		"revision":  version.GetRevision(),
+		"branch":    version.Branch,
+		"goversion": version.GoVersion,
+		"goos":      version.GoOS,
+		"goarch":    version.GoArch,
+		"tags":      version.GetTags(),
+	}
+	maps.Copy(constLabels, labels)
+
 	return prometheus.NewGaugeFunc(
 		prometheus.GaugeOpts{
 			Namespace: program,
@@ -32,15 +50,7 @@ func NewCollector(program string) prometheus.Collector {
 				"A metric with a constant '1' value labeled by version, revision, branch, goversion from which %s was built, and the goos and goarch for the build.",
 				program,
 			),
-			ConstLabels: prometheus.Labels{
-				"version":   version.Version,
-				"revision":  version.GetRevision(),
-				"branch":    version.Branch,
-				"goversion": version.GoVersion,
-				"goos":      version.GoOS,
-				"goarch":    version.GoArch,
-				"tags":      version.GetTags(),
-			},
+			ConstLabels: constLabels,
 		},
 		func() float64 { return 1 },
 	)
