@@ -172,7 +172,7 @@ func NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 // package but it automatically registers the CounterVec with the
 // prometheus.DefaultRegisterer. If the registration fails, NewCounterVec
 // panics.
-func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
+func NewCounterVec(opts prometheus.CounterOpts, labelNames []string) prometheus.CounterVec {
 	return With(prometheus.DefaultRegisterer).NewCounterVec(opts, labelNames)
 }
 
@@ -194,7 +194,7 @@ func NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 // NewGaugeVec works like the function of the same name in the prometheus
 // package but it automatically registers the GaugeVec with the
 // prometheus.DefaultRegisterer. If the registration fails, NewGaugeVec panics.
-func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
+func NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) prometheus.GaugeVec {
 	return With(prometheus.DefaultRegisterer).NewGaugeVec(opts, labelNames)
 }
 
@@ -270,7 +270,7 @@ func (f Factory) NewCounter(opts prometheus.CounterOpts) prometheus.Counter {
 // NewCounterVec works like the function of the same name in the prometheus
 // package but it automatically registers the CounterVec with the Factory's
 // Registerer.
-func (f Factory) NewCounterVec(opts prometheus.CounterOpts, labelNames []string) *prometheus.CounterVec {
+func (f Factory) NewCounterVec(opts prometheus.CounterOpts, labelNames []string) prometheus.CounterVec {
 	c := prometheus.NewCounterVec(opts, labelNames)
 	if f.r != nil {
 		f.r.MustRegister(c)
@@ -302,7 +302,7 @@ func (f Factory) NewGauge(opts prometheus.GaugeOpts) prometheus.Gauge {
 // NewGaugeVec works like the function of the same name in the prometheus
 // package but it automatically registers the GaugeVec with the Factory's
 // Registerer.
-func (f Factory) NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) *prometheus.GaugeVec {
+func (f Factory) NewGaugeVec(opts prometheus.GaugeOpts, labelNames []string) prometheus.GaugeVec {
 	g := prometheus.NewGaugeVec(opts, labelNames)
 	if f.r != nil {
 		f.r.MustRegister(g)
