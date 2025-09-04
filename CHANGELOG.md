@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 1.23.1 / 2025-09-04
+
+This release is made to be compatible with a backwards incompatible API change
+in prometheus/common v0.66.0. There are no functional changes.
+
 ## 1.23.0 / 2025-07-30
 
 * [CHANGE] Minimum required Go version is now 1.23, only the two latest Go versions are supported from now on. #1812
