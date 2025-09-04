@@ -25,6 +25,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -584,7 +585,7 @@ func ExampleGatherers() {
 	temp.WithLabelValues("outside").Set(273.14)
 	temp.WithLabelValues("inside").Set(298.44)
 
-	var parser expfmt.TextParser
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 
 	text := `
 # TYPE humidity_percent gauge

@@ -1,5 +1,19 @@
 ## Unreleased
 
+## 1.23.1 / 2025-09-04
+
+This release is made to be compatible with a backwards incompatible API change
+in prometheus/common v0.66.0. There are no functional changes.
+
+## 1.23.0 / 2025-07-30
+
+* [CHANGE] Minimum required Go version is now 1.23, only the two latest Go versions are supported from now on. #1812
+* [FEATURE] Add WrapCollectorWith and WrapCollectorWithPrefix #1766
+* [FEATURE] Add exemplars for native histograms #1686
+* [ENHANCEMENT] exp/api: Bubble up status code from writeResponse #1823
+* [ENHANCEMENT] collector/go: Update runtime metrics for Go v1.23 and v1.24 #1833
+* [BUGFIX] exp/api: client prompt return on context cancellation #1729
+
 ## 1.22.0 / 2025-04-07
 
 :warning: This release contains potential breaking change if you use experimental `zstd` support introduce in #1496 :warning:
