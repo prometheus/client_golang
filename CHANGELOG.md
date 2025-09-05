@@ -1,5 +1,10 @@
 ## Unreleased
 
+## 1.23.2 / 2025-09-05
+
+This release is made to upgrade to prometheus/common v0.66.1, which drops the dependencies github.com/grafana/regexp and go.uber.org/atomic and replaces gopkg.in/yaml.v2 with go.yaml.in/yaml/v2 (a drop-in replacement).
+There are no functional changes.
+
 ## 1.23.1 / 2025-09-04
 
 This release is made to be compatible with a backwards incompatible API change
