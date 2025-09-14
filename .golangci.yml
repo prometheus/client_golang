@@ -1,7 +1,6 @@
 version: "2"
 issues:
   max-same-issues: 0
-
 linters:
   enable:
     - copyloopvar
@@ -17,24 +16,21 @@ linters:
     - usestdlibvars
     - wastedassign
   exclusions:
-      generated: lax
-      presets:
-        - comments
-        - common-false-positives
-        - legacy
-        - std-error-handling
-      rules:
-        - linters:
-            - errcheck
-            - govet
-            - structcheck
-            - nolintlint
-          path: _test.go
-      paths:
-        - ^.*\.(pb|y)\.go$
-        - third_party$
-        - builtin$
-        - examples$
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - govet
+          - nolintlint
+          - structcheck
+        path: _test.go
+    paths:
+      - ^.*\.(pb|y)\.go$
+    warn-unused: true
   settings:
     depguard:
       rules:
@@ -65,11 +61,9 @@ linters:
       strconcat: true
     revive:
       rules:
-
         - name: unused-parameter
           severity: warning
           disabled: true
-
 formatters:
   enable:
     - gofmt
@@ -82,9 +76,5 @@ formatters:
       local-prefixes:
         - github.com/prometheus/client_golang
   exclusions:
-    generated: lax
     paths:
       - ^.*\.(pb|y)\.go$
-      - third_party$
-      - builtin$
-      - examples$
