@@ -42,7 +42,7 @@ func TestWriteResponse(t *testing.T) {
 			Samples:    10,
 			Histograms: 5,
 			Exemplars:  2,
-			confirmed:  true,
+			Confirmed:  true,
 		}
 		resp.Add(stats)
 		if diff := cmp.Diff(stats, resp.Stats(), cmpopts.IgnoreUnexported(WriteResponseStats{})); diff != "" {
@@ -53,14 +53,14 @@ func TestWriteResponse(t *testing.T) {
 			Samples:    10,
 			Histograms: 5,
 			Exemplars:  2,
-			confirmed:  true,
+			Confirmed:  true,
 		}
 		resp.Add(toAdd)
 		if diff := cmp.Diff(WriteResponseStats{
 			Samples:    20,
 			Histograms: 10,
 			Exemplars:  4,
-			confirmed:  true,
+			Confirmed:  true,
 		}, resp.Stats(), cmpopts.IgnoreUnexported(WriteResponseStats{})); diff != "" {
 			t.Errorf("stats mismatch (-want +got):\n%s", diff)
 		}
@@ -77,7 +77,7 @@ func TestWriteResponse(t *testing.T) {
 			Samples:    10,
 			Histograms: 5,
 			Exemplars:  2,
-			confirmed:  true,
+			Confirmed:  true,
 		})
 		resp.SetExtraHeader("Custom-Header", "custom-value")
 

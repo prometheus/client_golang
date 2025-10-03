@@ -241,7 +241,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.
 			// https://prometheus.io/docs/specs/remote_write_spec_2_0/#required-written-response-headers.
-			if msgType == WriteV2MessageType && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
+			if msgType == WriteV2MessageType && !accumulatedStats.Confirmed && accumulatedStats.NoDataWritten() {
 				// TODO(bwplotka): Allow users to disable this check or provide their stats for us to know if it's empty.
 				return accumulatedStats, fmt.Errorf("sent v2 request; "+
 					"got 2xx, but PRW 2.0 response header statistics indicate %v samples, %v histograms "+
@@ -329,7 +329,7 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType Write
 
 	rs := WriteResponseStats{}
 	if msgType == WriteV2MessageType {
-		rs, err = parseWriteResponseStats(resp)
+		rs, err = ParseWriteResponseStats(resp)
 		if err != nil {
 			r.opts.logger.Warn("parsing rw write statistics failed; partial or no stats", "err", err)
 		}

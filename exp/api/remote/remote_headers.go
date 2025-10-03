@@ -157,7 +157,7 @@ type WriteResponseStats struct {
 	// of the PRW 2.0 spec. When parsed from headers, it means we got at least one
 	// response header from the Receiver to confirm those numbers, meaning it must
 	// be at least 2.0 Receiver. See ParseWriteResponseStats for details.
-	confirmed bool
+	Confirmed bool
 }
 
 // NoDataWritten returns true if statistics indicate no data was written.
@@ -173,7 +173,7 @@ func (s WriteResponseStats) AllSamples() int {
 // Add adds the given WriteResponseStats to this WriteResponseStats.
 // If this WriteResponseStats is empty, it will be replaced by the given WriteResponseStats.
 func (s *WriteResponseStats) Add(rs WriteResponseStats) {
-	s.confirmed = rs.confirmed
+	s.Confirmed = rs.Confirmed
 	s.Samples += rs.Samples
 	s.Histograms += rs.Histograms
 	s.Exemplars += rs.Exemplars
@@ -187,27 +187,27 @@ func (s *WriteResponseStats) Add(rs WriteResponseStats) {
 // s.Confirmed = true only when see at least on response header.
 //
 // Error is returned when any of the header fails to parse as int64.
-func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error) {
+func ParseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error) {
 	var (
 		errs []error
 		h    = r.Header
 	)
 	if v := h.Get(writtenSamplesHeader); v != "" { // Empty means zero.
-		s.confirmed = true
+		s.Confirmed = true
 		if s.Samples, err = strconv.Atoi(v); err != nil {
 			s.Samples = 0
 			errs = append(errs, err)
 		}
 	}
 	if v := h.Get(writtenHistogramsHeader); v != "" { // Empty means zero.
-		s.confirmed = true
+		s.Confirmed = true
 		if s.Histograms, err = strconv.Atoi(v); err != nil {
 			s.Histograms = 0
 			errs = append(errs, err)
 		}
 	}
 	if v := h.Get(writtenExemplarsHeader); v != "" { // Empty means zero.
-		s.confirmed = true
+		s.Confirmed = true
 		if s.Exemplars, err = strconv.Atoi(v); err != nil {
 			s.Exemplars = 0
 			errs = append(errs, err)

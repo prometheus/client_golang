@@ -134,7 +134,7 @@ func testV2() *writev2.Request {
 }
 
 func stats(req *writev2.Request) (s WriteResponseStats) {
-	s.confirmed = true
+	s.Confirmed = true
 	for _, ts := range req.Timeseries {
 		s.Samples += len(ts.Samples)
 		s.Histograms += len(ts.Histograms)
