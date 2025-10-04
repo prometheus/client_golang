@@ -33,6 +33,8 @@ import (
 type metrics struct {
 	rpcDurations          *prometheus.SummaryVec
 	rpcDurationsHistogram prometheus.Histogram
+	rpcRequests           *prometheus.CounterVec
+	activeRpcs            *prometheus.GaugeVec
 }
 
 func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metrics {
@@ -65,9 +67,32 @@ func NewMetrics(reg prometheus.Registerer, normMean, normDomain float64) *metric
 			Buckets:                     prometheus.LinearBuckets(normMean-5*normDomain, .5*normDomain, 20),
 			NativeHistogramBucketFactor: 1.1,
 		}),
+
+		//Adding the counter metric type
+		rpcRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "rpc_requests_total",
+				Help: "RPC request distributions.",
+			},
+			[]string{"service"},
+		),
+
+		//Adding the gauge metric type
+		activeRpcs: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "rpc_active_calls",
+				Help: "RPC call distributions.",
+			},
+			[]string{"service"},
+		),
 	}
+
 	reg.MustRegister(m.rpcDurations)
 	reg.MustRegister(m.rpcDurationsHistogram)
+	//Registering the counter vec
+	reg.MustRegister(m.rpcRequests)
+	//Registing the gauge vec
+	reg.MustRegister(m.activeRpcs)
 	return m
 }
 
