@@ -242,7 +242,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
 	}
 	r.bufPool.Put(buf)
-	r.bufPool.Put(comprBuf)
+	defer r.bufPool.Put(comprBuf)
 
 	// Since we retry writes we need to track the total amount of accepted data
 	// across the various attempts.
