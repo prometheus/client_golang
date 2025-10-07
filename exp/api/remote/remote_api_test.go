@@ -220,6 +220,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		var retryCount int
+		var retryErrors []error
 
 		client, err := NewAPI(srv.URL,
 			WithAPIHTTPClient(srv.Client()),
@@ -230,8 +231,9 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 				Max:        1 * time.Millisecond,
 				MaxRetries: 3,
 			}),
-			WithAPIRetryCallback(func() {
+			WithAPIRetryCallback(func(err error) {
 				retryCount++
+				retryErrors = append(retryErrors, err)
 			}),
 		)
 		if err != nil {
@@ -249,6 +251,16 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		if retryCount != expectedRetries {
 			t.Fatalf("expected %d retry callback invocations, got %d", expectedRetries, retryCount)
 		}
+
+		// Verify errors were passed correctly.
+		for i, retryErr := range retryErrors {
+			if retryErr == nil {
+				t.Fatalf("expected non-nil error for retry %d", i)
+			}
+			if !strings.Contains(retryErr.Error(), "storage error") {
+				t.Fatalf("expected error to contain 'storage error', got %v", retryErr)
+			}
+		}
 	})
 
 	t.Run("retry callback not invoked on success", func(t *testing.T) {
@@ -262,7 +274,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIRetryCallback(func() {
+			WithAPIRetryCallback(func(err error) {
 				callbackInvoked = true
 			}),
 		)

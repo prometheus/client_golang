@@ -49,7 +49,8 @@ type API struct {
 type APIOption func(o *apiOpts) error
 
 // RetryCallback is called each time Write() retries a request.
-type RetryCallback func()
+// err is the error that caused the retry.
+type RetryCallback func(err error)
 
 // TODO(bwplotka): Add "too old sample" handling one day.
 type apiOpts struct {
@@ -270,12 +271,10 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 
 		var retryableErr retryableError
 		if !errors.As(err, &retryableErr) {
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return accumulatedStats, err
 		}
 
 		if !b.Ongoing() {
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return accumulatedStats, err
 		}
 
@@ -283,13 +282,12 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 
 		// Invoke retry callback if provided (after NextDelay which increments the retry counter).
 		if r.opts.retryCallback != nil {
-			r.opts.retryCallback()
+			r.opts.retryCallback(retryableErr.error)
 		}
 
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
 		select {
 		case <-ctx.Done():
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return WriteResponseStats{}, ctx.Err()
 		case <-time.After(backoffDelay):
 			// Retry.
