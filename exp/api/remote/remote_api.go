@@ -48,6 +48,9 @@ type API struct {
 // APIOption represents a remote API option.
 type APIOption func(o *apiOpts) error
 
+// RetryCallback is called each time Write() retries a request.
+type RetryCallback func()
+
 // TODO(bwplotka): Add "too old sample" handling one day.
 type apiOpts struct {
 	logger           *slog.Logger
@@ -56,6 +59,7 @@ type apiOpts struct {
 	compression      Compression
 	path             string
 	retryOnRateLimit bool
+	retryCallback    RetryCallback
 }
 
 var defaultAPIOpts = &apiOpts{
@@ -107,6 +111,15 @@ func WithAPINoRetryOnRateLimit() APIOption {
 func WithAPIBackoff(backoff backoff.Config) APIOption {
 	return func(o *apiOpts) error {
 		o.backoff = backoff
+		return nil
+	}
+}
+
+// WithAPIRetryCallback sets a callback to be invoked on each retry attempt.
+// This is useful for tracking retry metrics and debugging retry behavior.
+func WithAPIRetryCallback(callback RetryCallback) APIOption {
+	return func(o *apiOpts) error {
+		o.retryCallback = callback
 		return nil
 	}
 }
@@ -267,6 +280,12 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 		}
 
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
+
+		// Invoke retry callback if provided (after NextDelay which increments the retry counter).
+		if r.opts.retryCallback != nil {
+			r.opts.retryCallback()
+		}
+
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
 		select {
 		case <-ctx.Done():

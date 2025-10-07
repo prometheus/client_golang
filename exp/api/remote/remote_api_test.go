@@ -208,4 +208,78 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatalf("expected error to contain 'storage error', got %v", err)
 		}
 	})
+
+	t.Run("retry callback invoked on retries", func(t *testing.T) {
+		tLogger := slog.Default()
+		mockCode := http.StatusInternalServerError
+		mStore := &mockStorage{
+			mockErr:  errors.New("storage error"),
+			mockCode: &mockCode,
+		}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		// Track retry callback invocations
+		var retryCount int
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(backoff.Config{
+				Min:        1 * time.Millisecond,
+				Max:        1 * time.Millisecond,
+				MaxRetries: 3,
+			}),
+			WithAPIRetryCallback(func() {
+				retryCount++
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		// Verify callback was invoked for each retry
+		expectedRetries := 3
+		if retryCount != expectedRetries {
+			t.Fatalf("expected %d retry callback invocations, got %d", expectedRetries, retryCount)
+		}
+	})
+
+	t.Run("retry callback not invoked on success", func(t *testing.T) {
+		tLogger := slog.Default()
+		mStore := &mockStorage{}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		callbackInvoked := false
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIRetryCallback(func() {
+				callbackInvoked = true
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify callback was not invoked for successful request
+		if callbackInvoked {
+			t.Fatal("retry callback should not be invoked on successful request")
+		}
+	})
 }
