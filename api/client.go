@@ -32,8 +32,8 @@ var DefaultRoundTripper http.RoundTripper = func() http.RoundTripper {
 		return t.Clone()
 	}
 
-	//If unable to clone construct and return
-	//refer https://github.com/golang/go/blob/master/src/net/http/transport.go#L46
+	// If unable to clone construct and return
+	// refer https://github.com/golang/go/blob/master/src/net/http/transport.go#L46
 	return &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
