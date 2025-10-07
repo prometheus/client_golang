@@ -231,17 +231,18 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 				Max:        1 * time.Millisecond,
 				MaxRetries: 3,
 			}),
-			WithAPIRetryCallback(func(err error) {
-				retryCount++
-				retryErrors = append(retryErrors, err)
-			}),
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+			WithWriteRetryCallback(func(err error) {
+				retryCount++
+				retryErrors = append(retryErrors, err)
+			}),
+		)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -274,16 +275,17 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIRetryCallback(func(err error) {
-				callbackInvoked = true
-			}),
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+			WithWriteRetryCallback(func(err error) {
+				callbackInvoked = true
+			}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
