@@ -219,7 +219,6 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
 		t.Cleanup(srv.Close)
 
-		// Track retry callback invocations
 		var retryCount int
 
 		client, err := NewAPI(srv.URL,
@@ -245,7 +244,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal("expected error, got nil")
 		}
 
-		// Verify callback was invoked for each retry
+		// Verify callback was invoked for each retry.
 		expectedRetries := 3
 		if retryCount != expectedRetries {
 			t.Fatalf("expected %d retry callback invocations, got %d", expectedRetries, retryCount)
@@ -277,7 +276,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Verify callback was not invoked for successful request
+		// Verify callback was not invoked for successful request.
 		if callbackInvoked {
 			t.Fatal("retry callback should not be invoked on successful request")
 		}
