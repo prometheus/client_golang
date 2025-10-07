@@ -291,7 +291,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
 
-		// Invoke retry callback if provided (per-request callback overrides API-level callback).
+		// Invoke retry callback if provided
 		if writeOpts.retryCallback != nil {
 			writeOpts.retryCallback(retryableErr.error)
 		}
