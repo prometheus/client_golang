@@ -48,6 +48,10 @@ type API struct {
 // APIOption represents a remote API option.
 type APIOption func(o *apiOpts) error
 
+// RetryCallback is called each time Write() retries a request.
+// err is the error that caused the retry.
+type RetryCallback func(err error)
+
 // TODO(bwplotka): Add "too old sample" handling one day.
 type apiOpts struct {
 	logger           *slog.Logger
@@ -160,6 +164,21 @@ func (r retryableError) RetryAfter() time.Duration {
 	return r.retryAfter
 }
 
+// WriteOption represents an option for Write method.
+type WriteOption func(o *writeOpts)
+
+type writeOpts struct {
+	retryCallback RetryCallback
+}
+
+// WithWriteRetryCallback sets a retry callback for this Write request.
+// The callback is invoked each time the request is retried.
+func WithWriteRetryCallback(callback RetryCallback) WriteOption {
+	return func(o *writeOpts) {
+		o.retryCallback = callback
+	}
+}
+
 type vtProtoEnabled interface {
 	SizeVT() int
 	MarshalToSizedBufferVT(dAtA []byte) (int, error)
@@ -179,7 +198,13 @@ type gogoProtoEnabled interface {
 //     will be used
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
-func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ WriteResponseStats, err error) {
+func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts ...WriteOption) (_ WriteResponseStats, err error) {
+	// Parse write options.
+	var writeOpts writeOpts
+	for _, opt := range opts {
+		opt(&writeOpts)
+	}
+
 	buf := r.bufPool.Get().(*[]byte)
 
 	if err := msgType.Validate(); err != nil {
@@ -228,7 +253,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
 	}
 	r.bufPool.Put(buf)
-	r.bufPool.Put(comprBuf)
+	defer r.bufPool.Put(comprBuf)
 
 	// Since we retry writes we need to track the total amount of accepted data
 	// across the various attempts.
@@ -257,20 +282,23 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 
 		var retryableErr retryableError
 		if !errors.As(err, &retryableErr) {
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return accumulatedStats, err
 		}
 
 		if !b.Ongoing() {
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return accumulatedStats, err
 		}
 
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
+
+		// Invoke retry callback if provided.
+		if writeOpts.retryCallback != nil {
+			writeOpts.retryCallback(retryableErr.error)
+		}
+
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
 		select {
 		case <-ctx.Done():
-			// TODO(bwplotka): More context in the error e.g. about retries.
 			return WriteResponseStats{}, ctx.Err()
 		case <-time.After(backoffDelay):
 			// Retry.
