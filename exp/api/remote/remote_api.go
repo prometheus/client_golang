@@ -60,7 +60,6 @@ type apiOpts struct {
 	compression      Compression
 	path             string
 	retryOnRateLimit bool
-	retryCallback    RetryCallback
 }
 
 var defaultAPIOpts = &apiOpts{
@@ -116,15 +115,6 @@ func WithAPIBackoff(backoff backoff.Config) APIOption {
 	}
 }
 
-// WithAPIRetryCallback sets a callback to be invoked on each retry attempt.
-// This is useful for tracking retry metrics and debugging retry behavior.
-func WithAPIRetryCallback(callback RetryCallback) APIOption {
-	return func(o *apiOpts) error {
-		o.retryCallback = callback
-		return nil
-	}
-}
-
 type nopSlogHandler struct{}
 
 func (n nopSlogHandler) Enabled(context.Context, slog.Level) bool  { return false }
@@ -174,6 +164,21 @@ func (r retryableError) RetryAfter() time.Duration {
 	return r.retryAfter
 }
 
+// WriteOption represents an option for Write method.
+type WriteOption func(o *writeOpts)
+
+type writeOpts struct {
+	retryCallback RetryCallback
+}
+
+// WithWriteRetryCallback sets a retry callback for this Write request.
+// The callback is invoked each time the request is retried.
+func WithWriteRetryCallback(callback RetryCallback) WriteOption {
+	return func(o *writeOpts) {
+		o.retryCallback = callback
+	}
+}
+
 type vtProtoEnabled interface {
 	SizeVT() int
 	MarshalToSizedBufferVT(dAtA []byte) (int, error)
@@ -193,7 +198,13 @@ type gogoProtoEnabled interface {
 //     will be used
 //   - If neither is supported, it will marshaled using generic google.golang.org/protobuf methods and
 //     error out on unknown scheme.
-func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ WriteResponseStats, err error) {
+func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts ...WriteOption) (_ WriteResponseStats, err error) {
+	// Parse write options.
+	var writeOpts writeOpts
+	for _, opt := range opts {
+		opt(&writeOpts)
+	}
+
 	buf := r.bufPool.Get().(*[]byte)
 
 	if err := msgType.Validate(); err != nil {
@@ -280,9 +291,9 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any) (_ W
 
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
 
-		// Invoke retry callback if provided (after NextDelay which increments the retry counter).
-		if r.opts.retryCallback != nil {
-			r.opts.retryCallback(retryableErr.error)
+		// Invoke retry callback if provided.
+		if writeOpts.retryCallback != nil {
+			writeOpts.retryCallback(retryableErr.error)
 		}
 
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
