@@ -52,7 +52,12 @@ type APIOption func(o *apiOpts) error
 // err is the error that caused the retry.
 type RetryCallback func(err error)
 
-// TODO(bwplotka): Add "too old sample" handling one day.
+// MessageFilter is a function that filters or modifies the message before each write attempt.
+// It receives the attempt number (0 = first attempt, 1+ = retries) and the message to be sent.
+// It returns a potentially modified message, or an error if the message should not be sent.
+// This can be used for age-based filtering, deduplication, or other application-level logic.
+type MessageFilter func(attempt int, msg any) (filtered any, err error)
+
 type apiOpts struct {
 	logger           *slog.Logger
 	client           *http.Client
@@ -169,6 +174,7 @@ type WriteOption func(o *writeOpts)
 
 type writeOpts struct {
 	retryCallback RetryCallback
+	filterFunc    MessageFilter
 }
 
 // WithWriteRetryCallback sets a retry callback for this Write request.
@@ -176,6 +182,16 @@ type writeOpts struct {
 func WithWriteRetryCallback(callback RetryCallback) WriteOption {
 	return func(o *writeOpts) {
 		o.retryCallback = callback
+	}
+}
+
+// WithWriteFilter sets a filter function for this Write request.
+// The filter is invoked before each write attempt (including the initial attempt).
+// This allows filtering out old samples, deduplication, or other application-level logic.
+// If the filter returns an error, the Write operation will stop and return that error.
+func WithWriteFilter(filter MessageFilter) WriteOption {
+	return func(o *writeOpts) {
+		o.filterFunc = filter
 	}
 }
 
@@ -205,55 +221,9 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 		opt(&writeOpts)
 	}
 
-	buf := r.bufPool.Get().(*[]byte)
-
 	if err := msgType.Validate(); err != nil {
 		return WriteResponseStats{}, err
 	}
-
-	// Encode the payload.
-	switch m := msg.(type) {
-	case vtProtoEnabled:
-		// Use optimized vtprotobuf if supported.
-		size := m.SizeVT()
-		if cap(*buf) < size {
-			*buf = make([]byte, size)
-		} else {
-			*buf = (*buf)[:size]
-		}
-
-		if _, err := m.MarshalToSizedBufferVT(*buf); err != nil {
-			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
-		}
-	case gogoProtoEnabled:
-		// Gogo proto if supported.
-		size := m.Size()
-		if cap(*buf) < size {
-			*buf = make([]byte, size)
-		} else {
-			*buf = (*buf)[:size]
-		}
-
-		if _, err := m.MarshalToSizedBuffer(*buf); err != nil {
-			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
-		}
-	case proto.Message:
-		// Generic proto.
-		*buf, err = (proto.MarshalOptions{}).MarshalAppend(*buf, m)
-		if err != nil {
-			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
-		}
-	default:
-		return WriteResponseStats{}, fmt.Errorf("unknown message type %T", m)
-	}
-
-	comprBuf := r.bufPool.Get().(*[]byte)
-	payload, err := compressPayload(comprBuf, r.opts.compression, *buf)
-	if err != nil {
-		return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
-	}
-	r.bufPool.Put(buf)
-	defer r.bufPool.Put(comprBuf)
 
 	// Since we retry writes we need to track the total amount of accepted data
 	// across the various attempts.
@@ -261,7 +231,69 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 
 	b := backoff.New(ctx, r.opts.backoff)
 	for {
+		// Apply filter if provided.
+		currentMsg := msg
+		if writeOpts.filterFunc != nil {
+			filteredMsg, err := writeOpts.filterFunc(b.NumRetries(), msg)
+			if err != nil {
+				// Filter returned error, likely no data left to send.
+				return accumulatedStats, err
+			}
+			currentMsg = filteredMsg
+		}
+
+		// Encode the payload.
+		buf := r.bufPool.Get().(*[]byte)
+		switch m := currentMsg.(type) {
+		case vtProtoEnabled:
+			// Use optimized vtprotobuf if supported.
+			size := m.SizeVT()
+			if cap(*buf) < size {
+				*buf = make([]byte, size)
+			} else {
+				*buf = (*buf)[:size]
+			}
+
+			if _, err := m.MarshalToSizedBufferVT(*buf); err != nil {
+				r.bufPool.Put(buf)
+				return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
+			}
+		case gogoProtoEnabled:
+			// Gogo proto if supported.
+			size := m.Size()
+			if cap(*buf) < size {
+				*buf = make([]byte, size)
+			} else {
+				*buf = (*buf)[:size]
+			}
+
+			if _, err := m.MarshalToSizedBuffer(*buf); err != nil {
+				r.bufPool.Put(buf)
+				return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
+			}
+		case proto.Message:
+			// Generic proto.
+			*buf, err = (proto.MarshalOptions{}).MarshalAppend(*buf, m)
+			if err != nil {
+				r.bufPool.Put(buf)
+				return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
+			}
+		default:
+			r.bufPool.Put(buf)
+			return WriteResponseStats{}, fmt.Errorf("unknown message type %T", m)
+		}
+
+		comprBuf := r.bufPool.Get().(*[]byte)
+		payload, err := compressPayload(comprBuf, r.opts.compression, *buf)
+		if err != nil {
+			r.bufPool.Put(buf)
+			r.bufPool.Put(comprBuf)
+			return WriteResponseStats{}, fmt.Errorf("compressing %w", err)
+		}
+		r.bufPool.Put(buf)
+
 		rs, err := r.attemptWrite(ctx, r.opts.compression, msgType, payload, b.NumRetries())
+		r.bufPool.Put(comprBuf)
 		accumulatedStats.Add(rs)
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.

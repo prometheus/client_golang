@@ -295,4 +295,147 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal("retry callback should not be invoked on successful request")
 		}
 	})
+
+	t.Run("filter invoked on each attempt", func(t *testing.T) {
+		tLogger := slog.Default()
+		mockCode := http.StatusInternalServerError
+		mStore := &mockStorage{
+			mockErr:  errors.New("storage error"),
+			mockCode: &mockCode,
+		}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		var filterInvocations []int
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(backoff.Config{
+				Min:        1 * time.Millisecond,
+				Max:        1 * time.Millisecond,
+				MaxRetries: 2,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+			WithWriteFilter(func(attempt int, msg any) (any, error) {
+				filterInvocations = append(filterInvocations, attempt)
+				return msg, nil
+			}),
+		)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		// Filter should be invoked for initial attempt (0) and 2 retries (1, 2).
+		expectedInvocations := []int{0, 1, 2}
+		if diff := cmp.Diff(expectedInvocations, filterInvocations); diff != "" {
+			t.Fatalf("unexpected filter invocations (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("filter can modify message on retries", func(t *testing.T) {
+		tLogger := slog.Default()
+		mStore := &mockStorage{}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		originalTimeseriesCount := len(req.Timeseries)
+
+		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+			WithWriteFilter(func(attempt int, msg any) (any, error) {
+				r, ok := msg.(*writev2.Request)
+				if !ok {
+					t.Fatal("expected *writev2.Request")
+				}
+
+				// On retries (attempt > 0), filter out the first timeseries.
+				if attempt > 0 {
+					filtered := &writev2.Request{
+						Timeseries: r.Timeseries[1:],
+						Symbols:    r.Symbols,
+					}
+					return filtered, nil
+				}
+				return msg, nil
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Verify original message was sent on first attempt.
+		if len(mStore.v2Reqs) != 1 {
+			t.Fatalf("expected 1 request stored, got %d", len(mStore.v2Reqs))
+		}
+		if len(mStore.v2Reqs[0].Timeseries) != originalTimeseriesCount {
+			t.Fatalf("expected %d timeseries in stored request, got %d",
+				originalTimeseriesCount, len(mStore.v2Reqs[0].Timeseries))
+		}
+	})
+
+	t.Run("filter error stops retries", func(t *testing.T) {
+		tLogger := slog.Default()
+		mockCode := http.StatusInternalServerError
+		mStore := &mockStorage{
+			mockErr:  errors.New("storage error"),
+			mockCode: &mockCode,
+		}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		var attemptCount int
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(backoff.Config{
+				Min:        1 * time.Millisecond,
+				Max:        1 * time.Millisecond,
+				MaxRetries: 5,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+			WithWriteFilter(func(attempt int, msg any) (any, error) {
+				attemptCount++
+				// Return error on second retry (attempt 2).
+				if attempt >= 2 {
+					return nil, errors.New("filter rejected message")
+				}
+				return msg, nil
+			}),
+		)
+
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "filter rejected message") {
+			t.Fatalf("expected error to contain 'filter rejected message', got %v", err)
+		}
+
+		// Should only reach attempt 2 (0, 1, 2) before filter stops it.
+		if attemptCount != 3 {
+			t.Fatalf("expected 3 filter invocations (attempts 0,1,2), got %d", attemptCount)
+		}
+	})
 }
