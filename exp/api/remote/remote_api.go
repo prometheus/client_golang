@@ -30,9 +30,8 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/snappy"
+	"github.com/prometheus/client_golang/exp/backoff"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
 // API is a client for Prometheus Remote Protocols.

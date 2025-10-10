@@ -26,12 +26,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/prometheus/client_golang/exp/backoff"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
-	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
 func TestRetryAfterDuration(t *testing.T) {
