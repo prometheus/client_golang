@@ -27,13 +27,18 @@ import (
 )
 
 // DefaultRoundTripper is used if no RoundTripper is set in Config.
+// refer https://github.com/golang/go/blob/master/src/net/http/transport.go#L46
 var DefaultRoundTripper http.RoundTripper = &http.Transport{
 	Proxy: http.ProxyFromEnvironment,
 	DialContext: (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}).DialContext,
-	TLSHandshakeTimeout: 10 * time.Second,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
 }
 
 // Config defines configuration parameters for a new client.
