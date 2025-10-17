@@ -31,7 +31,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
-	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
 func TestRetryAfterDuration(t *testing.T) {
@@ -189,7 +188,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIBackoff(backoff.Config{
+			WithAPIBackoff(BackoffConfig{
 				Min:        1 * time.Second,
 				Max:        1 * time.Second,
 				MaxRetries: 2,
@@ -226,7 +225,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIBackoff(backoff.Config{
+			WithAPIBackoff(BackoffConfig{
 				Min:        1 * time.Millisecond,
 				Max:        1 * time.Millisecond,
 				MaxRetries: 3,
