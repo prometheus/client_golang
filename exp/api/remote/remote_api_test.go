@@ -188,7 +188,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIBackoffConfig(BackoffConfig{
+			WithAPIBackoff(BackoffConfig{
 				Min:        1 * time.Second,
 				Max:        1 * time.Second,
 				MaxRetries: 2,
@@ -225,7 +225,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			WithAPIHTTPClient(srv.Client()),
 			WithAPILogger(tLogger),
 			WithAPIPath("api/v1/write"),
-			WithAPIBackoffConfig(BackoffConfig{
+			WithAPIBackoff(BackoffConfig{
 				Min:        1 * time.Millisecond,
 				Max:        1 * time.Millisecond,
 				MaxRetries: 3,

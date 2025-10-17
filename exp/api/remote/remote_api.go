@@ -114,8 +114,9 @@ func WithAPINoRetryOnRateLimit() APIOption {
 	}
 }
 
-// WithAPIBackoffConfig returns APIOption that allows overriding backoff configuration.
-func WithAPIBackoffConfig(cfg BackoffConfig) APIOption {
+// WithAPIBackoff returns APIOption that allows configuring backoff.
+// By default, exponential backoff with jitter is used (see defaultAPIOpts).
+func WithAPIBackoff(cfg BackoffConfig) APIOption {
 	return func(o *apiOpts) error {
 		o.backoffConfig = cfg
 		return nil
