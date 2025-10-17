@@ -37,11 +37,18 @@ func main() {
 	// Create a new registry.
 	reg := prometheus.NewRegistry()
 
-	// Add Go module build info.
-	reg.MustRegister(collectors.NewBuildInfoCollector())
-	reg.MustRegister(collectors.NewGoCollector(
-		collectors.WithGoCollectorRuntimeMetrics(collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/.*")}),
-	))
+	// Register metrics from GoCollector collecting statistics from the Go Runtime.
+	// This enabled default, recommended metrics with the additional, recommended metric for
+	// goroutine scheduling latencies histogram that is currently bit too expensive for default option.
+	//
+	// See the related GopherConUK talk to learn more: https://www.youtube.com/watch?v=18dyI_8VFa0
+	reg.MustRegister(
+		collectors.NewGoCollector(
+			collectors.WithGoCollectorRuntimeMetrics(
+				collectors.GoRuntimeMetricsRule{Matcher: regexp.MustCompile("/sched/latencies:seconds")},
+			),
+		),
+	)
 
 	// Expose the registered metrics via HTTP.
 	http.Handle("/metrics", promhttp.HandlerFor(

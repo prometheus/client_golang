@@ -114,7 +114,7 @@ group
 	}
 }
 
-func ExampleGetUnifiedDiffCode() {
+func ExampleGetUnifiedDiffString() {
 	a := `one
 two
 three

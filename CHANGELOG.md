@@ -1,6 +1,105 @@
 ## Unreleased
 
-## 1.19.0 / 2023-02-27
+## 1.23.2 / 2025-09-05
+
+This release is made to upgrade to prometheus/common v0.66.1, which drops the dependencies github.com/grafana/regexp and go.uber.org/atomic and replaces gopkg.in/yaml.v2 with go.yaml.in/yaml/v2 (a drop-in replacement).
+There are no functional changes.
+
+## 1.23.1 / 2025-09-04
+
+This release is made to be compatible with a backwards incompatible API change
+in prometheus/common v0.66.0. There are no functional changes.
+
+## 1.23.0 / 2025-07-30
+
+* [CHANGE] Minimum required Go version is now 1.23, only the two latest Go versions are supported from now on. #1812
+* [FEATURE] Add WrapCollectorWith and WrapCollectorWithPrefix #1766
+* [FEATURE] Add exemplars for native histograms #1686
+* [ENHANCEMENT] exp/api: Bubble up status code from writeResponse #1823
+* [ENHANCEMENT] collector/go: Update runtime metrics for Go v1.23 and v1.24 #1833
+* [BUGFIX] exp/api: client prompt return on context cancellation #1729
+
+## 1.22.0 / 2025-04-07
+
+:warning: This release contains potential breaking change if you use experimental `zstd` support introduce in #1496 :warning:
+
+Experimental support for `zstd` on scrape was added, controlled by the request `Accept-Encoding` header.
+It was enabled by default since version 1.20, but now you need to add a blank import to enable it.
+The decision to make it opt-in by default was originally made because the Go standard library was expected to have default zstd support added soon,
+https://github.com/golang/go/issues/62513 however, the work took longer than anticipated and it will be postponed to upcoming major Go versions.
+
+
+e.g.:
+> ```go
+> import (
+>   _ "github.com/prometheus/client_golang/prometheus/promhttp/zstd"
+> )
+> ```
+
+* [FEATURE] prometheus: Add new CollectorFunc utility #1724
+* [CHANGE] Minimum required Go version is now 1.22 (we also test client_golang against latest go version - 1.24) #1738
+* [FEATURE] api: `WithLookbackDelta` and `WithStats` options have been added to API client. #1743
+* [CHANGE] :warning: promhttp: Isolate zstd support and klauspost/compress library use to promhttp/zstd package. #1765
+
+## 1.21.1 / 2025-03-04
+
+* [BUGFIX] prometheus: Revert of `Inc`, `Add` and `Observe` cumulative metric CAS optimizations (#1661), causing regressions on low contention cases.
+* [BUGFIX] prometheus: Fix GOOS=ios build, broken due to process_collector_* wrong build tags.
+
+## 1.21.0 / 2025-02-17
+
+:warning: This release contains potential breaking change if you upgrade `github.com/prometheus/common` to 0.62+ together with client_golang. :warning:
+
+New common version [changes `model.NameValidationScheme` global variable](https://github.com/prometheus/common/pull/724), which relaxes the validation of label names and metric name, allowing all UTF-8 characters. Typically, this should not break any user, unless your test or usage expects strict certain names to panic/fail on client_golang metric registration, gathering or scrape. In case of problems change `model.NameValidationScheme` to old `model.LegacyValidation` value in your project `init` function.
+
+* [BUGFIX] gocollector: Fix help message for runtime/metric metrics. #1583
+* [BUGFIX] prometheus: Fix `Desc.String()` method for no labels case. #1687
+* [ENHANCEMENT] prometheus: Optimize popular `prometheus.BuildFQName` function; now up to 30% faster. #1665
+* [ENHANCEMENT] prometheus: Optimize `Inc`, `Add` and `Observe` cumulative metrics; now up to 50% faster under high concurrent contention. #1661
+* [CHANGE] Upgrade prometheus/common to 0.62.0 which changes `model.NameValidationScheme` global variable. #1712
+* [CHANGE] Add support for Go 1.23. #1602
+* [FEATURE] process_collector: Add support for Darwin systems. #1600 #1616 #1625 #1675 #1715
+* [FEATURE] api: Add ability to invoke `CloseIdleConnections` on api.Client using `api.Client.(CloseIdler).CloseIdleConnections()` casting. #1513
+* [FEATURE] promhttp: Add `promhttp.HandlerOpts.EnableOpenMetricsTextCreatedSamples` option to create OpenMetrics _created lines. Not recommended unless you want to use opt-in Created Timestamp feature. Community works on OpenMetrics 2.0 format that should make those lines obsolete (they increase cardinality significantly). #1408
+* [FEATURE] prometheus: Add `NewConstNativeHistogram` function. #1654
+
+## 1.20.5 / 2024-10-15
+
+* [BUGFIX] testutil: Reverted #1424; functions using compareMetricFamilies are (again) only failing if filtered metricNames are in the expected input.
+
+## 1.20.4 / 2024-09-07
+
+* [BUGFIX] histograms: Fix possible data race when appending exemplars vs metrics gather. #1623
+
+## 1.20.3 / 2024-09-05
+
+* [BUGFIX] histograms: Fix possible data race when appending exemplars. #1608
+
+## 1.20.2 / 2024-08-23
+
+* [BUGFIX] promhttp: Unset Content-Encoding header when data is uncompressed. #1596
+
+## 1.20.1 / 2024-08-20
+
+* [BUGFIX] process-collector: Fixed unregistered descriptor error when using process collector with `PedanticRegistry` on linux machines. #1587
+
+## 1.20.0 / 2024-08-14
+
+* [CHANGE] :warning: go-collector: Remove `go_memstat_lookups_total` metric which was always 0; Go runtime stopped sharing pointer lookup statistics. #1577
+* [FEATURE] :warning: go-collector: Add 3 default metrics: `go_gc_gogc_percent`, `go_gc_gomemlimit_bytes` and `go_sched_gomaxprocs_threads` as those are recommended by the Go team. #1559
+* [FEATURE] go-collector: Add more information to all metrics' HELP e.g. the exact `runtime/metrics` sourcing each metric (if relevant). #1568 #1578
+* [FEATURE] testutil: Add CollectAndFormat method. #1503
+* [FEATURE] histograms: Add support for exemplars in native histograms. #1471
+* [FEATURE] promhttp: Add experimental support for `zstd` on scrape, controlled by the request `Accept-Encoding` header. #1496
+* [FEATURE] api/v1: Add `WithLimit` parameter to all API methods that supports it. #1544
+* [FEATURE] prometheus: Add support for created timestamps in constant histograms and constant summaries. #1537
+* [FEATURE] process-collector: Add network usage metrics: `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`. #1555
+* [FEATURE] promlint: Add duplicated metric lint rule. #1472
+* [BUGFIX] promlint: Relax metric type in name linter rule. #1455
+* [BUGFIX] promhttp: Make sure server instrumentation wrapping supports new and future extra responseWriter methods. #1480
+* [BUGFIX] **breaking** testutil: Functions using compareMetricFamilies are now failing if filtered metricNames are not in the input. #1424 (reverted in 1.20.5)
+
+## 1.19.0 / 2024-02-27
 
 The module `prometheus/common v0.48.0` introduced an incompatibility when used together with client_golang (See https://github.com/prometheus/client_golang/pull/1448 for more details). If your project uses client_golang and you want to use `prometheus/common v0.48.0` or higher, please update client_golang to v1.19.0.
 

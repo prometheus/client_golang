@@ -18,11 +18,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -116,7 +116,7 @@ func main() {
 			// the ExemplarObserver interface and thus don't need to
 			// check the outcome of the type assertion.
 			m.rpcDurationsHistogram.(prometheus.ExemplarObserver).ObserveWithExemplar(
-				v, prometheus.Labels{"dummyID": fmt.Sprint(rand.Intn(100000))},
+				v, prometheus.Labels{"dummyID": strconv.Itoa(rand.Intn(100000))},
 			)
 			time.Sleep(time.Duration(75*oscillationFactor()) * time.Millisecond)
 		}

@@ -98,7 +98,8 @@ func (v2) NewDesc(fqName, help, unit string, variableLabels ConstrainableLabels,
 		unit:           unit,
 		variableLabels: variableLabels.compile(),
 	}
-	if !model.IsValidMetricName(model.LabelValue(fqName)) {
+	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
+	if !model.NameValidationScheme.IsValidMetricName(fqName) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
 		return d
 	}
@@ -193,12 +194,15 @@ func (d *Desc) String() string {
 			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),
 		)
 	}
-	vlStrings := make([]string, 0, len(d.variableLabels.names))
-	for _, vl := range d.variableLabels.names {
-		if fn, ok := d.variableLabels.labelConstraints[vl]; ok && fn != nil {
-			vlStrings = append(vlStrings, fmt.Sprintf("c(%s)", vl))
-		} else {
-			vlStrings = append(vlStrings, vl)
+	vlStrings := []string{}
+	if d.variableLabels != nil {
+		vlStrings = make([]string, 0, len(d.variableLabels.names))
+		for _, vl := range d.variableLabels.names {
+			if fn, ok := d.variableLabels.labelConstraints[vl]; ok && fn != nil {
+				vlStrings = append(vlStrings, fmt.Sprintf("c(%s)", vl))
+			} else {
+				vlStrings = append(vlStrings, vl)
+			}
 		}
 	}
 	return fmt.Sprintf(

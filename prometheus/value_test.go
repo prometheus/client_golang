@@ -14,7 +14,6 @@
 package prometheus
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -52,7 +51,7 @@ func TestNewConstMetricInvalidLabelValues(t *testing.T) {
 
 		expectPanic(t, func() {
 			MustNewConstMetric(metricDesc, CounterValue, 0.3, "\xFF")
-		}, fmt.Sprintf("WithLabelValues: expected panic because: %s", test.desc))
+		}, "WithLabelValues: expected panic because: "+test.desc)
 
 		if _, err := NewConstMetric(metricDesc, CounterValue, 0.3, "\xFF"); err == nil {
 			t.Errorf("NewConstMetric: expected error because: %s", test.desc)

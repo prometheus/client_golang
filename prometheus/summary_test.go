@@ -263,12 +263,12 @@ func TestSummaryConcurrency(t *testing.T) {
 			ε := objMap[wantQ]
 			gotQ := *m.Summary.Quantile[i].Quantile
 			gotV := *m.Summary.Quantile[i].Value
-			min, max := getBounds(allVars, wantQ, ε)
+			minBound, maxBound := getBounds(allVars, wantQ, ε)
 			if gotQ != wantQ {
 				t.Errorf("got quantile %f, want %f", gotQ, wantQ)
 			}
-			if gotV < min || gotV > max {
-				t.Errorf("got %f for quantile %f, want [%f,%f]", gotV, gotQ, min, max)
+			if gotV < minBound || gotV > maxBound {
+				t.Errorf("got %f for quantile %f, want [%f,%f]", gotV, gotQ, minBound, maxBound)
 			}
 		}
 		return true
@@ -353,12 +353,12 @@ func TestSummaryVecConcurrency(t *testing.T) {
 				ε := objMap[wantQ]
 				gotQ := *m.Summary.Quantile[j].Quantile
 				gotV := *m.Summary.Quantile[j].Value
-				min, max := getBounds(allVars[i], wantQ, ε)
+				minBound, maxBound := getBounds(allVars[i], wantQ, ε)
 				if gotQ != wantQ {
 					t.Errorf("got quantile %f for label %c, want %f", gotQ, 'A'+i, wantQ)
 				}
-				if gotV < min || gotV > max {
-					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, min, max)
+				if gotV < minBound || gotV > maxBound {
+					t.Errorf("got %f for quantile %f for label %c, want [%f,%f]", gotV, gotQ, 'A'+i, minBound, maxBound)
 				}
 			}
 		}
@@ -371,10 +371,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 }
 
 func TestSummaryDecay(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping test in short mode.")
-		// More because it depends on timing than because it is particularly long...
-	}
+	now := time.Now()
 
 	sum := NewSummary(SummaryOpts{
 		Name:       "test_summary",
@@ -382,48 +379,48 @@ func TestSummaryDecay(t *testing.T) {
 		MaxAge:     100 * time.Millisecond,
 		Objectives: map[float64]float64{0.1: 0.001},
 		AgeBuckets: 10,
+		now: func() time.Time {
+			return now
+		},
 	})
 
 	m := &dto.Metric{}
-	i := 0
-	tick := time.NewTicker(time.Millisecond)
-	for range tick.C {
-		i++
+	for i := 1; i <= 1000; i++ {
+		now = now.Add(time.Millisecond)
 		sum.Observe(float64(i))
 		if i%10 == 0 {
 			sum.Write(m)
-			if got, want := *m.Summary.Quantile[0].Value, math.Max(float64(i)/10, float64(i-90)); math.Abs(got-want) > 20 {
+			got := *m.Summary.Quantile[0].Value
+			want := math.Max(float64(i)/10, float64(i-90))
+			if math.Abs(got-want) > 20 {
 				t.Errorf("%d. got %f, want %f", i, got, want)
 			}
 			m.Reset()
 		}
-		if i >= 1000 {
-			break
-		}
 	}
-	tick.Stop()
-	// Wait for MaxAge without observations and make sure quantiles are NaN.
-	time.Sleep(100 * time.Millisecond)
+
+	// Simulate waiting for MaxAge without observations
+	now = now.Add(100 * time.Millisecond)
 	sum.Write(m)
 	if got := *m.Summary.Quantile[0].Value; !math.IsNaN(got) {
 		t.Errorf("got %f, want NaN after expiration", got)
 	}
 }
 
-func getBounds(vars []float64, q, ε float64) (min, max float64) {
+func getBounds(vars []float64, q, ε float64) (minBound, maxBound float64) {
 	// TODO(beorn7): This currently tolerates an error of up to 2*ε. The
 	// error must be at most ε, but for some reason, it's sometimes slightly
 	// higher. That's a bug.
 	n := float64(len(vars))
 	lower := int((q - 2*ε) * n)
 	upper := int(math.Ceil((q + 2*ε) * n))
-	min = vars[0]
+	minBound = vars[0]
 	if lower > 1 {
-		min = vars[lower-1]
+		minBound = vars[lower-1]
 	}
-	max = vars[len(vars)-1]
+	maxBound = vars[len(vars)-1]
 	if upper < len(vars) {
-		max = vars[upper-1]
+		maxBound = vars[upper-1]
 	}
 	return
 }
@@ -472,5 +469,30 @@ func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {
 			now = now.Add(1 * time.Hour)
 			expectCTsForMetricVecValues(t, summaryVec.MetricVec, dto.MetricType_SUMMARY, expected)
 		})
+	}
+}
+
+func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
+	metricDesc := NewDesc(
+		"sample_value",
+		"sample value",
+		nil,
+		nil,
+	)
+	quantiles := map[float64]float64{50: 200.12, 99: 500.342}
+	createdTs := time.Unix(1719670764, 123)
+
+	s, err := NewConstSummaryWithCreatedTimestamp(metricDesc, 100, 200, quantiles, createdTs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var metric dto.Metric
+	if err := s.Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+
+	if metric.Summary.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
+		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)
 	}
 }

@@ -16,11 +16,13 @@ package api
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestConfig(t *testing.T) {
@@ -113,6 +115,52 @@ func TestClientURL(t *testing.T) {
 			t.Errorf("unexpected result: got %s, want %s", u, test.expected)
 			continue
 		}
+	}
+}
+
+func TestDoContextCancellation(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("partial"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+
+		<-r.Context().Done()
+	}))
+
+	defer ts.Close()
+
+	client, err := NewClient(Config{
+		Address: ts.URL,
+	})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	resp, body, err := client.Do(ctx, req)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected error %v, got: %v", context.DeadlineExceeded, err)
+	}
+	if body != nil {
+		t.Errorf("expected no body due to cancellation, got: %q", string(body))
+	}
+	if elapsed > 200*time.Millisecond {
+		t.Errorf("Do did not return promptly on cancellation: took %v", elapsed)
+	}
+
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
 	}
 }
 

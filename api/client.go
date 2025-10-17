@@ -27,13 +27,18 @@ import (
 )
 
 // DefaultRoundTripper is used if no RoundTripper is set in Config.
+// refer https://github.com/golang/go/blob/master/src/net/http/transport.go#L46
 var DefaultRoundTripper http.RoundTripper = &http.Transport{
 	Proxy: http.ProxyFromEnvironment,
 	DialContext: (&net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}).DialContext,
-	TLSHandshakeTimeout: 10 * time.Second,
+	ForceAttemptHTTP2:     true,
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
 }
 
 // Config defines configuration parameters for a new client.
@@ -79,6 +84,10 @@ type Client interface {
 	Do(context.Context, *http.Request) (*http.Response, []byte, error)
 }
 
+type CloseIdler interface {
+	CloseIdleConnections()
+}
+
 // NewClient returns a new Client.
 //
 // It is safe to use the returned Client from multiple goroutines.
@@ -118,39 +127,35 @@ func (c *httpClient) URL(ep string, args map[string]string) *url.URL {
 	return &u
 }
 
+func (c *httpClient) CloseIdleConnections() {
+	c.client.CloseIdleConnections()
+}
+
 func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if ctx != nil {
 		req = req.WithContext(ctx)
 	}
 	resp, err := c.client.Do(req)
-	defer func() {
-		if resp != nil {
-			resp.Body.Close()
-		}
-	}()
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var body []byte
-	done := make(chan struct{})
+	done := make(chan error, 1)
 	go func() {
 		var buf bytes.Buffer
-		_, err = buf.ReadFrom(resp.Body)
+		_, err := buf.ReadFrom(resp.Body)
 		body = buf.Bytes()
-		close(done)
+		done <- err
 	}()
 
 	select {
 	case <-ctx.Done():
+		resp.Body.Close()
 		<-done
-		err = resp.Body.Close()
-		if err == nil {
-			err = ctx.Err()
-		}
-	case <-done:
+		return resp, nil, ctx.Err()
+	case err = <-done:
+		resp.Body.Close()
+		return resp, body, err
 	}
-
-	return resp, body, err
 }

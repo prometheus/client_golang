@@ -74,6 +74,13 @@ func addExpectedRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} 
 	return metrics
 }
 
+func addExpectedDefaultRuntimeMetrics(metrics map[string]struct{}) map[string]struct{} {
+	for _, e := range expMetrics {
+		metrics[e] = struct{}{}
+	}
+	return metrics
+}
+
 func TestGoCollector_ExposedMetrics(t *testing.T) {
 	for _, tcase := range []struct {
 		opts              internal.GoCollectorOptions
@@ -86,8 +93,9 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 			expectedFQNameSet: expectedBaseMetrics(),
 		},
 		{
-			// Default, only MemStats.
-			expectedFQNameSet: addExpectedRuntimeMemStats(expectedBaseMetrics()),
+			// Default, only MemStats and default Runtime metrics.
+			opts:              defaultGoCollectorOptions(),
+			expectedFQNameSet: addExpectedDefaultRuntimeMetrics(addExpectedRuntimeMemStats(expectedBaseMetrics())),
 		},
 		{
 			// Get all runtime/metrics without MemStats.

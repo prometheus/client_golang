@@ -5,11 +5,11 @@ updates:
     schedule:
       interval: "monthly"
   - package-ecosystem: "gomod"
-    directory: "/examples/middleware"
+    directory: "/tutorial/whatsup"
     schedule:
       interval: "monthly"
   - package-ecosystem: "gomod"
-    directory: "/tutorial/whatsup"
+    directory: "/exp"
     schedule:
       interval: "monthly"
   - package-ecosystem: "github-actions"

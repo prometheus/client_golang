@@ -37,7 +37,7 @@ func TestProcessCollector(t *testing.T) {
 		t.Skipf("skipping TestProcessCollector, procfs not available: %s", err)
 	}
 
-	registry := NewRegistry()
+	registry := NewPedanticRegistry()
 	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{})); err != nil {
 		t.Fatal(err)
 	}
@@ -69,6 +69,8 @@ func TestProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nprocess_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_resident_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nprocess_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nprocess_network_transmit_bytes_total [0-9]+"),
 		regexp.MustCompile("\nfoobar_process_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nfoobar_process_max_fds [1-9]"),
 		regexp.MustCompile("\nfoobar_process_open_fds [1-9]"),
@@ -76,6 +78,8 @@ func TestProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nfoobar_process_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nfoobar_process_resident_memory_bytes [1-9]"),
 		regexp.MustCompile("\nfoobar_process_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nfoobar_process_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nfoobar_process_network_transmit_bytes_total [0-9]+"),
 	} {
 		if !re.Match(buf.Bytes()) {
 			t.Errorf("want body to match %s\n%s", re, buf.String())
@@ -163,6 +167,55 @@ func TestNewPidFileFn(t *testing.T) {
 		if pid, err := fn(); pid != tc.expectedPid || (err != nil && !strings.HasPrefix(err.Error(), tc.expectedErrPrefix)) {
 			fmt.Println(err.Error())
 			t.Error(tc.desc)
+		}
+	}
+}
+
+func TestDescribeAndCollectAlignment(t *testing.T) {
+	collector := &processCollector{
+		pidFn:     getPIDFn(),
+		cpuTotal:  NewDesc("cpu_total", "Total CPU usage", nil, nil),
+		openFDs:   NewDesc("open_fds", "Number of open file descriptors", nil, nil),
+		maxFDs:    NewDesc("max_fds", "Maximum file descriptors", nil, nil),
+		vsize:     NewDesc("vsize", "Virtual memory size", nil, nil),
+		maxVsize:  NewDesc("max_vsize", "Maximum virtual memory size", nil, nil),
+		rss:       NewDesc("rss", "Resident Set Size", nil, nil),
+		startTime: NewDesc("start_time", "Process start time", nil, nil),
+		inBytes:   NewDesc("in_bytes", "Input bytes", nil, nil),
+		outBytes:  NewDesc("out_bytes", "Output bytes", nil, nil),
+	}
+
+	// Collect and get descriptors
+	descCh := make(chan *Desc, 15)
+	collector.describe(descCh)
+	close(descCh)
+
+	definedDescs := make(map[string]bool)
+	for desc := range descCh {
+		definedDescs[desc.String()] = true
+	}
+
+	// Collect and get metrics
+	metricsCh := make(chan Metric, 15)
+	collector.processCollect(metricsCh)
+	close(metricsCh)
+
+	collectedMetrics := make(map[string]bool)
+	for metric := range metricsCh {
+		collectedMetrics[metric.Desc().String()] = true
+	}
+
+	// Verify that all described metrics are collected
+	for desc := range definedDescs {
+		if !collectedMetrics[desc] {
+			t.Errorf("Metric %s described but not collected", desc)
+		}
+	}
+
+	// Verify that no extra metrics are collected
+	for desc := range collectedMetrics {
+		if !definedDescs[desc] {
+			t.Errorf("Metric %s collected but not described", desc)
 		}
 	}
 }

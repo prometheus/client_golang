@@ -66,6 +66,7 @@ func withAllMetrics() []string {
 		"go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"go_godebug_non_default_behavior_multipartmaxparts_events_total",
 		"go_godebug_non_default_behavior_multipathtcp_events_total",
+		"go_godebug_non_default_behavior_netedns0_events_total",
 		"go_godebug_non_default_behavior_panicnil_events_total",
 		"go_godebug_non_default_behavior_randautoseed_events_total",
 		"go_godebug_non_default_behavior_tarinsecurepath_events_total",
@@ -176,6 +177,7 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"go_godebug_non_default_behavior_multipartmaxparts_events_total",
 		"go_godebug_non_default_behavior_multipathtcp_events_total",
+		"go_godebug_non_default_behavior_netedns0_events_total",
 		"go_godebug_non_default_behavior_panicnil_events_total",
 		"go_godebug_non_default_behavior_randautoseed_events_total",
 		"go_godebug_non_default_behavior_tarinsecurepath_events_total",
@@ -189,3 +191,18 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_zipinsecurepath_events_total",
 	})
 }
+
+var (
+	defaultRuntimeMetrics = []string{
+		"go_gc_gogc_percent",
+		"go_gc_gomemlimit_bytes",
+		"go_sched_gomaxprocs_threads",
+	}
+	onlyGCDefRuntimeMetrics = []string{
+		"go_gc_gogc_percent",
+		"go_gc_gomemlimit_bytes",
+	}
+	onlySchedDefRuntimeMetrics = []string{
+		"go_sched_gomaxprocs_threads",
+	}
+)

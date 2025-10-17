@@ -16,6 +16,7 @@ package prometheus
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -182,7 +183,7 @@ func TestDeletePartialMatchWithConstraints(t *testing.T) {
 
 func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 	assertNoMetric := func(t *testing.T) {
-		if n := len(baseVec.metricMap.metrics); n != 0 {
+		if n := len(baseVec.metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
@@ -291,7 +292,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 	expected := map[[2]string]int{}
 
 	for i := 0; i < 1000; i++ {
-		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // Varying combinations multiples.
+		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[pair]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
@@ -300,7 +301,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 	}
 
 	var total int
-	for _, metrics := range vec.metricMap.metrics {
+	for _, metrics := range vec.metrics {
 		for _, metric := range metrics {
 			total++
 			copy(pair[:], metric.values)
@@ -335,7 +336,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 
 	vec.Reset()
 
-	if len(vec.metricMap.metrics) > 0 {
+	if len(vec.metrics) > 0 {
 		t.Fatalf("reset failed")
 	}
 }
@@ -363,7 +364,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	expected := map[[2]string]int{}
 
 	for i := 0; i < 1000; i++ {
-		pair[0], pair[1] = fmt.Sprint(i%4), fmt.Sprint(i%5) // Varying combinations multiples.
+		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[[2]string{pair[0], constrain(pair[1])}]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
 
@@ -372,7 +373,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	}
 
 	var total int
-	for _, metrics := range vec.metricMap.metrics {
+	for _, metrics := range vec.metrics {
 		for _, metric := range metrics {
 			total++
 			copy(pair[:], metric.values)
@@ -407,7 +408,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 
 	vec.Reset()
 
-	if len(vec.metricMap.metrics) > 0 {
+	if len(vec.metrics) > 0 {
 		t.Fatalf("reset failed")
 	}
 }
@@ -505,7 +506,7 @@ func TestCurryVecWithConstraints(t *testing.T) {
 func testCurryVec(t *testing.T, vec *CounterVec) {
 	assertMetrics := func(t *testing.T) {
 		n := 0
-		for _, m := range vec.metricMap.metrics {
+		for _, m := range vec.metrics {
 			n += len(m)
 		}
 		if n != 2 {
@@ -532,7 +533,7 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 	}
 
 	assertNoMetric := func(t *testing.T) {
-		if n := len(vec.metricMap.metrics); n != 0 {
+		if n := len(vec.metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
@@ -702,7 +703,7 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(string) string) {
 	assertMetrics := func(t *testing.T) {
 		n := 0
-		for _, m := range vec.metricMap.metrics {
+		for _, m := range vec.metrics {
 			n += len(m)
 		}
 		if n != 2 {
@@ -743,7 +744,7 @@ func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(stri
 	}
 
 	assertNoMetric := func(t *testing.T) {
-		if n := len(vec.metricMap.metrics); n != 0 {
+		if n := len(vec.metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
