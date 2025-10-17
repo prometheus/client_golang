@@ -55,9 +55,7 @@ func main() {
 		reg,
 		promhttp.HandlerOpts{
 			// Opt into OpenMetrics to support exemplars.
-			OpenMetricsOptions: promhttp.OpenMetricsOptions{
-				Enable: true,
-			},
+			EnableOpenMetrics: true,
 		},
 	))
 	fmt.Println("Hello world from new Go Collector!")
