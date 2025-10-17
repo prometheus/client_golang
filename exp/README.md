@@ -1,12 +1,20 @@
 # client_golang experimental module
 
 Contains experimental utilities and APIs for Prometheus.
-The module may be contain breaking changes or be removed in the future.
 
 Packages within this module are listed below.
 
 ## Remote
 
+This module contains production quality code with explicitly unstable API. Any code in this module can change its API or be removed; use with care.
+
+The intention is that, with maturity some of the packages would graduate to stable version of client_golang module.
+
+Packages within this module are listed below.
+
+## Remote
+
+NOTE: The `api/remote` package is used by `prometheus/prometheus`. Any changes to this package should ensure Prometheus is not affected (e.g. does not break Prometheus on upgrade or if it breaks, the Prometheus gets updated soon.
 Implements bindings from Prometheus remote APIs (remote write v1 and v2 for now).
 
 Contains flexible method for building API clients, that can send remote write protocol messages.
