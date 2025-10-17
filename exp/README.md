@@ -1,7 +1,6 @@
 # client_golang experimental module
 
 Contains experimental utilities and APIs for Prometheus.
-This code is used by released versions of Prometheus, but should not be relied upon outside the Prometheus project.
 
 Packages within this module are listed below.
 
