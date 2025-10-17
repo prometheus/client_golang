@@ -35,6 +35,13 @@ import (
 	"github.com/prometheus/client_golang/exp/internal/github.com/efficientgo/core/backoff"
 )
 
+// BackoffConfig configures exponential backoff with jitter for retry operations.
+type BackoffConfig struct {
+	Min        time.Duration `yaml:"min_period"`  // Start backoff at this level
+	Max        time.Duration `yaml:"max_period"`  // Increase exponentially to this level
+	MaxRetries int           `yaml:"max_retries"` // Give up after this many; zero means infinite retries
+}
+
 // API is a client for Prometheus Remote Protocols.
 // NOTE(bwplotka): Only https://prometheus.io/docs/specs/remote_write_spec_2_0/ is currently implemented,
 // read protocols to be implemented if there will be a demand.
@@ -56,14 +63,14 @@ type RetryCallback func(err error)
 type apiOpts struct {
 	logger           *slog.Logger
 	client           *http.Client
-	backoff          backoff.Config
+	backoffConfig    BackoffConfig
 	compression      Compression
 	path             string
 	retryOnRateLimit bool
 }
 
 var defaultAPIOpts = &apiOpts{
-	backoff: backoff.Config{
+	backoffConfig: BackoffConfig{
 		Min:        1 * time.Second,
 		Max:        10 * time.Second,
 		MaxRetries: 10,
@@ -107,10 +114,10 @@ func WithAPINoRetryOnRateLimit() APIOption {
 	}
 }
 
-// WithAPIBackoff returns APIOption that allows overriding backoff configuration.
-func WithAPIBackoff(backoff backoff.Config) APIOption {
+// WithAPIBackoffConfig returns APIOption that allows overriding backoff configuration.
+func WithAPIBackoffConfig(cfg BackoffConfig) APIOption {
 	return func(o *apiOpts) error {
-		o.backoff = backoff
+		o.backoffConfig = cfg
 		return nil
 	}
 }
@@ -259,7 +266,11 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 	// across the various attempts.
 	accumulatedStats := WriteResponseStats{}
 
-	b := backoff.New(ctx, r.opts.backoff)
+	b := backoff.New(ctx, backoff.Config{
+		Min:        r.opts.backoffConfig.Min,
+		Max:        r.opts.backoffConfig.Max,
+		MaxRetries: r.opts.backoffConfig.MaxRetries,
+	})
 	for {
 		rs, err := r.attemptWrite(ctx, r.opts.compression, msgType, payload, b.NumRetries())
 		accumulatedStats.Add(rs)
