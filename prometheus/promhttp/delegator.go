@@ -53,12 +53,21 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
-	if r.observeWriteHeader != nil && !r.wroteHeader {
-		// Only call observeWriteHeader for the 1st time. It's a bug if
-		// WriteHeader is called more than once, but we want to protect
-		// against it here. Note that we still delegate the WriteHeader
-		// to the original ResponseWriter to not mask the bug from it.
-		r.observeWriteHeader(code)
+	if !r.wroteHeader {
+		// Ignore informational response status codes.
+		// Based on https://github.com/golang/go/blob/go1.24.1/src/net/http/server.go#L1216
+		if code >= 100 && code <= 199 && code != http.StatusSwitchingProtocols {
+			r.ResponseWriter.WriteHeader(code)
+			return
+		}
+
+		if r.observeWriteHeader != nil {
+			// Only call observeWriteHeader for the 1st time. It's a bug if
+			// WriteHeader is called more than once, but we want to protect
+			// against it here. Note that we still delegate the WriteHeader
+			// to the original ResponseWriter to not mask the bug from it.
+			r.observeWriteHeader(code)
+		}
 	}
 	r.status = code
 	r.wroteHeader = true
