@@ -1,4 +1,3 @@
----
 name: Push README to Docker Hub
 on:
   push:
@@ -6,7 +5,7 @@ on:
       - "README.md"
       - "README-containers.md"
       - ".github/workflows/container_description.yml"
-    branches: [ main, master ]
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -22,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set docker hub repo name
-        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> $GITHUB_ENV
+        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> "$GITHUB_ENV"
       - name: Push README to Dockerhub
         uses: christian-korneck/update-container-description-action@d36005551adeaba9698d8d67a296bd16fa91f8e8 # v1
         env:
@@ -46,9 +45,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Set quay.io org name
-        run: echo "DOCKER_REPO=$(echo quay.io/${GITHUB_REPOSITORY_OWNER} | tr -d '-')" >> $GITHUB_ENV
+        run: echo "DOCKER_REPO=$(echo "quay.io/${GITHUB_REPOSITORY_OWNER}" | tr -d '-')" >> "$GITHUB_ENV"
       - name: Set quay.io repo name
-        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> $GITHUB_ENV
+        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> "$GITHUB_ENV"
       - name: Push README to quay.io
         uses: christian-korneck/update-container-description-action@d36005551adeaba9698d8d67a296bd16fa91f8e8 # v1
         env:

@@ -1,4 +1,3 @@
----
 name: Validate
 on:
   pull_request:

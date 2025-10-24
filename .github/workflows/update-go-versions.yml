@@ -1,4 +1,3 @@
----
 name: Generate Metric files for new Go version
 
 on:

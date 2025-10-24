@@ -68,10 +68,7 @@ pull:
   daysUntilClose: 14
   daysUntilStale: 60
   markComment: >
-    Hello 👋 Looks like there was no activity on this amazing PR for the last 60 days.
-    **Do you mind updating us on the status?** Is there anything we can help with? If you plan to still work on it, just comment on this PR or push a commit. Thanks! 🤗
-    
-    If there will be no activity in the next 2 weeks, this issue will be closed (we can always reopen a PR if you get back to this!).
+    Hello 👋 Looks like there was no activity on this amazing PR for the last 60 days. **Do you mind updating us on the status?** Is there anything we can help with? If you plan to still work on it, just comment on this PR or push a commit. Thanks! 🤗 #magic___^_^___line If there will be no activity in the next 2 weeks, this issue will be closed (we can always reopen a PR if you get back to this!).
   # unmarkComment: No need for unmark comment.
   closeComment: >
     Closing for now as promised, let us know if you need this to be reopened! 🤗
@@ -79,10 +76,7 @@ issues:
   daysUntilClose: 90
   daysUntilStale: 180
   markComment: >
-    Hello 👋 Looks like there was no activity on this issue for the last 3 months.
-    **Do you mind updating us on the status?** Is this still reproducible or needed? If yes, just comment on this PR or push a commit. Thanks! 🤗
-    
-    If there will be no activity in the next 4 weeks, this issue will be closed (we can always reopen an issue if we need!).
+    Hello 👋 Looks like there was no activity on this issue for the last 3 months. **Do you mind updating us on the status?** Is this still reproducible or needed? If yes, just comment on this PR or push a commit. Thanks! 🤗 #magic___^_^___line If there will be no activity in the next 4 weeks, this issue will be closed (we can always reopen an issue if we need!).
   # unmarkComment: No need for unmark comment.
   closeComment: >
     Closing for now as promised, let us know if you need this to be reopened! 🤗
