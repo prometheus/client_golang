@@ -1,0 +1,17 @@
+# yamlfmt configuration
+# https://github.com/google/yamlfmt
+
+doublestar: true
+
+exclude:
+  - "**/testdata/**"
+  - "**/*testdata*/**"
+
+gitignore_excludes: true
+
+formatter:
+  type: basic
+  indent: 2
+  include_document_start: false
+  retain_line_breaks: true
+  max_line_length: 0
