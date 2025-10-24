@@ -22,16 +22,16 @@ jobs:
     name: Fetch supported Go versions
     runs-on: ubuntu-latest
     outputs:
-        supported_versions: ${{ steps.matrix.outputs.supported_versions }}
+      supported_versions: ${{ steps.matrix.outputs.supported_versions }}
     steps:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Read supported_go_versions.txt
         id: matrix
         run: |
-            versions=$(cat supported_go_versions.txt)
-            matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
-            echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
+          versions=$(cat supported_go_versions.txt)
+          matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
+          echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
 
   test:
     name: Tests (${{ matrix.go_version }})
