@@ -366,7 +366,7 @@ func checkLabels(c prometheus.Collector) (code, method bool) {
 			panic("metric partitioned with non-supported labels")
 		}
 	}
-	return
+	return code, method
 }
 
 func isLabelCurried(c prometheus.Collector, label string) bool {
