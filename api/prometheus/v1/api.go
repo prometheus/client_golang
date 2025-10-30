@@ -380,6 +380,7 @@ const (
 	epBuildinfo       = apiPrefix + "/status/buildinfo"
 	epRuntimeinfo     = apiPrefix + "/status/runtimeinfo"
 	epTSDB            = apiPrefix + "/status/tsdb"
+	epTSDBBlocks      = apiPrefix + "/status/tsdb/blocks"
 	epWalReplay       = apiPrefix + "/status/walreplay"
 	epFormatQuery     = apiPrefix + "/format_query"
 )
@@ -504,6 +505,8 @@ type API interface {
 	Metadata(ctx context.Context, metric, limit string) (map[string][]Metadata, error)
 	// TSDB returns the cardinality statistics.
 	TSDB(ctx context.Context, opts ...Option) (TSDBResult, error)
+	// TSDBBlocks returns the list of currently loaded TSDB blocks and their metadata.
+	TSDBBlocks(ctx context.Context) (TSDBBlocksResult, error)
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
 	// FormatQuery formats a PromQL expression in a prettified way.
@@ -691,6 +694,40 @@ type TSDBHeadStats struct {
 	ChunkCount    int `json:"chunkCount"`
 	MinTime       int `json:"minTime"`
 	MaxTime       int `json:"maxTime"`
+}
+
+// TSDBBlocksResult contains the results from querying the tsdb blocks endpoint.
+type TSDBBlocksResult struct {
+	Status string         `json:"status"`
+	Data   TSDBBlocksData `json:"data"`
+}
+
+// TSDBBlocksData contains the metadata for the tsdb blocks.
+type TSDBBlocksData struct {
+	Blocks []TSDBBlocksBlockMetadata `json:"blocks"`
+}
+
+// TSDBBlocksBlockMetadata contains the metadata for a single tsdb block.
+type TSDBBlocksBlockMetadata struct {
+	Ulid       string               `json:"ulid"`
+	MinTime    int64                `json:"minTime"`
+	MaxTime    int64                `json:"maxTime"`
+	Stats      TSDBBlocksStats      `json:"stats"`
+	Compaction TSDBBlocksCompaction `json:"compaction"`
+	Version    int                  `json:"version"`
+}
+
+// TSDBBlocksStats contains block stats for a single tsdb block.
+type TSDBBlocksStats struct {
+	NumSamples int `json:"numSamples"`
+	NumSeries  int `json:"numSeries"`
+	NumChunks  int `json:"numChunks"`
+}
+
+// TSDBBlocksCompaction contains block compaction details for a single block.
+type TSDBBlocksCompaction struct {
+	Level   int      `json:"level"`
+	Sources []string `json:"sources"`
 }
 
 // WalReplayStatus represents the wal replay status.
@@ -1346,6 +1383,24 @@ func (h *httpAPI) TSDB(ctx context.Context, opts ...Option) (TSDBResult, error) 
 	}
 
 	var res TSDBResult
+	err = json.Unmarshal(body, &res)
+	return res, err
+}
+
+func (h *httpAPI) TSDBBlocks(ctx context.Context) (TSDBBlocksResult, error) {
+	u := h.client.URL(epTSDBBlocks, nil)
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return TSDBBlocksResult{}, err
+	}
+
+	_, body, _, err := h.client.Do(ctx, req)
+	if err != nil {
+		return TSDBBlocksResult{}, err
+	}
+
+	var res TSDBBlocksResult
 	err = json.Unmarshal(body, &res)
 	return res, err
 }
