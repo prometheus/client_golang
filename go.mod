@@ -1,6 +1,6 @@
 module github.com/prometheus/client_golang
 
-go 1.23.0
+go 1.24.0
 
 require (
 	github.com/beorn7/perks v1.0.1
@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/common v0.66.1
 	github.com/prometheus/procfs v0.17.0
 	go.uber.org/goleak v1.3.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.37.0
 	google.golang.org/protobuf v1.36.9
 )
 
