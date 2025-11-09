@@ -226,6 +226,13 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
+	doTSDBBlocks := func(opts ...Option) func() (interface{}, Warnings, error) {
+		return func() (interface{}, Warnings, error) {
+			v, err := promAPI.TSDBBlocks(context.Background())
+			return v, nil, err
+		}
+	}
+
 	doWalReply := func() func() (interface{}, Warnings, error) {
 		return func() (interface{}, Warnings, error) {
 			v, err := promAPI.WalReplay(context.Background())
@@ -1182,6 +1189,64 @@ func TestAPIs(t *testing.T) {
 						Name:  "job=kubelet",
 						Value: 30000,
 					},
+				},
+			},
+		},
+
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inErr:     errors.New("some error"),
+			err:       errors.New("some error"),
+		},
+
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]interface{}{
+				"status": "success",
+				"data": map[string]interface{}{
+					"blocks": []interface{}{
+						map[string]interface{}{
+							"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+							"minTime": 1750860620060,
+							"maxTime": 1750867200000,
+							"stats": map[string]interface{}{
+								"numSamples": 13701,
+								"numSeries":  716,
+								"numChunks":  716,
+							},
+							"compaction": map[string]interface{}{
+								"level": 1,
+								"sources": []interface{}{
+									"01JZ8JKZY6XSK3PTDP9ZKRWT60",
+								},
+							},
+							"version": 1,
+						},
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Status: "success",
+				Data: TSDBBlocksData{
+					Blocks: []TSDBBlocksBlockMetadata{{
+						Ulid:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+						MinTime: 1750860620060,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats: TSDBBlocksStats{
+							NumSamples: 13701,
+							NumSeries:  716,
+							NumChunks:  716,
+						},
+						Compaction: TSDBBlocksCompaction{
+							Level:   1,
+							Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+						},
+					}},
 				},
 			},
 		},
