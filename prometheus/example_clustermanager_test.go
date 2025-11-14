@@ -53,7 +53,7 @@ func (c *ClusterManager) ReallyExpensiveAssessmentOfTheSystemState() (
 		"foo.example.org": 6.023e23,
 		"bar.example.org": 3.14,
 	}
-	return
+	return oomCountByHost, ramUsageByHost
 }
 
 // ClusterManagerCollector implements the Collector interface.

@@ -19,6 +19,9 @@ BUF_VERSION ?= v1.39.0
 $(BUF):
 	go install github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
 
+.DEFAULT_GOAL := default
+default: precheck style check_license format lint unused test
+
 .PHONY: deps
 deps:
 	$(MAKE) common-deps
@@ -45,7 +48,10 @@ generate-go-collector-test-files:
 	go mod tidy
 
 .PHONY: fmt
-fmt: common-format
+fmt: common-format format-yaml fix-crlf
+
+.PHONY: format
+format: fmt
 
 .PHONY: proto
 proto: ## Regenerate Go from remote write proto.
@@ -65,6 +71,30 @@ test-exp:
 .PHONY: test-exp-short
 test-exp-short:
 	cd exp && $(GOTEST) -short $(GOOPTS) $(pkgs)
+
+YAMLFMT := $(FIRST_GOPATH)/bin/yamlfmt
+ACTIONLINT := $(FIRST_GOPATH)/bin/actionlint
+
+$(YAMLFMT):
+	go install github.com/google/yamlfmt/cmd/yamlfmt@latest
+
+$(ACTIONLINT):
+	go install github.com/rhysd/actionlint/cmd/actionlint@latest
+
+.PHONY: format-yaml
+format-yaml: $(YAMLFMT)
+	@echo ">> formatting YAML files"
+	$(YAMLFMT) -dstar '**/*.yml' '**/*.yaml'
+
+.PHONY: lint
+lint: common-lint common-yamllint common-lint-fix lint-actions
+
+lint-yaml: common-yamllint
+
+.PHONY: lint-actions
+lint-actions: $(ACTIONLINT)
+	@echo ">> linting GitHub Actions workflows"
+	$(ACTIONLINT)
 
 .PHONY: check-crlf
 check-crlf:

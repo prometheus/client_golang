@@ -2,20 +2,20 @@
 version: v2
 
 plugins:
-- remote: buf.build/protocolbuffers/go:v1.31.0
-  out: .
-  opt:
-  - Mio/prometheus/write/v2/types.proto=./v2
+  - remote: buf.build/protocolbuffers/go:v1.31.0
+    out: .
+    opt:
+      - Mio/prometheus/write/v2/types.proto=./v2
 
-# vtproto for efficiency utilities like pooling etc.
-# https://buf.build/community/planetscale-vtprotobuf?version=v0.6.0
-- remote: buf.build/community/planetscale-vtprotobuf:v0.6.0
-  out: .
-  opt:
-  - Mio/prometheus/write/v2/types.proto=./v2
-  - features=marshal+unmarshal+size
+  # vtproto for efficiency utilities like pooling etc.
+  # https://buf.build/community/planetscale-vtprotobuf?version=v0.6.0
+  - remote: buf.build/community/planetscale-vtprotobuf:v0.6.0
+    out: .
+    opt:
+      - Mio/prometheus/write/v2/types.proto=./v2
+      - features=marshal+unmarshal+size
 
 inputs:
-- module: buf.build/prometheus/prometheus:5b212ab78fb7460e831cf7ff2d83e385
-  types:
-  - "io.prometheus.write.v2.Request"
+  - module: buf.build/prometheus/prometheus:5b212ab78fb7460e831cf7ff2d83e385
+    types:
+      - "io.prometheus.write.v2.Request"
