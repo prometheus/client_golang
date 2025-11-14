@@ -30,7 +30,7 @@ jobs:
         run: |
           versions=$(cat supported_go_versions.txt)
           matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
-          echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
+          echo "supported_versions=$matrix" >> "$GITHUB_OUTPUT"
 
   test:
     name: Tests (${{ matrix.go_version }})
