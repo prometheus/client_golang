@@ -17,15 +17,29 @@ import (
 	"testing"
 )
 
-func TestNewDescInvalidLabelValues(t *testing.T) {
+func TestNewDescInvalidConstLabelValues(t *testing.T) {
+	labelValue := "\xFF"
 	desc := NewDesc(
 		"sample_label",
 		"sample label",
 		nil,
-		Labels{"a": "\xFF"},
+		Labels{"a": labelValue},
 	)
-	if desc.err == nil {
-		t.Errorf("NewDesc: expected error because: %s", desc.err)
+	if desc.Err() == nil {
+		t.Errorf("NewDesc: expected error because const label value is invalid: %s", labelValue)
+	}
+}
+
+func TestNewDescInvalidVariableLabelName(t *testing.T) {
+	labelValue := "__label__"
+	desc := NewDesc(
+		"sample_label",
+		"sample label",
+		[]string{labelValue},
+		Labels{"a": "b"},
+	)
+	if desc.Err() == nil {
+		t.Errorf("NewDesc: expected error because variable label name is invalid: %s", labelValue)
 	}
 }
 
@@ -36,8 +50,8 @@ func TestNewDescNilLabelValues(t *testing.T) {
 		nil,
 		nil,
 	)
-	if desc.err != nil {
-		t.Errorf("NewDesc: unexpected error: %s", desc.err)
+	if desc.Err() != nil {
+		t.Errorf("NewDesc: unexpected error: %s", desc.Err())
 	}
 }
 

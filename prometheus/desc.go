@@ -182,6 +182,11 @@ func NewInvalidDesc(err error) *Desc {
 	}
 }
 
+// Err returns an error that occurred during construction, if any.
+func (d *Desc) Err() error {
+	return d.err
+}
+
 func (d *Desc) String() string {
 	lpStrings := make([]string, 0, len(d.constLabelPairs))
 	for _, lp := range d.constLabelPairs {
