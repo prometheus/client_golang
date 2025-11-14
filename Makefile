@@ -30,9 +30,14 @@ test: deps common-test test-exp
 .PHONY: test-short
 test-short: deps common-test-short test-exp-short
 
+.PHONY: update-go-version
+update-go-version:
+	@bash update-go-version.bash
+	$(MAKE) generate-go-collector-test-files
+
 .PHONY: generate-go-collector-test-files
-file := supported_go_versions.txt
-VERSIONS := $(shell cat ${file})
+file := supported_go_versions.json
+VERSIONS := $(shell grep -o '"version": "[^"]*"' $(file) | sed 's/"version": "\(.*\)"/\1/')
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
 		docker run \

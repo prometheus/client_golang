@@ -1,0 +1,12 @@
+{
+    "versions": [
+        {
+            "label": "stable",
+            "version": "1.25"
+        },
+        {
+            "label": "oldstable",
+            "version": "1.24"
+        }
+    ]
+}
