@@ -15,8 +15,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Execute bash script
-        run: bash update-go-version.bash
+      - name: Update Go version
+        run: make update-go-version
 
       # If there are no changes (i.e. no diff exists with the checked-out base branch),
       # no pull request will be created and the action exits silently.
