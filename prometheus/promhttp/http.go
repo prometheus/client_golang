@@ -191,12 +191,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		}
 
 		var contentType expfmt.Format
-		var encoderOpts []expfmt.EncoderOption
-		if opts.EnableOpenMetrics || opts.OpenMetricsOptions.Enable {
+		if opts.EnableOpenMetrics {
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
-			if opts.OpenMetricsOptions.Enable {
-				encoderOpts = append(encoderOpts, expfmt.WithUnit())
-			}
 		} else {
 			contentType = expfmt.Negotiate(req.Header)
 		}

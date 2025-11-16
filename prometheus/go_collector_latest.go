@@ -98,7 +98,7 @@ type goCollector struct {
 	// snapshot is always produced by Collect.
 	mu sync.Mutex
 
-	// Contains all samples that has to retrieved from runtime/metrics (not all of them will be exposed).
+	// Contains all samples that have to be retrieved from runtime/metrics (not all of them will be exposed).
 	sampleBuf []metrics.Sample
 	// sampleMap allows lookup for MemStats metrics and runtime/metrics histograms for exact sums.
 	sampleMap map[string]*metrics.Sample
@@ -210,18 +210,19 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		sampleBuf = append(sampleBuf, metrics.Sample{Name: d.Name})
 		sampleMap[d.Name] = &sampleBuf[len(sampleBuf)-1]
 
+		// Extract unit from the runtime/metrics name (e.g., "/gc/heap/allocs:bytes" -> "bytes")
+		unit := d.Name[strings.IndexRune(d.Name, ':')+1:]
+
 		var m collectorMetric
 		if d.Kind == metrics.KindFloat64Histogram {
 			_, hasSum := opt.RuntimeMetricSumForHist[d.Name]
-			unit := d.Name[strings.IndexRune(d.Name, ':')+1:]
 			m = newBatchHistogram(
 				NewDesc(
 					BuildFQName(namespace, subsystem, name),
 					help,
-// Can we assume that this is a suitable unit?
-unit,
 					nil,
 					nil,
+					unit,
 				),
 				internal.RuntimeMetricsBucketsForUnit(bucketsMap[d.Name], unit),
 				hasSum,
@@ -232,6 +233,7 @@ unit,
 				Subsystem: subsystem,
 				Name:      name,
 				Help:      help,
+				Unit:      unit,
 			},
 			)
 		} else {
@@ -240,6 +242,7 @@ unit,
 				Subsystem: subsystem,
 				Name:      name,
 				Help:      help,
+				Unit:      unit,
 			})
 		}
 		metricSet = append(metricSet, m)

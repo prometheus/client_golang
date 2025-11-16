@@ -528,9 +528,9 @@ func NewHistogram(opts HistogramOpts) Histogram {
 		NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
-			opts.Unit,
 			nil,
 			opts.ConstLabels,
+			opts.Unit,
 		),
 		opts,
 	)
@@ -1192,9 +1192,9 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	return &HistogramVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {

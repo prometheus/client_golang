@@ -79,9 +79,9 @@ func NewGauge(opts GaugeOpts) Gauge {
 	desc := NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		nil,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	result := &gauge{desc: desc, labelPairs: desc.constLabelPairs}
 	result.init(result) // Init self-collection.
@@ -162,9 +162,9 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	return &GaugeVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
@@ -307,8 +307,8 @@ func NewGaugeFunc(opts GaugeOpts, function func() float64) GaugeFunc {
 	return newValueFunc(NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		nil,
 		opts.ConstLabels,
+		opts.Unit,
 	), GaugeValue, function)
 }

@@ -384,9 +384,9 @@ func ExampleNewConstSummary() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
-		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
+		"seconds",
 	)
 
 	// Create a constant summary from values we got from a 3rd party telemetry system.
@@ -466,9 +466,9 @@ func ExampleNewConstHistogram() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
+		"seconds",
 	)
 
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
@@ -522,9 +522,9 @@ func ExampleNewConstHistogram_withExemplar() {
 	desc := prometheus.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		"seconds",
 		[]string{"code", "method"},
 		prometheus.Labels{"owner": "example"},
+		"seconds",
 	)
 
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
@@ -693,8 +693,8 @@ func ExampleNewMetricWithTimestamp() {
 	desc := prometheus.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
-		"kelvin",
 		nil, nil,
+		"kelvin",
 	)
 
 	// Create a constant gauge from values we got from an external
@@ -727,8 +727,8 @@ func ExampleNewConstMetricWithCreatedTimestamp() {
 	desc := prometheus.NewDesc(
 		"time_since_epoch_seconds",
 		"Current epoch time in seconds.",
-		"seconds",
 		nil, nil,
+		"seconds",
 	)
 
 	timeSinceEpochReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)

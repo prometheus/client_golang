@@ -30,7 +30,6 @@ func NewBuildInfoCollector() Collector {
 		NewDesc(
 			"go_build_info",
 			"Build information about the main Go module.",
-			"",
 			nil, Labels{"path": path, "version": version, "checksum": sum},
 		),
 		GaugeValue, 1)}

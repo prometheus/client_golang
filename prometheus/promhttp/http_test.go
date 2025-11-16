@@ -41,12 +41,12 @@ const (
 )
 
 func (e errorCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("invalid_metric", "not helpful", "", nil, nil)
+	ch <- prometheus.NewDesc("invalid_metric", "not helpful", nil, nil)
 }
 
 func (e errorCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.NewInvalidMetric(
-		prometheus.NewDesc("invalid_metric", "not helpful", "", nil, nil),
+		prometheus.NewDesc("invalid_metric", "not helpful", nil, nil),
 		errors.New("collect error"),
 	)
 }
@@ -56,7 +56,7 @@ type blockingCollector struct {
 }
 
 func (b blockingCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- prometheus.NewDesc("dummy_desc", "not helpful", "", nil, nil)
+	ch <- prometheus.NewDesc("dummy_desc", "not helpful", nil, nil)
 }
 
 func (b blockingCollector) Collect(ch chan<- prometheus.Metric) {

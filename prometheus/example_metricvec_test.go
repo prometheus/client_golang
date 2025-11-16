@@ -52,8 +52,12 @@ type InfoVec struct {
 	*prometheus.MetricVec
 }
 
-func NewInfoVec(name, help, unit string, labelNames []string) *InfoVec {
-	desc := prometheus.NewDesc(name, help, unit, labelNames, nil)
+func NewInfoVec(name, help string, labelNames []string, unit ...string) *InfoVec {
+	var u string
+	if len(unit) > 0 {
+		u = unit[0]
+	}
+	desc := prometheus.NewDesc(name, help, labelNames, nil, u)
 	return &InfoVec{
 		MetricVec: prometheus.NewMetricVec(desc, func(lvs ...string) prometheus.Metric {
 			if len(lvs) != len(labelNames) {
@@ -110,7 +114,6 @@ func ExampleMetricVec() {
 	infoVec := NewInfoVec(
 		"library_version_info",
 		"Versions of the libraries used in this binary.",
-		"",
 		[]string{"library", "version"},
 	)
 

@@ -66,13 +66,11 @@ var (
 	oomCountDesc = prometheus.NewDesc(
 		"clustermanager_oom_crashes_total",
 		"Number of OOM crashes.",
-		"",
 		[]string{"host"}, nil,
 	)
 	ramUsageDesc = prometheus.NewDesc(
 		"clustermanager_ram_usage_bytes",
 		"RAM usage as reported to the cluster manager.",
-		"bytes",
 		[]string{"host"}, nil,
 	)
 )

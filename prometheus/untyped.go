@@ -36,8 +36,8 @@ func NewUntypedFunc(opts UntypedOpts, function func() float64) UntypedFunc {
 	return newValueFunc(NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		nil,
 		opts.ConstLabels,
+		opts.Unit,
 	), UntypedValue, function)
 }

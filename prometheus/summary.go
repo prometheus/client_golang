@@ -187,9 +187,9 @@ func NewSummary(opts SummaryOpts) Summary {
 		NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
-			opts.Unit,
 			nil,
 			opts.ConstLabels,
+			opts.Unit,
 		),
 		opts,
 	)
@@ -580,9 +580,9 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		opts.Unit,
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	return &SummaryVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
