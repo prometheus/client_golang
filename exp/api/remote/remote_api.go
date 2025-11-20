@@ -448,6 +448,8 @@ func WithWriteHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler)
 	}
 }
 
+const maxDecodedSize = 32 * 1024 * 1024
+
 // SnappyDecodeMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
 // If the request body is not snappy-encoded, it returns an error.
 // Used by default in NewHandler.
@@ -476,6 +478,18 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 			if err != nil {
 				logger.Error("Error reading request body", "err", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			decodedSize, err := snappy.DecodedLen(bodyBytes)
+			if err != nil {
+				logger.Error("Error snappy decoding remote write request", "err", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if decodedSize > maxDecodedSize {
+				logger.Error("Error snappy decoding remote write request: decoded size exceeds maximum allowed", "decodedSize", decodedSize, "maxDecodedSize", maxDecodedSize)
+				http.Error(w, "decoded size exceeds maximum allowed", http.StatusBadRequest)
 				return
 			}
 
