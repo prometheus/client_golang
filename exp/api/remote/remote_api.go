@@ -448,7 +448,7 @@ func WithWriteHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler)
 	}
 }
 
-var maxDecodedSize = 32 * 1024 * 1024
+const maxDecodedSize = 32 * 1024 * 1024
 
 // SnappyDecodeMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
 // If the request body is not snappy-encoded, it returns an error.
