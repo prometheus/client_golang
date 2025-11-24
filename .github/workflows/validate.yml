@@ -1,0 +1,68 @@
+---
+name: Validate
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "release-*"
+
+# Modified to avoid canceling all matrix jobs when one fails
+# Each job type will have its own concurrency group
+concurrency:
+  group: ${{ github.workflow }}-${{ github.job }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# Minimal permissions to be inherited by any job that don't declare it's own permissions
+permissions:
+  contents: read
+
+jobs:
+  supported_versions:
+    name: Fetch supported Go versions
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.versions.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Get supported Go versions JSON
+        id: versions
+        run: |
+          echo "matrix=$(cat supported_go_versions.json | jq -c .)" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Tests (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    needs: supported_versions
+    # Set fail-fast to false to ensure all Go versions are tested regardless of failures
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
+    # Define concurrency at the job level for matrix jobs
+    concurrency:
+      group: ${{ github.workflow }}-test-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Check for CRLF line endings
+        run: make check-crlf
+
+      - name: Set up Go ${{ matrix.version }}
+        uses: actions/setup-go@v6.0.0
+        with:
+          go-version: ${{ matrix.version }}
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - name: Run tests and check license
+        run: make check_license test
+        env:
+          CI: true
+
+      - name: Run style and unused
+        run: make style unused

@@ -30,9 +30,14 @@ test: deps common-test test-exp
 .PHONY: test-short
 test-short: deps common-test-short test-exp-short
 
+.PHONY: update-go-version
+update-go-version:
+	@bash update-go-version.bash
+	$(MAKE) generate-go-collector-test-files
+
 .PHONY: generate-go-collector-test-files
-file := supported_go_versions.txt
-VERSIONS := $(shell cat ${file})
+file := supported_go_versions.json
+VERSIONS := $(shell grep -o '"version": "[^"]*"' $(file) | sed 's/"version": "\(.*\)"/\1/')
 generate-go-collector-test-files:
 	for GO_VERSION in $(VERSIONS); do \
 		docker run \
@@ -65,3 +70,23 @@ test-exp:
 .PHONY: test-exp-short
 test-exp-short:
 	cd exp && $(GOTEST) -short $(GOOPTS) $(pkgs)
+
+.PHONY: check-crlf
+check-crlf:
+	@echo ">> checking for CRLF line endings"
+	@files=$$(find . -type f -not -path "*/\.*" -not -path "*/vendor/*" -exec file {} \; | grep CRLF | cut -d: -f1); \
+	if [ -n "$$files" ]; then \
+		echo "Files with CRLF line endings found:"; \
+		echo "$$files"; \
+		echo "Run 'make fix-crlf' to fix them"; \
+		exit 1; \
+	fi
+
+.PHONY: fix-crlf
+fix-crlf:
+	@echo ">> fixing CRLF line endings"
+	@files=$$(find . -type f -not -path "*/\.*" -not -path "*/vendor/*" -exec file {} \; | grep CRLF | cut -d: -f1); \
+	for file in $$files; do \
+		tr -d '\r' < "$$file" > "$$file.tmp" && mv "$$file.tmp" "$$file"; \
+	done
+	@echo ">> CRLF line endings fixed"
