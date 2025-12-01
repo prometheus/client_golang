@@ -10,7 +10,7 @@ require (
 	github.com/klauspost/compress v1.18.1
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
-	github.com/prometheus/common v0.67.2
+	github.com/prometheus/common v0.67.4
 	github.com/prometheus/procfs v0.19.2
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sys v0.37.0
@@ -18,6 +18,8 @@ require (
 )
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
