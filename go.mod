@@ -7,7 +7,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.2
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.2
