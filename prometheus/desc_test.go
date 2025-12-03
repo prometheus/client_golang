@@ -31,7 +31,7 @@ func TestNewDescInvalidConstLabelValues(t *testing.T) {
 }
 
 func TestNewDescInvalidVariableLabelName(t *testing.T) {
-	labelValue := "1label__"
+	labelValue := "__label__"
 	desc := NewDesc(
 		"sample_label",
 		"sample label",
