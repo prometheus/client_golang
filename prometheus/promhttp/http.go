@@ -112,6 +112,10 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 // HandlerForTransactional is like HandlerFor, but it uses transactional gather, which
 // can safely change in-place returned *dto.MetricFamily before call to `Gather` and after
 // call to `done` of that `Gather`.
+//
+// The handler supports filtering metrics by name using the `name[]` query parameter.
+// Multiple metric names can be specified by providing the parameter multiple times.
+// When no name[] parameters are provided, all metrics are returned.
 func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerOpts) http.Handler {
 	var (
 		inFlightSem chan struct{}
@@ -245,7 +249,21 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			return false
 		}
 
+		// Build metric name filter set from query params (if any)
+		var metricFilter map[string]struct{}
+		if metricNames := req.URL.Query()["name[]"]; len(metricNames) > 0 {
+			metricFilter = make(map[string]struct{}, len(metricNames))
+			for _, name := range metricNames {
+				metricFilter[name] = struct{}{}
+			}
+		}
+
 		for _, mf := range mfs {
+			if metricFilter != nil {
+				if _, ok := metricFilter[mf.GetName()]; !ok {
+					continue
+				}
+			}
 			if handleError(enc.Encode(mf)) {
 				return
 			}
