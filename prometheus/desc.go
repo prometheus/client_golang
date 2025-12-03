@@ -182,6 +182,15 @@ func NewInvalidDesc(err error) *Desc {
 	}
 }
 
+// Err returns an error that occurred during construction, if any.
+//
+// Calling this method is optional. It can be used to detect construction
+// errors early, before invoking other methods on the Desc. If an error is
+// present, later operations may not behave as expected.
+func (d *Desc) Err() error {
+	return d.err
+}
+
 func (d *Desc) String() string {
 	lpStrings := make([]string, 0, len(d.constLabelPairs))
 	for _, lp := range d.constLabelPairs {
