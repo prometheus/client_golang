@@ -712,7 +712,11 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			writer := httptest.NewRecorder()
-			request, _ := http.NewRequest(http.MethodGet, tc.url, nil)
+			request, err := http.NewRequest(http.MethodGet, tc.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			request.Header.Add(acceptHeader, acceptTextPlain)
 
 			handler.ServeHTTP(writer, request)
