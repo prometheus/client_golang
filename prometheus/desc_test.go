@@ -62,7 +62,7 @@ func TestNewDescWithNilLabelValues_String(t *testing.T) {
 		nil,
 		nil,
 	)
-	if desc.String() != `Desc{fqName: "sample_label", help: "sample label", constLabels: {}, variableLabels: {}}` {
+	if desc.String() != `Desc{fqName: "sample_label", help: "sample label", unit: "", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output: %s", desc.String())
 	}
 }
@@ -71,7 +71,20 @@ func TestNewInvalidDesc_String(t *testing.T) {
 	desc := NewInvalidDesc(
 		nil,
 	)
-	if desc.String() != `Desc{fqName: "", help: "", constLabels: {}, variableLabels: {}}` {
+	if desc.String() != `Desc{fqName: "", help: "", unit: "", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output: %s", desc.String())
+	}
+}
+
+func TestNewDescWithUnit_String(t *testing.T) {
+	desc := NewDesc(
+		"sample_metric_bytes",
+		"sample metric with unit",
+		nil,
+		nil,
+		"bytes",
+	)
+	if desc.String() != `Desc{fqName: "sample_metric_bytes", help: "sample metric with unit", unit: "bytes", constLabels: {}, variableLabels: {}}` {
+		t.Errorf("String: unexpected output:\ngot:  %s\nwant: %s", desc.String(), desc.String())
 	}
 }

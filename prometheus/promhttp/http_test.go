@@ -159,11 +159,11 @@ func TestHandlerErrorHandling(t *testing.T) {
 		t.Fatalf("unexpected number of done invokes, want 0, got %d", got)
 	}
 
-	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
+	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", unit: "", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantErrorBody := `An error has occurred while serving metrics:
 
-error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
+error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", unit: "", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantOKBody1 := `# HELP name docstring
 # TYPE name counter
@@ -546,6 +546,40 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		if encodingHeader != test.expectedCompression {
 			t.Errorf("got different compression type: %v, expected: %v", encodingHeader, test.expectedCompression)
 		}
+	}
+}
+
+func TestHandlerWithUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_request_duration_seconds_total",
+		Help: "Total time spent handling HTTP requests.",
+		Unit: "seconds",
+	})
+	reg.MustRegister(counter)
+	counter.Add(42)
+
+	expectedOpenMetricsOutput := `# HELP http_request_duration_seconds Total time spent handling HTTP requests.
+# TYPE http_request_duration_seconds counter
+# UNIT http_request_duration_seconds seconds
+http_request_duration_seconds_total 42.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got, want := writer.Header().Get(contentTypeHeader), "application/openmetrics-text; version=0.0.1; charset=utf-8; escaping=underscores"; got != want {
+		t.Errorf("expected Content-Type %q, got %q", want, got)
+	}
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
 	}
 }
 
