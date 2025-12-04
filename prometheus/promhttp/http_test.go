@@ -662,9 +662,6 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 	gauge.Set(42)
 	histogram.Observe(3.14)
 
-	mReg := &mockTransactionGatherer{g: reg}
-	handler := HandlerForTransactional(mReg, HandlerOpts{})
-
 	testCases := []struct {
 		name             string
 		url              string
@@ -711,6 +708,8 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			mReg := &mockTransactionGatherer{g: reg}
+
 			writer := httptest.NewRecorder()
 			request, err := http.NewRequest(http.MethodGet, tc.url, nil)
 			if err != nil {
@@ -719,6 +718,7 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 
 			request.Header.Add(acceptHeader, acceptTextPlain)
 
+			handler := HandlerForTransactional(mReg, HandlerOpts{})
 			handler.ServeHTTP(writer, request)
 
 			if got, want := writer.Code, http.StatusOK; got != want {
@@ -736,33 +736,14 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 					t.Errorf("expected body to NOT contain %q, got: %s", notExpected, body)
 				}
 			}
+
+			// Verify that Gather and done are called even with filtering.
+			if got := mReg.gatherInvoked; got != 1 {
+				t.Errorf("unexpected number of gather invokes, want 1, got %d", got)
+			}
+			if got := mReg.doneInvoked; got != 1 {
+				t.Errorf("unexpected number of done invokes, want 1, got %d", got)
+			}
 		})
-	}
-}
-
-func TestHandlerWithMetricFilterTransactionalCalls(t *testing.T) {
-	reg := prometheus.NewRegistry()
-
-	counter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "test_counter",
-		Help: "A test counter.",
-	})
-	reg.MustRegister(counter)
-
-	mReg := &mockTransactionGatherer{g: reg}
-	handler := HandlerForTransactional(mReg, HandlerOpts{})
-
-	writer := httptest.NewRecorder()
-	request, _ := http.NewRequest(http.MethodGet, "/?name[]=test_counter", nil)
-	request.Header.Add(acceptHeader, acceptTextPlain)
-
-	handler.ServeHTTP(writer, request)
-
-	// Verify that Gather and done are called even with filtering
-	if got := mReg.gatherInvoked; got != 1 {
-		t.Errorf("unexpected number of gather invokes, want 1, got %d", got)
-	}
-	if got := mReg.doneInvoked; got != 1 {
-		t.Errorf("unexpected number of done invokes, want 1, got %d", got)
 	}
 }
