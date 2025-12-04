@@ -89,6 +89,10 @@ var gzipPool = sync.Pool{
 // metrics used for instrumentation will be shared between them, providing
 // global scrape counts.
 //
+// The handler supports filtering metrics by name using the `name[]` query parameter.
+// Multiple metric names can be specified by providing the parameter multiple times.
+// When no name[] parameters are provided, all metrics are returned.
+//
 // This function is meant to cover the bulk of basic use cases. If you are doing
 // anything that requires more customization (including using a non-default
 // Gatherer, different instrumentation, and non-default HandlerOpts), use the
@@ -105,6 +109,10 @@ func Handler() http.Handler {
 // Gatherers, with non-default HandlerOpts, and/or with custom (or no)
 // instrumentation. Use the InstrumentMetricHandler function to apply the same
 // kind of instrumentation as it is used by the Handler function.
+//
+// The handler supports filtering metrics by name using the `name[]` query parameter.
+// Multiple metric names can be specified by providing the parameter multiple times.
+// When no name[] parameters are provided, all metrics are returned.
 func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 	return HandlerForTransactional(prometheus.ToTransactionalGatherer(reg), opts)
 }
