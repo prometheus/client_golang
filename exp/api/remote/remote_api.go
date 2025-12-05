@@ -448,6 +448,12 @@ func WithWriteHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler)
 	}
 }
 
+// maxDecodedSize limits the maximum allowed bytes of decompressed snappy payloads.
+// This protects against maliciously crafted payloads that could cause excessive memory
+// allocation and potentially lead to out-of-memory (OOM) conditions.
+// All usual payloads should be much smaller than this limit and pass without any problems.
+const maxDecodedSize = 32 * 1024 * 1024
+
 // SnappyDecodeMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
 // If the request body is not snappy-encoded, it returns an error.
 // Used by default in NewHandler.
@@ -476,6 +482,18 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 			if err != nil {
 				logger.Error("Error reading request body", "err", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			decodedSize, err := snappy.DecodedLen(bodyBytes)
+			if err != nil {
+				logger.Error("Error snappy decoding request body length", "err", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if decodedSize > maxDecodedSize {
+				logger.Error("Snappy decoded size exceeds the limit", "sizeBytes", decodedSize, "limitBytes", maxDecodedSize)
+				http.Error(w, fmt.Sprintf("decoded size exceeds the %v bytes limit", maxDecodedSize), http.StatusBadRequest)
 				return
 			}
 
