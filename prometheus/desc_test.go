@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -73,5 +74,33 @@ func TestNewInvalidDesc_String(t *testing.T) {
 	)
 	if desc.String() != `Desc{fqName: "", help: "", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output: %s", desc.String())
+	}
+}
+
+func BenchmarkNewDesc(b *testing.B) {
+	for _, bm := range []struct {
+		labelCount int
+		descFunc   func() *Desc
+	}{
+		{
+			labelCount: 1,
+			descFunc:   new1LabelDescFunc,
+		},
+		{
+			labelCount: 3,
+			descFunc:   new3LabelsDescFunc,
+		},
+		{
+			labelCount: 10,
+			descFunc:   new10LabelsDescFunc,
+		},
+	} {
+		b.Run(fmt.Sprintf("labels=%v", bm.labelCount), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				bm.descFunc()
+			}
+		})
 	}
 }
