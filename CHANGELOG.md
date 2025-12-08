@@ -2,6 +2,10 @@
 
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
 
+## Unreleased `exp` module
+
+* [BUGFIX] exp/api: Reject malformed snappy payloads declaring huge decoded sizes. Enforce a 32MB decoded-size limit to prevent OOM from oversized remote-write requests. #1917.
+
 ## 1.23.2 / 2025-09-05
 
 This release is made to upgrade to prometheus/common v0.66.1, which drops the dependencies github.com/grafana/regexp and go.uber.org/atomic and replaces gopkg.in/yaml.v2 with go.yaml.in/yaml/v2 (a drop-in replacement).
