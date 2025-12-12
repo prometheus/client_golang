@@ -513,8 +513,8 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 	}
 }
 
-// NewWriteHandler returns HTTP handler that receives Remote Write 2.0
-// protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
+// NewWriteHandler returns an HTTP handler that can receive the Remote Write 1.0 or Remote Write 2.0
+// (https://prometheus.io/docs/specs/remote_write_spec_2_0/) protocol.
 func NewWriteHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...WriteHandlerOption) http.Handler {
 	o := writeHandlerOpts{
 		logger:      slog.New(nopSlogHandler{}),
@@ -603,8 +603,8 @@ func (h *writeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeResponse = NewWriteResponse()
 	}
 
-	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, along with any user-defined headers.
-	writeResponse.writeHeaders(w)
+	// Set any necessary response headers.
+	writeResponse.writeHeaders(msgType, w)
 
 	if storeErr != nil {
 		if writeResponse.statusCode == 0 {

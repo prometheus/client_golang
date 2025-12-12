@@ -65,6 +65,44 @@ func TestRetryAfterDuration(t *testing.T) {
 	}
 }
 
+type defaultResponseStore struct{}
+
+func (m *defaultResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+	return NewWriteResponse(), nil
+}
+
+func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
+	tLogger := slog.Default()
+
+	h := NewWriteHandler(&defaultResponseStore{}, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
+
+	body := "test"
+	bodyBytes := snappy.Encode(nil, []byte(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
+	}
+
+	samplesHeader := rec.Header().Get(writtenSamplesHeader)
+	exemplarsHeader := rec.Header().Get(writtenExemplarsHeader)
+	histogramHeader := rec.Header().Get(writtenHistogramsHeader)
+
+	if samplesHeader != "" {
+		t.Fatal("expected no written samples header, got", samplesHeader)
+	}
+	if exemplarsHeader != "" {
+		t.Fatal("expected no written exemplars header, got", exemplarsHeader)
+	}
+	if histogramHeader != "" {
+		t.Fatal("expected no written histograms header, got", histogramHeader)
+	}
+}
+
 type mockStorage struct {
 	v2Reqs []*writev2.Request
 	protos []WriteMessageType

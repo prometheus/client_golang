@@ -71,7 +71,25 @@ func TestWriteResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("writeHeaders", func(t *testing.T) {
+	t.Run("writeHeaders v1", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV1MessageType, w)
+
+		expectedHeaders := map[string]string{
+			"Custom-Header": "custom-value",
+		}
+
+		for k, want := range expectedHeaders {
+			if got := w.Header().Get(k); got != want {
+				t.Errorf("header %q: want %q, got %q", k, want, got)
+			}
+		}
+	})
+
+	t.Run("writeHeaders v2", func(t *testing.T) {
 		resp := NewWriteResponse()
 		resp.Add(WriteResponseStats{
 			Samples:    10,
@@ -82,7 +100,7 @@ func TestWriteResponse(t *testing.T) {
 		resp.SetExtraHeader("Custom-Header", "custom-value")
 
 		w := httptest.NewRecorder()
-		resp.writeHeaders(w)
+		resp.writeHeaders(WriteV2MessageType, w)
 
 		expectedHeaders := map[string]string{
 			"Custom-Header": "custom-value",
