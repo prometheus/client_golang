@@ -90,6 +90,7 @@ func NewCounter(opts CounterOpts) Counter {
 		opts.Help,
 		nil,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	if opts.now == nil {
 		opts.now = time.Now
@@ -203,6 +204,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
+		// opts.Unit, // QUESTION: shall I put this for last?
 		opts.VariableLabels,
 		opts.ConstLabels,
 	)
@@ -354,5 +356,6 @@ func NewCounterFunc(opts CounterOpts, function func() float64) CounterFunc {
 		opts.Help,
 		nil,
 		opts.ConstLabels,
+		opts.Unit,
 	), CounterValue, function)
 }
