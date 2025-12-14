@@ -226,10 +226,10 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			rsp.Header().Set(contentEncodingHeader, encodingHeader)
 		}
 
-var (
-enc expfmt.Encoder
-encOpts []expfmt.EncoderOption
-)
+		var (
+			enc     expfmt.Encoder
+			encOpts []expfmt.EncoderOption
+		)
 		if opts.EnableOpenMetricsTextCreatedSamples {
 			encOpts = append(encOpts, expfmt.WithCreatedLines())
 		}
