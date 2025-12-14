@@ -22,42 +22,40 @@ jobs:
     name: Fetch supported Go versions
     runs-on: ubuntu-latest
     outputs:
-        supported_versions: ${{ steps.matrix.outputs.supported_versions }}
+      matrix: ${{ steps.versions.outputs.matrix }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Read supported_go_versions.txt
-        id: matrix
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - name: Get supported Go versions JSON
+        id: versions
         run: |
-            versions=$(cat supported_go_versions.txt)
-            matrix="[$(echo "$versions" | sed 's/\(.*\)/"\1"/' | paste -s -d,)]"
-            echo "supported_versions=$matrix" >> $GITHUB_OUTPUT
+          echo "matrix=$(cat supported_go_versions.json | jq -c .)" >> "$GITHUB_OUTPUT"
 
   test:
-    name: Tests (${{ matrix.go_version }})
+    name: Tests (${{ matrix.label }})
     runs-on: ubuntu-latest
     needs: supported_versions
     # Set fail-fast to false to ensure all Go versions are tested regardless of failures
     strategy:
       fail-fast: false
       matrix:
-        go_version: ${{ fromJSON(needs.supported_versions.outputs.supported_versions) }}
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
     # Define concurrency at the job level for matrix jobs
     concurrency:
-      group: ${{ github.workflow }}-test-${{ matrix.go_version }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      group: ${{ github.workflow }}-test-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
       cancel-in-progress: true
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
       - name: Check for CRLF line endings
         run: make check-crlf
 
-      - name: Set up Go ${{ matrix.go_version }}
+      - name: Set up Go ${{ matrix.version }}
         uses: actions/setup-go@v6.0.0
         with:
-          go-version: ${{ matrix.go_version }}
+          go-version: ${{ matrix.version }}
           check-latest: true
           cache-dependency-path: go.sum
 
@@ -67,5 +65,4 @@ jobs:
           CI: true
 
       - name: Run style and unused
-        if: ${{ matrix.go_version == '1.22' }}
         run: make style unused

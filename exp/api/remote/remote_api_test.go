@@ -14,7 +14,9 @@
 package remote
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"log/slog"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/klauspost/compress/snappy"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -59,6 +62,44 @@ func TestRetryAfterDuration(t *testing.T) {
 		if got := retryAfterDuration(c.tInput); got != time.Duration(c.expected) {
 			t.Fatal("expected", c.expected, "got", got)
 		}
+	}
+}
+
+type defaultResponseStore struct{}
+
+func (m *defaultResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+	return NewWriteResponse(), nil
+}
+
+func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
+	tLogger := slog.Default()
+
+	h := NewWriteHandler(&defaultResponseStore{}, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
+
+	body := "test"
+	bodyBytes := snappy.Encode(nil, []byte(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/x-protobuf")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
+	}
+
+	samplesHeader := rec.Header().Get(writtenSamplesHeader)
+	exemplarsHeader := rec.Header().Get(writtenExemplarsHeader)
+	histogramHeader := rec.Header().Get(writtenHistogramsHeader)
+
+	if samplesHeader != "" {
+		t.Fatal("expected no written samples header, got", samplesHeader)
+	}
+	if exemplarsHeader != "" {
+		t.Fatal("expected no written exemplars header, got", exemplarsHeader)
+	}
+	if histogramHeader != "" {
+		t.Fatal("expected no written histograms header, got", histogramHeader)
 	}
 }
 
@@ -292,6 +333,96 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		// Verify callback was not invoked for successful request.
 		if callbackInvoked {
 			t.Fatal("retry callback should not be invoked on successful request")
+		}
+	})
+}
+
+func TestSnappyDecodeMiddleware(t *testing.T) {
+	tLogger := slog.Default()
+
+	var gotRequest *writev2.Request
+	successHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read body: %v", err)
+		}
+		gotRequest = &writev2.Request{}
+		if err := proto.Unmarshal(b, gotRequest); err != nil {
+			t.Fatalf("failed to unmarshal request: %v", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mw := SnappyDecodeMiddleware(tLogger)(successHandler)
+
+	t.Run("success", func(t *testing.T) {
+		// populated by successHandler handler
+		gotRequest = nil
+		expReq := testV2()
+
+		serializedExpReq, err := proto.Marshal(expReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		compressedExpReq := snappy.Encode(nil, serializedExpReq)
+
+		// Create HTTP request
+		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(compressedExpReq))
+		r.Header.Set("Content-Encoding", "snappy")
+		rw := httptest.NewRecorder()
+
+		mw.ServeHTTP(rw, r)
+
+		if rw.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d: %s", rw.Code, rw.Body.String())
+		}
+		if diff := cmp.Diff(expReq, gotRequest, protocmp.Transform()); diff != "" {
+			t.Fatalf("unexpected request after decoding: %s", diff)
+		}
+	})
+
+	t.Run("crafted_decode_len", func(t *testing.T) {
+		// Snappy format: varint(decoded_len) + compressed_data
+		// For a claimed size of 33MB (exceeds 32MB limit), we need varint encoding
+		dst := make([]byte, binary.MaxVarintLen64)
+		binary.PutUvarint(dst, uint64(33*1024*1024))
+		// Add some dummy compressed data. Doesn't need to be valid.
+		dst = append(dst, []byte{0x00, 0x01, 0x02}...)
+
+		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(dst))
+		r.Header.Set("Content-Encoding", "snappy")
+		rw := httptest.NewRecorder()
+
+		mw.ServeHTTP(rw, r)
+
+		if rw.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rw.Code)
+		}
+
+		body := rw.Body.String()
+		if !strings.Contains(body, "decoded size exceeds the") {
+			t.Fatalf("expected decoded size exceeds error, got: %s", body)
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		// Completely invalid snappy data
+		invalidData := []byte{0xff, 0xff, 0xff, 0xff}
+
+		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(invalidData))
+		r.Header.Set("Content-Encoding", "snappy")
+		rw := httptest.NewRecorder()
+
+		mw.ServeHTTP(rw, r)
+
+		if rw.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rw.Code)
+		}
+
+		body := rw.Body.String()
+		if !strings.Contains(body, "corrupt input") {
+			t.Fatalf("expected error message about corrupt input, got: %s", body)
 		}
 	})
 }

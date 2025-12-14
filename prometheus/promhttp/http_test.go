@@ -674,3 +674,110 @@ func BenchmarkCompression(b *testing.B) {
 		}
 	}
 }
+
+func TestHandlerWithMetricFilter(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_counter",
+		Help: "A test counter.",
+	})
+	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "test_gauge",
+		Help: "A test gauge.",
+	})
+	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "test_histogram",
+		Help: "A test histogram.",
+	})
+
+	reg.MustRegister(counter, gauge, histogram)
+	counter.Inc()
+	gauge.Set(42)
+	histogram.Observe(3.14)
+
+	testCases := []struct {
+		name             string
+		url              string
+		shouldContain    []string
+		shouldNotContain []string
+	}{
+		{
+			name:             "single metric filter",
+			url:              "/?name[]=test_counter",
+			shouldContain:    []string{"test_counter"},
+			shouldNotContain: []string{"test_gauge", "test_histogram"},
+		},
+		{
+			name:             "multiple metric filters",
+			url:              "/?name[]=test_counter&name[]=test_gauge",
+			shouldContain:    []string{"test_counter", "test_gauge"},
+			shouldNotContain: []string{"test_histogram"},
+		},
+		{
+			name:             "no filter returns all metrics",
+			url:              "/",
+			shouldContain:    []string{"test_counter", "test_gauge", "test_histogram"},
+			shouldNotContain: []string{},
+		},
+		{
+			name:             "non-matching filter returns empty",
+			url:              "/?name[]=nonexistent_metric",
+			shouldContain:    []string{},
+			shouldNotContain: []string{"test_counter", "test_gauge", "test_histogram"},
+		},
+		{
+			name:             "empty name[] value",
+			url:              "/?name[]=",
+			shouldContain:    []string{},
+			shouldNotContain: []string{"test_counter", "test_gauge", "test_histogram"},
+		},
+		{
+			name:             "duplicate name[] values",
+			url:              "/?name[]=test_counter&name[]=test_counter",
+			shouldContain:    []string{"test_counter"},
+			shouldNotContain: []string{"test_gauge", "test_histogram"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mReg := &mockTransactionGatherer{g: reg}
+
+			writer := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodGet, tc.url, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			request.Header.Add(acceptHeader, acceptTextPlain)
+
+			handler := HandlerForTransactional(mReg, HandlerOpts{})
+			handler.ServeHTTP(writer, request)
+
+			if got, want := writer.Code, http.StatusOK; got != want {
+				t.Errorf("got HTTP status code %d, want %d", got, want)
+			}
+
+			body := writer.Body.String()
+			for _, expected := range tc.shouldContain {
+				if !strings.Contains(body, expected) {
+					t.Errorf("expected body to contain %q, got: %s", expected, body)
+				}
+			}
+			for _, notExpected := range tc.shouldNotContain {
+				if strings.Contains(body, notExpected) {
+					t.Errorf("expected body to NOT contain %q, got: %s", notExpected, body)
+				}
+			}
+
+			// Verify that Gather and done are called even with filtering.
+			if got := mReg.gatherInvoked; got != 1 {
+				t.Errorf("unexpected number of gather invokes, want 1, got %d", got)
+			}
+			if got := mReg.doneInvoked; got != 1 {
+				t.Errorf("unexpected number of done invokes, want 1, got %d", got)
+			}
+		})
+	}
+}

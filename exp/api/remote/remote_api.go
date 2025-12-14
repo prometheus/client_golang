@@ -448,6 +448,12 @@ func WithWriteHandlerMiddlewares(middlewares ...func(http.Handler) http.Handler)
 	}
 }
 
+// maxDecodedSize limits the maximum allowed bytes of decompressed snappy payloads.
+// This protects against maliciously crafted payloads that could cause excessive memory
+// allocation and potentially lead to out-of-memory (OOM) conditions.
+// All usual payloads should be much smaller than this limit and pass without any problems.
+const maxDecodedSize = 32 * 1024 * 1024
+
 // SnappyDecodeMiddleware returns a middleware that checks if the request body is snappy-encoded and decompresses it.
 // If the request body is not snappy-encoded, it returns an error.
 // Used by default in NewHandler.
@@ -479,6 +485,18 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 				return
 			}
 
+			decodedSize, err := snappy.DecodedLen(bodyBytes)
+			if err != nil {
+				logger.Error("Error snappy decoding request body length", "err", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if decodedSize > maxDecodedSize {
+				logger.Error("Snappy decoded size exceeds the limit", "sizeBytes", decodedSize, "limitBytes", maxDecodedSize)
+				http.Error(w, fmt.Sprintf("decoded size exceeds the %v bytes limit", maxDecodedSize), http.StatusBadRequest)
+				return
+			}
+
 			decompressed, err := snappy.Decode(nil, bodyBytes)
 			if err != nil {
 				// TODO(bwplotka): Add more context to responded error?
@@ -495,8 +513,8 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 	}
 }
 
-// NewWriteHandler returns HTTP handler that receives Remote Write 2.0
-// protocol https://prometheus.io/docs/specs/remote_write_spec_2_0/.
+// NewWriteHandler returns an HTTP handler that can receive the Remote Write 1.0 or Remote Write 2.0
+// (https://prometheus.io/docs/specs/remote_write_spec_2_0/) protocol.
 func NewWriteHandler(store writeStorage, acceptedMessageTypes MessageTypes, opts ...WriteHandlerOption) http.Handler {
 	o := writeHandlerOpts{
 		logger:      slog.New(nopSlogHandler{}),
@@ -585,8 +603,8 @@ func (h *writeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeResponse = NewWriteResponse()
 	}
 
-	// Set required X-Prometheus-Remote-Write-Written-* response headers, in all cases, along with any user-defined headers.
-	writeResponse.writeHeaders(w)
+	// Set any necessary response headers.
+	writeResponse.writeHeaders(msgType, w)
 
 	if storeErr != nil {
 		if writeResponse.statusCode == 0 {
