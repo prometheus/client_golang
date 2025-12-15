@@ -696,14 +696,8 @@ type TSDBHeadStats struct {
 	MaxTime       int `json:"maxTime"`
 }
 
-// TSDBBlocksResult contains the results from querying the tsdb blocks endpoint.
-type TSDBBlocksResult struct {
-	Status string         `json:"status"`
-	Data   TSDBBlocksData `json:"data"`
-}
-
 // TSDBBlocksData contains the metadata for the tsdb blocks.
-type TSDBBlocksData struct {
+type TSDBBlocksResult struct {
 	Blocks []TSDBBlocksBlockMetadata `json:"blocks"`
 }
 
@@ -724,10 +718,18 @@ type TSDBBlocksStats struct {
 	NumChunks  int `json:"numChunks"`
 }
 
+// TSDBBlocksCompactionParent contains details on parent blocks for a single tsdb block.
+type TSDBBlocksCompactionParent struct {
+	Ulid    string `json:"ulid"`
+	MinTime int64  `json:"minTime"`
+	MaxTime int64  `json:"maxTime"`
+}
+
 // TSDBBlocksCompaction contains block compaction details for a single block.
 type TSDBBlocksCompaction struct {
-	Level   int      `json:"level"`
-	Sources []string `json:"sources"`
+	Level   int                          `json:"level"`
+	Sources []string                     `json:"sources"`
+	Parents []TSDBBlocksCompactionParent `json:"parents,omitempty"`
 }
 
 // WalReplayStatus represents the wal replay status.
