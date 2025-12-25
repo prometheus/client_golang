@@ -1365,3 +1365,255 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 		}
 	}
 }
+
+func TestRegistryDescriptors(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Test 1: Empty registry
+	descs := reg.Descriptors()
+	if len(descs) != 0 {
+		t.Errorf("Empty registry should have 0 descriptors, got %d", len(descs))
+	}
+
+	// Test 2: Single metric
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_counter",
+		Help: "A test counter",
+	})
+	reg.MustRegister(counter)
+
+	descs = reg.Descriptors()
+	if len(descs) != 1 {
+		t.Errorf("Expected 1 descriptor, got %d", len(descs))
+	}
+	if descs[0].Name() != "test_counter" {
+		t.Errorf("Expected descriptor name 'test_counter', got %q", descs[0].Name())
+	}
+	if descs[0].Help() != "A test counter" {
+		t.Errorf("Expected help 'A test counter', got %q", descs[0].Help())
+	}
+
+	// Test 3: Multiple metrics
+	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "test_gauge",
+		Help: "A test gauge",
+	})
+	histogram := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: "test_histogram",
+		Help: "A test histogram",
+	})
+	reg.MustRegister(gauge, histogram)
+
+	descs = reg.Descriptors()
+	if len(descs) != 3 {
+		t.Errorf("Expected 3 descriptors, got %d", len(descs))
+	}
+
+	// Verify all metrics are present
+	names := make(map[string]bool)
+	for _, desc := range descs {
+		names[desc.Name()] = true
+	}
+	expectedNames := []string{"test_counter", "test_gauge", "test_histogram"}
+	for _, name := range expectedNames {
+		if !names[name] {
+			t.Errorf("Expected to find descriptor with name %q", name)
+		}
+	}
+}
+
+func TestRegistryDescriptors_WithLabels(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Register metric with variable and constant labels
+	counterVec := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name:        "http_requests_total",
+			Help:        "Total HTTP requests",
+			ConstLabels: prometheus.Labels{"service": "api", "version": "1.0"},
+		},
+		[]string{"method", "status"},
+	)
+	reg.MustRegister(counterVec)
+
+	descs := reg.Descriptors()
+	if len(descs) != 1 {
+		t.Fatalf("Expected 1 descriptor, got %d", len(descs))
+	}
+
+	desc := descs[0]
+
+	// Check name and help
+	if desc.Name() != "http_requests_total" {
+		t.Errorf("Expected name 'http_requests_total', got %q", desc.Name())
+	}
+	if desc.Help() != "Total HTTP requests" {
+		t.Errorf("Expected help 'Total HTTP requests', got %q", desc.Help())
+	}
+
+	// Check constant labels
+	constLabels := desc.ConstLabels()
+	if len(constLabels) != 2 {
+		t.Errorf("Expected 2 constant labels, got %d", len(constLabels))
+	}
+	if constLabels["service"] != "api" {
+		t.Errorf("Expected service=api, got service=%q", constLabels["service"])
+	}
+	if constLabels["version"] != "1.0" {
+		t.Errorf("Expected version=1.0, got version=%q", constLabels["version"])
+	}
+
+	// Check variable labels
+	varLabels := desc.VariableLabels()
+	if len(varLabels) != 2 {
+		t.Errorf("Expected 2 variable labels, got %d", len(varLabels))
+	}
+	expectedVarLabels := map[string]bool{"method": true, "status": true}
+	for _, label := range varLabels {
+		if !expectedVarLabels[label] {
+			t.Errorf("Unexpected variable label: %q", label)
+		}
+	}
+}
+
+// duplicateDescCollector is a test collector that returns the same descriptor twice
+type duplicateDescCollector struct {
+	desc *prometheus.Desc
+}
+
+func (d *duplicateDescCollector) Describe(ch chan<- *prometheus.Desc) {
+	// Send the same descriptor twice
+	ch <- d.desc
+	ch <- d.desc
+}
+
+func (d *duplicateDescCollector) Collect(ch chan<- prometheus.Metric) {
+	// No-op for this test
+}
+
+func TestRegistryDescriptors_Deduplication(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Create a custom collector that returns the same descriptor twice
+	desc := prometheus.NewDesc("duplicate_metric", "A metric returned twice", nil, nil)
+	collector := &duplicateDescCollector{desc: desc}
+
+	reg.MustRegister(collector)
+
+	descs := reg.Descriptors()
+
+	// Should be deduplicated to 1 descriptor
+	if len(descs) != 1 {
+		t.Errorf("Expected deduplication to result in 1 descriptor, got %d", len(descs))
+	}
+
+	if descs[0].Name() != "duplicate_metric" {
+		t.Errorf("Expected descriptor name 'duplicate_metric', got %q", descs[0].Name())
+	}
+}
+
+func TestRegistryDescriptors_UncheckedCollector(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Register a regular metric
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "checked_metric",
+		Help: "A checked metric",
+	})
+	reg.MustRegister(counter)
+
+	// Register an unchecked collector (Describe yields nothing)
+	unchecked := uncheckedCollector{
+		c: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "unchecked_metric",
+			Help: "An unchecked metric",
+		}),
+	}
+	reg.MustRegister(unchecked)
+
+	descs := reg.Descriptors()
+
+	// Should only include the checked metric
+	if len(descs) != 1 {
+		t.Errorf("Expected 1 descriptor (unchecked should be excluded), got %d", len(descs))
+	}
+
+	if descs[0].Name() != "checked_metric" {
+		t.Errorf("Expected descriptor name 'checked_metric', got %q", descs[0].Name())
+	}
+}
+
+func TestRegistryDescriptors_Concurrent(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// Register some metrics
+	for i := 0; i < 10; i++ {
+		reg.MustRegister(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: fmt.Sprintf("metric_%d", i),
+			Help: "Test metric",
+		}))
+	}
+
+	// Call Descriptors concurrently from multiple goroutines
+	const goroutines = 10
+	const iterations = 100
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	errors := make(chan error, goroutines*iterations)
+
+	for g := 0; g < goroutines; g++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				descs := reg.Descriptors()
+				if len(descs) != 10 {
+					errors <- fmt.Errorf("expected 10 descriptors, got %d", len(descs))
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	// Check if any errors occurred
+	for err := range errors {
+		t.Error(err)
+	}
+}
+
+func TestRegistryDescriptors_AfterUnregister(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter1 := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "metric_1",
+		Help: "First metric",
+	})
+	counter2 := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "metric_2",
+		Help: "Second metric",
+	})
+
+	reg.MustRegister(counter1, counter2)
+
+	// Should have 2 descriptors
+	descs := reg.Descriptors()
+	if len(descs) != 2 {
+		t.Errorf("Expected 2 descriptors after registration, got %d", len(descs))
+	}
+
+	// Unregister one metric
+	reg.Unregister(counter1)
+
+	// Should now have 1 descriptor
+	descs = reg.Descriptors()
+	if len(descs) != 1 {
+		t.Errorf("Expected 1 descriptor after unregistration, got %d", len(descs))
+	}
+
+	if descs[0].Name() != "metric_2" {
+		t.Errorf("Expected remaining descriptor to be 'metric_2', got %q", descs[0].Name())
+	}
+}
