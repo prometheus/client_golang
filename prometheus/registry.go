@@ -587,22 +587,8 @@ func (r *Registry) Collect(ch chan<- Metric) {
 // Descriptors returns all metric descriptors currently registered with this registry.
 //
 // This method is useful for introspection, documentation generation, and testing.
-// It allows programmatic access to metric metadata without requiring a full
-// collection/scrape operation.
-//
-// The returned descriptors are collected by calling Describe on all registered
-// collectors. Duplicate descriptors (same descriptor returned by multiple collectors
-// or multiple times by the same collector) are automatically deduplicated based on
-// their unique descriptor ID.
-//
-// Unchecked collectors (those whose Describe method yields no descriptors) are
-// excluded from the results, consistent with the behavior of the Describe method.
-//
-// The returned slice contains pointers to the actual Desc instances. While the Desc
-// type is designed to be immutable, callers should treat the returned descriptors
-// as read-only to maintain this guarantee.
-//
-// This method is safe for concurrent use.
+// Duplicate descriptors are automatically deduplicated. Unchecked collectors are
+// excluded from the results.
 func (r *Registry) Descriptors() []*Desc {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
