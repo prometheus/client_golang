@@ -47,6 +47,8 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
+	// unit provides the unit of this metric.
+	unit string
 	// constLabelPairs contains precalculated DTO label pairs based on
 	// the constant labels.
 	constLabelPairs []*dto.LabelPair
@@ -66,6 +68,13 @@ type Desc struct {
 	err error
 }
 
+func optionalUnitValue(unit ...string) string {
+	if len(unit) > 0 {
+		return unit[0]
+	}
+	return ""
+}
+
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
 // and will be reported on registration time. variableLabels and constLabels can
 // be nil if no such labels should be set. fqName must not be empty.
@@ -75,8 +84,8 @@ type Desc struct {
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *Desc {
-	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels)
+func NewDesc(fqName, help string, variableLabels []string, constLabels Labels, unit ...string) *Desc {
+	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels, optionalUnitValue(unit...))
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -89,11 +98,12 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels) *Desc {
+func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels, unit ...string) *Desc {
 	d := &Desc{
 		fqName:         fqName,
 		help:           help,
 		variableLabels: variableLabels.compile(),
+		unit:           optionalUnitValue(unit...),
 	}
 	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
 	if !model.NameValidationScheme.IsValidMetricName(fqName) {
@@ -150,10 +160,11 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	d.id = xxh.Sum64()
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
-	// Now hash together (in this order) the help string and the sorted
+	// Now hash together (in this order) the help string, the unit string and the sorted
 	// label names.
 	xxh.Reset()
 	xxh.WriteString(help)
+	xxh.WriteString(optionalUnitValue(unit...))
 	xxh.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
 		xxh.WriteString(labelName)
@@ -211,9 +222,10 @@ func (d *Desc) String() string {
 		}
 	}
 	return fmt.Sprintf(
-		"Desc{fqName: %q, help: %q, constLabels: {%s}, variableLabels: {%s}}",
+		"Desc{fqName: %q, help: %q, unit: %q, constLabels: {%s}, variableLabels: {%s}}",
 		d.fqName,
 		d.help,
+		d.unit,
 		strings.Join(lpStrings, ","),
 		strings.Join(vlStrings, ","),
 	)
