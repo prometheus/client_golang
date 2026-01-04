@@ -110,6 +110,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	for _, opt := range opts {
 		opt(d)
 	}
+	unit := d.unit
 	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
 	if !model.NameValidationScheme.IsValidMetricName(fqName) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
@@ -169,7 +170,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	// label names.
 	xxh.Reset()
 	xxh.WriteString(help)
-	xxh.WriteString(d.unit)
+	xxh.WriteString(unit)
 	xxh.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
 		xxh.WriteString(labelName)
