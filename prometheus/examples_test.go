@@ -381,12 +381,12 @@ func ExampleSummaryVec() {
 }
 
 func ExampleNewConstSummary() {
-	desc := prometheus.NewDesc(
+	desc := prometheus.V2.NewDesc(
 		"http_request_duration_seconds",
 		"A summary of the HTTP request durations.",
-		[]string{"code", "method"},
+		prometheus.UnconstrainedLabels([]string{"code", "method"}),
 		prometheus.Labels{"owner": "example"},
-		"seconds",
+		prometheus.WithUnit("seconds"),
 	)
 
 	// Create a constant summary from values we got from a 3rd party telemetry system.
@@ -463,12 +463,12 @@ func ExampleHistogram() {
 }
 
 func ExampleNewConstHistogram() {
-	desc := prometheus.NewDesc(
+	desc := prometheus.V2.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		[]string{"code", "method"},
+		prometheus.UnconstrainedLabels([]string{"code", "method"}),
 		prometheus.Labels{"owner": "example"},
-		"seconds",
+		prometheus.WithUnit("seconds"),
 	)
 
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
@@ -519,12 +519,12 @@ func ExampleNewConstHistogramWithCreatedTimestamp() {
 }
 
 func ExampleNewConstHistogram_withExemplar() {
-	desc := prometheus.NewDesc(
+	desc := prometheus.V2.NewDesc(
 		"http_request_duration_seconds",
 		"A histogram of the HTTP request durations.",
-		[]string{"code", "method"},
+		prometheus.UnconstrainedLabels([]string{"code", "method"}),
 		prometheus.Labels{"owner": "example"},
-		"seconds",
+		prometheus.WithUnit("seconds"),
 	)
 
 	// Create a constant histogram from values we got from a 3rd party telemetry system.
@@ -690,11 +690,11 @@ temperature_kelvin 4.5
 }
 
 func ExampleNewMetricWithTimestamp() {
-	desc := prometheus.NewDesc(
+	desc := prometheus.V2.NewDesc(
 		"temperature_kelvin",
 		"Current temperature in Kelvin.",
-		nil, nil,
-		"kelvin",
+		prometheus.UnconstrainedLabels(nil), nil,
+		prometheus.WithUnit("kelvin"),
 	)
 
 	// Create a constant gauge from values we got from an external
@@ -724,11 +724,11 @@ func ExampleNewConstMetricWithCreatedTimestamp() {
 	// Here we have a metric that is reported by an external system.
 	// Besides providing the value, the external system also provides the
 	// timestamp when the metric was created.
-	desc := prometheus.NewDesc(
+	desc := prometheus.V2.NewDesc(
 		"time_since_epoch_seconds",
 		"Current epoch time in seconds.",
-		nil, nil,
-		"seconds",
+		prometheus.UnconstrainedLabels(nil), nil,
+		prometheus.WithUnit("seconds"),
 	)
 
 	timeSinceEpochReportedByExternalSystem := time.Date(2009, time.November, 10, 23, 0, 0, 12345678, time.UTC)

@@ -77,12 +77,12 @@ func TestNewInvalidDesc_String(t *testing.T) {
 }
 
 func TestNewDescWithUnit_String(t *testing.T) {
-	desc := NewDesc(
+	desc := V2.NewDesc(
 		"sample_metric_bytes",
 		"sample metric with unit",
+		UnconstrainedLabels(nil),
 		nil,
-		nil,
-		"bytes",
+		WithUnit("bytes"),
 	)
 	if desc.String() != `Desc{fqName: "sample_metric_bytes", help: "sample metric with unit", unit: "bytes", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output:\ngot:  %s\nwant: %s", desc.String(), desc.String())

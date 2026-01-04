@@ -68,11 +68,13 @@ type Desc struct {
 	err error
 }
 
-func optionalUnitValue(unit ...string) string {
-	if len(unit) > 0 {
-		return unit[0]
+type DescOpt func(*Desc)
+
+// WithUnit sets the unit for a Desc.
+func WithUnit(unit string) DescOpt {
+	return func(d *Desc) {
+		d.unit = unit
 	}
-	return ""
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -84,8 +86,8 @@ func optionalUnitValue(unit ...string) string {
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func NewDesc(fqName, help string, variableLabels []string, constLabels Labels, unit ...string) *Desc {
-	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels, optionalUnitValue(unit...))
+func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *Desc {
+	return V2.NewDesc(fqName, help, UnconstrainedLabels(variableLabels), constLabels)
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -98,12 +100,15 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels, u
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels, unit ...string) *Desc {
+func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels, opts ...DescOpt) *Desc {
 	d := &Desc{
 		fqName:         fqName,
 		help:           help,
 		variableLabels: variableLabels.compile(),
-		unit:           optionalUnitValue(unit...),
+	}
+
+	for _, opt := range opts {
+		opt(d)
 	}
 	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
 	if !model.NameValidationScheme.IsValidMetricName(fqName) {
@@ -164,7 +169,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	// label names.
 	xxh.Reset()
 	xxh.WriteString(help)
-	xxh.WriteString(optionalUnitValue(unit...))
+	xxh.WriteString(d.unit)
 	xxh.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
 		xxh.WriteString(labelName)

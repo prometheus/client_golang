@@ -525,12 +525,12 @@ type HistogramVecOpts struct {
 // for each bucket.
 func NewHistogram(opts HistogramOpts) Histogram {
 	return newHistogram(
-		NewDesc(
+		V2.NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
-			nil,
+			UnconstrainedLabels(nil),
 			opts.ConstLabels,
-			opts.Unit,
+			WithUnit(opts.Unit),
 		),
 		opts,
 	)
@@ -1194,7 +1194,7 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
-		opts.Unit,
+		WithUnit(opts.Unit),
 	)
 	return &HistogramVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {

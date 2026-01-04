@@ -38,6 +38,5 @@ func NewUntypedFunc(opts UntypedOpts, function func() float64) UntypedFunc {
 		opts.Help,
 		nil,
 		opts.ConstLabels,
-		opts.Unit,
 	), UntypedValue, function)
 }

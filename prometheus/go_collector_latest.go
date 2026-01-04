@@ -217,12 +217,12 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		if d.Kind == metrics.KindFloat64Histogram {
 			_, hasSum := opt.RuntimeMetricSumForHist[d.Name]
 			m = newBatchHistogram(
-				NewDesc(
+				V2.NewDesc(
 					BuildFQName(namespace, subsystem, name),
 					help,
+					UnconstrainedLabels(nil),
 					nil,
-					nil,
-					unit,
+					WithUnit(unit),
 				),
 				internal.RuntimeMetricsBucketsForUnit(bucketsMap[d.Name], unit),
 				hasSum,

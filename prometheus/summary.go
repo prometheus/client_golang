@@ -184,12 +184,12 @@ type SummaryVecOpts struct {
 // NewSummary creates a new Summary based on the provided SummaryOpts.
 func NewSummary(opts SummaryOpts) Summary {
 	return newSummary(
-		NewDesc(
+		V2.NewDesc(
 			BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 			opts.Help,
-			nil,
+			UnconstrainedLabels(nil),
 			opts.ConstLabels,
-			opts.Unit,
+			WithUnit(opts.Unit),
 		),
 		opts,
 	)
@@ -582,7 +582,7 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
-		opts.Unit,
+		WithUnit(opts.Unit),
 	)
 	return &SummaryVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
