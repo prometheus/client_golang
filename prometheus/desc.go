@@ -221,11 +221,15 @@ func (d *Desc) String() string {
 			}
 		}
 	}
+	unitStr := ""
+	if d.unit != "" {
+		unitStr = fmt.Sprintf(", unit: %q", d.unit)
+	}
 	return fmt.Sprintf(
-		"Desc{fqName: %q, help: %q, unit: %q, constLabels: {%s}, variableLabels: {%s}}",
+		"Desc{fqName: %q, help: %q%s, constLabels: {%s}, variableLabels: {%s}}",
 		d.fqName,
 		d.help,
-		d.unit,
+		unitStr,
 		strings.Join(lpStrings, ","),
 		strings.Join(vlStrings, ","),
 	)

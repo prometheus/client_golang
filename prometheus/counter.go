@@ -204,9 +204,9 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
-		// opts.Unit, // QUESTION: shall I put this for last?
 		opts.VariableLabels,
 		opts.ConstLabels,
+		opts.Unit,
 	)
 	if opts.now == nil {
 		opts.now = time.Now

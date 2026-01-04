@@ -159,11 +159,11 @@ func TestHandlerErrorHandling(t *testing.T) {
 		t.Fatalf("unexpected number of done invokes, want 0, got %d", got)
 	}
 
-	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", unit: "", constLabels: {}, variableLabels: {}}: collect error
+	wantMsg := `error gathering metrics: error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantErrorBody := `An error has occurred while serving metrics:
 
-error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", unit: "", constLabels: {}, variableLabels: {}}: collect error
+error collecting metric Desc{fqName: "invalid_metric", help: "not helpful", constLabels: {}, variableLabels: {}}: collect error
 `
 	wantOKBody1 := `# HELP name docstring
 # TYPE name counter
@@ -577,6 +577,102 @@ http_request_duration_seconds_total 42.0
 	if got, want := writer.Header().Get(contentTypeHeader), "application/openmetrics-text; version=0.0.1; charset=utf-8; escaping=underscores"; got != want {
 		t.Errorf("expected Content-Type %q, got %q", want, got)
 	}
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithEmptyUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests.",
+		// Unit intentionally left empty
+	})
+	reg.MustRegister(counter)
+	counter.Add(10)
+
+	expectedOpenMetricsOutput := `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithLongUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// A very long unit string to test edge case handling
+	longUnit := "verylongunitnamethatexceedsnormallengthexpectationsbutistoleratednethelessbecausewedonotvalidateit"
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_metric_total",
+		Help: "Test metric with a very long unit.",
+		Unit: longUnit,
+	})
+	reg.MustRegister(counter)
+	counter.Add(1)
+
+	// Note: expfmt appends the unit to the metric name if not already present
+	expectedOpenMetricsOutput := `# HELP test_metric_` + longUnit + ` Test metric with a very long unit.
+# TYPE test_metric_` + longUnit + ` counter
+# UNIT test_metric_` + longUnit + ` ` + longUnit + `
+test_metric_` + longUnit + `_total 1.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithEmojiUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	emojiUnit := "🚀速度"
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "rocket_launches_total",
+		Help: "Total rocket launches with emoji unit.",
+		Unit: emojiUnit,
+	})
+	reg.MustRegister(counter)
+	counter.Add(3)
+
+	// Note: expfmt quotes metric names with non-ASCII chars and uses curly braces
+	expectedOpenMetricsOutput := `# HELP "rocket_launches_` + emojiUnit + `" Total rocket launches with emoji unit.
+# TYPE "rocket_launches_` + emojiUnit + `" counter
+# UNIT "rocket_launches_` + emojiUnit + `" ` + emojiUnit + `
+{"rocket_launches_` + emojiUnit + `_total"} 3.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
 
 	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
 		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)

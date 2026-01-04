@@ -171,7 +171,7 @@ func TestGaugeFunc(t *testing.T) {
 		func() float64 { return 3.1415 },
 	)
 
-	if expected, got := `Desc{fqName: "test_name", help: "test help", unit: "", constLabels: {a="1",b="2"}, variableLabels: {}}`, gf.Desc().String(); expected != got {
+	if expected, got := `Desc{fqName: "test_name", help: "test help", constLabels: {a="1",b="2"}, variableLabels: {}}`, gf.Desc().String(); expected != got {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 

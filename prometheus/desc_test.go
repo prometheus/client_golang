@@ -62,7 +62,7 @@ func TestNewDescWithNilLabelValues_String(t *testing.T) {
 		nil,
 		nil,
 	)
-	if desc.String() != `Desc{fqName: "sample_label", help: "sample label", unit: "", constLabels: {}, variableLabels: {}}` {
+	if desc.String() != `Desc{fqName: "sample_label", help: "sample label", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output: %s", desc.String())
 	}
 }
@@ -71,7 +71,7 @@ func TestNewInvalidDesc_String(t *testing.T) {
 	desc := NewInvalidDesc(
 		nil,
 	)
-	if desc.String() != `Desc{fqName: "", help: "", unit: "", constLabels: {}, variableLabels: {}}` {
+	if desc.String() != `Desc{fqName: "", help: "", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output: %s", desc.String())
 	}
 }
