@@ -53,7 +53,7 @@ func TestZstdWriterRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zstd NewReader failed: %v", err)
 	}
-	defer r.Close()
+	t.Cleanup(func() { r.Close() })
 
 	out, err := io.ReadAll(r)
 	if err != nil {
