@@ -1,12 +1,32 @@
 ---
 name: Push README to Docker Hub
+
+# DISABLED: This workflow was added via automated sync (PrometheusBot) in May 2024
+# but client_golang is a library, not a containerized service, and doesn't publish
+# container images to Docker Hub or Quay.io.
+#
+# The workflow has never worked because:
+# - DOCKER_IMAGE_NAME is not defined in the Makefile
+# - The `docker-repo-name` target doesn't exist
+# - The only Dockerfile is for building local examples, not for distribution
+#
+# This workflow is disabled to:
+# - Stop failing CI runs
+# - Document that client_golang doesn't need container image publishing
+# - Prevent future automated syncs from re-enabling it
+#
+# See: https://github.com/prometheus/client_golang/issues/1938
+
 on:
-  push:
-    paths:
-      - "README.md"
-      - "README-containers.md"
-      - ".github/workflows/container_description.yml"
-    branches: [ main, master ]
+  workflow_dispatch:  # Manual trigger only - disabled for normal use
+  
+  # Original triggers (disabled):
+  # push:
+  #   paths:
+  #     - "README.md"
+  #     - "README-containers.md"
+  #     - ".github/workflows/container_description.yml"
+  #   branches: [ main, master ]
 
 permissions:
   contents: read
@@ -15,47 +35,21 @@ jobs:
   PushDockerHubReadme:
     runs-on: ubuntu-latest
     name: Push README to Docker Hub
-    if: github.repository_owner == 'prometheus' || github.repository_owner == 'prometheus-community' # Don't run this workflow on forks.
+    if: github.repository_owner == 'prometheus' || github.repository_owner == 'prometheus-community'
     steps:
-      - name: git checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          persist-credentials: false
-      - name: Set docker hub repo name
-        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> $GITHUB_ENV
-      - name: Push README to Dockerhub
-        uses: christian-korneck/update-container-description-action@d36005551adeaba9698d8d67a296bd16fa91f8e8 # v1
-        env:
-          DOCKER_USER: ${{ secrets.DOCKER_HUB_LOGIN }}
-          DOCKER_PASS: ${{ secrets.DOCKER_HUB_PASSWORD }}
-        with:
-          destination_container_repo: ${{ env.DOCKER_REPO_NAME }}
-          provider: dockerhub
-          short_description: ${{ env.DOCKER_REPO_NAME }}
-          # Empty string results in README-containers.md being pushed if it
-          # exists. Otherwise, README.md is pushed.
-          readme_file: ''
+      - name: Workflow Disabled
+        run: |
+          echo "This workflow is disabled. See comments at top of file for details."
+          echo "Issue: https://github.com/prometheus/client_golang/issues/1938"
+          exit 1
 
   PushQuayIoReadme:
     runs-on: ubuntu-latest
     name: Push README to quay.io
-    if: github.repository_owner == 'prometheus' || github.repository_owner == 'prometheus-community' # Don't run this workflow on forks.
+    if: github.repository_owner == 'prometheus' || github.repository_owner == 'prometheus-community'
     steps:
-      - name: git checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-        with:
-          persist-credentials: false
-      - name: Set quay.io org name
-        run: echo "DOCKER_REPO=$(echo quay.io/${GITHUB_REPOSITORY_OWNER} | tr -d '-')" >> $GITHUB_ENV
-      - name: Set quay.io repo name
-        run: echo "DOCKER_REPO_NAME=$(make docker-repo-name)" >> $GITHUB_ENV
-      - name: Push README to quay.io
-        uses: christian-korneck/update-container-description-action@d36005551adeaba9698d8d67a296bd16fa91f8e8 # v1
-        env:
-          DOCKER_APIKEY: ${{ secrets.QUAY_IO_API_TOKEN }}
-        with:
-          destination_container_repo: ${{ env.DOCKER_REPO_NAME }}
-          provider: quay
-          # Empty string results in README-containers.md being pushed if it
-          # exists. Otherwise, README.md is pushed.
-          readme_file: ''
+      - name: Workflow Disabled
+        run: |
+          echo "This workflow is disabled. See comments at top of file for details."
+          echo "Issue: https://github.com/prometheus/client_golang/issues/1938"
+          exit 1
