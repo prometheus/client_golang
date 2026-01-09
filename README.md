@@ -48,6 +48,42 @@ The
 [`examples` directory](https://github.com/prometheus/client_golang/tree/main/examples)
 contains simple examples of instrumented code.
 
+## Using client_golang with OpenTelemetry (OTLP)
+
+Applications instrumented with `client_golang` can be integrated into
+OpenTelemetry-based observability pipelines by using the OpenTelemetry
+Collector as a bridge.
+
+In this setup:
+- Applications expose Prometheus metrics using `client_golang`
+- The OpenTelemetry Collector scrapes the Prometheus endpoint
+- Metrics are exported using the OTLP protocol to a compatible backend
+
+This approach allows existing Prometheus instrumentation to be reused
+without modifying application code.
+
+### Example OpenTelemetry Collector configuration
+
+```yaml
+receivers:
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "app"
+          static_configs:
+            - targets: ["localhost:2112"]
+
+exporters:
+  otlp:
+    endpoint: "<otlp-endpoint>"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      exporters: [otlp]
+```
+
 ## Client for the Prometheus HTTP API
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
