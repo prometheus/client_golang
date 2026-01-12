@@ -48,7 +48,7 @@ automatically become an indirect dependency for projects that import `client_gol
 
 **How it works:**
 - If we depend on package A, and A depends on package B, but we never import/use anything from B,
-  then B will **not** propagate to projects that import `client_golang`
+  then B will **not** propagate to projects that import `client_golang`.
 - Go modules only propagate dependencies that are actually used in the import chain
 
 **Example from our codebase:**
