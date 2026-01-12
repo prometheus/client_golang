@@ -51,28 +51,42 @@ automatically become an indirect dependency for projects that import `client_gol
   then B will **not** propagate to projects that import `client_golang`.
 
 **Example from our codebase:**
-- `prometheus/common` has many dependencies (e.g., `kingpin` for CLI parsing)
-- `client_golang` depends on `common`
+- [`prometheus/common`](https://github.com/prometheus/common) has many dependencies, including
+  [`kingpin`](https://github.com/alecthomas/kingpin) for CLI parsing (used only in
+  [`promslog/flag`](https://github.com/prometheus/common/tree/main/promslog/flag)).
+- [`client_golang`](https://github.com/prometheus/client_golang) depends on `common`.
 - But `client_golang` users don't get `kingpin` as an indirect dependency because `client_golang`
-  doesn't import the parts of `common` that use `kingpin`
+  doesn't import `promslog/flag` anywhere.
 
 **Testing this:**
+
+To verify a dependency doesn't propagate to users, create a test module:
+
 ```bash
-# See why a package is in our dependencies
-go mod why github.com/some/package
+# 1. Create a test module that imports client_golang
+mkdir /tmp/test-client-golang-deps && cd /tmp/test-client-golang-deps
+go mod init example.com/test
+go get github.com/prometheus/client_golang
 
-# See the full dependency graph
-go mod graph
+# 2. Check if the dependency appears in your module
+go mod why github.com/alecthomas/kingpin
+# Expected output: (main module does not need package github.com/alecthomas/kingpin)
 
-# Test if a dependency propagates by creating a test module that imports client_golang
-# and checking if the dependency appears in its go.mod
+# 3. Verify it's not in go.mod
+grep kingpin go.mod
+# Expected: no output (kingpin is not propagated)
 ```
 
-**Important exception - Examples can leak dependencies:**
-Code in `examples/` or example test files (like `example_test.go`) that imports packages will
-cause those dependencies to appear in `go.mod` and potentially leak to users. Testing during
-recent dependency discussions showed that example code imports (such as `api/prometheus/v1/example_test.go`
-importing `prometheus/common/config`) can cause many indirect dependencies to leak.
+To check why a dependency IS in `client_golang`'s own go.mod (run from this repository):
+
+```bash
+# See why client_golang needs a package
+go mod why github.com/prometheus/common
+# Output shows the import chain from client_golang code
+
+# See full dependency graph
+go mod graph | grep common
+```
 
 ### Adding New Dependencies
 
@@ -85,7 +99,7 @@ When evaluating new dependencies, critical factors include:
 - **Version conflicts:** Can impact downstream projects (like KEDA, Kubernetes, and other users)
 - **Licensing:** Must be Apache 2.0 compatible (avoid GPL, LGPL, or copyleft licenses)
 
-**Process for production code dependencies:**
+**Process for adding production code dependencies:**
 
 1. **Open an issue first** to discuss with maintainers
 2. **Provide justification:**
@@ -117,148 +131,8 @@ updates and security patches.
 **Note:** With Go modules, vendoring is rarely necessary. The `go.sum` file provides
 reproducible builds without vendoring.
 
-### Using Unstable Dependencies
-
-**For production code, strongly prefer stable dependencies:**
-
-- Prefer semantic versioned releases (v1.0.0+) when available
-- Prefer tagged versions over commit hashes
-- Avoid alpha/beta releases when stable alternatives exist
-
-**Pragmatic reality:**
-
-We do use some pre-1.0 dependencies (like `prometheus/client_model v0.6.2`) and have
-indirect dependencies with commit-based versions where necessary. The key is:
-- New direct dependencies should use stable versions when possible
-- Pre-1.0 or commit-based versions require justification
-- Discuss with maintainers if unsure
-
-**Example of dependency versioning preferences:**
-```go
-// Most preferred: Stable semantic version
-require github.com/example/lib v1.2.3
-
-// Acceptable if no stable alternative: Pre-1.0 version
-require github.com/example/lib v0.6.2
-
-// Least preferred: Commit-based (sometimes unavoidable for indirect deps)
-require github.com/example/lib v0.0.0-20230101120000-abcdef123456
-```
-
-### Dependencies in Different Contexts
-
-**Production code** (`prometheus/`, `prometheus/...`):
-- **Strictest requirements** - affects all users
-- Prefer stable versions (v1.0.0+) when available
-- Requires maintainer approval
-- Minimal transitive dependencies preferred
-- Every dependency must be justified
-
-**Test code** (`*_test.go`):
-- **More flexible** - test dependencies don't propagate to users!
-- Go modules improved in recent versions: test deps stay in our `go.mod` but don't leak to importers
-- Can use testing libraries (`go.uber.org/goleak`, `github.com/google/go-cmp`, etc.)
-- Still prefer stable, well-maintained tools
-
-**Examples** (`examples/` directory):
-- **Most flexible** - example code isn't imported by users
-- Can use newer versions to demonstrate features
-- Still prefer stable dependencies when possible
-- **Warning:** Example imports CAN cause indirect deps to appear in `go.mod`
-
-**Real example discovered in dependency analysis:**
-
-The file `api/prometheus/v1/example_test.go` imports `prometheus/common/config`. Testing
-showed that this single import causes many transitive dependencies to appear in our `go.mod`.
-Removing such imports would clean up numerous indirect dependencies because those packages
-aren't actually used in the production code path.
-
-### Dependency Update Process
-
-When updating dependencies, use standard Go module workflows:
-
-**Checking and updating:**
-```bash
-# Check for available updates
-go list -u -m all
-
-# Update a specific dependency
-go get -u github.com/prometheus/client_model@v0.6.2
-
-# Clean up and verify
-go mod tidy
-go mod verify
-```
-
-**Understanding dependency usage:**
-```bash
-# See why a package is in our dependencies
-go mod why github.com/some/package
-
-# See the full dependency graph
-go mod graph
-```
-
-**Testing:**
-```bash
-make test
-```
-
-**Before committing:**
-- Run the full test suite
-- Review the dependency's CHANGELOG for breaking changes
-- Verify `go.sum` changes are reasonable
-
-**Consider the impact:**
-- Will the update affect downstream projects (like Kubernetes)?
-- Does it introduce new transitive dependencies?
-- Are there any security advisories for the old or new version?
-
-### Red Flags: Dependencies to Reject
-
-When evaluating dependencies, be cautious of:
-
-- Known unpatched security vulnerabilities
-- Incompatible licenses (must be Apache 2.0 compatible)
-- Excessive transitive dependencies
-- Unmaintained projects (no recent activity or releases)
-- Poor maintenance indicators (unresponsive maintainers, accumulating issues)
-
-Discuss with maintainers if a dependency raises concerns.
-
-### Example Dependency Evaluation
-
-When proposing a new dependency in an issue, provide analysis covering:
-
-**Basic information:**
-- Purpose and which component needs it
-- Version and maintenance status
-- License compatibility
-
-**Impact analysis:**
-- Will it propagate to users? (consider which code imports it)
-- How many transitive dependencies does it bring?
-- Any security concerns?
-
-**Alternatives:**
-- What alternatives were considered?
-- Why are they not suitable?
-
-**Recommendation:**
-- Your assessment with justification
-
-Maintainers will review and provide feedback before you proceed with implementation.
-
 ### Resources
 
 - [Go Modules Reference](https://go.dev/ref/mod) - comprehensive but dense
 - [Semantic Versioning](https://semver.org/)
 - [Go Security Best Practices](https://go.dev/security/best-practices)
-
-### Key Takeaways
-
-1. **Indirect dependencies don't always propagate** - Go modules are smart about this
-2. **Test dependencies don't leak** to projects that import us
-3. **Example code can leak dependencies** - be careful with example imports
-4. **We're part of the Kubernetes dependency chain** - our choices have wide impact
-5. **When in doubt, discuss first** - open an issue before adding dependencies
