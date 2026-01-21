@@ -16,6 +16,7 @@ package prometheus
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -36,6 +37,8 @@ func TestTimerObserve(t *testing.T) {
 		defer hisTimer.ObserveDuration()
 		defer sumTimer.ObserveDuration()
 		defer gaugeTimer.ObserveDuration()
+		// Ensure measurable time passes to avoid flaky test on fast systems.
+		time.Sleep(time.Millisecond)
 	}()
 
 	m := &dto.Metric{}
@@ -71,6 +74,8 @@ func TestTimerObserveWithExemplar(t *testing.T) {
 		// Gauges and summaries does not implement ExemplarObserver, so we expect them to ignore exemplar.
 		defer sumTimer.ObserveDurationWithExemplar(exemplar)
 		defer gaugeTimer.ObserveDurationWithExemplar(exemplar)
+		// Ensure measurable time passes to avoid flaky test on fast systems.
+		time.Sleep(time.Millisecond)
 	}()
 
 	m := &dto.Metric{}
