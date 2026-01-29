@@ -711,12 +711,12 @@ type TSDBBlocksResult struct {
 // Counterpart to prometheus/prometheus tsdb.BlockMeta:
 // https://github.com/prometheus/prometheus/blob/304dcdf6959d7a45530e9b6efa4080c5ca37dbf7/tsdb/block.go#L164
 type TSDBBlockMeta struct {
-	Ulid       string                 `json:"ulid"`
-	MinTime    int64                  `json:"minTime"`
-	MaxTime    int64                  `json:"maxTime"`
-	Stats      TSDBBlockStats         `json:"stats,omitempty"`
+	Ulid       string                  `json:"ulid"`
+	MinTime    int64                   `json:"minTime"`
+	MaxTime    int64                   `json:"maxTime"`
+	Stats      TSDBBlockStats          `json:"stats,omitempty"`
 	Compaction TSDBBlockMetaCompaction `json:"compaction"`
-	Version    int                    `json:"version"`
+	Version    int                     `json:"version"`
 }
 
 // TSDBBlockStats contains block stats for a single TSDB block.
