@@ -567,7 +567,7 @@ http_request_duration_seconds_total 42.0
 # EOF
 `
 
-	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, "application/openmetrics-text")
@@ -600,7 +600,7 @@ http_requests_total 10.0
 # EOF
 `
 
-	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, "application/openmetrics-text")
@@ -626,15 +626,14 @@ func TestHandlerWithLongUnit(t *testing.T) {
 	reg.MustRegister(counter)
 	counter.Add(1)
 
-	// Note: expfmt appends the unit to the metric name if not already present
-	expectedOpenMetricsOutput := `# HELP test_metric_` + longUnit + ` Test metric with a very long unit.
-# TYPE test_metric_` + longUnit + ` counter
-# UNIT test_metric_` + longUnit + ` ` + longUnit + `
-test_metric_` + longUnit + `_total 1.0
+	expectedOpenMetricsOutput := `# HELP test_metric Test metric with a very long unit.
+# TYPE test_metric counter
+# UNIT test_metric ` + longUnit + `
+test_metric_total 1.0
 # EOF
 `
 
-	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, "application/openmetrics-text")
@@ -659,15 +658,14 @@ func TestHandlerWithEmojiUnit(t *testing.T) {
 	reg.MustRegister(counter)
 	counter.Add(3)
 
-	// Note: expfmt quotes metric names with non-ASCII chars and uses curly braces
-	expectedOpenMetricsOutput := `# HELP "rocket_launches_` + emojiUnit + `" Total rocket launches with emoji unit.
-# TYPE "rocket_launches_` + emojiUnit + `" counter
-# UNIT "rocket_launches_` + emojiUnit + `" ` + emojiUnit + `
-{"rocket_launches_` + emojiUnit + `_total"} 3.0
+	expectedOpenMetricsOutput := `# HELP rocket_launches Total rocket launches with emoji unit.
+# TYPE rocket_launches counter
+# UNIT rocket_launches ` + emojiUnit + `
+rocket_launches_total 3.0
 # EOF
 `
 
-	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true, EnableOpenMetricsUnit: true})
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
 	writer := httptest.NewRecorder()
 	request, _ := http.NewRequest(http.MethodGet, "/", nil)
 	request.Header.Add(acceptHeader, "application/openmetrics-text")

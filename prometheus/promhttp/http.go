@@ -233,9 +233,6 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		if opts.EnableOpenMetricsTextCreatedSamples {
 			encOpts = append(encOpts, expfmt.WithCreatedLines())
 		}
-		if opts.EnableOpenMetricsUnit {
-			encOpts = append(encOpts, expfmt.WithUnit())
-		}
 		enc = expfmt.NewEncoder(w, contentType, encOpts...)
 
 		// handleError handles the error according to opts.ErrorHandling
@@ -466,9 +463,6 @@ type HandlerOpts struct {
 	// Prometheus introduced the feature flag 'created-timestamp-zero-ingestion'
 	// in version 2.50.0 to handle this situation.
 	EnableOpenMetricsTextCreatedSamples bool
-	// EnableOpenMetricsUnit enables unit metadata in the OpenMetrics output format.
-	// This is only applicable when OpenMetrics format is negotiated.
-	EnableOpenMetricsUnit bool
 	// ProcessStartTime allows setting process start timevalue that will be exposed
 	// with "Process-Start-Time-Unix" response header along with the metrics
 	// payload. This allow callers to have efficient transformations to cumulative
