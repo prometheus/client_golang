@@ -1,16 +1,12 @@
 {
     "versions": [
         {
-            "label": "rc",
-            "version": "1.26.0-rc.2"
-        },
-        {
             "label": "stable",
-            "version": "1.25"
+            "version": "1.26"
         },
         {
             "label": "oldstable",
-            "version": "1.24"
+            "version": "1.25"
         }
     ]
 }
