@@ -16,11 +16,10 @@ package prometheus
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 	"unicode/utf8"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
 
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
@@ -215,25 +214,22 @@ func populateMetric(
 // This function is only needed for custom Metric implementations. See MetricVec
 // example.
 func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
-	totalLen := len(desc.variableLabels.names) + len(desc.constLabelPairs)
-	if totalLen == 0 {
+	if len(desc.labelPairs) == 0 {
 		// Super fast path.
 		return nil
 	}
+
+	// Conversion copies all but strings.
+	ret := fastdto.ToDTOLabelPair(desc.labelPairs)
 	if len(desc.variableLabels.names) == 0 {
 		// Moderately fast path.
-		return desc.constLabelPairs
+		return ret
 	}
-	labelPairs := make([]*dto.LabelPair, 0, totalLen)
-	for i, l := range desc.variableLabels.names {
-		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(l),
-			Value: proto.String(labelValues[i]),
-		})
+
+	for i, outputIndex := range desc.variableLabelOrder {
+		ret[outputIndex].Value = &labelValues[i] // Reusing string, assuming it's safe.
 	}
-	labelPairs = append(labelPairs, desc.constLabelPairs...)
-	sort.Sort(internal.LabelPairSorter(labelPairs))
-	return labelPairs
+	return ret
 }
 
 // ExemplarMaxRunes is the max total number of runes allowed in exemplar labels.

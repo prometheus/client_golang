@@ -18,12 +18,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cespare/xxhash/v2"
-	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
 
-	"github.com/prometheus/client_golang/prometheus/internal"
+	"github.com/cespare/xxhash/v2"
+	"github.com/prometheus/common/model"
 )
 
 // Desc is the descriptor used by every Prometheus Metric. It is essentially
@@ -47,12 +45,16 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
-	// constLabelPairs contains precalculated DTO label pairs based on
-	// the constant labels.
-	constLabelPairs []*dto.LabelPair
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
+	// variableLabelOrder maps variableLabels indexes to the position in the
+	// pre-computed labelPairs slice. This allows fast MakeLabelPair function
+	// that have to place ordered variable label values into pre-sorted labelPairs.
+	variableLabelOrder []int
+	// labelPairs contains the sorted DTO label pairs based on the constant labels
+	// and variable labels
+	labelPairs []fastdto.LabelPair
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -161,14 +163,31 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	}
 	d.dimHash = xxh.Sum64()
 
-	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
+	d.labelPairs = make([]fastdto.LabelPair, len(constLabels)+len(d.variableLabels.names))
+	i := 0
 	for n, v := range constLabels {
-		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
-		})
+		d.labelPairs[i].Name = n
+		d.labelPairs[i].Value = v
+		i++
 	}
-	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
+	for _, labelName := range d.variableLabels.names {
+		d.labelPairs[i].Name = labelName
+		i++
+	}
+	sort.Sort(fastdto.LabelPairSorter(d.labelPairs))
+
+	d.variableLabelOrder = make([]int, len(d.variableLabels.names))
+	for outputIndex, pair := range d.labelPairs {
+		// Constant labels have values variable labels do not.
+		if pair.Value != "" {
+			continue
+		}
+		for sourceIndex, variableLabel := range d.variableLabels.names {
+			if variableLabel == pair.GetName() {
+				d.variableLabelOrder[sourceIndex] = outputIndex
+			}
+		}
+	}
 	return d
 }
 
@@ -192,8 +211,11 @@ func (d *Desc) Err() error {
 }
 
 func (d *Desc) String() string {
-	lpStrings := make([]string, 0, len(d.constLabelPairs))
-	for _, lp := range d.constLabelPairs {
+	lpStrings := make([]string, 0, len(d.labelPairs))
+	for _, lp := range d.labelPairs {
+		if lp.Value == "" {
+			continue
+		}
 		lpStrings = append(
 			lpStrings,
 			fmt.Sprintf("%s=%q", lp.GetName(), lp.GetValue()),

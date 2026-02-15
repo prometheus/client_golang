@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/internal/fastdto"
+
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -82,7 +84,7 @@ func NewGauge(opts GaugeOpts) Gauge {
 		nil,
 		opts.ConstLabels,
 	)
-	result := &gauge{desc: desc, labelPairs: desc.constLabelPairs}
+	result := &gauge{desc: desc, labelPairs: fastdto.ToDTOLabelPair(desc.labelPairs)}
 	result.init(result) // Init self-collection.
 	return result
 }
