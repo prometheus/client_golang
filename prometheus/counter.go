@@ -23,6 +23,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// 64-bit float mantissa: https://en.wikipedia.org/wiki/Double-precision_floating-point_format
+var float64Mantissa uint64 = 9007199254740992
+
 // Counter is a Metric that represents a single numerical value that only ever
 // goes up. That implies that it cannot be used to count items whose number can
 // also go down, e.g. the number of currently running goroutines. Those
@@ -57,8 +60,52 @@ type ExemplarAdder interface {
 	AddWithExemplar(value float64, exemplar Labels)
 }
 
-// CounterOpts is an alias for Opts. See there for doc comments.
-type CounterOpts Opts
+// CounterOpts bundles the options for creating a Histogram metric. It is
+// mandatory to set Name to a non-empty string. All other fields are optional
+// and can safely be left at their zero value, although it is strongly
+// encouraged to set a Help string.
+type CounterOpts struct {
+	// Namespace, Subsystem, and Name are components of the fully-qualified
+	// name of the Metric (created by joining these components with
+	// "_"). Only Name is mandatory, the others merely help structuring the
+	// name. Note that the fully-qualified name of the metric must be a
+	// valid Prometheus metric name.
+	Namespace string
+	Subsystem string
+	Name      string
+
+	// Help provides information about this metric.
+	//
+	// Metrics with the same fully-qualified name must have the same Help
+	// string.
+	Help string
+
+	// ConstLabels are used to attach fixed labels to this metric. Metrics
+	// with the same fully-qualified name must have the same label names in
+	// their ConstLabels.
+	//
+	// ConstLabels are only used rarely. In particular, do not use them to
+	// attach the same labels to all your metrics. Those use cases are
+	// better covered by target labels set by the scraping Prometheus
+	// server, or by one specific metric (e.g. a build_info or a
+	// machine_role metric). See also
+	// https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels-not-static-scraped-labels
+	ConstLabels Labels
+
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
+
+	// Counters are double (float64) values. At values above 2^53, double loses
+	// the ability to represent discrete integer values precisely. At 2^53 the
+	// error is just +/-1 and is likely of little consequence. At 2^64 the error
+	// is +/-1024 (the next smallest number that can be represented is 2^64-2048).
+	// This may be significant error for long-running counters that reach the
+	// upper range of uint64. To present large Counter values as integer-only,
+	// set the IntegerExposition option. This will wrap the Counter twice, once at the
+	// largest safe integer value, and again when the Counter's uint64 value
+	// becomes 0. Prometheus will handle this rollover gracefully.
+	IntegerExposition bool
+}
 
 // CounterVecOpts bundles the options to create a CounterVec metric.
 // It is mandatory to set CounterOpts, see there for mandatory fields. VariableLabels
@@ -94,7 +141,7 @@ func NewCounter(opts CounterOpts) Counter {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: opts.now}
+	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: opts.now, integerExposition: opts.IntegerExposition}
 	result.init(result) // Init self-collection.
 	result.createdTs = timestamppb.New(opts.now())
 	return result
@@ -115,6 +162,8 @@ type counter struct {
 	labelPairs []*dto.LabelPair
 	exemplar   atomic.Value // Containing nil or a *dto.Exemplar.
 
+	integerExposition bool
+
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 }
@@ -132,6 +181,9 @@ func (c *counter) Add(v float64) {
 	if float64(ival) == v {
 		atomic.AddUint64(&c.valInt, ival)
 		return
+	} else if c.integerExposition {
+		// perhaps there should be an AddInt() method? this is a footgun for callers.
+		panic(errors.New("cannot add large value with rounding error to integer counter"))
 	}
 
 	for {
@@ -153,8 +205,11 @@ func (c *counter) Inc() {
 }
 
 func (c *counter) get() float64 {
-	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	ival := atomic.LoadUint64(&c.valInt)
+	if c.integerExposition {
+		return float64(ival % float64Mantissa)
+	}
+	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
 	return fval + float64(ival)
 }
 
@@ -214,7 +269,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
 			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now, integerExposition: opts.IntegerExposition}
 			result.init(result) // Init self-collection.
 			result.createdTs = timestamppb.New(opts.now())
 			return result
