@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/metrics"
+	"strings"
 	"sync"
 	"testing"
 
@@ -410,5 +411,44 @@ func TestGoCollectorConcurrency(t *testing.T) {
 			c.Collect(ch)
 			close(ch)
 		}()
+	}
+}
+
+func TestGoCollectorRuntimeMetricsUnit(t *testing.T) {
+	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
+		RuntimeMetricRules: []internal.GoCollectorRule{
+			{Matcher: regexp.MustCompile("/.*")},
+		},
+	})
+
+	descMap := make(map[string]*Desc)
+	for _, m := range goMetrics {
+		descMap[m.Desc().fqName] = m.Desc()
+	}
+
+	testCases := []struct {
+		fqName       string
+		expectedUnit string
+	}{
+		{"go_gc_heap_allocs_bytes_total", "bytes"},
+		{"go_gc_heap_frees_bytes_total", "bytes"},
+		{"go_sched_goroutines_goroutines", "goroutines"},
+		{"go_gc_gomemlimit_bytes", "bytes"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.fqName, func(t *testing.T) {
+			desc, ok := descMap[tc.fqName]
+			if !ok {
+				t.Skipf("metric %s not found, may not be available in this Go version", tc.fqName)
+				return
+			}
+
+			descStr := desc.String()
+			expectedUnitStr := `unit: "` + tc.expectedUnit + `"`
+			if !strings.Contains(descStr, expectedUnitStr) {
+				t.Errorf("expected Desc to contain %s, got: %s", expectedUnitStr, descStr)
+			}
+		})
 	}
 }

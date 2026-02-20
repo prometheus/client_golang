@@ -32,6 +32,7 @@ func main() {
 	requestDurations := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "http_request_duration_seconds",
 		Help:    "A histogram of the HTTP request durations in seconds.",
+		Unit:    "seconds",
 		Buckets: prometheus.ExponentialBuckets(0.1, 1.5, 5),
 	})
 

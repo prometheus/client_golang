@@ -47,6 +47,8 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
+	// unit provides the unit of this metric.
+	unit string
 	// constLabelPairs contains precalculated DTO label pairs based on
 	// the constant labels.
 	constLabelPairs []*dto.LabelPair
@@ -64,6 +66,15 @@ type Desc struct {
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
+}
+
+type DescOpt func(*Desc)
+
+// WithUnit sets the unit for a Desc.
+func WithUnit(unit string) DescOpt {
+	return func(d *Desc) {
+		d.unit = unit
+	}
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -89,12 +100,17 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 //
 // For constLabels, the label values are constant. Therefore, they are fully
 // specified in the Desc. See the Collector example for a usage pattern.
-func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels) *Desc {
+func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, constLabels Labels, opts ...DescOpt) *Desc {
 	d := &Desc{
 		fqName:         fqName,
 		help:           help,
 		variableLabels: variableLabels.compile(),
 	}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+	unit := d.unit
 	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
 	if !model.NameValidationScheme.IsValidMetricName(fqName) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
@@ -150,10 +166,11 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	d.id = xxh.Sum64()
 	// Sort labelNames so that order doesn't matter for the hash.
 	sort.Strings(labelNames)
-	// Now hash together (in this order) the help string and the sorted
+	// Now hash together (in this order) the help string, the unit string and the sorted
 	// label names.
 	xxh.Reset()
 	xxh.WriteString(help)
+	xxh.WriteString(unit)
 	xxh.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
 		xxh.WriteString(labelName)
@@ -210,10 +227,15 @@ func (d *Desc) String() string {
 			}
 		}
 	}
+	unitStr := ""
+	if d.unit != "" {
+		unitStr = fmt.Sprintf(", unit: %q", d.unit)
+	}
 	return fmt.Sprintf(
-		"Desc{fqName: %q, help: %q, constLabels: {%s}, variableLabels: {%s}}",
+		"Desc{fqName: %q, help: %q%s, constLabels: {%s}, variableLabels: {%s}}",
 		d.fqName,
 		d.help,
+		unitStr,
 		strings.Join(lpStrings, ","),
 		strings.Join(vlStrings, ","),
 	)
