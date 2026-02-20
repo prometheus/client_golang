@@ -22,8 +22,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
-
-	"github.com/prometheus/client_golang/prometheus/internal"
 )
 
 // Desc is the descriptor used by every Prometheus Metric. It is essentially
@@ -47,12 +45,15 @@ type Desc struct {
 	fqName string
 	// help provides some helpful information about this metric.
 	help string
-	// constLabelPairs contains precalculated DTO label pairs based on
-	// the constant labels.
-	constLabelPairs []*dto.LabelPair
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
+	// constLabelPairs contains the sorted DTO label pairs based on the constant labels
+	// and variable labels
+	constLabelPairs []*dto.LabelPair
+	// orderedLabels contains the sorted labels with necessary fields to construct the
+	// final label pairs when needed.
+	orderedLabels []labelMapping
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -64,6 +65,21 @@ type Desc struct {
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
+}
+
+type labelMapping struct {
+	constLabelIndex int
+
+	variableLabelIndex int
+	variableLabelName  *string
+}
+
+func newLabelMapping() labelMapping {
+	return labelMapping{
+		constLabelIndex:    -1,
+		variableLabelIndex: -1,
+		variableLabelName:  nil,
+	}
 }
 
 // NewDesc allocates and initializes a new Desc. Errors are recorded in the Desc
@@ -134,7 +150,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 			d.err = fmt.Errorf("%q is not a valid label name for metric %q", label, fqName)
 			return d
 		}
-		labelNames = append(labelNames, "$"+label)
+		labelNames = append(labelNames, label)
 		labelNameSet[label] = struct{}{}
 	}
 	if len(labelNames) != len(labelNameSet) {
@@ -162,13 +178,26 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	d.dimHash = xxh.Sum64()
 
 	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
-	for n, v := range constLabels {
-		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
-		})
+	d.orderedLabels = make([]labelMapping, len(labelNames))
+	for i, n := range labelNames {
+		lm := newLabelMapping()
+		if l, ok := constLabels[n]; ok {
+			d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
+				Name:  proto.String(n),
+				Value: proto.String(l),
+			})
+			lm.constLabelIndex = len(d.constLabelPairs) - 1
+		} else {
+			for variableLabelIndex, variableLabel := range variableLabels.labelNames() {
+				if variableLabel == n {
+					lm.variableLabelIndex = variableLabelIndex
+					lm.variableLabelName = proto.String(variableLabel)
+				}
+			}
+		}
+		d.orderedLabels[i] = lm
 	}
-	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
+
 	return d
 }
 

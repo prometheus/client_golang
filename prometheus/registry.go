@@ -962,28 +962,31 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
-	copy(lpsFromDesc, desc.constLabelPairs)
-	for _, l := range desc.variableLabels.names {
-		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l),
-		})
-	}
-	if len(lpsFromDesc) != len(dtoMetric.Label) {
+	if len(desc.orderedLabels) != len(dtoMetric.Label) {
 		return fmt.Errorf(
 			"labels in collected metric %s %s are inconsistent with descriptor %s",
 			metricFamily.GetName(), dtoMetric, desc,
 		)
 	}
-	sort.Sort(internal.LabelPairSorter(lpsFromDesc))
-	for i, lpFromDesc := range lpsFromDesc {
+	for i, lm := range desc.orderedLabels {
 		lpFromMetric := dtoMetric.Label[i]
-		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
-			return fmt.Errorf(
-				"labels in collected metric %s %s are inconsistent with descriptor %s",
-				metricFamily.GetName(), dtoMetric, desc,
-			)
+		if lm.constLabelIndex > -1 {
+			lpFromDesc := desc.constLabelPairs[lm.constLabelIndex]
+			if lpFromDesc.GetName() != lpFromMetric.GetName() ||
+				lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+				return fmt.Errorf(
+					"labels in collected metric %s %s are inconsistent with descriptor %s",
+					metricFamily.GetName(), dtoMetric, desc,
+				)
+			}
+		} else {
+			variableLabelName := *lm.variableLabelName
+			if variableLabelName != lpFromMetric.GetName() {
+				return fmt.Errorf(
+					"labels in collected metric %s %s are inconsistent with descriptor %s",
+					metricFamily.GetName(), dtoMetric, desc,
+				)
+			}
 		}
 	}
 	return nil
