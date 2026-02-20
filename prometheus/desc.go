@@ -218,3 +218,49 @@ func (d *Desc) String() string {
 		strings.Join(vlStrings, ","),
 	)
 }
+
+// Name returns the fully-qualified name of the metric descriptor.
+//
+// The fully-qualified name is constructed from the namespace, subsystem, and
+// name components provided when the Desc was created.
+func (d *Desc) Name() string {
+	return d.fqName
+}
+
+// Help returns the help string for the metric descriptor.
+//
+// This is the human-readable description of what the metric measures.
+func (d *Desc) Help() string {
+	return d.help
+}
+
+// ConstLabels returns the constant labels as a Labels map.
+//
+// Constant labels are key-value pairs that are always attached to the metric
+// and have the same value for all time series of this metric family.
+//
+// The returned map is a copy; modifying it will not affect the descriptor.
+func (d *Desc) ConstLabels() Labels {
+	labels := Labels{}
+	for _, lp := range d.constLabelPairs {
+		labels[lp.GetName()] = lp.GetValue()
+	}
+	return labels
+}
+
+// VariableLabels returns the names of the variable labels.
+//
+// Variable labels are label names for which the metric can have different
+// values across different time series in the same metric family.
+//
+// The returned slice is a copy of the internal slice; modifying it will not
+// affect the descriptor. Returns nil if the descriptor has no variable labels.
+func (d *Desc) VariableLabels() []string {
+	if d.variableLabels == nil || len(d.variableLabels.names) == 0 {
+		return nil
+	}
+	// Return a copy to prevent external modification
+	labels := make([]string, len(d.variableLabels.names))
+	copy(labels, d.variableLabels.names)
+	return labels
+}

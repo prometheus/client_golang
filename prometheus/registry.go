@@ -584,6 +584,47 @@ func (r *Registry) Collect(ch chan<- Metric) {
 	}
 }
 
+// Descriptors returns all metric descriptors currently registered with this registry.
+//
+// This method is useful for introspection, documentation generation, and testing.
+// Duplicate descriptors are automatically deduplicated. Unchecked collectors are
+// excluded from the results.
+func (r *Registry) Descriptors() []*Desc {
+	r.mtx.RLock()
+	defer r.mtx.RUnlock()
+
+	// Use a map to deduplicate descriptors by their ID
+	descMap := make(map[uint64]*Desc)
+
+	// Collect descriptors from all registered collectors
+	for _, c := range r.collectorsByID {
+		descChan := make(chan *Desc, capDescChan)
+
+		// Start a goroutine to collect descriptors
+		go func(collector Collector) {
+			collector.Describe(descChan)
+			close(descChan)
+		}(c)
+
+		// Collect all descriptors from the channel
+		for desc := range descChan {
+			// Deduplicate by descriptor ID
+			// This handles both:
+			// 1. Same descriptor returned multiple times by one collector
+			// 2. Same descriptor returned by different collectors
+			descMap[desc.id] = desc
+		}
+	}
+
+	// Convert map to slice
+	descs := make([]*Desc, 0, len(descMap))
+	for _, desc := range descMap {
+		descs = append(descs, desc)
+	}
+
+	return descs
+}
+
 // WriteToTextfile calls Gather on the provided Gatherer, encodes the result in the
 // Prometheus text format, and writes it to a temporary file. Upon success, the
 // temporary file is renamed to the provided filename.
