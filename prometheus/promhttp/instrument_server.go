@@ -97,10 +97,10 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 			next.ServeHTTP(d, r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
-			for label, resolve := range hOpts.extraLabelsFromCtx {
-				l[label] = resolve(r.Context())
+			for label, resolve := range hOpts.extraLabelsFromRequest {
+				l[label] = resolve(r)
 			}
-			observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r.Context()))
+			observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r))
 		}
 	}
 
@@ -108,10 +108,10 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 		now := time.Now()
 		next.ServeHTTP(w, r)
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
-		for label, resolve := range hOpts.extraLabelsFromCtx {
-			l[label] = resolve(r.Context())
+		for label, resolve := range hOpts.extraLabelsFromRequest {
+			l[label] = resolve(r)
 		}
-		observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r.Context()))
+		observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r))
 	}
 }
 
@@ -147,10 +147,10 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 			next.ServeHTTP(d, r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
-			for label, resolve := range hOpts.extraLabelsFromCtx {
-				l[label] = resolve(r.Context())
+			for label, resolve := range hOpts.extraLabelsFromRequest {
+				l[label] = resolve(r)
 			}
-			addWithExemplar(counter.With(l), 1, hOpts.getExemplarFn(r.Context()))
+			addWithExemplar(counter.With(l), 1, hOpts.getExemplarFn(r))
 		}
 	}
 
@@ -158,10 +158,10 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 		next.ServeHTTP(w, r)
 
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
-		for label, resolve := range hOpts.extraLabelsFromCtx {
-			l[label] = resolve(r.Context())
+		for label, resolve := range hOpts.extraLabelsFromRequest {
+			l[label] = resolve(r)
 		}
-		addWithExemplar(counter.With(l), 1, hOpts.getExemplarFn(r.Context()))
+		addWithExemplar(counter.With(l), 1, hOpts.getExemplarFn(r))
 	}
 }
 
@@ -200,10 +200,10 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
 			l := labels(code, method, r.Method, status, hOpts.extraMethods...)
-			for label, resolve := range hOpts.extraLabelsFromCtx {
-				l[label] = resolve(r.Context())
+			for label, resolve := range hOpts.extraLabelsFromRequest {
+				l[label] = resolve(r)
 			}
-			observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r.Context()))
+			observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r))
 		})
 		next.ServeHTTP(d, r)
 	}
@@ -244,10 +244,10 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 			size := computeApproximateRequestSize(r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
-			for label, resolve := range hOpts.extraLabelsFromCtx {
-				l[label] = resolve(r.Context())
+			for label, resolve := range hOpts.extraLabelsFromRequest {
+				l[label] = resolve(r)
 			}
-			observeWithExemplar(obs.With(l), float64(size), hOpts.getExemplarFn(r.Context()))
+			observeWithExemplar(obs.With(l), float64(size), hOpts.getExemplarFn(r))
 		}
 	}
 
@@ -256,10 +256,10 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 		size := computeApproximateRequestSize(r)
 
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
-		for label, resolve := range hOpts.extraLabelsFromCtx {
-			l[label] = resolve(r.Context())
+		for label, resolve := range hOpts.extraLabelsFromRequest {
+			l[label] = resolve(r)
 		}
-		observeWithExemplar(obs.With(l), float64(size), hOpts.getExemplarFn(r.Context()))
+		observeWithExemplar(obs.With(l), float64(size), hOpts.getExemplarFn(r))
 	}
 }
 
@@ -296,10 +296,10 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 		next.ServeHTTP(d, r)
 
 		l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
-		for label, resolve := range hOpts.extraLabelsFromCtx {
-			l[label] = resolve(r.Context())
+		for label, resolve := range hOpts.extraLabelsFromRequest {
+			l[label] = resolve(r)
 		}
-		observeWithExemplar(obs.With(l), float64(d.Written()), hOpts.getExemplarFn(r.Context()))
+		observeWithExemplar(obs.With(l), float64(d.Written()), hOpts.getExemplarFn(r))
 	})
 }
 
