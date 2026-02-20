@@ -49,7 +49,7 @@ func (i Info) Write(out *dto.Metric) error {
 // to do to fully implement a vector for a custom Metric implementation, we do
 // it in this example anyway.
 type InfoVec struct {
-	*prometheus.MetricVec
+	prometheus.MetricVec
 }
 
 func NewInfoVec(name, help string, labelNames []string) *InfoVec {

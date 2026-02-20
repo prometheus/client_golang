@@ -19,42 +19,42 @@ import (
 )
 
 func BenchmarkCounter(b *testing.B) {
-	type fns []func(*CounterVec) Counter
+	type fns []func(CounterVec) Counter
 
 	twoConstraint := func(_ string) string {
 		return "two"
 	}
 
-	deLV := func(m *CounterVec) Counter {
+	deLV := func(m CounterVec) Counter {
 		return m.WithLabelValues("eins", "zwei", "drei")
 	}
-	frLV := func(m *CounterVec) Counter {
+	frLV := func(m CounterVec) Counter {
 		return m.WithLabelValues("une", "deux", "trois")
 	}
-	nlLV := func(m *CounterVec) Counter {
+	nlLV := func(m CounterVec) Counter {
 		return m.WithLabelValues("een", "twee", "drie")
 	}
 
-	deML := func(m *CounterVec) Counter {
+	deML := func(m CounterVec) Counter {
 		return m.With(Labels{"two": "zwei", "one": "eins", "three": "drei"})
 	}
-	frML := func(m *CounterVec) Counter {
+	frML := func(m CounterVec) Counter {
 		return m.With(Labels{"two": "deux", "one": "une", "three": "trois"})
 	}
-	nlML := func(m *CounterVec) Counter {
+	nlML := func(m CounterVec) Counter {
 		return m.With(Labels{"two": "twee", "one": "een", "three": "drie"})
 	}
 
 	deLabels := Labels{"two": "zwei", "one": "eins", "three": "drei"}
-	dePML := func(m *CounterVec) Counter {
+	dePML := func(m CounterVec) Counter {
 		return m.With(deLabels)
 	}
 	frLabels := Labels{"two": "deux", "one": "une", "three": "trois"}
-	frPML := func(m *CounterVec) Counter {
+	frPML := func(m CounterVec) Counter {
 		return m.With(frLabels)
 	}
 	nlLabels := Labels{"two": "twee", "one": "een", "three": "drie"}
-	nlPML := func(m *CounterVec) Counter {
+	nlPML := func(m CounterVec) Counter {
 		return m.With(nlLabels)
 	}
 
