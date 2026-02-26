@@ -549,6 +549,134 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 	}
 }
 
+func TestHandlerWithUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_request_duration_seconds_total",
+		Help: "Total time spent handling HTTP requests.",
+		Unit: "seconds",
+	})
+	reg.MustRegister(counter)
+	counter.Add(42)
+
+	expectedOpenMetricsOutput := `# HELP http_request_duration_seconds Total time spent handling HTTP requests.
+# TYPE http_request_duration_seconds counter
+# UNIT http_request_duration_seconds seconds
+http_request_duration_seconds_total 42.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got, want := writer.Header().Get(contentTypeHeader), "application/openmetrics-text; version=0.0.1; charset=utf-8; escaping=underscores"; got != want {
+		t.Errorf("expected Content-Type %q, got %q", want, got)
+	}
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithEmptyUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "http_requests_total",
+		Help: "Total number of HTTP requests.",
+		// Unit intentionally left empty
+	})
+	reg.MustRegister(counter)
+	counter.Add(10)
+
+	expectedOpenMetricsOutput := `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithLongUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	// A very long unit string to test edge case handling
+	longUnit := "verylongunitnamethatexceedsnormallengthexpectationsbutistoleratednethelessbecausewedonotvalidateit"
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_metric_total",
+		Help: "Test metric with a very long unit.",
+		Unit: longUnit,
+	})
+	reg.MustRegister(counter)
+	counter.Add(1)
+
+	expectedOpenMetricsOutput := `# HELP test_metric Test metric with a very long unit.
+# TYPE test_metric counter
+# UNIT test_metric ` + longUnit + `
+test_metric_total 1.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerWithEmojiUnit(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	emojiUnit := "🚀速度"
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "rocket_launches_total",
+		Help: "Total rocket launches with emoji unit.",
+		Unit: emojiUnit,
+	})
+	reg.MustRegister(counter)
+	counter.Add(3)
+
+	expectedOpenMetricsOutput := `# HELP rocket_launches Total rocket launches with emoji unit.
+# TYPE rocket_launches counter
+# UNIT rocket_launches ` + emojiUnit + `
+rocket_launches_total 3.0
+# EOF
+`
+
+	handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: true})
+	writer := httptest.NewRecorder()
+	request, _ := http.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Add(acceptHeader, "application/openmetrics-text")
+
+	handler.ServeHTTP(writer, request)
+
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
 func BenchmarkCompression(b *testing.B) {
 	benchmarks := []struct {
 		name            string
