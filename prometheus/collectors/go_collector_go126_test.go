@@ -11,8 +11,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.24 && !go1.25
-// +build go1.24,!go1.25
+//go:build go1.26 && !go1.27
+// +build go1.26,!go1.27
 
 package collectors
 
@@ -30,9 +30,13 @@ func withAllMetrics() []string {
 		"go_cpu_classes_scavenge_total_cpu_seconds_total",
 		"go_cpu_classes_total_cpu_seconds_total",
 		"go_cpu_classes_user_cpu_seconds_total",
+		"go_gc_cleanups_executed_cleanups_total",
+		"go_gc_cleanups_queued_cleanups_total",
 		"go_gc_cycles_automatic_gc_cycles_total",
 		"go_gc_cycles_forced_gc_cycles_total",
 		"go_gc_cycles_total_gc_cycles_total",
+		"go_gc_finalizers_executed_finalizers_total",
+		"go_gc_finalizers_queued_finalizers_total",
 		"go_gc_gogc_percent",
 		"go_gc_gomemlimit_bytes",
 		"go_gc_heap_allocs_by_size_bytes",
@@ -54,6 +58,9 @@ func withAllMetrics() []string {
 		"go_gc_stack_starting_size_bytes",
 		"go_godebug_non_default_behavior_allowmultiplevcs_events_total",
 		"go_godebug_non_default_behavior_asynctimerchan_events_total",
+		"go_godebug_non_default_behavior_containermaxprocs_events_total",
+		"go_godebug_non_default_behavior_cryptocustomrand_events_total",
+		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
@@ -80,13 +87,17 @@ func withAllMetrics() []string {
 		"go_godebug_non_default_behavior_tls3des_events_total",
 		"go_godebug_non_default_behavior_tlsmaxrsasize_events_total",
 		"go_godebug_non_default_behavior_tlsrsakex_events_total",
+		"go_godebug_non_default_behavior_tlssha1_events_total",
 		"go_godebug_non_default_behavior_tlsunsafeekm_events_total",
+		"go_godebug_non_default_behavior_updatemaxprocs_events_total",
 		"go_godebug_non_default_behavior_urlmaxqueryparams_events_total",
+		"go_godebug_non_default_behavior_urlstrictcolons_events_total",
 		"go_godebug_non_default_behavior_winreadlinkvolume_events_total",
 		"go_godebug_non_default_behavior_winsymlink_events_total",
 		"go_godebug_non_default_behavior_x509keypairleaf_events_total",
 		"go_godebug_non_default_behavior_x509negativeserial_events_total",
 		"go_godebug_non_default_behavior_x509rsacrt_events_total",
+		"go_godebug_non_default_behavior_x509sha256skid_events_total",
 		"go_godebug_non_default_behavior_x509usefallbackroots_events_total",
 		"go_godebug_non_default_behavior_x509usepolicies_events_total",
 		"go_godebug_non_default_behavior_zipinsecurepath_events_total",
@@ -105,21 +116,31 @@ func withAllMetrics() []string {
 		"go_memory_classes_profiling_buckets_bytes",
 		"go_memory_classes_total_bytes",
 		"go_sched_gomaxprocs_threads",
+		"go_sched_goroutines_created_goroutines_total",
 		"go_sched_goroutines_goroutines",
+		"go_sched_goroutines_not_in_go_goroutines",
+		"go_sched_goroutines_runnable_goroutines",
+		"go_sched_goroutines_running_goroutines",
+		"go_sched_goroutines_waiting_goroutines",
 		"go_sched_latencies_seconds",
 		"go_sched_pauses_stopping_gc_seconds",
 		"go_sched_pauses_stopping_other_seconds",
 		"go_sched_pauses_total_gc_seconds",
 		"go_sched_pauses_total_other_seconds",
+		"go_sched_threads_total_threads",
 		"go_sync_mutex_wait_total_seconds_total",
 	})
 }
 
 func withGCMetrics() []string {
 	return withBaseMetrics([]string{
+		"go_gc_cleanups_executed_cleanups_total",
+		"go_gc_cleanups_queued_cleanups_total",
 		"go_gc_cycles_automatic_gc_cycles_total",
 		"go_gc_cycles_forced_gc_cycles_total",
 		"go_gc_cycles_total_gc_cycles_total",
+		"go_gc_finalizers_executed_finalizers_total",
+		"go_gc_finalizers_queued_finalizers_total",
 		"go_gc_gogc_percent",
 		"go_gc_gomemlimit_bytes",
 		"go_gc_heap_allocs_by_size_bytes",
@@ -164,12 +185,18 @@ func withMemoryMetrics() []string {
 func withSchedulerMetrics() []string {
 	return withBaseMetrics([]string{
 		"go_sched_gomaxprocs_threads",
+		"go_sched_goroutines_created_goroutines_total",
 		"go_sched_goroutines_goroutines",
+		"go_sched_goroutines_not_in_go_goroutines",
+		"go_sched_goroutines_runnable_goroutines",
+		"go_sched_goroutines_running_goroutines",
+		"go_sched_goroutines_waiting_goroutines",
 		"go_sched_latencies_seconds",
 		"go_sched_pauses_stopping_gc_seconds",
 		"go_sched_pauses_stopping_other_seconds",
 		"go_sched_pauses_total_gc_seconds",
 		"go_sched_pauses_total_other_seconds",
+		"go_sched_threads_total_threads",
 	})
 }
 
@@ -177,6 +204,9 @@ func withDebugMetrics() []string {
 	return withBaseMetrics([]string{
 		"go_godebug_non_default_behavior_allowmultiplevcs_events_total",
 		"go_godebug_non_default_behavior_asynctimerchan_events_total",
+		"go_godebug_non_default_behavior_containermaxprocs_events_total",
+		"go_godebug_non_default_behavior_cryptocustomrand_events_total",
+		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
@@ -203,13 +233,17 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_tls3des_events_total",
 		"go_godebug_non_default_behavior_tlsmaxrsasize_events_total",
 		"go_godebug_non_default_behavior_tlsrsakex_events_total",
+		"go_godebug_non_default_behavior_tlssha1_events_total",
 		"go_godebug_non_default_behavior_tlsunsafeekm_events_total",
+		"go_godebug_non_default_behavior_updatemaxprocs_events_total",
 		"go_godebug_non_default_behavior_urlmaxqueryparams_events_total",
+		"go_godebug_non_default_behavior_urlstrictcolons_events_total",
 		"go_godebug_non_default_behavior_winreadlinkvolume_events_total",
 		"go_godebug_non_default_behavior_winsymlink_events_total",
 		"go_godebug_non_default_behavior_x509keypairleaf_events_total",
 		"go_godebug_non_default_behavior_x509negativeserial_events_total",
 		"go_godebug_non_default_behavior_x509rsacrt_events_total",
+		"go_godebug_non_default_behavior_x509sha256skid_events_total",
 		"go_godebug_non_default_behavior_x509usefallbackroots_events_total",
 		"go_godebug_non_default_behavior_x509usepolicies_events_total",
 		"go_godebug_non_default_behavior_zipinsecurepath_events_total",

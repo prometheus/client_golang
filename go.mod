@@ -1,13 +1,13 @@
 module github.com/prometheus/client_golang
 
-go 1.24.0
+go 1.25.0
 
 require (
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.18.2
+	github.com/klauspost/compress v1.18.3
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.67.6-0.20260224092343-e4c38a0aea47

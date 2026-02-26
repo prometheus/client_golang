@@ -342,7 +342,7 @@ func stringToLines(s string) (lines []string, err error) {
 		lines = append(lines, scanner.Text())
 	}
 	err = scanner.Err()
-	return
+	return lines, err
 }
 
 func TestPush(t *testing.T) {

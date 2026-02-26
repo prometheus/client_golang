@@ -324,7 +324,7 @@ func TestLabels(t *testing.T) {
 				panic("metric partitioned with non-supported labels for this test")
 			}
 		}
-		return
+		return gotCode, gotMethod
 	}
 	equalLabels := func(gotLabels, wantLabels prometheus.Labels) bool {
 		if len(gotLabels) != len(wantLabels) {
