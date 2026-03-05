@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -665,7 +666,8 @@ var labelsPool = &sync.Pool{
 func constrainLabels(desc *Desc, labels Labels) (Labels, func()) {
 	if len(desc.variableLabels.labelConstraints) == 0 {
 		// Fast path when there's no constraints
-		return labels, func() {}
+		// Returning a shallow copy of `labels`
+		return maps.Clone(labels), func() {}
 	}
 
 	constrainedLabels := labelsPool.Get().(Labels)
@@ -684,7 +686,8 @@ func constrainLabels(desc *Desc, labels Labels) (Labels, func()) {
 func constrainLabelValues(desc *Desc, lvs []string, curry []curriedLabelValue) []string {
 	if len(desc.variableLabels.labelConstraints) == 0 {
 		// Fast path when there's no constraints
-		return lvs
+		// Returning a shallow copy of `lvs`
+		return append(make([]string, 0, len(lvs)), lvs...)
 	}
 
 	constrainedValues := make([]string, len(lvs))
