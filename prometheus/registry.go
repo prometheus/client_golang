@@ -453,9 +453,9 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		for {
 			select {
 			case collector := <-checkedCollectors:
-				collector.Collect(checkedMetricChan)
+				errs.Append(safeCollect(collector, checkedMetricChan))
 			case collector := <-uncheckedCollectors:
-				collector.Collect(uncheckedMetricChan)
+				errs.Append(safeCollect(collector, uncheckedMetricChan))
 			default:
 				return
 			}
@@ -569,6 +569,24 @@ func (r *Registry) Describe(ch chan<- *Desc) {
 	for _, c := range r.collectorsByID {
 		c.Describe(ch)
 	}
+}
+
+// Helper wrapper around Collector.Collect.
+// It tries to collect from the channel, recovers on panic and
+// if it has recovered from a panic, then it sends an InvalidMetric into
+// the channel with an InvalidDesc, and an error that includes a stack trace.
+func safeCollect(c Collector, ch chan<- Metric) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			buf := make([]byte, 64<<10) //	64 KB
+			n := runtime.Stack(buf, false)
+			err = fmt.Errorf("prometheus collector panic recovered: type=%T: error=%v\nstack trace=%s", c, r, buf[:n])
+			ch <- NewInvalidMetric(NewInvalidDesc(err), err)
+		}
+	}()
+	c.Collect(ch)
+
+	return err
 }
 
 // Collect implements Collector.
