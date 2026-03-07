@@ -180,18 +180,32 @@ func (c *counter) updateExemplar(v float64, l Labels) {
 	c.exemplar.Store(e)
 }
 
+type CounterVec interface {
+	Delete(Labels) bool
+	DeleteLabelValues(...string) bool
+	DeletePartialMatch(Labels) int
+	GetMetricWith(Labels) (Counter, error)
+	GetMetricWithLabelValues(...string) (Counter, error)
+	With(Labels) Counter
+	WithLabelValues(...string) Counter
+	CurryWith(Labels) (CounterVec, error)
+	MustCurryWith(Labels) CounterVec
+	Reset()
+	Collector
+}
+
 // CounterVec is a Collector that bundles a set of Counters that all share the
 // same Desc, but have different values for their variable labels. This is used
 // if you want to count the same thing partitioned by various dimensions
 // (e.g. number of HTTP requests, partitioned by response code and
 // method). Create instances with NewCounterVec.
-type CounterVec struct {
-	*MetricVec
+type counterVec struct {
+	MetricVec
 }
 
 // NewCounterVec creates a new CounterVec based on the provided CounterOpts and
 // partitioned by the given label names.
-func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
+func NewCounterVec(opts CounterOpts, labelNames []string) CounterVec {
 	return V2.NewCounterVec(CounterVecOpts{
 		CounterOpts:    opts,
 		VariableLabels: UnconstrainedLabels(labelNames),
@@ -199,7 +213,7 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 }
 
 // NewCounterVec creates a new CounterVec based on the provided CounterVecOpts.
-func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
+func (v2) NewCounterVec(opts CounterVecOpts) CounterVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
@@ -209,7 +223,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	return &CounterVec{
+	return &counterVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
@@ -245,7 +259,7 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (v *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
+func (v *counterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
 	metric, err := v.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
 		return metric.(Counter), err
@@ -265,7 +279,7 @@ func (v *CounterVec) GetMetricWithLabelValues(lvs ...string) (Counter, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (v *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
+func (v *counterVec) GetMetricWith(labels Labels) (Counter, error) {
 	metric, err := v.MetricVec.GetMetricWith(labels)
 	if metric != nil {
 		return metric.(Counter), err
@@ -278,7 +292,7 @@ func (v *CounterVec) GetMetricWith(labels Labels) (Counter, error) {
 // error allows shortcuts like
 //
 //	myVec.WithLabelValues("404", "GET").Add(42)
-func (v *CounterVec) WithLabelValues(lvs ...string) Counter {
+func (v *counterVec) WithLabelValues(lvs ...string) Counter {
 	c, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
@@ -290,7 +304,7 @@ func (v *CounterVec) WithLabelValues(lvs ...string) Counter {
 // returned an error. Not returning an error allows shortcuts like
 //
 //	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Add(42)
-func (v *CounterVec) With(labels Labels) Counter {
+func (v *counterVec) With(labels Labels) Counter {
 	c, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)
@@ -311,17 +325,17 @@ func (v *CounterVec) With(labels Labels) Counter {
 // vectors behave identically in terms of collection. Only one must be
 // registered with a given registry (usually the uncurried version). The Reset
 // method deletes all metrics, even if called on a curried vector.
-func (v *CounterVec) CurryWith(labels Labels) (*CounterVec, error) {
+func (v *counterVec) CurryWith(labels Labels) (CounterVec, error) {
 	vec, err := v.MetricVec.CurryWith(labels)
 	if vec != nil {
-		return &CounterVec{vec}, err
+		return &counterVec{vec}, err
 	}
 	return nil, err
 }
 
 // MustCurryWith works as CurryWith but panics where CurryWith would have
 // returned an error.
-func (v *CounterVec) MustCurryWith(labels Labels) *CounterVec {
+func (v *counterVec) MustCurryWith(labels Labels) CounterVec {
 	vec, err := v.CurryWith(labels)
 	if err != nil {
 		panic(err)

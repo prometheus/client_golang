@@ -29,8 +29,8 @@ import (
 const magicString = "zZgWfBxLqvG8kc8IMv3POi2Bb0tZI3vAnBx+gBaFi9FyPzB/CzKUer1yufDa"
 
 // observeWithExemplar is a wrapper for [prometheus.ExemplarAdder.ExemplarObserver],
-// which falls back to [prometheus.Observer.Observe] if no labels are provided.
-func observeWithExemplar(obs prometheus.Observer, val float64, labels map[string]string) {
+// which falls back to [prometheus.ObserverMethod.Observe] if no labels are provided.
+func observeWithExemplar(obs prometheus.ObserverMethod, val float64, labels map[string]string) {
 	if labels == nil {
 		obs.Observe(val)
 		return
@@ -69,7 +69,7 @@ func InstrumentHandlerInFlight(g prometheus.Gauge, next http.Handler) http.Handl
 // label a predefined default label value set is used to filter given values.
 // Values besides predefined values will count as `unknown` method.
 // `WithExtraMethods` can be used to add more methods to the set. The Observe
-// method of the Observer in the ObserverVec is called with the request duration
+// method of the ObserverMethod in the ObserverVec is called with the request duration
 // in seconds. Partitioning happens by HTTP status code and/or HTTP method if
 // the respective instance label names are present in the ObserverVec. For
 // unpartitioned observations, use an ObserverVec with zero labels. Note that
@@ -132,7 +132,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 // If the wrapped Handler panics, the Counter is not incremented.
 //
 // See the example for InstrumentHandlerDuration for example usage.
-func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler, opts ...Option) http.HandlerFunc {
+func InstrumentHandlerCounter(counter prometheus.CounterVec, next http.Handler, opts ...Option) http.HandlerFunc {
 	hOpts := defaultOptions()
 	for _, o := range opts {
 		o.apply(hOpts)
@@ -173,7 +173,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 // function panics otherwise. For the "method" label a predefined default label
 // value set is used to filter given values. Values besides predefined values
 // will count as `unknown` method.`WithExtraMethods` can be used to add more
-// methods to the set. The Observe method of the Observer in the
+// methods to the set. The Observe method of the ObserverMethod in the
 // ObserverVec is called with the request duration in seconds. Partitioning
 // happens by HTTP status code and/or HTTP method if the respective instance
 // label names are present in the ObserverVec. For unpartitioned observations,
@@ -217,7 +217,7 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 // label a predefined default label value set is used to filter given values.
 // Values besides predefined values will count as `unknown` method.
 // `WithExtraMethods` can be used to add more methods to the set. The Observe
-// method of the Observer in the ObserverVec is called with the request size in
+// method of the ObserverMethod in the ObserverVec is called with the request size in
 // bytes. Partitioning happens by HTTP status code and/or HTTP method if the
 // respective instance label names are present in the ObserverVec. For
 // unpartitioned observations, use an ObserverVec with zero labels. Note that
@@ -271,7 +271,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 // label a predefined default label value set is used to filter given values.
 // Values besides predefined values will count as `unknown` method.
 // `WithExtraMethods` can be used to add more methods to the set. The Observe
-// method of the Observer in the ObserverVec is called with the response size in
+// method of the ObserverMethod in the ObserverVec is called with the response size in
 // bytes. Partitioning happens by HTTP status code and/or HTTP method if the
 // respective instance label names are present in the ObserverVec. For
 // unpartitioned observations, use an ObserverVec with zero labels. Note that
@@ -375,7 +375,7 @@ func isLabelCurried(c prometheus.Collector, label string) bool {
 	// But for that, we need to type-convert to the two
 	// types we use here, ObserverVec or *CounterVec.
 	switch v := c.(type) {
-	case *prometheus.CounterVec:
+	case prometheus.CounterVec:
 		if _, err := v.CurryWith(prometheus.Labels{label: "dummy"}); err == nil {
 			return false
 		}
