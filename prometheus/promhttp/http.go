@@ -146,7 +146,7 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		if err := opts.Registry.Register(errCnt); err != nil {
 			are := &prometheus.AlreadyRegisteredError{}
 			if errors.As(err, are) {
-				errCnt = are.ExistingCollector.(*prometheus.CounterVec)
+				errCnt = are.ExistingCollector.(prometheus.CounterVec)
 			} else {
 				panic(err)
 			}
@@ -324,7 +324,7 @@ func InstrumentMetricHandler(reg prometheus.Registerer, handler http.Handler) ht
 	if err := reg.Register(cnt); err != nil {
 		are := &prometheus.AlreadyRegisteredError{}
 		if errors.As(err, are) {
-			cnt = are.ExistingCollector.(*prometheus.CounterVec)
+			cnt = are.ExistingCollector.(prometheus.CounterVec)
 		} else {
 			panic(err)
 		}
