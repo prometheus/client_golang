@@ -453,9 +453,33 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		for {
 			select {
 			case collector := <-checkedCollectors:
-				collector.Collect(checkedMetricChan)
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							buf := make([]byte, 1<<16)
+							n := runtime.Stack(buf, false)
+							checkedMetricChan <- NewInvalidMetric(
+								NewDesc("invalid", "Metric invalidated due to collector panic", nil, nil),
+								fmt.Errorf("collector panic: %v\n%s", r, buf[:n]),
+							)
+						}
+					}()
+					collector.Collect(checkedMetricChan)
+				}()
 			case collector := <-uncheckedCollectors:
-				collector.Collect(uncheckedMetricChan)
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							buf := make([]byte, 1<<16)
+							n := runtime.Stack(buf, false)
+							uncheckedMetricChan <- NewInvalidMetric(
+								NewDesc("invalid", "Metric invalidated due to collector panic", nil, nil),
+								fmt.Errorf("collector panic: %v\n%s", r, buf[:n]),
+							)
+						}
+					}()
+					collector.Collect(uncheckedMetricChan)
+				}()
 			default:
 				return
 			}
