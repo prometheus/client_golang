@@ -1479,6 +1479,7 @@ type apiResponse struct {
 	ErrorType ErrorType       `json:"errorType"`
 	Error     string          `json:"error"`
 	Warnings  []string        `json:"warnings,omitempty"`
+	Infos     []string        `json:"infos,omitempty"`
 }
 
 func apiError(code int) bool {
@@ -1542,7 +1543,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		}
 	}
 
-	return resp, []byte(result.Data), result.Warnings, err
+	return resp, []byte(result.Data), append(result.Warnings, result.Infos...), err
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it
