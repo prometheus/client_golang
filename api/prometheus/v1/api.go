@@ -926,7 +926,7 @@ func (h *httpAPI) Alerts(ctx context.Context) (AlertsResult, error) {
 		return AlertsResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return AlertsResult{}, err
 	}
@@ -944,7 +944,7 @@ func (h *httpAPI) AlertManagers(ctx context.Context) (AlertManagersResult, error
 		return AlertManagersResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return AlertManagersResult{}, err
 	}
@@ -962,7 +962,7 @@ func (h *httpAPI) CleanTombstones(ctx context.Context) error {
 		return err
 	}
 
-	_, _, _, err = h.client.Do(ctx, req)
+	_, _, _, _, err = h.client.Do(ctx, req)
 	return err
 }
 
@@ -974,7 +974,7 @@ func (h *httpAPI) Config(ctx context.Context) (ConfigResult, error) {
 		return ConfigResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return ConfigResult{}, err
 	}
@@ -1006,7 +1006,7 @@ func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime,
 		return err
 	}
 
-	_, _, _, err = h.client.Do(ctx, req)
+	_, _, _, _, err = h.client.Do(ctx, req)
 	return err
 }
 
@@ -1018,7 +1018,7 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 		return FlagsResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return FlagsResult{}, err
 	}
@@ -1036,7 +1036,7 @@ func (h *httpAPI) Buildinfo(ctx context.Context) (BuildinfoResult, error) {
 		return BuildinfoResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return BuildinfoResult{}, err
 	}
@@ -1054,7 +1054,7 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 		return RuntimeinfoResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return RuntimeinfoResult{}, err
 	}
@@ -1107,7 +1107,7 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	if err != nil {
 		return nil, nil, err
 	}
-	_, body, w, err := h.client.Do(ctx, req)
+	_, body, w, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, w, err
 	}
@@ -1265,7 +1265,7 @@ func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, 
 		return SnapshotResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return SnapshotResult{}, err
 	}
@@ -1290,7 +1290,7 @@ func (h *httpAPI) Rules(ctx context.Context, matches []string) (RulesResult, err
 		return RulesResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return RulesResult{}, err
 	}
@@ -1308,7 +1308,7 @@ func (h *httpAPI) Targets(ctx context.Context) (TargetsResult, error) {
 		return TargetsResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return TargetsResult{}, err
 	}
@@ -1333,7 +1333,7 @@ func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget, metric, limi
 		return nil, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -1357,7 +1357,7 @@ func (h *httpAPI) Metadata(ctx context.Context, metric, limit string) (map[strin
 		return nil, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -1377,7 +1377,7 @@ func (h *httpAPI) TSDB(ctx context.Context, opts ...Option) (TSDBResult, error) 
 		return TSDBResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return TSDBResult{}, err
 	}
@@ -1395,7 +1395,7 @@ func (h *httpAPI) TSDBBlocks(ctx context.Context) (TSDBBlocksResult, error) {
 		return TSDBBlocksResult{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return TSDBBlocksResult{}, err
 	}
@@ -1413,7 +1413,7 @@ func (h *httpAPI) WalReplay(ctx context.Context) (WalReplayStatus, error) {
 		return WalReplayStatus{}, err
 	}
 
-	_, body, _, err := h.client.Do(ctx, req)
+	_, body, _, _, err := h.client.Do(ctx, req)
 	if err != nil {
 		return WalReplayStatus{}, err
 	}
@@ -1458,14 +1458,17 @@ func (h *httpAPI) FormatQuery(ctx context.Context, query string) (string, error)
 	return string(body), nil
 }
 
-// Warnings is an array of non critical errors
+// Warnings is an array of non-critical errors.
 type Warnings []string
+
+// Infos is an array of informational messages.
+type Infos []string
 
 // apiClient wraps a regular client and processes successful API responses.
 // Successful also includes responses that errored at the API level.
 type apiClient interface {
 	URL(ep string, args map[string]string) *url.URL
-	Do(context.Context, *http.Request) (*http.Response, []byte, Warnings, error)
+	Do(context.Context, *http.Request) (*http.Response, []byte, Warnings, Infos, error)
 	DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error)
 }
 
@@ -1501,17 +1504,17 @@ func (h *apiClientImpl) URL(ep string, args map[string]string) *url.URL {
 	return h.client.URL(ep, args)
 }
 
-func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
+func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
 	resp, body, err := h.client.Do(ctx, req)
 	if err != nil {
-		return resp, body, nil, err
+		return resp, body, nil, nil, err
 	}
 
 	code := resp.StatusCode
 
 	if code/100 != 2 && !apiError(code) {
 		errorType, errorMsg := errorTypeAndMsgFor(resp)
-		return resp, body, nil, &Error{
+		return resp, body, nil, nil, &Error{
 			Type:   errorType,
 			Msg:    errorMsg,
 			Detail: string(body),
@@ -1522,7 +1525,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 
 	if http.StatusNoContent != code {
 		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
-			return resp, body, nil, &Error{
+			return resp, body, nil, nil, &Error{
 				Type: ErrBadResponse,
 				Msg:  jsonErr.Error(),
 			}
@@ -1543,7 +1546,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		}
 	}
 
-	return resp, []byte(result.Data), append(result.Warnings, result.Infos...), err
+	return resp, []byte(result.Data), result.Warnings, result.Infos, err
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it
@@ -1564,14 +1567,15 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	// the header is not sent on the wire.
 	req.Header["Idempotency-Key"] = nil
 
-	resp, body, warnings, err := h.Do(ctx, req)
+	resp, body, warnings, _, err := h.Do(ctx, req)
 	if resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
 		u.RawQuery = encodedArgs
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
 			return nil, nil, warnings, err
 		}
-		return h.Do(ctx, req)
+		resp, body, warnings, _, err = h.Do(ctx, req)
+		return resp, body, warnings, err
 	}
 	return resp, body, warnings, err
 }

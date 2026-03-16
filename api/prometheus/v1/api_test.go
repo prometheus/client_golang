@@ -62,7 +62,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -86,7 +86,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inWarnings, test.inErr
+	return resp, b, test.inWarnings, nil, test.inErr
 }
 
 func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
@@ -94,7 +94,8 @@ func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return c.Do(ctx, req)
+	resp, body, warnings, _, err := c.Do(ctx, req)
+	return resp, body, warnings, err
 }
 
 func TestAPIs(t *testing.T) {
@@ -1568,7 +1569,7 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
-			_, body, warnings, err := client.Do(context.Background(), tc.req)
+			_, body, warnings, _, err := client.Do(context.Background(), tc.req)
 
 			if test.expectedWarnings != nil {
 				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
