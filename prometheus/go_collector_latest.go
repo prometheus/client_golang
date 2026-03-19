@@ -211,7 +211,10 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		sampleMap[d.Name] = &sampleBuf[len(sampleBuf)-1]
 
 		// Extract unit from the runtime/metrics name (e.g., "/gc/heap/allocs:bytes" -> "bytes")
-		unit := d.Name[strings.IndexRune(d.Name, ':')+1:]
+		var unit string
+		if idx := strings.IndexRune(d.Name, ':'); idx >= 0 {
+			unit = d.Name[idx+1:]
+		}
 
 		var m collectorMetric
 		if d.Kind == metrics.KindFloat64Histogram {

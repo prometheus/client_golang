@@ -52,12 +52,8 @@ type InfoVec struct {
 	*prometheus.MetricVec
 }
 
-func NewInfoVec(name, help string, labelNames []string, unit ...string) *InfoVec {
-	var opts []prometheus.DescOpt
-	if len(unit) > 0 {
-		opts = append(opts, prometheus.WithUnit(unit[0]))
-	}
-	desc := prometheus.V2.NewDesc(name, help, prometheus.UnconstrainedLabels(labelNames), nil, opts...)
+func NewInfoVec(name, help string, labelNames []string) *InfoVec {
+	desc := prometheus.V2.NewDesc(name, help, prometheus.UnconstrainedLabels(labelNames), nil)
 	return &InfoVec{
 		MetricVec: prometheus.NewMetricVec(desc, func(lvs ...string) prometheus.Metric {
 			if len(lvs) != len(labelNames) {

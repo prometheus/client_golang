@@ -68,6 +68,7 @@ type Desc struct {
 	err error
 }
 
+// DescOpt allows setting optional fields for NewDesc.
 type DescOpt func(*Desc)
 
 // WithUnit sets the unit for a Desc.
@@ -110,7 +111,6 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	for _, opt := range opts {
 		opt(d)
 	}
-	unit := d.unit
 	//nolint:staticcheck // TODO: Don't use deprecated model.NameValidationScheme.
 	if !model.NameValidationScheme.IsValidMetricName(fqName) {
 		d.err = fmt.Errorf("%q is not a valid metric name", fqName)
@@ -228,15 +228,11 @@ func (d *Desc) String() string {
 			}
 		}
 	}
-	unitStr := ""
-	if d.unit != "" {
-		unitStr = fmt.Sprintf(", unit: %q", d.unit)
-	}
 	return fmt.Sprintf(
-		"Desc{fqName: %q, help: %q%s, constLabels: {%s}, variableLabels: {%s}}",
+		"Desc{fqName: %q, help: %q, unit: %q, constLabels: {%s}, variableLabels: {%s}}",
 		d.fqName,
 		d.help,
-		unitStr,
+		d.unit,
 		strings.Join(lpStrings, ","),
 		strings.Join(vlStrings, ","),
 	)
