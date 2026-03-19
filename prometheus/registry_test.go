@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1304,6 +1305,55 @@ func (co *customCollector) Describe(_ chan<- *prometheus.Desc) {}
 
 func (co *customCollector) Collect(ch chan<- prometheus.Metric) {
 	co.collectFunc(ch)
+}
+
+// TestCollectorOnMetricPanic ensures that if a collector panics while collecting a metric,
+// the panic is recovered and the error is returned by Gather. It also checks that the metric
+// collected before the panic is still present in the gathered metrics. Additionally,
+// it verifies that if a collector does not panic, Gather returns the collected metrics without error.
+func TestCollectorOnMetricPanic(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	desc := prometheus.NewDesc("metric_a", "", nil, nil)
+	metric := prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1)
+	timestamp := time.Now()
+
+	panicCollector := &customCollector{
+		collectFunc: func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.NewMetricWithTimestamp(timestamp, metric)
+			panic("test panic message") // Panic during metric collection
+		},
+	}
+	reg.MustRegister(panicCollector)
+
+	mfs, err := reg.Gather()
+	if err == nil {
+		t.Error("metric should return error instead of nil")
+	}
+
+	// Check if metric_a is there
+	if len(mfs) != 1 || mfs[0].GetName() != "metric_a" {
+		t.Error("expected metric_a to be present in the gathered metrics")
+	}
+	if !strings.Contains(err.Error(), "test panic message") {
+		t.Errorf("expected panic message in error, got: %v", err)
+	}
+
+	reg = prometheus.NewRegistry()
+	desc = prometheus.NewDesc("metric_b", "", nil, nil)
+	metric = prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1)
+	timestamp = time.Now()
+
+	nonPanicCollector := &customCollector{
+		collectFunc: func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.NewMetricWithTimestamp(timestamp, metric)
+		},
+	}
+	reg.MustRegister(nonPanicCollector)
+	_, err2 := reg.Gather()
+	if err2 != nil {
+		t.Error("metric should not return error:", err2)
+	}
 }
 
 // TestCheckMetricConsistency
