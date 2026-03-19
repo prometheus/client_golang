@@ -57,6 +57,7 @@ var (
 		"/godebug/non-default-behavior/gocacheverify:events":               "go_godebug_non_default_behavior_gocacheverify_events_total",
 		"/godebug/non-default-behavior/gotestjsonbuildtext:events":         "go_godebug_non_default_behavior_gotestjsonbuildtext_events_total",
 		"/godebug/non-default-behavior/gotypesalias:events":                "go_godebug_non_default_behavior_gotypesalias_events_total",
+		"/godebug/non-default-behavior/htmlmetacontenturlescape:events":    "go_godebug_non_default_behavior_htmlmetacontenturlescape_events_total",
 		"/godebug/non-default-behavior/http2client:events":                 "go_godebug_non_default_behavior_http2client_events_total",
 		"/godebug/non-default-behavior/http2server:events":                 "go_godebug_non_default_behavior_http2server_events_total",
 		"/godebug/non-default-behavior/httpcookiemaxnum:events":            "go_godebug_non_default_behavior_httpcookiemaxnum_events_total",
@@ -128,4 +129,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 191
+const expectedRuntimeMetricsCardinality = 192
