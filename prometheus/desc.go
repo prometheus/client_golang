@@ -170,7 +170,8 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 	// label names.
 	xxh.Reset()
 	xxh.WriteString(help)
-	xxh.WriteString(unit)
+	xxh.Write(separatorByteSlice)
+	xxh.WriteString(d.unit)
 	xxh.Write(separatorByteSlice)
 	for _, labelName := range labelNames {
 		xxh.WriteString(labelName)
