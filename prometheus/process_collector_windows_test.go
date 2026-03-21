@@ -15,11 +15,13 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"regexp"
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
+	"golang.org/x/sys/windows"
 )
 
 func TestWindowsProcessCollector(t *testing.T) {
@@ -115,5 +117,42 @@ func TestWindowsDescribeAndCollectAlignment(t *testing.T) {
 		if !definedDescs[desc] {
 			t.Errorf("Metric %s collected but not described", desc)
 		}
+	}
+}
+
+func TestWindowsProcessCollectorUsesPidFn(t *testing.T) {
+	origOpenProcess := openProcess
+	origCloseHandle := closeHandle
+	origGetProcessTimes := getProcessTimes
+	defer func() {
+		openProcess = origOpenProcess
+		closeHandle = origCloseHandle
+		getProcessTimes = origGetProcessTimes
+	}()
+
+	const wantPID = 4242
+	var gotPID uint32
+
+	openProcess = func(desiredAccess uint32, inheritHandle bool, processID uint32) (windows.Handle, error) {
+		gotPID = processID
+		return windows.Handle(1), nil
+	}
+	closeHandle = func(handle windows.Handle) error {
+		return nil
+	}
+	getProcessTimes = func(handle windows.Handle, creationTime, exitTime, kernelTime, userTime *windows.Filetime) error {
+		return errors.New("sentinel")
+	}
+
+	collector := &processCollector{
+		pidFn:        func() (int, error) { return wantPID, nil },
+		reportErrors: true,
+	}
+
+	ch := make(chan Metric, 1)
+	collector.processCollect(ch)
+
+	if gotPID != wantPID {
+		t.Fatalf("openProcess called with pid %d, want %d", gotPID, wantPID)
 	}
 }
