@@ -1078,13 +1078,18 @@ test_summary_count{name="foo"} 2
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name())
+	// Close the file immediately: WriteToTextfile renames a temp file over
+	// this path, and on Windows os.Rename fails with "Access is denied" if
+	// the target is held open by another handle.
+	tmpfileName := tmpfile.Name()
+	tmpfile.Close()
+	defer os.Remove(tmpfileName)
 
-	if err := prometheus.WriteToTextfile(tmpfile.Name(), registry); err != nil {
+	if err := prometheus.WriteToTextfile(tmpfileName, registry); err != nil {
 		t.Fatal(err)
 	}
 
-	fileBytes, err := os.ReadFile(tmpfile.Name())
+	fileBytes, err := os.ReadFile(tmpfileName)
 	if err != nil {
 		t.Fatal(err)
 	}
