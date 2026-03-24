@@ -91,7 +91,7 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 	}
 
 	if pid != os.Getpid() {
-		c.reportError(ch, nil, fmt.Errorf("collecting metrics for pid %d is not supported on darwin", pid))
+		c.reportError(ch, nil, fmt.Errorf("collecting metrics for pid %d is not supported on darwin: process metrics collection is limited to the current process (pid %d)", pid, os.Getpid()))
 		return
 	}
 
