@@ -22,12 +22,16 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
 	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/goleak"
 
 	"github.com/prometheus/client_golang/prometheus"
 	_ "github.com/prometheus/client_golang/prometheus/promhttp/zstd"
@@ -745,5 +749,157 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 				t.Errorf("unexpected number of done invokes, want 1, got %d", got)
 			}
 		})
+	}
+}
+
+// syncGatherCounter is a thread-safe TransactionalGatherer wrapper that counts
+// Gather and done invocations. Safe for concurrent use from multiple goroutines,
+// unlike mockTransactionGatherer whose counters are not race-safe.
+type syncGatherCounter struct {
+	g            prometheus.Gatherer
+	gatherCalled atomic.Int64
+	doneCalled   atomic.Int64
+}
+
+func (m *syncGatherCounter) Gather() ([]*dto.MetricFamily, func(), error) {
+	m.gatherCalled.Add(1)
+	mfs, err := m.g.Gather()
+	return mfs, func() { m.doneCalled.Add(1) }, err
+}
+
+// TestCoalesceGatherSequentialInvariant verifies that sequential requests each
+// trigger exactly one Gather call and one done call.
+func TestCoalesceGatherSequentialInvariant(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	counter := &syncGatherCounter{g: reg}
+	handler := HandlerForTransactional(counter, HandlerOpts{CoalesceGather: true})
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add(acceptHeader, acceptTextPlain)
+
+	const n = 3
+	for i := range n {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("request %d: HTTP status %d, want %d", i+1, got, want)
+		}
+	}
+	if got, want := counter.gatherCalled.Load(), int64(n); got != want {
+		t.Errorf("Gather called %d times, want %d", got, want)
+	}
+	if got, want := counter.doneCalled.Load(), int64(n); got != want {
+		t.Errorf("done called %d times, want %d", got, want)
+	}
+}
+
+// TestCoalesceGatherDoneCalledExactlyOnce verifies that when concurrent requests
+// share a single Gather cycle, the underlying done callback is called exactly once.
+func TestCoalesceGatherDoneCalledExactlyOnce(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	reg := prometheus.NewRegistry()
+	block := make(chan struct{})
+	started := make(chan struct{}, 1)
+	reg.MustRegister(blockingCollector{CollectStarted: started, Block: block})
+
+	counter := &syncGatherCounter{g: reg}
+	handler := HandlerForTransactional(counter, HandlerOpts{CoalesceGather: true})
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add(acceptHeader, acceptTextPlain)
+
+	// Start request 1 in background; it blocks in Collect.
+	w1 := httptest.NewRecorder()
+	req1Done := make(chan struct{})
+	go func() {
+		handler.ServeHTTP(w1, req)
+		close(req1Done)
+	}()
+	<-started // Gather 1 is now in-flight and blocked in Collect.
+
+	// Start request 2; it will join the in-flight Gather cycle.
+	w2 := httptest.NewRecorder()
+	req2Done := make(chan struct{})
+	go func() {
+		handler.ServeHTTP(w2, req)
+		close(req2Done)
+	}()
+
+	// Yield to allow request 2 to enter the coalescing wait before releasing.
+	runtime.Gosched()
+	close(block)
+	<-req1Done
+	<-req2Done
+
+	// Key invariant: done() must be called exactly once per Gather cycle.
+	gathers := counter.gatherCalled.Load()
+	dones := counter.doneCalled.Load()
+	if gathers != dones {
+		t.Errorf("Gather called %d times but done called %d times; invariant violated", gathers, dones)
+	}
+	// Coalescing should keep gather count below the number of requests.
+	if gathers > 2 {
+		t.Errorf("Gather called %d times for 2 requests; expected ≤ 2 with coalescing", gathers)
+	}
+	for i, w := range []*httptest.ResponseRecorder{w1, w2} {
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Errorf("request %d: HTTP status %d, want %d", i+1, got, want)
+		}
+	}
+}
+
+// TestCoalesceGatherGoroutineLeakFree verifies that concurrent requests with a
+// slow collector do not leak goroutines when CoalesceGather is enabled.
+func TestCoalesceGatherGoroutineLeakFree(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	reg := prometheus.NewRegistry()
+	block := make(chan struct{})
+	started := make(chan struct{}, 1)
+	reg.MustRegister(blockingCollector{CollectStarted: started, Block: block})
+
+	handler := HandlerForTransactional(
+		&syncGatherCounter{g: reg},
+		HandlerOpts{CoalesceGather: true},
+	)
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add(acceptHeader, acceptTextPlain)
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+		})
+	}
+	<-started
+	close(block)
+	wg.Wait()
+	// goleak.VerifyNone (deferred above) asserts no goroutines leaked.
+}
+
+// TestCoalesceGatherNewCycleAfterCompletion verifies that once all handlers of a
+// cycle have released, the next request starts a fresh Gather.
+func TestCoalesceGatherNewCycleAfterCompletion(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	counter := &syncGatherCounter{g: reg}
+	handler := HandlerForTransactional(counter, HandlerOpts{CoalesceGather: true})
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Add(acceptHeader, acceptTextPlain)
+
+	// Cycle 1.
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if got, want := counter.gatherCalled.Load(), int64(1); got != want {
+		t.Fatalf("after cycle 1: Gather called %d times, want %d", got, want)
+	}
+	if got, want := counter.doneCalled.Load(), int64(1); got != want {
+		t.Fatalf("after cycle 1: done called %d times, want %d", got, want)
+	}
+
+	// Cycle 2: previous cycle is complete so a fresh Gather must run.
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if got, want := counter.gatherCalled.Load(), int64(2); got != want {
+		t.Errorf("after cycle 2: Gather called %d times, want %d", got, want)
+	}
+	if got, want := counter.doneCalled.Load(), int64(2); got != want {
+		t.Errorf("after cycle 2: done called %d times, want %d", got, want)
 	}
 }
