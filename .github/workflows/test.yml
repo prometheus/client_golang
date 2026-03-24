@@ -1,0 +1,111 @@
+---
+name: Test
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "release-*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.job }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  supported_versions:
+    name: Fetch supported Go versions
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.versions.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Get supported Go versions JSON
+        id: versions
+        run: |
+          echo "matrix=$(cat supported_go_versions.json | jq -c .)" >> "$GITHUB_OUTPUT"
+
+  test-linux:
+    name: Linux (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    needs: supported_versions
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
+    concurrency:
+      group: ${{ github.workflow }}-test-linux-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go ${{ matrix.version }}
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.version }}
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        run: make test
+        env:
+          CI: true
+
+  test-macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        shell: bash
+        run: go test -race -count=1 ./...
+
+      - name: Run tests (exp module)
+        shell: bash
+        run: cd exp && go test -race -count=1 ./...
+
+      - name: Run tests (CGO disabled)
+        shell: bash
+        run: CGO_ENABLED=0 go test -count=1 ./...
+
+      - name: Run tests (exp module, CGO disabled)
+        shell: bash
+        run: cd exp && CGO_ENABLED=0 go test -count=1 ./...
+
+  test-windows:
+    name: Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        shell: bash
+        run: go test -race -count=1 ./...
+
+      - name: Run tests (exp module)
+        shell: bash
+        run: cd exp && go test -race -count=1 ./...
