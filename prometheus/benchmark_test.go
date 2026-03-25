@@ -14,8 +14,8 @@
 package prometheus
 
 import (
-	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -293,7 +293,7 @@ func BenchmarkCounterAddWithWork(b *testing.B) {
 		Help: "A counter to benchmark float Add (CAS path).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { c.Add(1.5) })
 		})
 	}
@@ -305,7 +305,7 @@ func BenchmarkCounterIncWithWork(b *testing.B) {
 		Help: "A counter to benchmark Inc (integer fast path).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { c.Inc() })
 		})
 	}
@@ -317,7 +317,7 @@ func BenchmarkGaugeAddWithWork(b *testing.B) {
 		Help: "A gauge to benchmark float Add (CAS path).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { g.Add(1.5) })
 		})
 	}
@@ -329,7 +329,7 @@ func BenchmarkGaugeSetWithWork(b *testing.B) {
 		Help: "A gauge to benchmark Set (atomic store, no CAS).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { g.Set(1.5) })
 		})
 	}
@@ -341,7 +341,7 @@ func BenchmarkHistogramObserveWithWork(b *testing.B) {
 		Help: "A histogram to benchmark Observe (partial CAS for sum).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { h.Observe(1.5) })
 		})
 	}
@@ -354,7 +354,7 @@ func BenchmarkSummaryObserveWithWork(b *testing.B) {
 		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 	})
 	for _, w := range []int{1, 2, 4, 8} {
-		b.Run(fmt.Sprint(w), func(b *testing.B) {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
 			benchmarkWithWork(b, w, func() { s.Observe(1.5) })
 		})
 	}
