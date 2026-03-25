@@ -696,38 +696,60 @@ type TSDBHeadStats struct {
 	MaxTime       int `json:"maxTime"`
 }
 
-// TSDBBlocksResult contains the results from querying the tsdb blocks endpoint.
+// TSDBBlocksResult contains the result from querying the tsdb blocks endpoint.
+//
+// Note: TSDB block types are defined locally rather than importing from
+// prometheus/prometheus to avoid circular dependencies and minimize the
+// dependency footprint. These types match the HTTP API wire format and use
+// string for ULID fields (since JSON serializes ULIDs as strings). See the
+// individual type comments for links to upstream Prometheus definitions.
 type TSDBBlocksResult struct {
-	Status string         `json:"status"`
-	Data   TSDBBlocksData `json:"data"`
+	Blocks []TSDBBlockMeta `json:"blocks"`
 }
 
-// TSDBBlocksData contains the metadata for the tsdb blocks.
-type TSDBBlocksData struct {
-	Blocks []TSDBBlocksBlockMetadata `json:"blocks"`
+// TSDBBlockMeta contains the metadata for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockMeta:
+// https://github.com/prometheus/prometheus/blob/304dcdf6959d7a45530e9b6efa4080c5ca37dbf7/tsdb/block.go#L164
+type TSDBBlockMeta struct {
+	Ulid       string                  `json:"ulid"`
+	MinTime    int64                   `json:"minTime"`
+	MaxTime    int64                   `json:"maxTime"`
+	Stats      TSDBBlockStats          `json:"stats,omitempty"`
+	Compaction TSDBBlockMetaCompaction `json:"compaction"`
+	Version    int                     `json:"version"`
 }
 
-// TSDBBlocksBlockMetadata contains the metadata for a single tsdb block.
-type TSDBBlocksBlockMetadata struct {
-	Ulid       string               `json:"ulid"`
-	MinTime    int64                `json:"minTime"`
-	MaxTime    int64                `json:"maxTime"`
-	Stats      TSDBBlocksStats      `json:"stats"`
-	Compaction TSDBBlocksCompaction `json:"compaction"`
-	Version    int                  `json:"version"`
+// TSDBBlockStats contains block stats for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockStats:
+// https://github.com/prometheus/prometheus/blob/304dcdf6959d7a45530e9b6efa4080c5ca37dbf7/tsdb/block.go#L184
+type TSDBBlockStats struct {
+	NumSamples          uint64 `json:"numSamples"`
+	NumFloatSamples     uint64 `json:"numFloatSamples,omitempty"`
+	NumHistogramSamples uint64 `json:"numHistogramSamples,omitempty"`
+	NumSeries           uint64 `json:"numSeries"`
+	NumChunks           uint64 `json:"numChunks"`
+	NumTombstones       uint64 `json:"numTombstones,omitempty"`
 }
 
-// TSDBBlocksStats contains block stats for a single tsdb block.
-type TSDBBlocksStats struct {
-	NumSamples int `json:"numSamples"`
-	NumSeries  int `json:"numSeries"`
-	NumChunks  int `json:"numChunks"`
+// TSDBBlockDesc describes a TSDB block reference, used in compaction parent tracking.
+// Counterpart to prometheus/prometheus tsdb.BlockDesc:
+// https://github.com/prometheus/prometheus/blob/304dcdf6959d7a45530e9b6efa4080c5ca37dbf7/tsdb/block.go#L192
+type TSDBBlockDesc struct {
+	Ulid    string `json:"ulid"`
+	MinTime int64  `json:"minTime"`
+	MaxTime int64  `json:"maxTime"`
 }
 
-// TSDBBlocksCompaction contains block compaction details for a single block.
-type TSDBBlocksCompaction struct {
-	Level   int      `json:"level"`
-	Sources []string `json:"sources"`
+// TSDBBlockMetaCompaction contains block compaction details for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockMetaCompaction:
+// https://github.com/prometheus/prometheus/blob/304dcdf6959d7a45530e9b6efa4080c5ca37dbf7/tsdb/block.go#L198
+type TSDBBlockMetaCompaction struct {
+	Level     int             `json:"level"`
+	Sources   []string        `json:"sources"`
+	Deletable bool            `json:"deletable,omitempty"`
+	Parents   []TSDBBlockDesc `json:"parents,omitempty"`
+	Failed    bool            `json:"failed,omitempty"`
+	Hints     []string        `json:"hints,omitempty"`
 }
 
 // WalReplayStatus represents the wal replay status.
