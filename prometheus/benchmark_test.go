@@ -14,6 +14,8 @@
 package prometheus
 
 import (
+	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 )
@@ -241,4 +243,119 @@ func BenchmarkParallelCounter(b *testing.B) {
 			c.Inc()
 		}
 	})
+}
+
+// doWork simulates realistic application work between metric operations.
+// 10,000 iterations of integer addition approximates a few microseconds of CPU
+// work, matching the pattern from the regression report in #1748 where a cache
+// lookup or short computation precedes each metric update.
+// The v parameter accepts the loop index to prevent compile-time constant folding.
+func doWork(v int) int {
+	for i := 0; i < 10000; i++ {
+		v += i
+	}
+	return v
+}
+
+// benchmarkWithWork runs op b.N times across w goroutines, calling doWork
+// between each metric operation to simulate realistic application usage.
+// This catches regressions that tight-loop benchmarks miss (see #1748, #1759).
+func benchmarkWithWork(b *testing.B, w int, op func()) {
+	b.Helper()
+	b.StopTimer()
+
+	wg := new(sync.WaitGroup)
+	wg.Add(w)
+
+	gate := new(sync.WaitGroup)
+	gate.Add(1)
+
+	for i := 0; i < w; i++ {
+		go func() {
+			gate.Wait()
+			for i := 0; i < b.N; i++ {
+				runtime.KeepAlive(doWork(i))
+				op()
+			}
+			wg.Done()
+		}()
+	}
+
+	b.ReportAllocs()
+	b.StartTimer()
+	gate.Done()
+	wg.Wait()
+}
+
+func BenchmarkCounterAddWithWork(b *testing.B) {
+	c := NewCounter(CounterOpts{
+		Name: "benchmark_counter_add",
+		Help: "A counter to benchmark float Add (CAS path).",
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { c.Add(1.5) })
+		})
+	}
+}
+
+func BenchmarkCounterIncWithWork(b *testing.B) {
+	c := NewCounter(CounterOpts{
+		Name: "benchmark_counter_inc",
+		Help: "A counter to benchmark Inc (integer fast path).",
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { c.Inc() })
+		})
+	}
+}
+
+func BenchmarkGaugeAddWithWork(b *testing.B) {
+	g := NewGauge(GaugeOpts{
+		Name: "benchmark_gauge_add",
+		Help: "A gauge to benchmark float Add (CAS path).",
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { g.Add(1.5) })
+		})
+	}
+}
+
+func BenchmarkGaugeSetWithWork(b *testing.B) {
+	g := NewGauge(GaugeOpts{
+		Name: "benchmark_gauge_set",
+		Help: "A gauge to benchmark Set (atomic store, no CAS).",
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { g.Set(1.5) })
+		})
+	}
+}
+
+func BenchmarkHistogramObserveWithWork(b *testing.B) {
+	h := NewHistogram(HistogramOpts{
+		Name: "benchmark_histogram_observe",
+		Help: "A histogram to benchmark Observe (partial CAS for sum).",
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { h.Observe(1.5) })
+		})
+	}
+}
+
+func BenchmarkSummaryObserveWithWork(b *testing.B) {
+	s := NewSummary(SummaryOpts{
+		Name:       "benchmark_summary_observe",
+		Help:       "A summary to benchmark Observe (CAS for sum).",
+		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+	})
+	for _, w := range []int{1, 2, 4, 8} {
+		b.Run(strconv.Itoa(w), func(b *testing.B) {
+			benchmarkWithWork(b, w, func() { s.Observe(1.5) })
+		})
+	}
 }
