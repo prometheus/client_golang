@@ -41,6 +41,7 @@ import (
 	"sync"
 	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/internal/github.com/golang/gddo/httputil"
@@ -77,6 +78,88 @@ var gzipPool = sync.Pool{
 	New: func() interface{} {
 		return gzip.NewWriter(nil)
 	},
+}
+
+// coalescingGatherer wraps a TransactionalGatherer to deduplicate concurrent
+// Gather calls. When a Gather is already in flight, new callers join the
+// existing cycle and receive the same result once it completes. The underlying
+// done function is called exactly once, when the last joined caller releases.
+//
+// This prevents goroutine pile-up when the scrape rate is faster than the
+// time collectors need to produce metrics.
+type coalescingGatherer struct {
+	g     prometheus.TransactionalGatherer
+	mu    sync.Mutex
+	cycle *gatherCycle
+}
+
+// gatherCycle tracks a single in-flight Gather and all HTTP handlers sharing it.
+type gatherCycle struct {
+	ready chan struct{}       // closed when Gather completes; happens-before reads of mfs/err/done
+	mfs   []*dto.MetricFamily // set before ready is closed; shared across handlers, must not be mutated
+	err   error               // set before ready is closed
+	done  func()              // underlying done callback; set before ready is closed
+	refs  int                 // number of handlers using this cycle; protected by coalescingGatherer.mu
+}
+
+var _ prometheus.TransactionalGatherer = (*coalescingGatherer)(nil) // compile-time interface check
+
+func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
+	c.mu.Lock()
+	if cy := c.cycle; cy != nil {
+		// c.cycle is non-nil while Gather runs or handlers are still consuming its results.
+		cy.refs++
+		c.mu.Unlock()
+		<-cy.ready
+		return cy.mfs, c.releaseFunc(cy), cy.err
+	}
+	cy := &gatherCycle{
+		ready: make(chan struct{}),
+		done:  func() {},
+		refs:  1,
+	}
+	c.cycle = cy
+	c.mu.Unlock()
+
+	// Guard against a panic in c.g.Gather: close cy.ready and clear c.cycle
+	// so that any joiners waiting on <-cy.ready are unblocked rather than
+	// deadlocked, and future Gather calls start a fresh cycle.
+	panicked := true
+	defer func() {
+		if panicked {
+			c.mu.Lock()
+			if c.cycle == cy {
+				c.cycle = nil
+			}
+			c.mu.Unlock()
+			close(cy.ready)
+		}
+	}()
+	cy.mfs, cy.done, cy.err = c.g.Gather()
+	panicked = false
+	close(cy.ready) // happens-before joiners' reads of cy.mfs/err/done
+
+	return cy.mfs, c.releaseFunc(cy), cy.err
+}
+
+// releaseFunc returns the done callback for one caller sharing cy.
+// When the last caller releases, the underlying done is invoked and the
+// cycle is cleared so the next Gather starts fresh.
+func (c *coalescingGatherer) releaseFunc(cy *gatherCycle) func() {
+	return func() {
+		c.mu.Lock()
+		cy.refs--
+		if cy.refs > 0 {
+			c.mu.Unlock()
+			return
+		}
+		// Last caller.
+		if c.cycle == cy {
+			c.cycle = nil
+		}
+		c.mu.Unlock()
+		cy.done() // called outside the lock to avoid holding it during done
+	}
 }
 
 // Handler returns an http.Handler for the prometheus.DefaultGatherer, using
@@ -125,6 +208,10 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 // Multiple metric names can be specified by providing the parameter multiple times.
 // When no name[] parameters are provided, all metrics are returned.
 func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerOpts) http.Handler {
+	if opts.CoalesceGather {
+		reg = &coalescingGatherer{g: reg}
+	}
+
 	var (
 		inFlightSem chan struct{}
 		errCnt      = prometheus.NewCounterVec(
@@ -426,6 +513,22 @@ type HandlerOpts struct {
 	// Service Unavailable and a suitable message in the body. If
 	// MaxRequestsInFlight is 0 or negative, no limit is applied.
 	MaxRequestsInFlight int
+	// CoalesceGather, if true, deduplicates concurrent Gather calls so that
+	// only one collection runs at a time. Additional requests that arrive
+	// while a Gather is in flight will receive the same result once it
+	// completes. This prevents goroutine pile-up when the scrape rate is
+	// faster than the time collectors need to produce metrics.
+	//
+	// When enabled, concurrent scrapers share a single metric snapshot per
+	// collection cycle. The returned MetricFamily values are shared and must
+	// not be mutated in place. The built-in handler only reads them, so this
+	// is safe in practice, but custom TransactionalGatherer implementations
+	// that modify the returned families after Gather returns must not use
+	// this option.
+	//
+	// Consider using CoalesceGather together with Timeout to bound both the
+	// scrape response time and the number of concurrent background Gathers.
+	CoalesceGather bool
 	// If handling a request takes longer than Timeout, it is responded to
 	// with 503 ServiceUnavailable and a suitable Message. No timeout is
 	// applied if Timeout is 0 or negative. Note that with the current
@@ -433,8 +536,9 @@ type HandlerOpts struct {
 	// described above (and even that only if sending of the body hasn't
 	// started yet), while the bulk work of gathering all the metrics keeps
 	// running in the background (with the eventual result to be thrown
-	// away). Until the implementation is improved, it is recommended to
-	// implement a separate timeout in potentially slow Collectors.
+	// away). When CoalesceGather is enabled, only one such background Gather
+	// can be in flight at a time. It is also recommended to implement a
+	// separate timeout in potentially slow Collectors.
 	Timeout time.Duration
 	// If true, the experimental OpenMetrics encoding is added to the
 	// possible options during content negotiation. Note that Prometheus
