@@ -57,55 +57,60 @@ jobs:
           CI: true
 
   test-macos:
-    name: macOS
+    name: macOS (${{ matrix.label }})
     runs-on: macos-latest
+    needs: supported_versions
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
+    concurrency:
+      group: ${{ github.workflow }}-test-macos-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Go
+      - name: Set up Go ${{ matrix.version }}
         uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version: ${{ matrix.version }}
           check-latest: true
           cache-dependency-path: go.sum
 
       - name: Run tests
-        shell: bash
-        run: go test -race -count=1 ./...
-
-      - name: Run tests (exp module)
-        shell: bash
-        run: cd exp && go test -race -count=1 ./...
-
-      - name: Run tests (CGO disabled)
-        shell: bash
-        run: CGO_ENABLED=0 go test -count=1 ./...
-
-      - name: Run tests (exp module, CGO disabled)
-        shell: bash
-        run: cd exp && CGO_ENABLED=0 go test -count=1 ./...
+        run: make test
+        env:
+          CI: true
 
   test-windows:
-    name: Windows
+    name: Windows (${{ matrix.label }})
     runs-on: windows-latest
+    needs: supported_versions
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
+    concurrency:
+      group: ${{ github.workflow }}-test-windows-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      cancel-in-progress: true
 
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Set up Go
+      - name: Set up Go ${{ matrix.version }}
         uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version: ${{ matrix.version }}
           check-latest: true
           cache-dependency-path: go.sum
 
       - name: Run tests
         shell: bash
-        run: go test -race -count=1 ./...
+        run: go test -race ./...
 
       - name: Run tests (exp module)
         shell: bash
-        run: cd exp && go test -race -count=1 ./...
+        run: cd exp && go test -race ./...
