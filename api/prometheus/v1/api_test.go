@@ -33,8 +33,9 @@ import (
 )
 
 type apiTest struct {
-	do           func() (interface{}, Warnings, error)
+	do           func() (interface{}, Warnings, Infos, error)
 	inWarnings   []string
+	inInfos      []string
 	inErr        error
 	inStatusCode int
 	inRes        interface{}
@@ -62,7 +63,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -86,13 +87,13 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inWarnings, test.inErr
+	return resp, b, test.inWarnings, test.inInfos, test.inErr
 }
 
-func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	return c.Do(ctx, req)
 }
@@ -107,150 +108,150 @@ func TestAPIs(t *testing.T) {
 		client: tc,
 	}
 
-	doAlertManagers := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doAlertManagers := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.AlertManagers(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
-			return nil, nil, promAPI.CleanTombstones(context.Background())
+	doCleanTombstones := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
+			return nil, nil, nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doConfig := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Config(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
-			return nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
+	doDeleteSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
+			return nil, nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doFlags := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Flags(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doBuildinfo := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doBuildinfo := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Buildinfo(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doRuntimeinfo := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doRuntimeinfo := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Runtimeinfo(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doLabelNames := func(matches []string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			return promAPI.LabelNames(context.Background(), matches, startTime, endTime, opts...)
 		}
 	}
 
-	doLabelValues := func(matches []string, label string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime, opts...)
 		}
 	}
 
-	doQuery := func(q string, ts time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQuery := func(q string, ts time.Time, opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			return promAPI.Query(context.Background(), q, ts, opts...)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQueryRange := func(q string, rng Range, opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			return promAPI.QueryRange(context.Background(), q, rng, opts...)
 		}
 	}
 
-	doSeries := func(matcher string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doSeries := func(matcher string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime, opts...)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doSnapshot := func(skipHead bool) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Snapshot(context.Background(), skipHead)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doRules := func(matches []string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doRules := func(matches []string) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Rules(context.Background(), matches)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doTargets := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTargets := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Targets(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doTargetsMetadata := func(matchTarget, metric, limit string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTargetsMetadata := func(matchTarget, metric, limit string) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doMetadata := func(metric, limit string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doMetadata := func(metric, limit string) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.Metadata(context.Background(), metric, limit)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doTSDB := func(opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTSDB := func(opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.TSDB(context.Background(), opts...)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doTSDBBlocks := func(opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTSDBBlocks := func(opts ...Option) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.TSDBBlocks(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doWalReply := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doWalReply := func() func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.WalReplay(context.Background())
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doQueryExemplars := func(query string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQueryExemplars := func(query string, startTime, endTime time.Time) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.QueryExemplars(context.Background(), query, startTime, endTime)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
-	doFormatQuery := func(query string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doFormatQuery := func(query string) func() (interface{}, Warnings, Infos, error) {
+		return func() (interface{}, Warnings, Infos, error) {
 			v, err := promAPI.FormatQuery(context.Background(), query)
-			return v, nil, err
+			return v, nil, nil, err
 		}
 	}
 
@@ -1350,10 +1351,14 @@ func TestAPIs(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.curTest = test
 
-			res, warnings, err := test.do()
+			res, warnings, infos, err := test.do()
 
 			if (test.inWarnings == nil) != (warnings == nil) && !reflect.DeepEqual(test.inWarnings, warnings) {
 				t.Fatalf("mismatch in warnings expected=%v actual=%v", test.inWarnings, warnings)
+			}
+
+			if (test.inInfos == nil) != (infos == nil) && !reflect.DeepEqual(test.inInfos, infos) {
+				t.Fatalf("mismatch in infos expected=%v actual=%v", test.inInfos, infos)
 			}
 
 			if test.err != nil {
@@ -1396,6 +1401,7 @@ type apiClientTest struct {
 	expectedBody     string
 	expectedErr      *Error
 	expectedWarnings Warnings
+	expectedInfos    Infos
 }
 
 func (c *testClient) URL(ep string, args map[string]string) *url.URL {
@@ -1553,6 +1559,38 @@ func TestAPIClientDo(t *testing.T) {
 			},
 			expectedWarnings: []string{"a"},
 		},
+		{
+			code: http.StatusOK,
+			response: &apiResponse{
+				Status:    "error",
+				Data:      json.RawMessage(`"test"`),
+				ErrorType: ErrTimeout,
+				Error:     "timed out",
+				Infos:     []string{"b"},
+			},
+			expectedErr: &Error{
+				Type: ErrTimeout,
+				Msg:  "timed out",
+			},
+			expectedInfos: []string{"b"},
+		},
+		{
+			code: http.StatusOK,
+			response: &apiResponse{
+				Status:    "error",
+				Data:      json.RawMessage(`"test"`),
+				ErrorType: ErrTimeout,
+				Error:     "timed out",
+				Warnings:  []string{"a"},
+				Infos:     []string{"b"},
+			},
+			expectedErr: &Error{
+				Type: ErrTimeout,
+				Msg:  "timed out",
+			},
+			expectedWarnings: []string{"a"},
+			expectedInfos:    []string{"b"},
+		},
 	}
 
 	tc := &testClient{
@@ -1568,7 +1606,7 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
-			_, body, warnings, err := client.Do(context.Background(), tc.req)
+			_, body, warnings, infos, err := client.Do(context.Background(), tc.req)
 
 			if test.expectedWarnings != nil {
 				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
@@ -1577,6 +1615,16 @@ func TestAPIClientDo(t *testing.T) {
 			} else {
 				if warnings != nil {
 					t.Fatalf("unexpected warnings: %v", warnings)
+				}
+			}
+
+			if test.expectedInfos != nil {
+				if !reflect.DeepEqual(test.expectedInfos, infos) {
+					t.Fatalf("mismatch in infos expected=%v actual=%v", test.expectedInfos, infos)
+				}
+			} else {
+				if infos != nil {
+					t.Fatalf("unexpected infos: %v", infos)
 				}
 			}
 
@@ -1950,7 +1998,7 @@ func TestDoGetFallback(t *testing.T) {
 	}
 
 	// Do a post, and ensure that the post succeeds.
-	_, b, _, err := api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err := api.DoGetFallback(context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -1967,7 +2015,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 405.
 	u.Path = "/blockPost405"
-	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -1983,7 +2031,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 501.
 	u.Path = "/blockPost501"
-	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
