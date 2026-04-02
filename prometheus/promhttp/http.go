@@ -226,12 +226,14 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			rsp.Header().Set(contentEncodingHeader, encodingHeader)
 		}
 
-		var enc expfmt.Encoder
+		var (
+			enc     expfmt.Encoder
+			encOpts []expfmt.EncoderOption
+		)
 		if opts.EnableOpenMetricsTextCreatedSamples {
-			enc = expfmt.NewEncoder(w, contentType, expfmt.WithCreatedLines())
-		} else {
-			enc = expfmt.NewEncoder(w, contentType)
+			encOpts = append(encOpts, expfmt.WithCreatedLines())
 		}
+		enc = expfmt.NewEncoder(w, contentType, encOpts...)
 
 		// handleError handles the error according to opts.ErrorHandling
 		// and returns true if we have to abort after the handling.

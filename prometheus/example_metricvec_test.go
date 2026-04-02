@@ -53,7 +53,7 @@ type InfoVec struct {
 }
 
 func NewInfoVec(name, help string, labelNames []string) *InfoVec {
-	desc := prometheus.NewDesc(name, help, labelNames, nil)
+	desc := prometheus.V2.NewDesc(name, help, prometheus.UnconstrainedLabels(labelNames), nil)
 	return &InfoVec{
 		MetricVec: prometheus.NewMetricVec(desc, func(lvs ...string) prometheus.Metric {
 			if len(lvs) != len(labelNames) {
