@@ -1,4 +1,4 @@
-// Copyright 2019 The Prometheus Authors
+// Copyright 2018 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,15 +15,23 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"regexp"
 	"testing"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/procfs"
+
+	dto "github.com/prometheus/client_model/go"
 )
 
-func TestWindowsProcessCollector(t *testing.T) {
-	registry := NewRegistry()
+func TestProcessCollector(t *testing.T) {
+	if _, err := procfs.Self(); err != nil {
+		t.Skipf("skipping TestProcessCollector, procfs not available: %s", err)
+	}
+
+	registry := NewPedanticRegistry()
 	if err := registry.Register(NewProcessCollector(ProcessCollectorOpts{})); err != nil {
 		t.Fatal(err)
 	}
@@ -51,23 +59,52 @@ func TestWindowsProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nprocess_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nprocess_max_fds [1-9]"),
 		regexp.MustCompile("\nprocess_open_fds [1-9]"),
+		regexp.MustCompile("\nprocess_virtual_memory_max_bytes (-1|[1-9])"),
 		regexp.MustCompile("\nprocess_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nprocess_resident_memory_bytes [1-9]"),
-		regexp.MustCompile("\nprocess_start_time_seconds [1-9]"),
+		regexp.MustCompile("\nprocess_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nprocess_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nprocess_network_transmit_bytes_total [0-9]+"),
 		regexp.MustCompile("\nfoobar_process_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nfoobar_process_max_fds [1-9]"),
 		regexp.MustCompile("\nfoobar_process_open_fds [1-9]"),
+		regexp.MustCompile("\nfoobar_process_virtual_memory_max_bytes (-1|[1-9])"),
 		regexp.MustCompile("\nfoobar_process_virtual_memory_bytes [1-9]"),
 		regexp.MustCompile("\nfoobar_process_resident_memory_bytes [1-9]"),
-		regexp.MustCompile("\nfoobar_process_start_time_seconds [1-9]"),
+		regexp.MustCompile("\nfoobar_process_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nfoobar_process_network_receive_bytes_total [0-9]+"),
+		regexp.MustCompile("\nfoobar_process_network_transmit_bytes_total [0-9]+"),
 	} {
 		if !re.Match(buf.Bytes()) {
 			t.Errorf("want body to match %s\n%s", re, buf.String())
 		}
 	}
+
+	brokenProcessCollector := NewProcessCollector(ProcessCollectorOpts{
+		PidFn:        func() (int, error) { return 0, errors.New("boo") },
+		ReportErrors: true,
+	})
+
+	ch := make(chan Metric)
+	go func() {
+		brokenProcessCollector.Collect(ch)
+		close(ch)
+	}()
+	n := 0
+	for m := range ch {
+		n++
+		pb := &dto.Metric{}
+		err := m.Write(pb)
+		if err == nil {
+			t.Error("metric collected from broken process collector is unexpectedly valid")
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d metrics collected, want 1", n)
+	}
 }
 
-func TestWindowsDescribeAndCollectAlignment(t *testing.T) {
+func TestDescribeAndCollectAlignment(t *testing.T) {
 	collector := &processCollector{
 		pidFn:     getPIDFn(),
 		cpuTotal:  NewDesc("cpu_total", "Total CPU usage", nil, nil),

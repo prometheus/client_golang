@@ -1078,7 +1078,12 @@ test_summary_count{name="foo"} 2
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name())
+	// Close the file before WriteToTextfile: on Windows, os.Rename fails
+	// with "Access is denied" if the target path is held open by another
+	// handle. Name() is safe to call after Close() — it returns the stored
+	// path string, not a file descriptor.
+	tmpfile.Close()
+	t.Cleanup(func() { os.Remove(tmpfile.Name()) })
 
 	if err := prometheus.WriteToTextfile(tmpfile.Name(), registry); err != nil {
 		t.Fatal(err)

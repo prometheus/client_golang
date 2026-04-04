@@ -300,7 +300,7 @@ func TestMemStatsEquivalence(t *testing.T) {
 		case reflect.Uint64:
 			vr := fr.Interface().(uint64)
 			vf := ff.Interface().(uint64)
-			if float64(vr-vf)/float64(vf) > 0.05 {
+			if math.Abs(float64(vr)-float64(vf))/float64(vf) > 0.05 {
 				t.Errorf("wrong value for %s: got %d, want %d", typ.Field(i).Name, vf, vr)
 			}
 		}
