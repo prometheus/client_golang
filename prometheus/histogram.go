@@ -498,6 +498,12 @@ type HistogramOpts struct {
 	// 5m is used. To always delete the oldest exemplar, set it to a negative value.
 	NativeHistogramExemplarTTL time.Duration
 
+	// TTL specifies the time-to-live for Vec children. When set to a value > 0,
+	// children that have not been accessed for longer than TTL will be excluded
+	// from Collect output and can be removed via CleanupExpired. This is only
+	// relevant for HistogramVec metrics; it is ignored for non-Vec Histograms.
+	TTL time.Duration
+
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 
@@ -1197,9 +1203,9 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		WithUnit(opts.Unit),
 	)
 	return &HistogramVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
+		MetricVec: NewMetricVecWithTTL(desc, func(lvs ...string) Metric {
 			return newHistogram(desc, opts.HistogramOpts, lvs...)
-		}),
+		}, opts.TTL),
 	}
 }
 

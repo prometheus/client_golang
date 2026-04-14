@@ -211,16 +211,17 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
+	newMetric := func(lvs ...string) Metric {
+		if len(lvs) != len(desc.variableLabels.names) {
+			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+		}
+		result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+		result.init(result) // Init self-collection.
+		result.createdTs = timestamppb.New(opts.now())
+		return result
+	}
 	return &CounterVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			if len(lvs) != len(desc.variableLabels.names) {
-				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
-			result.init(result) // Init self-collection.
-			result.createdTs = timestamppb.New(opts.now())
-			return result
-		}),
+		MetricVec: NewMetricVecWithTTL(desc, newMetric, opts.TTL),
 	}
 }
 

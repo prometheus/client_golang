@@ -96,6 +96,13 @@ type Opts struct {
 	// https://prometheus.io/docs/instrumenting/writing_exporters/#target-labels-not-static-scraped-labels
 	ConstLabels Labels
 
+	// TTL specifies the time-to-live for Vec children. When set to a value > 0,
+	// children that have not been accessed (via GetMetricWith or similar) for
+	// longer than TTL will be excluded from Collect output and can be removed
+	// via CleanupExpired. This is only relevant for *Vec metrics; it is ignored
+	// for non-Vec metrics.
+	TTL time.Duration
+
 	// now is for testing purposes, by default it's time.Now.
 	now func() time.Time
 }
