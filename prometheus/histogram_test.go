@@ -1321,8 +1321,18 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "add exemplars to the limit",
 			addFunc: func(h *histogram) {
+				// Set explicit mock timestamps so the "oldest" ordering is
+				// deterministic on Windows, where time.Now() has ~15ms
+				// resolution and rapid calls may return the same value.
+				// h.now is intentionally left set to base+2ms so subsequent
+				// closest-pair subcases (which don't depend on TTL) inherit a
+				// stable timestamp without triggering the 10s TTL check.
+				base := time.Now()
+				h.now = func() time.Time { return base }
 				h.ObserveWithExemplar(1, Labels{"id": "1"})
+				h.now = func() time.Time { return base.Add(time.Millisecond) }
 				h.ObserveWithExemplar(3, Labels{"id": "1"})
+				h.now = func() time.Time { return base.Add(2 * time.Millisecond) }
 				h.ObserveWithExemplar(5, Labels{"id": "1"})
 			},
 			expectedValues: []float64{1, 3, 5},
@@ -1376,8 +1386,15 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "add exemplars to the limit",
 			addFunc: func(h *histogram) {
+				// Set explicit mock timestamps so the "oldest" ordering is
+				// deterministic on Windows, where time.Now() has ~15ms
+				// resolution and rapid calls may return the same value.
+				base := time.Now()
+				h.now = func() time.Time { return base }
 				h.ObserveWithExemplar(1, Labels{"id": "1"})
+				h.now = func() time.Time { return base.Add(time.Millisecond) }
 				h.ObserveWithExemplar(3, Labels{"id": "1"})
+				h.now = func() time.Time { return base.Add(2 * time.Millisecond) }
 				h.ObserveWithExemplar(5, Labels{"id": "1"})
 			},
 			expectedValues: []float64{1, 3, 5},
@@ -1385,6 +1402,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "remove exemplar with oldest timestamp, the removed index is smaller than inserted index",
 			addFunc: func(h *histogram) {
+				h.now = func() time.Time { return time.Now().Add(time.Second) }
 				h.ObserveWithExemplar(4, Labels{"id": "1"})
 			},
 			expectedValues: []float64{3, 4, 5},
@@ -1392,6 +1410,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "remove exemplar with oldest timestamp, the removed index equals to inserted index",
 			addFunc: func(h *histogram) {
+				h.now = func() time.Time { return time.Now().Add(2 * time.Second) }
 				h.ObserveWithExemplar(0, Labels{"id": "1"})
 			},
 			expectedValues: []float64{0, 4, 5},
@@ -1399,6 +1418,7 @@ func TestNativeHistogramExemplar(t *testing.T) {
 		{
 			name: "remove exemplar with oldest timestamp, the removed index is bigger than inserted index",
 			addFunc: func(h *histogram) {
+				h.now = func() time.Time { return time.Now().Add(3 * time.Second) }
 				h.ObserveWithExemplar(3, Labels{"id": "1"})
 			},
 			expectedValues: []float64{0, 3, 4},

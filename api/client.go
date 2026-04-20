@@ -141,21 +141,21 @@ func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	}
 
 	var body []byte
-	done := make(chan error, 1)
+	done := make(chan struct{})
+	var readErr error
 	go func() {
+		defer close(done)
 		var buf bytes.Buffer
-		_, err := buf.ReadFrom(resp.Body)
+		_, readErr = buf.ReadFrom(resp.Body)
 		body = buf.Bytes()
-		done <- err
 	}()
 
 	select {
 	case <-ctx.Done():
 		resp.Body.Close()
-		<-done
 		return resp, nil, ctx.Err()
-	case err = <-done:
+	case <-done:
 		resp.Body.Close()
-		return resp, body, err
+		return resp, body, readErr
 	}
 }

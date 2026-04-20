@@ -164,6 +164,54 @@ func TestDoContextCancellation(t *testing.T) {
 	}
 }
 
+func TestDoContextCancellationSlowServer(t *testing.T) {
+	serverDone := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		<-serverDone
+	}))
+	defer func() {
+		close(serverDone)
+		ts.Close()
+	}()
+
+	client, err := NewClient(Config{
+		Address: ts.URL,
+	})
+	if err != nil {
+		t.Fatalf("failed to create client: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	resp, body, err := client.Do(ctx, req)
+	elapsed := time.Since(start)
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected error %v, got: %v", context.DeadlineExceeded, err)
+	}
+	if body != nil {
+		t.Errorf("expected no body due to cancellation, got: %q", string(body))
+	}
+	if elapsed > 500*time.Millisecond {
+		t.Errorf("client.Do did not return promptly on cancellation: took %v", elapsed)
+	}
+
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+}
+
 // Serve any http request with a response of N KB of spaces.
 type serveSpaces struct {
 	sizeKB int
