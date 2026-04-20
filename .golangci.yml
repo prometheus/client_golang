@@ -28,6 +28,9 @@ linters:
           - nolintlint
           - structcheck
         path: _test.go
+      - linters:
+          - govet
+        text: "buildtag: \\+build line is no longer needed"
     paths:
       - ^.*\.(pb|y)\.go$
     warn-unused: true

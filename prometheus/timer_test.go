@@ -16,6 +16,7 @@ package prometheus
 import (
 	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -24,94 +25,110 @@ import (
 )
 
 func TestTimerObserve(t *testing.T) {
-	var (
-		his   = NewHistogram(HistogramOpts{Name: "test_histogram"})
-		sum   = NewSummary(SummaryOpts{Name: "test_summary"})
-		gauge = NewGauge(GaugeOpts{Name: "test_gauge"})
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			his   = NewHistogram(HistogramOpts{Name: "test_histogram"})
+			sum   = NewSummary(SummaryOpts{Name: "test_summary"})
+			gauge = NewGauge(GaugeOpts{Name: "test_gauge"})
 
-	func() {
-		hisTimer := NewTimer(his)
-		sumTimer := NewTimer(sum)
-		gaugeTimer := NewTimer(ObserverFunc(gauge.Set))
-		defer hisTimer.ObserveDuration()
-		defer sumTimer.ObserveDuration()
-		defer gaugeTimer.ObserveDuration()
-		// Ensure measurable time passes to avoid flaky test on fast systems.
-		time.Sleep(time.Millisecond)
-	}()
+			hisTimer   = NewTimer(his)
+			sumTimer   = NewTimer(sum)
+			gaugeTimer = NewTimer(ObserverFunc(gauge.Set))
+		)
 
-	m := &dto.Metric{}
-	his.Write(m)
-	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for histogram, got %d", want, got)
-	}
-	m.Reset()
-	sum.Write(m)
-	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for summary, got %d", want, got)
-	}
-	m.Reset()
-	gauge.Write(m)
-	if got := m.GetGauge().GetValue(); got <= 0 {
-		t.Errorf("want value > 0 for gauge, got %f", got)
-	}
+		// Advance time to observer duration
+		// synctest: Inside the bubble, time does not move forward in real time.
+		time.Sleep(time.Second)
+
+		hisTimer.ObserveDuration()
+		sumTimer.ObserveDuration()
+		gaugeTimer.ObserveDuration()
+
+		m := &dto.Metric{}
+
+		his.Write(m)
+		if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+			t.Errorf("want %d observations for histogram, got %d", want, got)
+		}
+
+		m.Reset()
+		sum.Write(m)
+		if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
+			t.Errorf("want %d observations for summary, got %d", want, got)
+		}
+
+		m.Reset()
+		gauge.Write(m)
+		if got := m.GetGauge().GetValue(); got <= 0 {
+			t.Errorf("want value > 0 for gauge, got %f", got)
+		}
+	})
 }
 
 func TestTimerObserveWithExemplar(t *testing.T) {
-	var (
-		exemplar = Labels{"foo": "bar"}
-		his      = NewHistogram(HistogramOpts{Name: "test_histogram"})
-		sum      = NewSummary(SummaryOpts{Name: "test_summary"})
-		gauge    = NewGauge(GaugeOpts{Name: "test_gauge"})
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			exemplar = Labels{"foo": "bar"}
+			his      = NewHistogram(HistogramOpts{Name: "test_histogram"})
+			sum      = NewSummary(SummaryOpts{Name: "test_summary"})
+			gauge    = NewGauge(GaugeOpts{Name: "test_gauge"})
 
-	func() {
-		hisTimer := NewTimer(his)
-		sumTimer := NewTimer(sum)
-		gaugeTimer := NewTimer(ObserverFunc(gauge.Set))
-		defer hisTimer.ObserveDurationWithExemplar(exemplar)
+			hisTimer   = NewTimer(his)
+			sumTimer   = NewTimer(sum)
+			gaugeTimer = NewTimer(ObserverFunc(gauge.Set))
+		)
+
+		// Advance time to observer duration
+		// synctest: Inside the bubble, time does not move forward in real time.
+		time.Sleep(time.Second)
+
+		hisTimer.ObserveDurationWithExemplar(exemplar)
 		// Gauges and summaries does not implement ExemplarObserver, so we expect them to ignore exemplar.
-		defer sumTimer.ObserveDurationWithExemplar(exemplar)
-		defer gaugeTimer.ObserveDurationWithExemplar(exemplar)
-		// Ensure measurable time passes to avoid flaky test on fast systems.
-		time.Sleep(time.Millisecond)
-	}()
+		sumTimer.ObserveDurationWithExemplar(exemplar)
+		gaugeTimer.ObserveDurationWithExemplar(exemplar)
 
-	m := &dto.Metric{}
-	his.Write(m)
-	if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for histogram, got %d", want, got)
-	}
-	var got []*dto.LabelPair
-	for _, b := range m.GetHistogram().GetBucket() {
-		if b.Exemplar != nil {
-			got = b.Exemplar.GetLabel()
-			break
+		m := &dto.Metric{}
+		his.Write(m)
+
+		if want, got := uint64(1), m.GetHistogram().GetSampleCount(); want != got {
+			t.Errorf("want %d observations for histogram, got %d", want, got)
 		}
-	}
+		var got []*dto.LabelPair
+		for _, b := range m.GetHistogram().GetBucket() {
+			if b.Exemplar != nil {
+				got = b.Exemplar.GetLabel()
+				break
+			}
+		}
 
-	want := []*dto.LabelPair{{Name: proto.String("foo"), Value: proto.String("bar")}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("expected %v exemplar labels, got %v", want, got)
-	}
+		want := []*dto.LabelPair{{Name: proto.String("foo"), Value: proto.String("bar")}}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("expected %v exemplar labels, got %v", want, got)
+		}
+		m.Reset()
 
-	m.Reset()
-	sum.Write(m)
-	if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
-		t.Errorf("want %d observations for summary, got %d", want, got)
-	}
-	m.Reset()
-	gauge.Write(m)
-	if got := m.GetGauge().GetValue(); got <= 0 {
-		t.Errorf("want value > 0 for gauge, got %f", got)
-	}
+		sum.Write(m)
+		if want, got := uint64(1), m.GetSummary().GetSampleCount(); want != got {
+			t.Errorf("want %d observations for summary, got %d", want, got)
+		}
+		m.Reset()
+
+		gauge.Write(m)
+		if got := m.GetGauge().GetValue(); got <= 0 {
+			t.Errorf("want value > 0 for gauge, got %f", got)
+		}
+	})
 }
 
 func TestTimerEmpty(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Errorf("expected no panic, but got: %v", r)
+		}
+	}()
+
 	emptyTimer := NewTimer(nil)
 	emptyTimer.ObserveDuration()
-	// Do nothing, just demonstrate it works without panic.
 }
 
 func TestTimerConditionalTiming(t *testing.T) {

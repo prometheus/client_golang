@@ -93,7 +93,7 @@ func runMain(opts internal.Config) (err error) {
 		Help: "Build information.",
 		ConstLabels: map[string]string{
 			"version":  "vYOLO",
-			"language": "Go 1.20",
+			"language": "Go 1.21",
 			"owner":    "@me",
 		},
 	}, func() float64 {
