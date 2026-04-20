@@ -100,7 +100,7 @@ func generateData(timeseries, datapoints int) (floatMatrix, histogramMatrix mode
 		floatMatrix = append(floatMatrix, fss)
 		histogramMatrix = append(histogramMatrix, hss)
 	}
-	return
+	return floatMatrix, histogramMatrix
 }
 
 func BenchmarkSamplesJsonSerialization(b *testing.B) {
