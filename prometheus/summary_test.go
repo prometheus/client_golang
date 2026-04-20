@@ -422,7 +422,7 @@ func getBounds(vars []float64, q, ε float64) (minBound, maxBound float64) {
 	if upper < len(vars) {
 		maxBound = vars[upper-1]
 	}
-	return
+	return minBound, maxBound
 }
 
 func TestSummaryVecCreatedTimestampWithDeletes(t *testing.T) {

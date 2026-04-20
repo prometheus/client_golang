@@ -41,19 +41,17 @@ type ClusterManager struct {
 // real cluster manager would have to do. Since it may actually be really
 // expensive, it must only be called once per collection. This implementation,
 // obviously, only returns some made-up data.
-func (c *ClusterManager) ReallyExpensiveAssessmentOfTheSystemState() (
-	oomCountByHost map[string]int, ramUsageByHost map[string]float64,
-) {
+func (c *ClusterManager) ReallyExpensiveAssessmentOfTheSystemState() (map[string]int, map[string]float64) {
 	// Just example fake data.
-	oomCountByHost = map[string]int{
+	oomCountByHost := map[string]int{
 		"foo.example.org": 42,
 		"bar.example.org": 2001,
 	}
-	ramUsageByHost = map[string]float64{
+	ramUsageByHost := map[string]float64{
 		"foo.example.org": 6.023e23,
 		"bar.example.org": 3.14,
 	}
-	return
+	return oomCountByHost, ramUsageByHost
 }
 
 // ClusterManagerCollector implements the Collector interface.

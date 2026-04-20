@@ -71,6 +71,7 @@ var (
 		"/godebug/non-default-behavior/tlsmaxrsasize:events":               "go_godebug_non_default_behavior_tlsmaxrsasize_events_total",
 		"/godebug/non-default-behavior/tlsrsakex:events":                   "go_godebug_non_default_behavior_tlsrsakex_events_total",
 		"/godebug/non-default-behavior/tlsunsafeekm:events":                "go_godebug_non_default_behavior_tlsunsafeekm_events_total",
+		"/godebug/non-default-behavior/urlmaxqueryparams:events":           "go_godebug_non_default_behavior_urlmaxqueryparams_events_total",
 		"/godebug/non-default-behavior/winreadlinkvolume:events":           "go_godebug_non_default_behavior_winreadlinkvolume_events_total",
 		"/godebug/non-default-behavior/winsymlink:events":                  "go_godebug_non_default_behavior_winsymlink_events_total",
 		"/godebug/non-default-behavior/x509keypairleaf:events":             "go_godebug_non_default_behavior_x509keypairleaf_events_total",
@@ -110,4 +111,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 173
+const expectedRuntimeMetricsCardinality = 174
