@@ -49,7 +49,7 @@ type MetricVec struct {
 func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 	return &MetricVec{
 		metricMap: &metricMap{
-			metrics:   map[uint64][]metricWithLabelValues{},
+			metrics:   map[uint64][]*metricWithLabelValues{},
 			desc:      desc,
 			newMetric: newMetric,
 		},
@@ -65,7 +65,7 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 func NewMetricVecWithTTL(desc *Desc, newMetric func(lvs ...string) Metric, ttl time.Duration) *MetricVec {
 	return &MetricVec{
 		metricMap: &metricMap{
-			metrics:   map[uint64][]metricWithLabelValues{},
+			metrics:   map[uint64][]*metricWithLabelValues{},
 			desc:      desc,
 			newMetric: newMetric,
 			ttl:       ttl,
@@ -79,7 +79,7 @@ func NewMetricVecWithTTL(desc *Desc, newMetric func(lvs ...string) Metric, ttl t
 // configured TTL. It returns the number of children removed. If TTL is not
 // configured (zero), this is a no-op and returns 0.
 func (m *MetricVec) CleanupExpired() int {
-	return m.metricMap.cleanupExpired()
+	return m.cleanupExpired()
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
@@ -345,7 +345,7 @@ type curriedLabelValue struct {
 // metricVecs.
 type metricMap struct {
 	mtx       sync.RWMutex // Protects metrics.
-	metrics   map[uint64][]metricWithLabelValues
+	metrics   map[uint64][]*metricWithLabelValues
 	desc      *Desc
 	newMetric func(labelValues ...string) Metric
 	ttl       time.Duration // if > 0, enables TTL-based expiration
@@ -496,7 +496,7 @@ func (m *metricMap) deleteByHashWithLabelValues(
 	if len(metrics) > 1 {
 		old := metrics
 		m.metrics[h] = append(metrics[:i], metrics[i+1:]...)
-		old[len(old)-1] = metricWithLabelValues{}
+		old[len(old)-1] = nil
 	} else {
 		delete(m.metrics, h)
 	}
@@ -524,7 +524,7 @@ func (m *metricMap) deleteByHashWithLabels(
 	if len(metrics) > 1 {
 		old := metrics
 		m.metrics[h] = append(metrics[:i], metrics[i+1:]...)
-		old[len(old)-1] = metricWithLabelValues{}
+		old[len(old)-1] = nil
 	} else {
 		delete(m.metrics, h)
 	}
@@ -554,10 +554,10 @@ func (m *metricMap) deleteByLabels(labels Labels, curry []curriedLabelValue) int
 // findMetricWithPartialLabel returns the index of the matching metric or
 // len(metrics) if not found.
 func findMetricWithPartialLabels(
-	desc *Desc, metrics []metricWithLabelValues, labels Labels, curry []curriedLabelValue,
+	desc *Desc, metrics []*metricWithLabelValues, labels Labels, curry []curriedLabelValue,
 ) int {
-	for i, metric := range metrics {
-		if matchPartialLabels(desc, metric.values, labels, curry) {
+	for i := range metrics {
+		if matchPartialLabels(desc, metrics[i].values, labels, curry) {
 			return i
 		}
 	}
@@ -630,7 +630,7 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	if !ok {
 		inlinedLVs := inlineLabelValues(lvs, curry)
 		metric = m.newMetric(inlinedLVs...)
-		entry := metricWithLabelValues{values: inlinedLVs, metric: metric}
+		entry := &metricWithLabelValues{values: inlinedLVs, metric: metric}
 		if m.ttl > 0 {
 			entry.lastAccessed.Store(time.Now().UnixMilli())
 		}
@@ -664,7 +664,7 @@ func (m *metricMap) getOrCreateMetricWithLabels(
 	if !ok {
 		lvs := extractLabelValues(m.desc, labels, curry)
 		metric = m.newMetric(lvs...)
-		entry := metricWithLabelValues{values: lvs, metric: metric}
+		entry := &metricWithLabelValues{values: lvs, metric: metric}
 		if m.ttl > 0 {
 			entry.lastAccessed.Store(time.Now().UnixMilli())
 		}
@@ -706,10 +706,10 @@ func (m *metricMap) getMetricWithHashAndLabels(
 // findMetricWithLabelValues returns the index of the matching metric or
 // len(metrics) if not found.
 func findMetricWithLabelValues(
-	metrics []metricWithLabelValues, lvs []string, curry []curriedLabelValue,
+	metrics []*metricWithLabelValues, lvs []string, curry []curriedLabelValue,
 ) int {
-	for i, metric := range metrics {
-		if matchLabelValues(metric.values, lvs, curry) {
+	for i := range metrics {
+		if matchLabelValues(metrics[i].values, lvs, curry) {
 			return i
 		}
 	}
@@ -719,10 +719,10 @@ func findMetricWithLabelValues(
 // findMetricWithLabels returns the index of the matching metric or len(metrics)
 // if not found.
 func findMetricWithLabels(
-	desc *Desc, metrics []metricWithLabelValues, labels Labels, curry []curriedLabelValue,
+	desc *Desc, metrics []*metricWithLabelValues, labels Labels, curry []curriedLabelValue,
 ) int {
-	for i, metric := range metrics {
-		if matchLabels(desc, metric.values, labels, curry) {
+	for i := range metrics {
+		if matchLabels(desc, metrics[i].values, labels, curry) {
 			return i
 		}
 	}
