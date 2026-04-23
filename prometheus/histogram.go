@@ -1189,6 +1189,10 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 
 // NewHistogramVec creates a new HistogramVec based on the provided HistogramVecOpts.
 func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
+	return newHistogramVecWithTTL(opts, 0)
+}
+
+func newHistogramVecWithTTL(opts HistogramVecOpts, ttl time.Duration) *HistogramVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
@@ -1196,10 +1200,16 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
+	newMetric := func(lvs ...string) Metric {
+		return newHistogram(desc, opts.HistogramOpts, lvs...)
+	}
+	if ttl > 0 {
+		return &HistogramVec{
+			MetricVec: NewMetricVecWithTTL(desc, newMetric, ttl),
+		}
+	}
 	return &HistogramVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			return newHistogram(desc, opts.HistogramOpts, lvs...)
-		}),
+		MetricVec: NewMetricVec(desc, newMetric),
 	}
 }
 
