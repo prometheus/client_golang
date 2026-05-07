@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// A minimal example of how to include Prometheus instrumentation.
+// A minimal example of exposing Prometheus metrics from a Go application.
 package main
 
 import (
@@ -19,27 +19,31 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/prometheus/client_golang/prometheus/collectors"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Address for exposing Prometheus metrics.
 var addr = flag.String("listen-address", ":8080", "The address to listen on for HTTP requests.")
 
 func main() {
 	flag.Parse()
 
-	// Create non-global registry.
+	// Create a custom registry instead of using the global default registry.
+	// This helps isolate application metrics from automatically registered metrics.
 	reg := prometheus.NewRegistry()
 
-	// Add go runtime metrics and process collectors.
+	// Register Go runtime metrics (such as goroutine count
+	// and GC statistics) and process-level metrics (such as
+	// CPU and memory usage).
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 	)
 
-	// Expose /metrics HTTP endpoint using the created custom registry.
+	// Expose the registered metrics at /metrics for Prometheus scraping.
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
