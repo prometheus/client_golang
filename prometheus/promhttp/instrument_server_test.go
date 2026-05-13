@@ -21,6 +21,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -437,6 +439,97 @@ func TestMiddlewareAPI_WithExemplars(t *testing.T) {
 	chain.ServeHTTP(w, r)
 
 	assetMetricAndExemplars(t, reg, 5, labelsToLabelPair(exemplar))
+}
+
+// TestMiddlewareAPI_SummaryWithExemplars is a regression test for
+// https://github.com/prometheus/client_golang/issues/1258. SummaryVec is a
+// valid prometheus.ObserverVec but the underlying summary does not implement
+// prometheus.ExemplarObserver — only histograms can carry exemplars in the
+// Prometheus exposition format. The instrumentation helpers must therefore
+// fall back to a plain Observe when given a non-ExemplarObserver, instead of
+// panicking with a failed type assertion at request time.
+func TestMiddlewareAPI_SummaryWithExemplars(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	durationVec := prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name:       "request_duration_seconds",
+			Help:       "A summary of request durations.",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		},
+		[]string{"code", "method"},
+	)
+	reg.MustRegister(durationVec)
+
+	exemplar := prometheus.Labels{"traceID": "abc123"}
+	handler := InstrumentHandlerDuration(
+		durationVec,
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("OK"))
+		}),
+		WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }),
+	)
+
+	r, _ := http.NewRequest(http.MethodGet, "www.example.com", nil)
+	w := httptest.NewRecorder()
+
+	defer func() {
+		if rec := recover(); rec != nil {
+			t.Fatalf("InstrumentHandlerDuration panicked with a SummaryVec observer: %v", rec)
+		}
+	}()
+	handler.ServeHTTP(w, r)
+}
+
+// nonExemplarObserver implements prometheus.Observer but deliberately omits
+// ObserveWithExemplar, so it does not satisfy prometheus.ExemplarObserver.
+type nonExemplarObserver struct {
+	last float64
+}
+
+func (o *nonExemplarObserver) Observe(v float64) { o.last = v }
+
+// nonExemplarCounter implements prometheus.Counter but deliberately omits
+// AddWithExemplar, so it does not satisfy prometheus.ExemplarAdder.
+type nonExemplarCounter struct {
+	last float64
+}
+
+func (c *nonExemplarCounter) Desc() *prometheus.Desc           { return nil }
+func (c *nonExemplarCounter) Write(*dto.Metric) error          { return nil }
+func (c *nonExemplarCounter) Describe(chan<- *prometheus.Desc) {}
+func (c *nonExemplarCounter) Collect(chan<- prometheus.Metric) {}
+func (c *nonExemplarCounter) Inc()                             { c.last = 1 }
+func (c *nonExemplarCounter) Add(v float64)                    { c.last = v }
+
+func TestObserveWithExemplar_NonExemplarObserverFallsBack(t *testing.T) {
+	obs := &nonExemplarObserver{}
+
+	defer func() {
+		if rec := recover(); rec != nil {
+			t.Fatalf("observeWithExemplar panicked for non-ExemplarObserver: %v", rec)
+		}
+	}()
+	observeWithExemplar(obs, 1.5, prometheus.Labels{"traceID": "abc"})
+
+	if obs.last != 1.5 {
+		t.Fatalf("expected fallback Observe(1.5), got Observe(%v)", obs.last)
+	}
+}
+
+func TestAddWithExemplar_NonExemplarAdderFallsBack(t *testing.T) {
+	c := &nonExemplarCounter{}
+
+	defer func() {
+		if rec := recover(); rec != nil {
+			t.Fatalf("addWithExemplar panicked for non-ExemplarAdder: %v", rec)
+		}
+	}()
+	addWithExemplar(c, 2.5, prometheus.Labels{"traceID": "abc"})
+
+	if c.last != 2.5 {
+		t.Fatalf("expected fallback Add(2.5), got Add(%v)", c.last)
+	}
 }
 
 func TestInstrumentTimeToFirstWrite(t *testing.T) {
