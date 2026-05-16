@@ -1,6 +1,7 @@
 ## Unreleased
 
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [FEATURE] prometheus: `Registry` exposes a new `DisableHelpTextValidation` method to opt out of the strict per-fqName help-text consistency check during `Gather`. Useful when multiple libraries (or different versions of the same library) register compatible metrics into the same registry. Default behavior is unchanged, and `NewPedanticRegistry` always overrides the toggle. #2006
 
 ## Unreleased `exp` module
 

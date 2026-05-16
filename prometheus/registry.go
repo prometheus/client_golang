@@ -271,12 +271,38 @@ func (errs MultiError) MaybeUnwrap() error {
 // Registry implements Collector to allow it to be used for creating groups of
 // metrics. See the Grouping example for how this can be done.
 type Registry struct {
-	mtx                   sync.RWMutex
-	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
-	descIDs               map[uint64]struct{}
-	dimHashesByName       map[string]uint64
-	uncheckedCollectors   []Collector
-	pedanticChecksEnabled bool
+	mtx                        sync.RWMutex
+	collectorsByID             map[uint64]Collector // ID is a hash of the descIDs.
+	descIDs                    map[uint64]struct{}
+	dimHashesByName            map[string]uint64
+	uncheckedCollectors        []Collector
+	pedanticChecksEnabled      bool
+	helpTextValidationDisabled bool
+}
+
+// DisableHelpTextValidation opts this Registry out of the strict check that
+// every metric sharing a fully-qualified name also share the same help text.
+// When disabled, Gather keeps the help text from the first metric it sees for
+// a given fqName and aggregates later metrics into the same family even if
+// their help differs.
+//
+// This is useful when multiple libraries — or different versions of the same
+// library — register compatible metrics into a shared registry. A trivial
+// difference such as a trailing period gained across a client_golang upgrade
+// can otherwise turn a metadata mismatch into a hard /metrics outage. The
+// Prometheus server itself applies the same lenient semantics on scrape (see
+// https://github.com/prometheus/client_golang/issues/1820).
+//
+// The strict default is recommended for development and testing, where it
+// surfaces accidental help-text changes early. Calling this method on a
+// Registry returned by NewPedanticRegistry has no effect: pedantic mode
+// always enforces help-text consistency. The change applies to subsequent
+// Gather calls and is safe to invoke after registration; concurrent calls
+// are serialized by the Registry's lock.
+func (r *Registry) DisableHelpTextValidation() {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.helpTextValidationDisabled = true
 }
 
 // Register implements Registerer.
@@ -468,6 +494,13 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 			registeredDescIDs[id] = struct{}{}
 		}
 	}
+	// Snapshot the effective help-text validation toggle while still under
+	// the lock so that all processMetric calls in this Gather see a
+	// consistent value. Pedantic mode unconditionally overrides the toggle
+	// because pedantic callers have explicitly opted into the strictest set
+	// of checks; mixing pedantic with lenient help validation would be
+	// internally contradictory.
+	helpTextValidationDisabled := r.helpTextValidationDisabled && !r.pedanticChecksEnabled
 	r.mtx.RUnlock()
 
 	wg.Add(goroutineBudget)
@@ -526,6 +559,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				registeredDescIDs,
+				helpTextValidationDisabled,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -536,6 +570,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				nil,
+				helpTextValidationDisabled,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -553,6 +588,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						registeredDescIDs,
+						helpTextValidationDisabled,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -563,6 +599,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						nil,
+						helpTextValidationDisabled,
 					))
 				}
 				break
@@ -659,11 +696,18 @@ func WriteToTextfile(filename string, g Gatherer) error {
 }
 
 // processMetric is an internal helper method only used by the Gather method.
+//
+// helpTextValidationDisabled gates the strict per-fqName help-text consistency
+// check. When true, a metric whose help string differs from the family's
+// existing help is still aggregated into the family, and the family keeps the
+// first help text seen. See Registry.DisableHelpTextValidation for the
+// motivating use case (#1820).
 func processMetric(
 	metric Metric,
 	metricFamiliesByName map[string]*dto.MetricFamily,
 	metricHashes map[uint64]struct{},
 	registeredDescIDs map[uint64]struct{},
+	helpTextValidationDisabled bool,
 ) error {
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
@@ -677,7 +721,7 @@ func processMetric(
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
-		if metricFamily.GetHelp() != desc.help {
+		if metricFamily.GetHelp() != desc.help && !helpTextValidationDisabled {
 			return fmt.Errorf(
 				"collected metric %s %s has help %q but should have %q",
 				desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
