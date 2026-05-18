@@ -300,7 +300,7 @@ func TestMemStatsEquivalence(t *testing.T) {
 		case reflect.Uint64:
 			vr := fr.Interface().(uint64)
 			vf := ff.Interface().(uint64)
-			if float64(vr-vf)/float64(vf) > 0.05 {
+			if math.Abs(float64(vr)-float64(vf))/float64(vf) > 0.05 {
 				t.Errorf("wrong value for %s: got %d, want %d", typ.Field(i).Name, vf, vr)
 			}
 		}
@@ -434,6 +434,8 @@ func TestGoCollectorRuntimeMetricsUnit(t *testing.T) {
 		{"go_gc_heap_frees_bytes_total", "bytes"},
 		{"go_sched_goroutines_goroutines", "goroutines"},
 		{"go_gc_gomemlimit_bytes", "bytes"},
+		{"go_cpu_classes_gc_mark_assist_cpu_seconds_total", "cpu_seconds"},
+		{"go_gc_cycles_total_gc_cycles_total", "gc_cycles"},
 	}
 
 	for _, tc := range testCases {
