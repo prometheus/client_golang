@@ -127,6 +127,7 @@ func (m *ttlMetricMap) cleanupExpired() int {
 
 	var numDeleted int
 	for h, metrics := range m.metrics {
+		origLen := len(metrics)
 		remaining := metrics[:0]
 		for i := range metrics {
 			if metrics[i].lastAccessed.Load() >= deadline {
@@ -138,6 +139,9 @@ func (m *ttlMetricMap) cleanupExpired() int {
 		if len(remaining) == 0 {
 			delete(m.metrics, h)
 		} else {
+			for i := len(remaining); i < origLen; i++ {
+				metrics[i] = nil
+			}
 			m.metrics[h] = remaining
 		}
 	}
