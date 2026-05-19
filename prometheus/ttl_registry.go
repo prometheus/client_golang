@@ -58,6 +58,47 @@ func (r *TTLRegistry) track(mv *MetricVec) {
 	r.vecs = append(r.vecs, mv)
 }
 
+func (r *TTLRegistry) untrack(mv *MetricVec) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i, v := range r.vecs {
+		if v == mv {
+			last := len(r.vecs) - 1
+			r.vecs[i] = r.vecs[last]
+			r.vecs[last] = nil
+			r.vecs = r.vecs[:last]
+			return
+		}
+	}
+}
+
+func metricVecFromCollector(c Collector) *MetricVec {
+	switch v := c.(type) {
+	case *CounterVec:
+		return v.MetricVec
+	case *GaugeVec:
+		return v.MetricVec
+	case *HistogramVec:
+		return v.MetricVec
+	case *MetricVec:
+		return v
+	default:
+		return nil
+	}
+}
+
+// Unregister implements Registerer. It untracks Vecs created through this
+// registry so they are no longer retained or cleaned up on Gather.
+func (r *TTLRegistry) Unregister(c Collector) bool {
+	ok := r.Registry.Unregister(c)
+	if ok {
+		if mv := metricVecFromCollector(c); mv != nil {
+			r.untrack(mv)
+		}
+	}
+	return ok
+}
+
 func (r *TTLRegistry) runCleanup() {
 	r.mu.Lock()
 	vecs := append([]*MetricVec(nil), r.vecs...)

@@ -1125,6 +1125,23 @@ func TestTTLRefreshPreventsExpiration(t *testing.T) {
 	})
 }
 
+func TestNewMetricVecWithTTLZeroAndNegative(t *testing.T) {
+	desc := NewDesc("test", "help", []string{"l"}, nil)
+	newMetric := func(lvs ...string) Metric { return &counter{} }
+
+	mv0 := NewMetricVecWithTTL(desc, newMetric, 0)
+	if mv0.ttlMap != nil {
+		t.Fatal("ttl==0 should use plain MetricVec without ttlMap")
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for negative ttl")
+		}
+	}()
+	NewMetricVecWithTTL(desc, newMetric, -time.Second)
+}
+
 func TestTTLZeroMeansNoExpiration(t *testing.T) {
 	vec := NewCounterVec(CounterOpts{
 		Name: "test_no_ttl",

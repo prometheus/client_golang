@@ -61,8 +61,15 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 // NewMetricVecWithTTL returns an initialized MetricVec with TTL-based expiration.
 // Children that have not been accessed (via GetMetricWith or GetMetricWithLabelValues)
 // for longer than ttl will be excluded from Collect and can be cleaned up via
-// CleanupExpired. If ttl is 0, this behaves identically to NewMetricVec.
+// CleanupExpired. If ttl is 0, this behaves identically to NewMetricVec. A
+// negative ttl is invalid and will cause a panic.
 func NewMetricVecWithTTL(desc *Desc, newMetric func(lvs ...string) Metric, ttl time.Duration) *MetricVec {
+	if ttl < 0 {
+		panic(fmt.Sprintf("invalid negative ttl: %v", ttl))
+	}
+	if ttl == 0 {
+		return NewMetricVec(desc, newMetric)
+	}
 	return &MetricVec{
 		ttlMap: &ttlMetricMap{
 			metrics:   map[uint64][]*ttlMetricWithLabelValues{},

@@ -28,6 +28,46 @@ func TestNewTTLRegistryPanicsOnNonPositiveTTL(t *testing.T) {
 	NewTTLRegistry(0)
 }
 
+func TestTTLRegistryUnregisterUntracks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 80 * time.Millisecond
+		reg := NewTTLRegistry(ttl)
+		vec := reg.NewCounterVec(CounterOpts{
+			Name: "ttl_reg_unregister",
+			Help: "test",
+		}, []string{"code"})
+
+		vec.WithLabelValues("200").Add(1)
+		if !reg.Unregister(vec) {
+			t.Fatal("expected Unregister to succeed")
+		}
+
+		time.Sleep(ttl + 40*time.Millisecond)
+
+		if _, err := reg.Gather(); err != nil {
+			t.Fatal(err)
+		}
+
+		// Gather should not have run CleanupExpired on the unregistered vec.
+		if cleaned := vec.CleanupExpired(); cleaned != 1 {
+			t.Fatalf("expected 1 expired child after explicit cleanup, got %d", cleaned)
+		}
+
+		vec2 := reg.NewCounterVec(CounterOpts{
+			Name: "ttl_reg_still_tracked",
+			Help: "test",
+		}, []string{"code"})
+		vec2.WithLabelValues("200").Add(1)
+		time.Sleep(ttl + 40*time.Millisecond)
+		if _, err := reg.Gather(); err != nil {
+			t.Fatal(err)
+		}
+		if cleaned := vec2.CleanupExpired(); cleaned != 0 {
+			t.Fatalf("expected tracked vec cleaned on Gather, got %d remaining", cleaned)
+		}
+	})
+}
+
 func TestTTLRegistryGatherRunsCleanup(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ttl := 80 * time.Millisecond
