@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -28,25 +29,27 @@ func TestNewTTLRegistryPanicsOnNonPositiveTTL(t *testing.T) {
 }
 
 func TestTTLRegistryGatherRunsCleanup(t *testing.T) {
-	ttl := 80 * time.Millisecond
-	reg := NewTTLRegistry(ttl)
-	vec := reg.NewCounterVec(CounterOpts{
-		Name: "ttl_reg_gather",
-		Help: "test",
-	}, []string{"code"})
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 80 * time.Millisecond
+		reg := NewTTLRegistry(ttl)
+		vec := reg.NewCounterVec(CounterOpts{
+			Name: "ttl_reg_gather",
+			Help: "test",
+		}, []string{"code"})
 
-	vec.WithLabelValues("200").Add(1)
-	if n := collectCount(vec); n != 1 {
-		t.Fatalf("expected 1 metric before sleep, got %d", n)
-	}
+		vec.WithLabelValues("200").Add(1)
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric before sleep, got %d", n)
+		}
 
-	time.Sleep(ttl + 40*time.Millisecond)
+		time.Sleep(ttl + 40*time.Millisecond)
 
-	if _, err := reg.Gather(); err != nil {
-		t.Fatal(err)
-	}
+		if _, err := reg.Gather(); err != nil {
+			t.Fatal(err)
+		}
 
-	if n := collectCount(vec); n != 0 {
-		t.Fatalf("expected 0 metrics after Gather cleanup, got %d", n)
-	}
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 metrics after Gather cleanup, got %d", n)
+		}
+	})
 }
