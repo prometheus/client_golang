@@ -40,9 +40,9 @@ func TestDeleteWithCollisions(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"l1", "l2"},
-	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	).(*gaugeVec)
+	vec.MetricVec.(*metricVec).hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.MetricVec.(*metricVec).hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testDelete(t, vec)
 }
 
@@ -60,7 +60,7 @@ func TestDeleteWithConstraints(t *testing.T) {
 	testDelete(t, vec)
 }
 
-func testDelete(t *testing.T, vec *GaugeVec) {
+func testDelete(t *testing.T, vec GaugeVec) {
 	if got, want := vec.Delete(Labels{"l1": "v1", "l2": "v2"}), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -108,9 +108,9 @@ func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"l1", "l2"},
-	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	).(*gaugeVec)
+	vec.MetricVec.(*metricVec).hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.MetricVec.(*metricVec).hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testDeleteLabelValues(t, vec)
 }
 
@@ -128,7 +128,7 @@ func TestDeleteLabelValuesWithConstraints(t *testing.T) {
 	testDeleteLabelValues(t, vec)
 }
 
-func testDeleteLabelValues(t *testing.T, vec *GaugeVec) {
+func testDeleteLabelValues(t *testing.T, vec GaugeVec) {
 	if got, want := vec.DeleteLabelValues("v1", "v2"), false; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -162,7 +162,7 @@ func TestDeletePartialMatch(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"l1", "l2", "l3"},
-	)
+	).(*gaugeVec)
 	testDeletePartialMatch(t, vec)
 }
 
@@ -177,13 +177,13 @@ func TestDeletePartialMatchWithConstraints(t *testing.T) {
 			{Name: "l2", Constraint: func(s string) string { return "x" + s }},
 			{Name: "l3"},
 		},
-	})
+	}).(*gaugeVec)
 	testDeletePartialMatch(t, vec)
 }
 
-func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
+func testDeletePartialMatch(t *testing.T, baseVec *gaugeVec) {
 	assertNoMetric := func(t *testing.T) {
-		if n := len(baseVec.metrics); n != 0 {
+		if n := len(baseVec.MetricVec.(*metricVec).metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
@@ -198,7 +198,7 @@ func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff2BaseValue2", "l3": "v3"}).Set(84)
 	baseVec.With(Labels{"l1": "multiDeleteV1", "l2": "diff3BaseValue2", "l3": "v3"}).Set(168)
 
-	curriedVec := baseVec.MustCurryWith(Labels{"l2": "curriedValue2"})
+	curriedVec := baseVec.MustCurryWith(Labels{"l2": "curriedValue2"}).(*gaugeVec)
 	curriedVec.WithLabelValues("curriedValue1", "curriedValue3").Inc()
 	curriedVec.WithLabelValues("curriedValue1", "differentCurriedValue3").Inc()
 	curriedVec.WithLabelValues("differentCurriedValue1", "differentCurriedValue3").Inc()
@@ -267,7 +267,7 @@ func TestMetricVec(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"l1", "l2"},
-	)
+	).(*gaugeVec)
 	testMetricVec(t, vec)
 }
 
@@ -278,13 +278,13 @@ func TestMetricVecWithCollisions(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"l1", "l2"},
-	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	).(*gaugeVec)
+	vec.MetricVec.(*metricVec).hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.MetricVec.(*metricVec).hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testMetricVec(t, vec)
 }
 
-func testMetricVec(t *testing.T, vec *GaugeVec) {
+func testMetricVec(t *testing.T, vec *gaugeVec) {
 	vec.Reset() // Actually test Reset now!
 
 	var pair [2]string
@@ -301,7 +301,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 	}
 
 	var total int
-	for _, metrics := range vec.metrics {
+	for _, metrics := range vec.MetricVec.(*metricVec).metrics {
 		for _, metric := range metrics {
 			total++
 			copy(pair[:], metric.values)
@@ -336,7 +336,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 
 	vec.Reset()
 
-	if len(vec.metrics) > 0 {
+	if len(vec.MetricVec.(*metricVec).metrics) > 0 {
 		t.Fatalf("reset failed")
 	}
 }
@@ -352,11 +352,11 @@ func TestMetricVecWithConstraints(t *testing.T) {
 			{Name: "l1"},
 			{Name: "l2", Constraint: constraint},
 		},
-	})
+	}).(*gaugeVec)
 	testConstrainedMetricVec(t, vec, constraint)
 }
 
-func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string) string) {
+func testConstrainedMetricVec(t *testing.T, vec *gaugeVec, constrain func(string) string) {
 	vec.Reset() // Actually test Reset now!
 
 	var pair [2]string
@@ -373,7 +373,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	}
 
 	var total int
-	for _, metrics := range vec.metrics {
+	for _, metrics := range vec.MetricVec.(*metricVec).metrics {
 		for _, metric := range metrics {
 			total++
 			copy(pair[:], metric.values)
@@ -408,7 +408,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 
 	vec.Reset()
 
-	if len(vec.metrics) > 0 {
+	if len(vec.MetricVec.(*metricVec).metrics) > 0 {
 		t.Fatalf("reset failed")
 	}
 }
@@ -453,7 +453,7 @@ func TestCurryVec(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"one", "two", "three"},
-	)
+	).(*counterVec)
 	testCurryVec(t, vec)
 }
 
@@ -464,9 +464,9 @@ func TestCurryVecWithCollisions(t *testing.T) {
 			Help: "helpless",
 		},
 		[]string{"one", "two", "three"},
-	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	).(*counterVec)
+	vec.MetricVec.(*metricVec).hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.MetricVec.(*metricVec).hashAddByte = func(h uint64, b byte) uint64 { return 1 }
 	testCurryVec(t, vec)
 }
 
@@ -483,7 +483,7 @@ func TestCurryVecWithConstraints(t *testing.T) {
 				{Name: "two"},
 				{Name: "three", Constraint: constraint},
 			},
-		})
+		}).(*counterVec)
 		testCurryVec(t, vec)
 	})
 	t.Run("constrainedLabels reducing cardinality", func(t *testing.T) {
@@ -498,15 +498,15 @@ func TestCurryVecWithConstraints(t *testing.T) {
 				{Name: "two"},
 				{Name: "three", Constraint: constraint},
 			},
-		})
+		}).(*counterVec)
 		testConstrainedCurryVec(t, vec, constraint)
 	})
 }
 
-func testCurryVec(t *testing.T, vec *CounterVec) {
+func testCurryVec(t *testing.T, vec *counterVec) {
 	assertMetrics := func(t *testing.T) {
 		n := 0
-		for _, m := range vec.metrics {
+		for _, m := range vec.MetricVec.(*metricVec).metrics {
 			n += len(m)
 		}
 		if n != 2 {
@@ -533,7 +533,7 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 	}
 
 	assertNoMetric := func(t *testing.T) {
-		if n := len(vec.metrics); n != 0 {
+		if n := len(vec.MetricVec.(*metricVec).metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}
@@ -700,10 +700,10 @@ func testCurryVec(t *testing.T, vec *CounterVec) {
 	})
 }
 
-func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(string) string) {
+func testConstrainedCurryVec(t *testing.T, vec *counterVec, constraint func(string) string) {
 	assertMetrics := func(t *testing.T) {
 		n := 0
-		for _, m := range vec.metrics {
+		for _, m := range vec.MetricVec.(*metricVec).metrics {
 			n += len(m)
 		}
 		if n != 2 {
@@ -744,7 +744,7 @@ func testConstrainedCurryVec(t *testing.T, vec *CounterVec, constraint func(stri
 	}
 
 	assertNoMetric := func(t *testing.T) {
-		if n := len(vec.metrics); n != 0 {
+		if n := len(vec.MetricVec.(*metricVec).metrics); n != 0 {
 			t.Error("expected no metrics, got", n)
 		}
 	}

@@ -1175,7 +1175,7 @@ func (h *histogram) updateExemplar(v float64, bucket int, l Labels) {
 // (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewHistogramVec.
 type HistogramVec struct {
-	*MetricVec
+	MetricVec
 }
 
 // NewHistogramVec creates a new HistogramVec based on the provided HistogramOpts and
@@ -1227,10 +1227,10 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (v *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
+func (v *HistogramVec) GetMetricWithLabelValues(lvs ...string) (ObserverMethod, error) {
 	metric, err := v.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
-		return metric.(Observer), err
+		return metric.(ObserverMethod), err
 	}
 	return nil, err
 }
@@ -1247,10 +1247,10 @@ func (v *HistogramVec) GetMetricWithLabelValues(lvs ...string) (Observer, error)
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (v *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
+func (v *HistogramVec) GetMetricWith(labels Labels) (ObserverMethod, error) {
 	metric, err := v.MetricVec.GetMetricWith(labels)
 	if metric != nil {
-		return metric.(Observer), err
+		return metric.(ObserverMethod), err
 	}
 	return nil, err
 }
@@ -1260,7 +1260,7 @@ func (v *HistogramVec) GetMetricWith(labels Labels) (Observer, error) {
 // error allows shortcuts like
 //
 //	myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
+func (v *HistogramVec) WithLabelValues(lvs ...string) ObserverMethod {
 	h, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
@@ -1272,7 +1272,7 @@ func (v *HistogramVec) WithLabelValues(lvs ...string) Observer {
 // returned an error. Not returning an error allows shortcuts like
 //
 //	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (v *HistogramVec) With(labels Labels) Observer {
+func (v *HistogramVec) With(labels Labels) ObserverMethod {
 	h, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)

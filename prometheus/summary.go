@@ -554,7 +554,7 @@ func (s quantSort) Less(i, j int) bool {
 // (e.g. HTTP request latencies, partitioned by status code and method). Create
 // instances with NewSummaryVec.
 type SummaryVec struct {
-	*MetricVec
+	MetricVec
 }
 
 // NewSummaryVec creates a new SummaryVec based on the provided SummaryOpts and
@@ -615,10 +615,10 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 // latter has a much more readable (albeit more verbose) syntax, but it comes
 // with a performance overhead (for creating and processing the Labels map).
 // See also the GaugeVec example.
-func (v *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
+func (v *SummaryVec) GetMetricWithLabelValues(lvs ...string) (ObserverMethod, error) {
 	metric, err := v.MetricVec.GetMetricWithLabelValues(lvs...)
 	if metric != nil {
-		return metric.(Observer), err
+		return metric.(ObserverMethod), err
 	}
 	return nil, err
 }
@@ -635,10 +635,10 @@ func (v *SummaryVec) GetMetricWithLabelValues(lvs ...string) (Observer, error) {
 // This method is used for the same purpose as
 // GetMetricWithLabelValues(...string). See there for pros and cons of the two
 // methods.
-func (v *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
+func (v *SummaryVec) GetMetricWith(labels Labels) (ObserverMethod, error) {
 	metric, err := v.MetricVec.GetMetricWith(labels)
 	if metric != nil {
-		return metric.(Observer), err
+		return metric.(ObserverMethod), err
 	}
 	return nil, err
 }
@@ -648,7 +648,7 @@ func (v *SummaryVec) GetMetricWith(labels Labels) (Observer, error) {
 // error allows shortcuts like
 //
 //	myVec.WithLabelValues("404", "GET").Observe(42.21)
-func (v *SummaryVec) WithLabelValues(lvs ...string) Observer {
+func (v *SummaryVec) WithLabelValues(lvs ...string) ObserverMethod {
 	s, err := v.GetMetricWithLabelValues(lvs...)
 	if err != nil {
 		panic(err)
@@ -660,7 +660,7 @@ func (v *SummaryVec) WithLabelValues(lvs ...string) Observer {
 // returned an error. Not returning an error allows shortcuts like
 //
 //	myVec.With(prometheus.Labels{"code": "404", "method": "GET"}).Observe(42.21)
-func (v *SummaryVec) With(labels Labels) Observer {
+func (v *SummaryVec) With(labels Labels) ObserverMethod {
 	s, err := v.GetMetricWith(labels)
 	if err != nil {
 		panic(err)

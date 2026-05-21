@@ -28,7 +28,7 @@ var requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 
 func ExampleTimer() {
 	// timer times this example function. It uses a Histogram, but a Summary
-	// would also work, as both implement Observer. Check out
+	// would also work, as both implement ObserverMethod. Check out
 	// https://prometheus.io/docs/practices/histograms/ for differences.
 	timer := prometheus.NewTimer(requestDuration)
 	defer timer.ObserveDuration()

@@ -62,7 +62,7 @@ func InstrumentRoundTripperInFlight(gauge prometheus.Gauge, next http.RoundTripp
 // Use with WithExemplarFromContext to instrument the exemplars on the counter of requests.
 //
 // See the example for ExampleInstrumentRoundTripperDuration for example usage.
-func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
+func InstrumentRoundTripperCounter(counter prometheus.CounterVec, next http.RoundTripper, opts ...Option) RoundTripperFunc {
 	rtOpts := defaultOptions()
 	for _, o := range opts {
 		o.apply(rtOpts)
@@ -91,7 +91,7 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 // "method". The function panics otherwise. For the "method" label a predefined
 // default label value set is used to filter given values. Values besides
 // predefined values will count as `unknown` method. `WithExtraMethods`
-// can be used to add more methods to the set. The Observe method of the Observer
+// can be used to add more methods to the set. The Observe method of the ObserverMethod
 // in the ObserverVec is called with the request duration in
 // seconds. Partitioning happens by HTTP status code and/or HTTP method if the
 // respective instance label names are present in the ObserverVec. For

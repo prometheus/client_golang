@@ -320,41 +320,41 @@ func TestCounterExemplar(t *testing.T) {
 func TestCounterVecCreatedTimestampWithDeletes(t *testing.T) {
 	now := time.Now()
 
-	counterVec := NewCounterVec(CounterOpts{
+	vec := NewCounterVec(CounterOpts{
 		Name: "test",
 		Help: "test help",
 		now:  func() time.Time { return now },
 	}, []string{"label"})
 
 	// First use of "With" should populate CT.
-	counterVec.WithLabelValues("1")
+	vec.WithLabelValues("1")
 	expected := map[string]time.Time{"1": now}
 
 	now = now.Add(1 * time.Hour)
-	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+	expectCTsForMetricVecValues(t, vec.(*counterVec).MetricVec, dto.MetricType_COUNTER, expected)
 
 	// Two more labels at different times.
-	counterVec.WithLabelValues("2")
+	vec.WithLabelValues("2")
 	expected["2"] = now
 
 	now = now.Add(1 * time.Hour)
 
-	counterVec.WithLabelValues("3")
+	vec.WithLabelValues("3")
 	expected["3"] = now
 
 	now = now.Add(1 * time.Hour)
-	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+	expectCTsForMetricVecValues(t, vec.(*counterVec).MetricVec, dto.MetricType_COUNTER, expected)
 
 	// Recreate metric instance should reset created timestamp to now.
-	counterVec.DeleteLabelValues("1")
-	counterVec.WithLabelValues("1")
+	vec.DeleteLabelValues("1")
+	vec.WithLabelValues("1")
 	expected["1"] = now
 
 	now = now.Add(1 * time.Hour)
-	expectCTsForMetricVecValues(t, counterVec.MetricVec, dto.MetricType_COUNTER, expected)
+	expectCTsForMetricVecValues(t, vec.(*counterVec).MetricVec, dto.MetricType_COUNTER, expected)
 }
 
-func expectCTsForMetricVecValues(t testing.TB, vec *MetricVec, typ dto.MetricType, ctsPerLabelValue map[string]time.Time) {
+func expectCTsForMetricVecValues(t testing.TB, vec MetricVec, typ dto.MetricType, ctsPerLabelValue map[string]time.Time) {
 	t.Helper()
 
 	for val, ct := range ctsPerLabelValue {
