@@ -240,7 +240,7 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 	}
 	// NewDesc will do remaining validations.
 	newDesc := V2.NewDesc(prefix+desc.fqName, desc.help, desc.variableLabels, constLabels, WithUnit(desc.unit))
-	// Propagate errors if there was any. This will override any errer
+	// Propagate errors if there was any. This will override any error
 	// created by NewDesc above, i.e. earlier errors get precedence.
 	if desc.err != nil {
 		newDesc.err = desc.err
