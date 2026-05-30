@@ -1619,63 +1619,63 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		expected string
 	}{
 		{
-			point:    model.SamplePair{0, 0},
+			point:    model.SamplePair{Timestamp: 0, Value: 0},
 			expected: `[0,"0"]`,
 		},
 		{
-			point:    model.SamplePair{1, 20},
+			point:    model.SamplePair{Timestamp: 1, Value: 20},
 			expected: `[0.001,"20"]`,
 		},
 		{
-			point:    model.SamplePair{10, 20},
+			point:    model.SamplePair{Timestamp: 10, Value: 20},
 			expected: `[0.010,"20"]`,
 		},
 		{
-			point:    model.SamplePair{100, 20},
+			point:    model.SamplePair{Timestamp: 100, Value: 20},
 			expected: `[0.100,"20"]`,
 		},
 		{
-			point:    model.SamplePair{1001, 20},
+			point:    model.SamplePair{Timestamp: 1001, Value: 20},
 			expected: `[1.001,"20"]`,
 		},
 		{
-			point:    model.SamplePair{1010, 20},
+			point:    model.SamplePair{Timestamp: 1010, Value: 20},
 			expected: `[1.010,"20"]`,
 		},
 		{
-			point:    model.SamplePair{1100, 20},
+			point:    model.SamplePair{Timestamp: 1100, Value: 20},
 			expected: `[1.100,"20"]`,
 		},
 		{
-			point:    model.SamplePair{12345678123456555, 20},
+			point:    model.SamplePair{Timestamp: 12345678123456555, Value: 20},
 			expected: `[12345678123456.555,"20"]`,
 		},
 		{
-			point:    model.SamplePair{-1, 20},
+			point:    model.SamplePair{Timestamp: -1, Value: 20},
 			expected: `[-0.001,"20"]`,
 		},
 		{
-			point:    model.SamplePair{0, model.SampleValue(math.NaN())},
+			point:    model.SamplePair{Timestamp: 0, Value: model.SampleValue(math.NaN())},
 			expected: `[0,"NaN"]`,
 		},
 		{
-			point:    model.SamplePair{0, model.SampleValue(math.Inf(1))},
+			point:    model.SamplePair{Timestamp: 0, Value: model.SampleValue(math.Inf(1))},
 			expected: `[0,"+Inf"]`,
 		},
 		{
-			point:    model.SamplePair{0, model.SampleValue(math.Inf(-1))},
+			point:    model.SamplePair{Timestamp: 0, Value: model.SampleValue(math.Inf(-1))},
 			expected: `[0,"-Inf"]`,
 		},
 		{
-			point:    model.SamplePair{0, model.SampleValue(1.2345678e6)},
+			point:    model.SamplePair{Timestamp: 0, Value: model.SampleValue(1.2345678e6)},
 			expected: `[0,"1234567.8"]`,
 		},
 		{
-			point:    model.SamplePair{0, 1.2345678e-6},
+			point:    model.SamplePair{Timestamp: 0, Value: 1.2345678e-6},
 			expected: `[0,"0.0000012345678"]`,
 		},
 		{
-			point:    model.SamplePair{0, 1.2345678e-67},
+			point:    model.SamplePair{Timestamp: 0, Value: 1.2345678e-67},
 			expected: `[0,"1.2345678e-67"]`,
 		},
 	}
