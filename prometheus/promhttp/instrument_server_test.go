@@ -524,6 +524,7 @@ func TestInterfaceUpgrade(t *testing.T) {
 	}
 }
 
+// Regression test against https://github.com/prometheus/client_golang/pull/1318
 func TestInstrumentHandlerLabelFromCtxConcurrent(t *testing.T) {
 	const (
 		workers           = 32
