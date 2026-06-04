@@ -65,10 +65,25 @@ func init() {
 // NewRegistry creates a new vanilla Registry without any Collectors
 // pre-registered.
 func NewRegistry() *Registry {
+	return NewRegistryWithOptions(RegistryOpts{})
+}
+
+// RegistryOpts configures a Registry.
+type RegistryOpts struct {
+	// DisableMetricSorting skips sorting MetricFamilies and their Metrics in
+	// Gather. The gathered MetricFamilies remain valid for exposition, but their
+	// order is unspecified.
+	DisableMetricSorting bool
+}
+
+// NewRegistryWithOptions creates a new vanilla Registry without any Collectors
+// pre-registered.
+func NewRegistryWithOptions(opts RegistryOpts) *Registry {
 	return &Registry{
-		collectorsByID:  map[uint64]Collector{},
-		descIDs:         map[uint64]struct{}{},
-		dimHashesByName: map[string]uint64{},
+		collectorsByID:       map[uint64]Collector{},
+		descIDs:              map[uint64]struct{}{},
+		dimHashesByName:      map[string]uint64{},
+		disableMetricSorting: opts.DisableMetricSorting,
 	}
 }
 
@@ -83,7 +98,12 @@ func NewRegistry() *Registry {
 // Collectors and Metrics will only provide consistent Descs. This Registry is
 // useful to test the implementation of Collectors and Metrics.
 func NewPedanticRegistry() *Registry {
-	r := NewRegistry()
+	return NewPedanticRegistryWithOptions(RegistryOpts{})
+}
+
+// NewPedanticRegistryWithOptions is like NewPedanticRegistry but applies opts.
+func NewPedanticRegistryWithOptions(opts RegistryOpts) *Registry {
+	r := NewRegistryWithOptions(opts)
 	r.pedanticChecksEnabled = true
 	return r
 }
@@ -139,12 +159,14 @@ type Registerer interface {
 // interface.
 type Gatherer interface {
 	// Gather calls the Collect method of the registered Collectors and then
-	// gathers the collected metrics into a lexicographically sorted slice
-	// of uniquely named MetricFamily protobufs. Gather ensures that the
-	// returned slice is valid and self-consistent so that it can be used
-	// for valid exposition. As an exception to the strict consistency
-	// requirements described for metric.Desc, Gather will tolerate
-	// different sets of label names for metrics of the same metric family.
+	// gathers the collected metrics into a slice of uniquely named
+	// MetricFamily protobufs. Registry sorts the returned MetricFamilies and
+	// their contained Metrics by default; callers can disable that with
+	// RegistryOpts.DisableMetricSorting. Gather ensures that the returned slice
+	// is valid and self-consistent so that it can be used for valid exposition.
+	// As an exception to the strict consistency requirements described for
+	// metric.Desc, Gather will tolerate different sets of label names for
+	// metrics of the same metric family.
 	//
 	// Even if an error occurs, Gather attempts to gather as many metrics as
 	// possible. Hence, if a non-nil error is returned, the returned
@@ -277,6 +299,7 @@ type Registry struct {
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+	disableMetricSorting  bool
 }
 
 // Register implements Registerer.
@@ -448,6 +471,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		wg                  sync.WaitGroup
 		safeErrs            = &SafeMultiError{} // To collect errors in a threadsafe way
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
+		disableSorting      = r.disableMetricSorting
 	)
 
 	goroutineBudget := len(r.collectorsByID) + len(r.uncheckedCollectors)
@@ -580,7 +604,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 
-	return internal.NormalizeMetricFamilies(metricFamiliesByName), safeErrs.errs.MaybeUnwrap()
+	return internal.NormalizeMetricFamiliesWithSorting(metricFamiliesByName, !disableSorting), safeErrs.errs.MaybeUnwrap()
 }
 
 // Describe implements Collector.
