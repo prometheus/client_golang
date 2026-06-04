@@ -471,7 +471,6 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		wg                  sync.WaitGroup
 		safeErrs            = &SafeMultiError{} // To collect errors in a threadsafe way
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
-		disableSorting      = r.disableMetricSorting
 	)
 
 	goroutineBudget := len(r.collectorsByID) + len(r.uncheckedCollectors)
@@ -604,7 +603,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 
-	return internal.NormalizeMetricFamiliesWithSorting(metricFamiliesByName, !disableSorting), safeErrs.errs.MaybeUnwrap()
+	return internal.NormalizeMetricFamiliesWithSorting(metricFamiliesByName, !r.disableMetricSorting), safeErrs.errs.MaybeUnwrap()
 }
 
 // Describe implements Collector.
