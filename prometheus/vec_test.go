@@ -446,6 +446,79 @@ func TestCounterVecEndToEndWithCollision(t *testing.T) {
 	}
 }
 
+func TestMetricVecGetMetricWithCopiesLabels(t *testing.T) {
+	vec := NewCounterVec(
+		CounterOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l"},
+	)
+
+	labels := Labels{"l": "bar"}
+	mutated := false
+	vec.hashAdd = func(h uint64, s string) uint64 {
+		if s == "bar" && !mutated {
+			labels["l"] = "cake"
+			mutated = true
+		}
+		return hashAdd(h, s)
+	}
+
+	metric, err := vec.GetMetricWith(labels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !mutated {
+		t.Fatal("test hook was not reached")
+	}
+	assertMetricLabelValue(t, metric, "bar")
+}
+
+func TestMetricVecGetMetricWithLabelValuesCopiesLabelValues(t *testing.T) {
+	vec := NewCounterVec(
+		CounterOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l"},
+	)
+
+	labelValues := []string{"bar"}
+	mutated := false
+	vec.hashAdd = func(h uint64, s string) uint64 {
+		if s == "bar" && !mutated {
+			labelValues[0] = "cake"
+			mutated = true
+		}
+		return hashAdd(h, s)
+	}
+
+	metric, err := vec.GetMetricWithLabelValues(labelValues...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !mutated {
+		t.Fatal("test hook was not reached")
+	}
+	assertMetricLabelValue(t, metric, "bar")
+}
+
+func assertMetricLabelValue(t *testing.T, metric Metric, want string) {
+	t.Helper()
+
+	var out dto.Metric
+	if err := metric.Write(&out); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(out.Label); got != 1 {
+		t.Fatalf("got %d labels, want 1", got)
+	}
+	if got := out.Label[0].GetValue(); got != want {
+		t.Fatalf("got label value %q, want %q", got, want)
+	}
+}
+
 func TestCurryVec(t *testing.T) {
 	vec := NewCounterVec(
 		CounterOpts{
