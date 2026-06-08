@@ -1,6 +1,7 @@
 ## Unreleased
 
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [FEATURE] testutil: Add `GatherAndAssertNativeHistogramExists`, `GatherAndAssertNativeHistogramCount`, `GatherAndAssertNativeHistogramSum`, and `GatherAndAssertNativeHistogramIntervalCount` to verify native histograms gathered from a `Gatherer`, which the text-based `GatherAndCompare` cannot represent. #2020
 
 ## Unreleased `exp` module
 
