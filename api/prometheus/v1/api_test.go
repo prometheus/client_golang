@@ -33,15 +33,15 @@ import (
 )
 
 type apiTest struct {
-	do           func() (interface{}, Warnings, error)
+	do           func() (any, Warnings, error)
 	inWarnings   []string
 	inErr        error
 	inStatusCode int
-	inRes        interface{}
+	inRes        any
 
 	reqPath   string
 	reqMethod string
-	res       interface{}
+	res       any
 	err       error
 }
 
@@ -107,148 +107,148 @@ func TestAPIs(t *testing.T) {
 		client: tc,
 	}
 
-	doAlertManagers := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doAlertManagers := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.AlertManagers(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doCleanTombstones := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doCleanTombstones := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return nil, nil, promAPI.CleanTombstones(context.Background())
 		}
 	}
 
-	doConfig := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doConfig := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Config(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doDeleteSeries := func(matcher string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doDeleteSeries := func(matcher string, startTime, endTime time.Time) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return nil, nil, promAPI.DeleteSeries(context.Background(), []string{matcher}, startTime, endTime)
 		}
 	}
 
-	doFlags := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doFlags := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Flags(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doBuildinfo := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doBuildinfo := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Buildinfo(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doRuntimeinfo := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doRuntimeinfo := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Runtimeinfo(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doLabelNames := func(matches []string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doLabelNames := func(matches []string, startTime, endTime time.Time, opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return promAPI.LabelNames(context.Background(), matches, startTime, endTime, opts...)
 		}
 	}
 
-	doLabelValues := func(matches []string, label string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doLabelValues := func(matches []string, label string, startTime, endTime time.Time, opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return promAPI.LabelValues(context.Background(), label, matches, startTime, endTime, opts...)
 		}
 	}
 
-	doQuery := func(q string, ts time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQuery := func(q string, ts time.Time, opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return promAPI.Query(context.Background(), q, ts, opts...)
 		}
 	}
 
-	doQueryRange := func(q string, rng Range, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQueryRange := func(q string, rng Range, opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return promAPI.QueryRange(context.Background(), q, rng, opts...)
 		}
 	}
 
-	doSeries := func(matcher string, startTime, endTime time.Time, opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doSeries := func(matcher string, startTime, endTime time.Time, opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			return promAPI.Series(context.Background(), []string{matcher}, startTime, endTime, opts...)
 		}
 	}
 
-	doSnapshot := func(skipHead bool) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doSnapshot := func(skipHead bool) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Snapshot(context.Background(), skipHead)
 			return v, nil, err
 		}
 	}
 
-	doRules := func(matches []string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doRules := func(matches []string) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Rules(context.Background(), matches)
 			return v, nil, err
 		}
 	}
 
-	doTargets := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTargets := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Targets(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doTargetsMetadata := func(matchTarget, metric, limit string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTargetsMetadata := func(matchTarget, metric, limit string) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.TargetsMetadata(context.Background(), matchTarget, metric, limit)
 			return v, nil, err
 		}
 	}
 
-	doMetadata := func(metric, limit string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doMetadata := func(metric, limit string) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.Metadata(context.Background(), metric, limit)
 			return v, nil, err
 		}
 	}
 
-	doTSDB := func(opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTSDB := func(opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.TSDB(context.Background(), opts...)
 			return v, nil, err
 		}
 	}
 
-	doTSDBBlocks := func(opts ...Option) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doTSDBBlocks := func(opts ...Option) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.TSDBBlocks(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doWalReply := func() func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doWalReply := func() func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.WalReplay(context.Background())
 			return v, nil, err
 		}
 	}
 
-	doQueryExemplars := func(query string, startTime, endTime time.Time) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doQueryExemplars := func(query string, startTime, endTime time.Time) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.QueryExemplars(context.Background(), query, startTime, endTime)
 			return v, nil, err
 		}
 	}
 
-	doFormatQuery := func(query string) func() (interface{}, Warnings, error) {
-		return func() (interface{}, Warnings, error) {
+	doFormatQuery := func(query string) func() (any, Warnings, error) {
+		return func() (any, Warnings, error) {
 			v, err := promAPI.FormatQuery(context.Background(), query)
 			return v, nil, err
 		}
@@ -608,7 +608,7 @@ func TestAPIs(t *testing.T) {
 			do:        doBuildinfo(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/buildinfo",
-			inRes: map[string]interface{}{
+			inRes: map[string]any{
 				"version":   "2.23.0",
 				"revision":  "26d89b4b0776fe4cd5a3656dfa520f119a375273",
 				"branch":    "HEAD",
@@ -638,7 +638,7 @@ func TestAPIs(t *testing.T) {
 			do:        doRuntimeinfo(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/runtimeinfo",
-			inRes: map[string]interface{}{
+			inRes: map[string]any{
 				"startTime":           "2020-05-18T15:52:53.4503113Z",
 				"CWD":                 "/prometheus",
 				"reloadConfigSuccess": true,
@@ -668,7 +668,7 @@ func TestAPIs(t *testing.T) {
 			do:        doAlertManagers(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/alertmanagers",
-			inRes: map[string]interface{}{
+			inRes: map[string]any{
 				"activeAlertManagers": []map[string]string{
 					{
 						"url": "http://127.0.0.1:9091/api/v1/alerts",
@@ -706,21 +706,21 @@ func TestAPIs(t *testing.T) {
 			do:        doRules(nil),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
-			inRes: map[string]interface{}{
-				"groups": []map[string]interface{}{
+			inRes: map[string]any{
+				"groups": []map[string]any{
 					{
 						"file":     "/rules.yaml",
 						"interval": 60,
 						"name":     "example",
-						"rules": []map[string]interface{}{
+						"rules": []map[string]any{
 							{
-								"alerts": []map[string]interface{}{
+								"alerts": []map[string]any{
 									{
 										"activeAt": testTime.UTC().Format(time.RFC3339Nano),
-										"annotations": map[string]interface{}{
+										"annotations": map[string]any{
 											"summary": "High request latency",
 										},
-										"labels": map[string]interface{}{
+										"labels": map[string]any{
 											"alertname": "HighRequestLatency",
 											"severity":  "page",
 										},
@@ -728,12 +728,12 @@ func TestAPIs(t *testing.T) {
 										"value": "1e+00",
 									},
 								},
-								"annotations": map[string]interface{}{
+								"annotations": map[string]any{
 									"summary": "High request latency",
 								},
 								"duration": 600,
 								"health":   "ok",
-								"labels": map[string]interface{}{
+								"labels": map[string]any{
 									"severity": "page",
 								},
 								"name":  "HighRequestLatency",
@@ -756,7 +756,7 @@ func TestAPIs(t *testing.T) {
 						Name:     "example",
 						File:     "/rules.yaml",
 						Interval: 60,
-						Rules: []interface{}{
+						Rules: []any{
 							AlertingRule{
 								Alerts: []*Alert{
 									{
@@ -801,21 +801,21 @@ func TestAPIs(t *testing.T) {
 			do:        doRules(nil),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
-			inRes: map[string]interface{}{
-				"groups": []map[string]interface{}{
+			inRes: map[string]any{
+				"groups": []map[string]any{
 					{
 						"file":     "/rules.yaml",
 						"interval": 60,
 						"name":     "example",
-						"rules": []map[string]interface{}{
+						"rules": []map[string]any{
 							{
-								"alerts": []map[string]interface{}{
+								"alerts": []map[string]any{
 									{
 										"activeAt": testTime.UTC().Format(time.RFC3339Nano),
-										"annotations": map[string]interface{}{
+										"annotations": map[string]any{
 											"summary": "High request latency",
 										},
-										"labels": map[string]interface{}{
+										"labels": map[string]any{
 											"alertname": "HighRequestLatency",
 											"severity":  "page",
 										},
@@ -823,12 +823,12 @@ func TestAPIs(t *testing.T) {
 										"value": "1e+00",
 									},
 								},
-								"annotations": map[string]interface{}{
+								"annotations": map[string]any{
 									"summary": "High request latency",
 								},
 								"duration": 600,
 								"health":   "ok",
-								"labels": map[string]interface{}{
+								"labels": map[string]any{
 									"severity": "page",
 								},
 								"name":           "HighRequestLatency",
@@ -856,7 +856,7 @@ func TestAPIs(t *testing.T) {
 						Name:     "example",
 						File:     "/rules.yaml",
 						Interval: 60,
-						Rules: []interface{}{
+						Rules: []any{
 							AlertingRule{
 								Alerts: []*Alert{
 									{
@@ -905,21 +905,21 @@ func TestAPIs(t *testing.T) {
 			do:        doRules([]string{`severity="info"`}),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/rules",
-			inRes: map[string]interface{}{
-				"groups": []map[string]interface{}{
+			inRes: map[string]any{
+				"groups": []map[string]any{
 					{
 						"file":     "/rules.yaml",
 						"interval": 60,
 						"name":     "example",
-						"rules": []map[string]interface{}{
+						"rules": []map[string]any{
 							{
-								"alerts": []map[string]interface{}{},
-								"annotations": map[string]interface{}{
+								"alerts": []map[string]any{},
+								"annotations": map[string]any{
 									"summary": "High request latency",
 								},
 								"duration": 600,
 								"health":   "ok",
-								"labels": map[string]interface{}{
+								"labels": map[string]any{
 									"severity": "info",
 								},
 								"name":  "HighRequestLatency",
@@ -936,7 +936,7 @@ func TestAPIs(t *testing.T) {
 						Name:     "example",
 						File:     "/rules.yaml",
 						Interval: 60,
-						Rules: []interface{}{
+						Rules: []any{
 							AlertingRule{
 								Alerts: []*Alert{},
 								Annotations: model.LabelSet{
@@ -969,8 +969,8 @@ func TestAPIs(t *testing.T) {
 			do:        doTargets(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/targets",
-			inRes: map[string]interface{}{
-				"activeTargets": []map[string]interface{}{
+			inRes: map[string]any{
+				"activeTargets": []map[string]any{
 					{
 						"discoveredLabels": map[string]string{
 							"__address__":      "127.0.0.1:9090",
@@ -991,7 +991,7 @@ func TestAPIs(t *testing.T) {
 						"health":             "up",
 					},
 				},
-				"droppedTargets": []map[string]interface{}{
+				"droppedTargets": []map[string]any{
 					{
 						"discoveredLabels": map[string]string{
 							"__address__":      "127.0.0.1:9100",
@@ -1047,9 +1047,9 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do: doTargetsMetadata("{job=\"prometheus\"}", "go_goroutines", "1"),
-			inRes: []map[string]interface{}{
+			inRes: []map[string]any{
 				{
-					"target": map[string]interface{}{
+					"target": map[string]any{
 						"instance": "127.0.0.1:9090",
 						"job":      "prometheus",
 					},
@@ -1083,8 +1083,8 @@ func TestAPIs(t *testing.T) {
 
 		{
 			do: doMetadata("go_goroutines", "1"),
-			inRes: map[string]interface{}{
-				"go_goroutines": []map[string]interface{}{
+			inRes: map[string]any{
+				"go_goroutines": []map[string]any{
 					{
 						"type": "gauge",
 						"help": "Number of goroutines that currently exist.",
@@ -1125,34 +1125,34 @@ func TestAPIs(t *testing.T) {
 			do:        doTSDB(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb",
-			inRes: map[string]interface{}{
-				"headStats": map[string]interface{}{
+			inRes: map[string]any{
+				"headStats": map[string]any{
 					"numSeries":     18476,
 					"numLabelPairs": 4301,
 					"chunkCount":    72692,
 					"minTime":       1634644800304,
 					"maxTime":       1634650590304,
 				},
-				"seriesCountByMetricName": []interface{}{
-					map[string]interface{}{
+				"seriesCountByMetricName": []any{
+					map[string]any{
 						"name":  "kubelet_http_requests_duration_seconds_bucket",
 						"value": 1000,
 					},
 				},
-				"labelValueCountByLabelName": []interface{}{
-					map[string]interface{}{
+				"labelValueCountByLabelName": []any{
+					map[string]any{
 						"name":  "__name__",
 						"value": 200,
 					},
 				},
-				"memoryInBytesByLabelName": []interface{}{
-					map[string]interface{}{
+				"memoryInBytesByLabelName": []any{
+					map[string]any{
 						"name":  "id",
 						"value": 4096,
 					},
 				},
-				"seriesCountByLabelValuePair": []interface{}{
-					map[string]interface{}{
+				"seriesCountByLabelValuePair": []any{
+					map[string]any{
 						"name":  "job=kubelet",
 						"value": 30000,
 					},
@@ -1205,22 +1205,22 @@ func TestAPIs(t *testing.T) {
 			do:        doTSDBBlocks(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb/blocks",
-			inRes: map[string]interface{}{
+			inRes: map[string]any{
 				"status": "success",
-				"data": map[string]interface{}{
-					"blocks": []interface{}{
-						map[string]interface{}{
+				"data": map[string]any{
+					"blocks": []any{
+						map[string]any{
 							"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
 							"minTime": 1750860620060,
 							"maxTime": 1750867200000,
-							"stats": map[string]interface{}{
+							"stats": map[string]any{
 								"numSamples": 13701,
 								"numSeries":  716,
 								"numChunks":  716,
 							},
-							"compaction": map[string]interface{}{
+							"compaction": map[string]any{
 								"level": 1,
-								"sources": []interface{}{
+								"sources": []any{
 									"01JZ8JKZY6XSK3PTDP9ZKRWT60",
 								},
 							},
@@ -1263,7 +1263,7 @@ func TestAPIs(t *testing.T) {
 			do:        doWalReply(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/walreplay",
-			inRes: map[string]interface{}{
+			inRes: map[string]any{
 				"min":     2,
 				"max":     5,
 				"current": 40,
@@ -1287,23 +1287,23 @@ func TestAPIs(t *testing.T) {
 			do:        doQueryExemplars("tns_request_duration_seconds_bucket", testTime.Add(-1*time.Minute), testTime),
 			reqMethod: "POST",
 			reqPath:   "/api/v1/query_exemplars",
-			inRes: []interface{}{
-				map[string]interface{}{
-					"seriesLabels": map[string]interface{}{
+			inRes: []any{
+				map[string]any{
+					"seriesLabels": map[string]any{
 						"__name__": "tns_request_duration_seconds_bucket",
 						"instance": "app:80",
 						"job":      "tns/app",
 					},
-					"exemplars": []interface{}{
-						map[string]interface{}{
-							"labels": map[string]interface{}{
+					"exemplars": []any{
+						map[string]any{
+							"labels": map[string]any{
 								"traceID": "19fd8c8a33975a23",
 							},
 							"value":     "0.003863295",
 							"timestamp": model.TimeFromUnixNano(testTime.UnixNano()),
 						},
-						map[string]interface{}{
-							"labels": map[string]interface{}{
+						map[string]any{
+							"labels": map[string]any{
 								"traceID": "67f743f07cc786b0",
 							},
 							"value":     "0.001535405",
@@ -1392,7 +1392,7 @@ type testClient struct {
 
 type apiClientTest struct {
 	code             int
-	response         interface{}
+	response         any
 	expectedBody     string
 	expectedErr      *Error
 	expectedWarnings Warnings
