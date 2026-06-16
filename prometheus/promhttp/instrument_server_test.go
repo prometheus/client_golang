@@ -19,6 +19,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -521,6 +522,60 @@ func TestInterfaceUpgrade(t *testing.T) {
 	if _, ok := d.(http.Hijacker); ok {
 		t.Error("delegator unexpectedly implements http.Hijacker")
 	}
+}
+
+// Regression test against https://github.com/prometheus/client_golang/pull/1318
+func TestInstrumentHandlerLabelFromCtxConcurrent(t *testing.T) {
+	const (
+		workers           = 32
+		requestsPerWorker = 200
+	)
+
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "test_requests_total",
+			Help: "A counter for requests to the wrapped handler.",
+		},
+		[]string{"dyn"},
+	)
+	histogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "test_request_duration_seconds",
+			Help: "A histogram of latencies for requests to the wrapped handler.",
+		},
+		[]string{"dyn"},
+	)
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(counter, histogram)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	dyn := WithLabelFromCtx("dyn", func(_ context.Context) string {
+		return "v"
+	})
+
+	chain := InstrumentHandlerCounter(
+		counter,
+		InstrumentHandlerDuration(histogram, next, dyn),
+		dyn,
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < requestsPerWorker; j++ {
+				req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
+				rec := httptest.NewRecorder()
+				chain.ServeHTTP(rec, req)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func ExampleInstrumentHandlerDuration() {
