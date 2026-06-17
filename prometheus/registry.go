@@ -747,7 +747,7 @@ func processMetric(
 		default:
 			return fmt.Errorf("empty metric collected: %s", dtoMetric)
 		}
-		if err := checkSuffixCollisions(metricFamily, metricFamiliesByName); err != nil {
+		if err := checkSuffixCollisions(metricFamily, metricFamiliesByName, dtoMetric.GetHistogram()); err != nil {
 			return err
 		}
 		metricFamiliesByName[desc.fqName] = metricFamily
@@ -831,7 +831,11 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				existingMF.Name = mf.Name
 				existingMF.Help = mf.Help
 				existingMF.Type = mf.Type
-				if err := checkSuffixCollisions(existingMF, metricFamiliesByName); err != nil {
+				var newFamilyHistogram *dto.Histogram
+				if len(mf.Metric) > 0 {
+					newFamilyHistogram = mf.Metric[0].GetHistogram()
+				}
+				if err := checkSuffixCollisions(existingMF, metricFamiliesByName, newFamilyHistogram); err != nil {
 					errs = append(errs, err)
 					continue
 				}
@@ -849,10 +853,41 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
 }
 
+// isNativeHistogramOnly reports whether the given histogram exposition is
+// native-histogram-only, i.e. it was configured with a NativeHistogramBucketFactor
+// greater than 1 (reflected by a set schema) and no classic buckets (reflected by
+// an empty bucket slice). Such a histogram exposes no classic _sum, _count, or
+// _bucket series in the protobuf exposition (count and sum are embedded in the
+// native histogram), so it does not reserve those magic suffixes.
+func isNativeHistogramOnly(h *dto.Histogram) bool {
+	return h != nil && h.Schema != nil && len(h.Bucket) == 0
+}
+
+// familyIsNativeHistogramOnly reports whether the given metric family is a
+// HISTOGRAM whose metrics are all native-histogram-only (see
+// isNativeHistogramOnly). An empty family is not considered native-only, so the
+// magic suffixes stay reserved when the exposition is unknown.
+func familyIsNativeHistogramOnly(mf *dto.MetricFamily) bool {
+	if mf.GetType() != dto.MetricType_HISTOGRAM || len(mf.Metric) == 0 {
+		return false
+	}
+	for _, m := range mf.Metric {
+		if !isNativeHistogramOnly(m.GetHistogram()) {
+			return false
+		}
+	}
+	return true
+}
+
 // checkSuffixCollisions checks for collisions with the “magic” suffixes the
 // Prometheus text format and the internal metric representation of the
 // Prometheus server add while flattening Summaries and Histograms.
-func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamily) error {
+//
+// newFamilyHistogram, if non-nil, is the histogram exposition of the metric
+// family being added. It is used to detect native-histogram-only families,
+// which do not expose the classic _sum/_count/_bucket series and therefore do
+// not reserve those suffixes.
+func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamily, newFamilyHistogram *dto.Histogram) error {
 	var (
 		newName              = mf.GetName()
 		newType              = mf.GetType()
@@ -877,14 +912,22 @@ func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamil
 					)
 				}
 			case dto.MetricType_HISTOGRAM:
-				return fmt.Errorf(
-					"collected metric named %q collides with previously collected histogram named %q",
-					newName, newNameWithoutSuffix,
-				)
+				// A native-histogram-only family does not expose the
+				// classic _sum/_count/_bucket series, so those suffixes
+				// are free to use by other metrics.
+				if !familyIsNativeHistogramOnly(existingMF) {
+					return fmt.Errorf(
+						"collected metric named %q collides with previously collected histogram named %q",
+						newName, newNameWithoutSuffix,
+					)
+				}
 			}
 		}
 	}
-	if newType == dto.MetricType_SUMMARY || newType == dto.MetricType_HISTOGRAM {
+	// A native-histogram-only family does not expose classic series, so it does
+	// not reserve the magic suffixes for other metrics.
+	nativeOnly := newType == dto.MetricType_HISTOGRAM && isNativeHistogramOnly(newFamilyHistogram)
+	if (newType == dto.MetricType_SUMMARY || newType == dto.MetricType_HISTOGRAM) && !nativeOnly {
 		if _, ok := mfs[newName+"_count"]; ok {
 			return fmt.Errorf(
 				"collected histogram or summary named %q collides with previously collected metric named %q",
@@ -898,7 +941,7 @@ func checkSuffixCollisions(mf *dto.MetricFamily, mfs map[string]*dto.MetricFamil
 			)
 		}
 	}
-	if newType == dto.MetricType_HISTOGRAM {
+	if newType == dto.MetricType_HISTOGRAM && !nativeOnly {
 		if _, ok := mfs[newName+"_bucket"]; ok {
 			return fmt.Errorf(
 				"collected histogram named %q collides with previously collected metric named %q",

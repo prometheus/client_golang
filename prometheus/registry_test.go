@@ -1189,6 +1189,66 @@ func TestAlreadyRegisteredCollision(t *testing.T) {
 	}
 }
 
+func TestSuffixCollisionWithNativeHistogram(t *testing.T) {
+	// A native-histogram-only metric does not expose the classic
+	// _sum/_count/_bucket series, so it must not reserve those magic suffixes
+	// for other metrics. A classic (or dual) histogram still must.
+	for _, tc := range []struct {
+		name      string
+		histogram prometheus.Histogram
+		wantErr   bool
+	}{
+		{
+			name: "native-only histogram does not collide",
+			histogram: prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:                        "x",
+				Help:                        "A native-histogram-only metric.",
+				NativeHistogramBucketFactor: 1.1,
+			}),
+			wantErr: false,
+		},
+		{
+			name: "classic histogram still collides",
+			histogram: prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "x",
+				Help:    "A classic histogram.",
+				Buckets: []float64{1, 2, 3},
+			}),
+			wantErr: true,
+		},
+		{
+			name: "dual histogram still collides",
+			histogram: prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:                        "x",
+				Help:                        "A classic + native histogram.",
+				Buckets:                     []float64{1, 2, 3},
+				NativeHistogramBucketFactor: 1.1,
+			}),
+			wantErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.histogram.Observe(1)
+
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "x_count",
+				Help: "A counter that collides with the histogram's magic suffix.",
+			})
+
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(tc.histogram, counter)
+
+			_, err := reg.Gather()
+			if tc.wantErr && err == nil {
+				t.Fatal("expected a suffix collision error, got none")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+		})
+	}
+}
+
 type tGatherer struct {
 	done bool
 	err  error
