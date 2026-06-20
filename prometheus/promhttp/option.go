@@ -70,7 +70,7 @@ func WithExtraMethods(methods ...string) Option {
 	})
 }
 
-// WithExemplarFromRequest allows to inject function that will get exemplar from request that will be put to counter and histogram metrics.
+// WithExemplarFromRequest allows you to inject a function that will get exemplar from request that will be put to counter and histogram metrics.
 // If the function returns nil labels or the metric does not support exemplars, no exemplar will be added (noop), but
 // metric will continue to observe/increment.
 func WithExemplarFromRequest(getExemplarFn func(req *http.Request) prometheus.Labels) Option {
@@ -79,7 +79,7 @@ func WithExemplarFromRequest(getExemplarFn func(req *http.Request) prometheus.La
 	})
 }
 
-// WithExemplarFromContext allows to inject function that will get exemplar from context that will be put to counter and histogram metrics.
+// WithExemplarFromContext allows you to inject a function that will get exemplar from context that will be put to counter and histogram metrics.
 // If the function returns nil labels or the metric does not support exemplars, no exemplar will be added (noop), but
 // metric will continue to observe/increment.
 func WithExemplarFromContext(getExemplarFn func(requestCtx context.Context) prometheus.Labels) Option {
