@@ -238,15 +238,17 @@ func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 // around MetricVec, implementing a vector for a specific Metric implementation,
 // for example GaugeVec.
 func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
-	labels, closer := constrainLabels(m.desc, labels)
-	defer closer()
-
-	h, err := m.hashLabels(labels)
+	lvs, err := extractLabelValuesFromLabels(m.desc, labels, m.curry)
 	if err != nil {
 		return nil, err
 	}
 
-	return m.getOrCreateMetricWithLabels(h, labels, m.curry), nil
+	h, err := m.hashLabelValues(lvs)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.getOrCreateMetricWithLabelValues(h, lvs, m.curry), nil
 }
 
 func (m *MetricVec) hashLabelValues(vals []string) (uint64, error) {
@@ -509,31 +511,6 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	return metric
 }
 
-// getOrCreateMetricWithLabels retrieves the metric by hash and label value
-// or creates it and returns the new one.
-//
-// This function holds the mutex.
-func (m *metricMap) getOrCreateMetricWithLabels(
-	hash uint64, labels Labels, curry []curriedLabelValue,
-) Metric {
-	m.mtx.RLock()
-	metric, ok := m.getMetricWithHashAndLabels(hash, labels, curry)
-	m.mtx.RUnlock()
-	if ok {
-		return metric
-	}
-
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	metric, ok = m.getMetricWithHashAndLabels(hash, labels, curry)
-	if !ok {
-		lvs := extractLabelValues(m.desc, labels, curry)
-		metric = m.newMetric(lvs...)
-		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
-	}
-	return metric
-}
-
 // getMetricWithHashAndLabelValues gets a metric while handling possible
 // collisions in the hash space. Must be called while holding the read mutex.
 func (m *metricMap) getMetricWithHashAndLabelValues(
@@ -542,20 +519,6 @@ func (m *metricMap) getMetricWithHashAndLabelValues(
 	metrics, ok := m.metrics[h]
 	if ok {
 		if i := findMetricWithLabelValues(metrics, lvs, curry); i < len(metrics) {
-			return metrics[i].metric, true
-		}
-	}
-	return nil, false
-}
-
-// getMetricWithHashAndLabels gets a metric while handling possible collisions in
-// the hash space. Must be called while holding read mutex.
-func (m *metricMap) getMetricWithHashAndLabels(
-	h uint64, labels Labels, curry []curriedLabelValue,
-) (Metric, bool) {
-	metrics, ok := m.metrics[h]
-	if ok {
-		if i := findMetricWithLabels(m.desc, metrics, labels, curry); i < len(metrics) {
 			return metrics[i].metric, true
 		}
 	}
@@ -629,18 +592,30 @@ func matchLabels(desc *Desc, values []string, labels Labels, curry []curriedLabe
 	return true
 }
 
-func extractLabelValues(desc *Desc, labels Labels, curry []curriedLabelValue) []string {
-	labelValues := make([]string, len(labels)+len(curry))
-	iCurry := 0
-	for i, k := range desc.variableLabels.names {
+func extractLabelValuesFromLabels(desc *Desc, labels Labels, curry []curriedLabelValue) ([]string, error) {
+	if err := validateValuesInLabels(labels, len(desc.variableLabels.names)-len(curry)); err != nil {
+		return nil, err
+	}
+
+	labelValues := make([]string, len(labels))
+	var iCurry, iLabel int
+	for i, labelName := range desc.variableLabels.names {
+		val, ok := labels[labelName]
 		if iCurry < len(curry) && curry[iCurry].index == i {
-			labelValues[i] = curry[iCurry].value
+			if ok {
+				return nil, fmt.Errorf("label name %q is already curried", labelName)
+			}
 			iCurry++
 			continue
 		}
-		labelValues[i] = labels[k]
+		if !ok {
+			return nil, fmt.Errorf("label name %q missing in label map", labelName)
+		}
+		labelValues[iLabel] = desc.variableLabels.constrain(labelName, val)
+		iLabel++
 	}
-	return labelValues
+
+	return labelValues, nil
 }
 
 func inlineLabelValues(lvs []string, curry []curriedLabelValue) []string {

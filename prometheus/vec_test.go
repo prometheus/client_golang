@@ -363,6 +363,9 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	// Keep track of metrics.
 	expected := map[[2]string]int{}
 
+	expected[[2]string{"mapped", constrain("labels")}]++
+	vec.With(Labels{"l1": "mapped", "l2": "labels"}).Inc()
+
 	for i := 0; i < 1000; i++ {
 		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[[2]string{pair[0], constrain(pair[1])}]++
@@ -410,6 +413,39 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 
 	if len(vec.metrics) > 0 {
 		t.Fatalf("reset failed")
+	}
+}
+
+func TestMetricVecWithLabelsKeepsLabelValuesStable(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
+
+	labels := Labels{"l1": "v1", "l2": "v2"}
+	hashCalls := 0
+	origHashAddByte := vec.hashAddByte
+	vec.hashAddByte = func(h uint64, b byte) uint64 {
+		hashCalls++
+		if hashCalls == len(vec.desc.variableLabels.names) {
+			labels["l2"] = "v3"
+		}
+		return origHashAddByte(h, b)
+	}
+
+	vec.With(labels).Set(1)
+	vec.hashAddByte = origHashAddByte
+	vec.WithLabelValues("v1", "v3").Set(2)
+
+	reg := NewRegistry()
+	if err := reg.Register(vec); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reg.Gather(); err != nil {
+		t.Fatalf("gather failed: %v", err)
 	}
 }
 
