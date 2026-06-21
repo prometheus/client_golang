@@ -1057,8 +1057,8 @@ func (h *histogram) maybeWidenZeroBucket(hot, cold *histogramCounts) bool {
 	atomic.StoreUint64(&cold.nativeHistogramZeroThresholdBits, math.Float64bits(newZeroThreshold))
 	// ...and then merge the newly deleted buckets into the wider zero
 	// bucket.
-	mergeAndDeleteOrAddAndReset := func(hotBuckets, coldBuckets *sync.Map) func(k, v interface{}) bool {
-		return func(k, v interface{}) bool {
+	mergeAndDeleteOrAddAndReset := func(hotBuckets, coldBuckets *sync.Map) func(k, v any) bool {
+		return func(k, v any) bool {
 			key := k.(int)
 			bucket := v.(*int64)
 			if key == smallestKey {
@@ -1111,8 +1111,8 @@ func (h *histogram) doubleBucketWidth(hot, cold *histogramCounts) {
 	// ...adjust the schema in the cold counts, too...
 	atomic.StoreInt32(&cold.nativeHistogramSchema, coldSchema)
 	// ...and then merge the cold buckets into the wider hot buckets.
-	merge := func(hotBuckets *sync.Map) func(k, v interface{}) bool {
-		return func(k, v interface{}) bool {
+	merge := func(hotBuckets *sync.Map) func(k, v any) bool {
+		return func(k, v any) bool {
 			key := k.(int)
 			bucket := v.(*int64)
 			// Adjust key to match the bucket to merge into.
@@ -1481,7 +1481,7 @@ func pickSchema(bucketFactor float64) int32 {
 
 func makeBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 	var ii []int
-	buckets.Range(func(k, v interface{}) bool {
+	buckets.Range(func(k, v any) bool {
 		ii = append(ii, k.(int))
 		return true
 	})
@@ -1558,8 +1558,8 @@ func addToBucket(buckets *sync.Map, key int, increment int64) bool {
 // according to the buckets ranged through. It then resets all buckets ranged
 // through to 0 (but leaves them in place so that they don't need to get
 // recreated on the next scrape).
-func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v interface{}) bool {
-	return func(k, v interface{}) bool {
+func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v any) bool {
+	return func(k, v any) bool {
 		bucket := v.(*int64)
 		if addToBucket(hotBuckets, k.(int), atomic.LoadInt64(bucket)) {
 			atomic.AddUint32(bucketNumber, 1)
@@ -1570,7 +1570,7 @@ func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v interface
 }
 
 func deleteSyncMap(m *sync.Map) {
-	m.Range(func(k, v interface{}) bool {
+	m.Range(func(k, v any) bool {
 		m.Delete(k)
 		return true
 	})
@@ -1578,7 +1578,7 @@ func deleteSyncMap(m *sync.Map) {
 
 func findSmallestKey(m *sync.Map) int {
 	result := math.MaxInt32
-	m.Range(func(k, v interface{}) bool {
+	m.Range(func(k, v any) bool {
 		key := k.(int)
 		if key < result {
 			result = key

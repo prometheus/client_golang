@@ -592,7 +592,7 @@ type RuleGroup struct {
 //	default:
 //		fmt.Printf("unknown rule type %s", v)
 //	}
-type Rules []interface{}
+type Rules []any
 
 // AlertingRule models a alerting rule.
 type AlertingRule struct {
@@ -672,7 +672,7 @@ type Metadata struct {
 // queryResult contains result data for a query.
 type queryResult struct {
 	Type   model.ValueType `json:"resultType"`
-	Result interface{}     `json:"result"`
+	Result any             `json:"result"`
 
 	// The decoded value.
 	v model.Value

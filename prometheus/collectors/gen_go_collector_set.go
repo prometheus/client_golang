@@ -186,7 +186,7 @@ func (g goVersion) Abbr() string {
 	return fmt.Sprintf("go1%d", g)
 }
 
-var testFile = template.Must(template.New("testFile").Funcs(map[string]interface{}{
+var testFile = template.Must(template.New("testFile").Funcs(map[string]any{
 	"nextVersion": func(version goVersion) string {
 		return (version + goVersion(1)).String()
 	},

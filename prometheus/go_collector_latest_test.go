@@ -147,7 +147,7 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 	}
 }
 
-var sink interface{}
+var sink any
 
 func TestBatchHistogram(t *testing.T) {
 	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
