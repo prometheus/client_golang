@@ -28,6 +28,9 @@ import (
 //
 //	myVec.With(Labels{"code": "404", "method": "GET"}).Add(42)
 //
+// For performance reasons, APIs taking Labels may use the map directly.
+// Callers must not mutate the map concurrently with those calls.
+//
 // The other use-case is the specification of constant label pairs in Opts or to
 // create a Desc.
 type Labels map[string]string
