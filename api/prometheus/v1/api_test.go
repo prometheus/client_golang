@@ -1922,6 +1922,13 @@ func TestDoGetFallback(t *testing.T) {
 		body, _ := json.Marshal(apiResp)
 
 		if req.Method == http.MethodPost {
+			if req.URL.Path == "/blockPost403" {
+				http.Error(w, string(body), http.StatusForbidden)
+				return
+			}
+		}
+
+		if req.Method == http.MethodPost {
 			if req.URL.Path == "/blockPost405" {
 				http.Error(w, string(body), http.StatusMethodNotAllowed)
 				return
@@ -1959,6 +1966,22 @@ func TestDoGetFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.Method != http.MethodPost {
+		t.Fatalf("Mismatch method")
+	}
+	if resp.Values != v.Encode() {
+		t.Fatalf("Mismatch in values")
+	}
+
+	// Do a fallback to a get on 403.
+	u.Path = "/blockPost403"
+	_, b, _, err = api.DoGetFallback(context.TODO(), u, v)
+	if err != nil {
+		t.Fatalf("Error doing local request: %v", err)
+	}
+	if err := json.Unmarshal(b, resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
 	}
 	if resp.Values != v.Encode() {

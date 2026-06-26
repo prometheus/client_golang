@@ -1545,8 +1545,8 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 	return resp, []byte(result.Data), result.Warnings, err
 }
 
-// DoGetFallback will attempt to do the request as-is, and on a 405 or 501 it
-// will fallback to a GET request.
+// DoGetFallback will attempt to do the request as-is, and on a 403, 405, or
+// 501 it will fallback to a GET request.
 func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, error) {
 	encodedArgs := args.Encode()
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
@@ -1564,7 +1564,7 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	req.Header["Idempotency-Key"] = nil
 
 	resp, body, warnings, err := h.Do(ctx, req)
-	if resp != nil && (resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
+	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
 		u.RawQuery = encodedArgs
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
