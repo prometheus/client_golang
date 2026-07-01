@@ -416,13 +416,26 @@ func (m *metricMap) deleteByLabels(labels Labels, curry []curriedLabelValue) int
 	var numDeleted int
 
 	for h, metrics := range m.metrics {
-		i := findMetricWithPartialLabels(m.desc, metrics, labels, curry)
-		if i >= len(metrics) {
-			// Didn't find matching labels in this metric slice.
-			continue
+		// A single hash bucket can hold more than one distinct metric on a
+		// hash collision, so remove only the elements that actually match
+		// instead of dropping the whole bucket.
+		for {
+			i := findMetricWithPartialLabels(m.desc, metrics, labels, curry)
+			if i >= len(metrics) {
+				// No (more) matching labels in this metric slice.
+				break
+			}
+			if len(metrics) > 1 {
+				old := metrics
+				metrics = append(metrics[:i], metrics[i+1:]...)
+				old[len(old)-1] = metricWithLabelValues{}
+				m.metrics[h] = metrics
+			} else {
+				delete(m.metrics, h)
+				metrics = nil
+			}
+			numDeleted++
 		}
-		delete(m.metrics, h)
-		numDeleted++
 	}
 
 	return numDeleted

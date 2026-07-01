@@ -260,6 +260,51 @@ func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 	assertNoMetric(t)
 }
 
+// TestDeletePartialMatchWithCollisions forces two distinct series to share a
+// single hash bucket and verifies DeletePartialMatch removes only the matching
+// series, leaving the colliding non-matching series untouched, and that the
+// returned count reflects every match in a bucket. Regression test for #1810.
+func TestDeletePartialMatchWithCollisions(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+
+	// Two distinct series that collide into the same bucket.
+	vec.With(Labels{"l1": "delete-me", "l2": "x"}).Set(1)
+	vec.With(Labels{"l1": "keep-me", "l2": "y"}).Set(2)
+
+	// Delete only the matching series.
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "delete-me"}), 1; got != want {
+		t.Errorf("DeletePartialMatch count: got %v, want %v", got, want)
+	}
+
+	// The colliding non-matching series must still be present with its value.
+	m := &dto.Metric{}
+	if err := vec.With(Labels{"l1": "keep-me", "l2": "y"}).Write(m); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := m.GetGauge().GetValue(), 2.0; got != want {
+		t.Errorf("colliding metric was deleted: got value %v, want %v", got, want)
+	}
+
+	// Two matching series in the same bucket should both be deleted and counted.
+	vec.Reset()
+	vec.With(Labels{"l1": "delete-me", "l2": "a"}).Set(1)
+	vec.With(Labels{"l1": "delete-me", "l2": "b"}).Set(2)
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "delete-me"}), 2; got != want {
+		t.Errorf("DeletePartialMatch count for multiple matches in one bucket: got %v, want %v", got, want)
+	}
+	if n := len(vec.metrics); n != 0 {
+		t.Errorf("expected no metrics after deleting all matches, got %v", n)
+	}
+}
+
 func TestMetricVec(t *testing.T) {
 	vec := NewGaugeVec(
 		GaugeOpts{
