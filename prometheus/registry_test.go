@@ -1396,6 +1396,162 @@ func TestCheckMetricConsistency(t *testing.T) {
 	reg.Unregister(invalidCollector)
 }
 
+// helpTextCollector emits a single counter with a configurable fully-qualified
+// name, help text, and label set. Its Describe method yields no Desc so the
+// collector is treated as "unchecked" by the registry, which means it bypasses
+// the help/dimHash consistency checks performed at Register time. This is the
+// shape that triggers the cross-version scenario described in
+// https://github.com/prometheus/client_golang/issues/1820: two libraries (often
+// different versions of the same library) register compatible metrics into the
+// same registry but use slightly different help strings — for example, one
+// version adds a trailing period.
+type helpTextCollector struct {
+	fqName string
+	help   string
+	label  string
+}
+
+func (c helpTextCollector) Describe(_ chan<- *prometheus.Desc) {}
+
+func (c helpTextCollector) Collect(ch chan<- prometheus.Metric) {
+	desc := prometheus.NewDesc(c.fqName, c.help, []string{"src"}, nil)
+	ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1, c.label)
+}
+
+// orderedHelpTextCollector emits multiple ConstMetrics under the same fqName
+// with different help texts in deterministic source order. A single collector
+// is used so that the order of emissions on the metric channel — and therefore
+// which help text populates the MetricFamily first — is well-defined. Two
+// separately-registered collectors are insufficient here because the registry
+// fans out collection across goroutines.
+type orderedHelpTextCollector struct {
+	fqName string
+	emits  []struct{ help, label string }
+}
+
+func (c orderedHelpTextCollector) Describe(_ chan<- *prometheus.Desc) {}
+
+func (c orderedHelpTextCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, e := range c.emits {
+		desc := prometheus.NewDesc(c.fqName, e.help, []string{"src"}, nil)
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1, e.label)
+	}
+}
+
+// TestGatherRejectsHelpTextMismatchByDefault locks in the long-standing strict
+// behavior: a non-pedantic Registry with no opt-in still rejects metrics that
+// share an fqName but disagree on help text. This is the backwards-compatibility
+// guarantee that callers depending on the existing error contract continue to
+// observe.
+func TestGatherRejectsHelpTextMismatchByDefault(t *testing.T) {
+	const fqName = "interop_total"
+	first := helpTextCollector{fqName: fqName, help: "Total count of interop events", label: "first"}
+	second := helpTextCollector{fqName: fqName, help: "Total count of interop events.", label: "second"}
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(first, second)
+
+	if _, err := reg.Gather(); err == nil {
+		t.Fatal("expected Gather to return an error for help-text mismatch on a strict (default) Registry, got nil")
+	}
+}
+
+// TestGatherAcceptsHelpTextMismatchWhenDisabled is a regression test for
+// https://github.com/prometheus/client_golang/issues/1820. When the caller has
+// opted out of help-text validation via Registry.DisableHelpTextValidation,
+// Gather must aggregate metrics that share an fqName but use slightly
+// different help strings — most commonly two libraries (or two versions of the
+// same library) registering compatible metrics into the same registry.
+//
+// The test asserts that Gather succeeds, returns exactly one MetricFamily
+// containing the metrics from both collectors, and keeps one of the observed
+// help strings on the family (the registry fans out collection across
+// goroutines, so we do not constrain which one — see
+// TestGatherWithDisabledHelpTextValidationKeepsFirstHelp below for the
+// deterministic guarantee).
+func TestGatherAcceptsHelpTextMismatchWhenDisabled(t *testing.T) {
+	const fqName = "interop_total"
+	first := helpTextCollector{fqName: fqName, help: "Total count of interop events", label: "first"}
+	second := helpTextCollector{fqName: fqName, help: "Total count of interop events.", label: "second"}
+
+	reg := prometheus.NewRegistry()
+	reg.DisableHelpTextValidation()
+	reg.MustRegister(first, second)
+
+	got, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather returned an error after DisableHelpTextValidation: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected exactly one MetricFamily, got %d: %v", len(got), got)
+	}
+	mf := got[0]
+	if mf.GetName() != fqName {
+		t.Errorf("MetricFamily name = %q, want %q", mf.GetName(), fqName)
+	}
+	if h := mf.GetHelp(); h != first.help && h != second.help {
+		t.Errorf("MetricFamily help = %q, want one of %q or %q", h, first.help, second.help)
+	}
+	if len(mf.GetMetric()) != 2 {
+		t.Errorf("expected MetricFamily to hold metrics from both collectors, got %d", len(mf.GetMetric()))
+	}
+}
+
+// TestGatherWithDisabledHelpTextValidationKeepsFirstHelp pins the documented
+// "first help text wins" semantics. A single collector emits both metrics in
+// source order, so the metric-channel order — and therefore which help text
+// is recorded on the MetricFamily — is deterministic.
+func TestGatherWithDisabledHelpTextValidationKeepsFirstHelp(t *testing.T) {
+	const (
+		fqName    = "interop_total"
+		firstHelp = "Total count of interop events"
+		laterHelp = "Total count of interop events."
+	)
+	c := orderedHelpTextCollector{
+		fqName: fqName,
+		emits: []struct{ help, label string }{
+			{help: firstHelp, label: "first"},
+			{help: laterHelp, label: "later"},
+		},
+	}
+
+	reg := prometheus.NewRegistry()
+	reg.DisableHelpTextValidation()
+	reg.MustRegister(c)
+
+	got, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather returned an error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("expected exactly one MetricFamily, got %d: %v", len(got), got)
+	}
+	if h := got[0].GetHelp(); h != firstHelp {
+		t.Errorf("MetricFamily help = %q, want %q (first-emitted help text should win)", h, firstHelp)
+	}
+	if n := len(got[0].GetMetric()); n != 2 {
+		t.Errorf("expected MetricFamily to hold 2 metrics, got %d", n)
+	}
+}
+
+// TestPedanticRegistryOverridesHelpTextValidationToggle documents that calling
+// DisableHelpTextValidation on a pedantic Registry has no effect: pedantic
+// callers have opted into the strictest set of checks, so a help-text
+// mismatch must still fail Gather even if the toggle was flipped.
+func TestPedanticRegistryOverridesHelpTextValidationToggle(t *testing.T) {
+	const fqName = "interop_total"
+	first := helpTextCollector{fqName: fqName, help: "Total count of interop events", label: "first"}
+	second := helpTextCollector{fqName: fqName, help: "Total count of interop events.", label: "second"}
+
+	reg := prometheus.NewPedanticRegistry()
+	reg.DisableHelpTextValidation() // Must be ignored under pedantic mode.
+	reg.MustRegister(first, second)
+
+	if _, err := reg.Gather(); err == nil {
+		t.Fatal("expected pedantic Registry to still reject help-text mismatch even after DisableHelpTextValidation, got nil error")
+	}
+}
+
 func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	// Use goleak to verify that no unexpected goroutines are leaked during the test.
 	defer goleak.VerifyNone(t)
