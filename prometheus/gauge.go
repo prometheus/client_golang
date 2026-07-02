@@ -159,6 +159,10 @@ func NewGaugeVec(opts GaugeOpts, labelNames []string) *GaugeVec {
 
 // NewGaugeVec creates a new GaugeVec based on the provided GaugeVecOpts.
 func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
+	return newGaugeVecWithTTL(opts, 0)
+}
+
+func newGaugeVecWithTTL(opts GaugeVecOpts, ttl time.Duration) *GaugeVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
@@ -166,15 +170,21 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
+	newMetric := func(lvs ...string) Metric {
+		if len(lvs) != len(desc.variableLabels.names) {
+			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+		}
+		result := &gauge{desc: desc, labelPairs: MakeLabelPairs(desc, lvs)}
+		result.init(result) // Init self-collection.
+		return result
+	}
+	if ttl > 0 {
+		return &GaugeVec{
+			MetricVec: NewMetricVecWithTTL(desc, newMetric, ttl),
+		}
+	}
 	return &GaugeVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			if len(lvs) != len(desc.variableLabels.names) {
-				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-			}
-			result := &gauge{desc: desc, labelPairs: MakeLabelPairs(desc, lvs)}
-			result.init(result) // Init self-collection.
-			return result
-		}),
+		MetricVec: NewMetricVec(desc, newMetric),
 	}
 }
 
