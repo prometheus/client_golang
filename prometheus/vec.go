@@ -659,7 +659,7 @@ func inlineLabelValues(lvs []string, curry []curriedLabelValue) []string {
 }
 
 var labelsPool = &sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return make(Labels)
 	},
 }

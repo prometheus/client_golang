@@ -147,7 +147,7 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 	}
 }
 
-var sink interface{}
+var sink any
 
 func TestBatchHistogram(t *testing.T) {
 	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
@@ -434,6 +434,8 @@ func TestGoCollectorRuntimeMetricsUnit(t *testing.T) {
 		{"go_gc_heap_frees_bytes_total", "bytes"},
 		{"go_sched_goroutines_goroutines", "goroutines"},
 		{"go_gc_gomemlimit_bytes", "bytes"},
+		{"go_cpu_classes_gc_mark_assist_cpu_seconds_total", "cpu_seconds"},
+		{"go_gc_cycles_total_gc_cycles_total", "gc_cycles"},
 	}
 
 	for _, tc := range testCases {

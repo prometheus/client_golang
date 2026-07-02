@@ -161,7 +161,7 @@ func rmCardinality() int {
 	return cardinality
 }
 
-var testFile = template.Must(template.New("testFile").Funcs(map[string]interface{}{
+var testFile = template.Must(template.New("testFile").Funcs(map[string]any{
 	"rm2prom": func(d metrics.Description) string {
 		ns, ss, n, ok := internal.RuntimeMetricsToProm(&d)
 		if !ok {

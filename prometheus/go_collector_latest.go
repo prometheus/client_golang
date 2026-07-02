@@ -211,9 +211,13 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 		sampleMap[d.Name] = &sampleBuf[len(sampleBuf)-1]
 
 		// Extract unit from the runtime/metrics name (e.g., "/gc/heap/allocs:bytes" -> "bytes")
+		// and sanitize to match Prometheus naming conventions (e.g., "cpu-seconds" -> "cpu_seconds")
 		var unit string
 		if idx := strings.IndexRune(d.Name, ':'); idx >= 0 {
 			unit = d.Name[idx+1:]
+			unit = strings.ReplaceAll(unit, "-", "_")
+			unit = strings.ReplaceAll(unit, "*", "_")
+			unit = strings.ReplaceAll(unit, "/", "_per_")
 		}
 
 		var m collectorMetric
