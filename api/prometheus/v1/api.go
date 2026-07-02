@@ -1575,6 +1575,50 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	return resp, body, warnings, err
 }
 
+var (
+	// Prometheus's HTTP API accepts these boundary timestamps explicitly even
+	// though Go's RFC3339 parser cannot round-trip years with more than four
+	// digits. Keep these values aligned with the server-side defaults so very
+	// low/high sentinels like model.Earliest and model.Latest map to something
+	// the API can parse without overflowing.
+	minTime = time.Unix(math.MinInt64/1000+62135596801, 0).UTC()
+	maxTime = time.Unix(math.MaxInt64/1000-62135596801, 999999999).UTC()
+
+	minTimeFormatted = minTime.Format(time.RFC3339Nano)
+	maxTimeFormatted = maxTime.Format(time.RFC3339Nano)
+)
+
 func formatTime(t time.Time) string {
-	return strconv.FormatFloat(float64(t.Unix())+float64(t.Nanosecond())/1e9, 'f', -1, 64)
+	switch {
+	case !t.After(minTime):
+		return minTimeFormatted
+	case !t.Before(maxTime):
+		return maxTimeFormatted
+	}
+
+	// Avoid t.UnixNano here: it is undefined for times that cannot be
+	// represented as an int64 nanosecond offset even though time.Unix and
+	// Nanosecond still expose the second/nanosecond components we need.
+	return formatTimeString(t.Unix(), t.Nanosecond())
+}
+
+func formatTimeString(sec int64, nsec int) string {
+	if sec >= 0 {
+		return formatTimeParts("", uint64(sec), nsec)
+	}
+	if nsec == 0 {
+		return strconv.FormatInt(sec, 10)
+	}
+
+	return formatTimeParts("-", uint64(-(sec + 1)), int(time.Second)-nsec)
+}
+
+func formatTimeParts(sign string, sec uint64, nsec int) string {
+	s := sign + strconv.FormatUint(sec, 10)
+	if nsec == 0 {
+		return s
+	}
+
+	fraction := strconv.Itoa(nsec + int(time.Second))[1:]
+	return s + "." + strings.TrimRight(fraction, "0")
 }
