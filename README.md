@@ -48,6 +48,11 @@ The
 [`examples` directory](https://github.com/prometheus/client_golang/tree/main/examples)
 contains simple examples of instrumented code.
 
+If you need to bridge existing `client_golang` instrumentation into an
+OpenTelemetry / OTLP pipeline, see the
+[`tutorials/otlp-bridge`](https://github.com/prometheus/client_golang/tree/main/tutorials/otlp-bridge)
+tutorial.
+
 ## Client for the Prometheus HTTP API
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
