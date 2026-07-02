@@ -1,6 +1,7 @@
 ## Unreleased
 
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [BUGFIX] promhttp: `InstrumentHandlerDuration` and `InstrumentHandlerCounter` no longer panic when given an observer/counter that does not implement `ExemplarObserver`/`ExemplarAdder` (e.g. a `SummaryVec`). The exemplar is dropped and the value is recorded via the plain `Observe`/`Add` path, matching the safe-cast already used by `Timer.ObserveDurationWithExemplar`. #2005
 
 ## Unreleased `exp` module
 
