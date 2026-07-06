@@ -22,7 +22,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -920,8 +919,8 @@ func TestCoalesceGatherSequentialInvariant(t *testing.T) {
 	}
 }
 
-// TestCoalesceGatherDoneCalledExactlyOnce verifies that when concurrent requests
-// share a single Gather cycle, the underlying done callback is called exactly once.
+// TestCoalesceGatherDoneCalledExactlyOnce verifies that when a second request
+// joins an in-flight Gather cycle, exactly one Gather and one done call occur.
 func TestCoalesceGatherDoneCalledExactlyOnce(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
@@ -930,8 +929,12 @@ func TestCoalesceGatherDoneCalledExactlyOnce(t *testing.T) {
 	started := make(chan struct{}, 1)
 	reg.MustRegister(blockingCollector{CollectStarted: started, Block: block})
 
+	// Wrap explicitly so the test can observe when request 2 has joined the
+	// in-flight cycle. HandlerForTransactional with CoalesceGather builds an
+	// equivalent wrapper internally but keeps it hidden from the test.
 	counter := &syncGatherCounter{g: reg}
-	handler := HandlerForTransactional(counter, HandlerOpts{CoalesceGather: true})
+	cg := &coalescingGatherer{g: counter}
+	handler := HandlerForTransactional(cg, HandlerOpts{})
 	req, _ := http.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Add(acceptHeader, acceptTextPlain)
 
@@ -952,21 +955,19 @@ func TestCoalesceGatherDoneCalledExactlyOnce(t *testing.T) {
 		close(req2Done)
 	}()
 
-	// Yield to allow request 2 to enter the coalescing wait before releasing.
-	runtime.Gosched()
+	// Wait until request 2 has joined the cycle (refs == 2) before releasing,
+	// so coalescing is guaranteed rather than dependent on goroutine timing.
+	waitForRefs(t, cg, 2)
 	close(block)
 	<-req1Done
 	<-req2Done
 
-	// Key invariant: done() must be called exactly once per Gather cycle.
-	gathers := counter.gatherCalled.Load()
-	dones := counter.doneCalled.Load()
-	if gathers != dones {
-		t.Errorf("Gather called %d times but done called %d times; invariant violated", gathers, dones)
+	// With request 2 joining an in-flight cycle, both share one Gather and one done.
+	if got := counter.gatherCalled.Load(); got != 1 {
+		t.Errorf("Gather called %d times for 2 coalesced requests, want exactly 1", got)
 	}
-	// Coalescing should keep gather count below the number of requests.
-	if gathers > 2 {
-		t.Errorf("Gather called %d times for 2 requests; expected ≤ 2 with coalescing", gathers)
+	if got := counter.doneCalled.Load(); got != 1 {
+		t.Errorf("done called %d times, want exactly 1", got)
 	}
 	for i, w := range []*httptest.ResponseRecorder{w1, w2} {
 		if got, want := w.Code, http.StatusOK; got != want {
@@ -1029,5 +1030,97 @@ func TestCoalesceGatherNewCycleAfterCompletion(t *testing.T) {
 	}
 	if got, want := counter.doneCalled.Load(), int64(2); got != want {
 		t.Errorf("after cycle 2: done called %d times, want %d", got, want)
+	}
+}
+
+// inflightRefs reports how many callers currently share the in-flight cycle.
+// It lives in the test file so production code carries no test-only hooks; tests
+// use it to wait deterministically until a joiner has entered the cycle.
+func (c *coalescingGatherer) inflightRefs() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cycle == nil {
+		return 0
+	}
+	return c.cycle.refs
+}
+
+// waitForRefs blocks until cg reports at least want in-flight refs, failing the
+// test if that does not happen promptly.
+func waitForRefs(t *testing.T, cg *coalescingGatherer, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for cg.inflightRefs() < want {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for %d in-flight refs, have %d", want, cg.inflightRefs())
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// panicGatherer is a TransactionalGatherer whose Gather panics after signaling
+// that it started and waiting to be released. A panicking Collector cannot reach
+// the panic guard in coalescingGatherer because Registry.Gather recovers
+// Collector panics into errors, so the panic is raised at the gatherer level.
+type panicGatherer struct {
+	started chan struct{}
+	block   chan struct{}
+}
+
+func (p *panicGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
+	close(p.started)
+	<-p.block
+	panic("boom")
+}
+
+// TestCoalesceGatherPanicUnblocksJoinersWithError verifies that when the wrapped
+// gatherer panics, a request that joined the same cycle receives errGatherPanicked
+// instead of a nil error with an empty response, the leader's panic still
+// propagates, and the cycle is cleared afterward.
+func TestCoalesceGatherPanicUnblocksJoinersWithError(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	p := &panicGatherer{started: make(chan struct{}), block: make(chan struct{})}
+	cg := &coalescingGatherer{g: p}
+
+	// Leader creates the cycle and panics once released; recover so the test
+	// goroutine survives, mirroring net/http's per-request panic recovery.
+	leaderPanicked := make(chan any, 1)
+	go func() {
+		defer func() { leaderPanicked <- recover() }()
+		_, done, _ := cg.Gather()
+		if done != nil {
+			done()
+		}
+	}()
+	<-p.started
+
+	// Joiner joins the in-flight cycle and blocks on <-cy.ready.
+	type joinResult struct {
+		done func()
+		err  error
+	}
+	joined := make(chan joinResult, 1)
+	go func() {
+		_, done, err := cg.Gather()
+		joined <- joinResult{done: done, err: err}
+	}()
+
+	// Ensure the joiner has joined the cycle before releasing the panic.
+	waitForRefs(t, cg, 2)
+	close(p.block)
+
+	if r := <-leaderPanicked; r == nil {
+		t.Error("leader Gather did not panic; want the panic to propagate")
+	}
+	res := <-joined
+	if !errors.Is(res.err, errGatherPanicked) {
+		t.Errorf("joiner err = %v, want errGatherPanicked", res.err)
+	}
+	if res.done != nil {
+		res.done() // must be safe to call: no panic, no double-done.
+	}
+	if got := cg.inflightRefs(); got != 0 {
+		t.Errorf("cycle not cleared after panic: inflightRefs = %d, want 0", got)
 	}
 }

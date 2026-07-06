@@ -104,6 +104,11 @@ type gatherCycle struct {
 
 var _ prometheus.TransactionalGatherer = (*coalescingGatherer)(nil) // compile-time interface check
 
+// errGatherPanicked is returned to callers that joined an in-flight coalesced
+// Gather whose underlying gatherer panicked. See the panic guard in Gather for
+// why joiners receive this error instead of the panic itself.
+var errGatherPanicked = errors.New("promhttp: coalesced gather panicked")
+
 func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	c.mu.Lock()
 	if cy := c.cycle; cy != nil {
@@ -121,9 +126,16 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	c.cycle = cy
 	c.mu.Unlock()
 
-	// Guard against a panic in c.g.Gather: close cy.ready and clear c.cycle
-	// so that any joiners waiting on <-cy.ready are unblocked rather than
-	// deadlocked, and future Gather calls start a fresh cycle.
+	// Guard against a panic in c.g.Gather. The common case, a panicking
+	// Collector, never reaches here: Registry.Gather recovers Collector panics
+	// and returns them as an error. This guard only covers the rare case where
+	// the wrapped gatherer itself panics.
+	//
+	// We deliberately do not recover: the leader's panic propagates and is
+	// handled by net/http exactly as it would be without coalescing. We only
+	// set cy.err before closing cy.ready so joiners waiting on <-cy.ready fail
+	// with that error instead of silently returning an empty, successful
+	// response, and we clear c.cycle so the next Gather starts a fresh cycle.
 	panicked := true
 	defer func() {
 		if panicked {
@@ -132,6 +144,7 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 				c.cycle = nil
 			}
 			c.mu.Unlock()
+			cy.err = errGatherPanicked // set before close: happens-before joiners' reads
 			close(cy.ready)
 		}
 	}()
@@ -530,6 +543,12 @@ type HandlerOpts struct {
 	//
 	// Consider using CoalesceGather together with Timeout to bound both the
 	// scrape response time and the number of concurrent background Gathers.
+	//
+	// Panic handling: a panicking Collector is already turned into an error by
+	// the registry, so joiners receive that error like any other. In the rare
+	// case where the wrapped gatherer itself panics, the panicking request's
+	// panic propagates as usual (handled by net/http), while requests that
+	// joined the same cycle receive an error rather than an empty response.
 	CoalesceGather bool
 	// If handling a request takes longer than Timeout, it is responded to
 	// with 503 ServiceUnavailable and a suitable Message. No timeout is
