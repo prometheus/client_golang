@@ -1046,13 +1046,18 @@ func (c *coalescingGatherer) inflightRefs() int {
 }
 
 // waitForRefs blocks until cg reports at least want in-flight refs, failing the
-// test if that does not happen promptly.
+// test if that does not happen within a short deadline. It must be called from
+// the test goroutine, as it reports failure via t.Fatalf.
 func waitForRefs(t *testing.T, cg *coalescingGatherer, want int) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
-	for cg.inflightRefs() < want {
+	for {
+		got := cg.inflightRefs()
+		if got >= want {
+			return
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("timed out waiting for %d in-flight refs, have %d", want, cg.inflightRefs())
+			t.Fatalf("timed out waiting for %d in-flight refs, have %d", want, got)
 		}
 		time.Sleep(time.Millisecond)
 	}
@@ -1120,7 +1125,62 @@ func TestCoalesceGatherPanicUnblocksJoinersWithError(t *testing.T) {
 	if res.done != nil {
 		res.done() // must be safe to call: no panic, no double-done.
 	}
+	// inflightRefs reports 0 once c.cycle is detached, which the leader does on
+	// the panic path. This confirms the coalescer starts a fresh cycle next
+	// time; it does not track the orphaned cycle's own ref count (the leader's
+	// ref is intentionally never released there).
 	if got := cg.inflightRefs(); got != 0 {
-		t.Errorf("cycle not cleared after panic: inflightRefs = %d, want 0", got)
+		t.Errorf("cycle not detached after panic: inflightRefs = %d, want 0", got)
+	}
+}
+
+// TestCoalesceGatherCallersGetDistinctSlices verifies that callers sharing one
+// cycle each receive their own slice header, so one caller reordering or
+// filtering its slice cannot race another caller of the same cycle.
+func TestCoalesceGatherCallersGetDistinctSlices(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	reg := prometheus.NewRegistry()
+	cnt := prometheus.NewCounter(prometheus.CounterOpts{Name: "c_total", Help: "help"})
+	cnt.Inc()
+	reg.MustRegister(cnt)
+	block := make(chan struct{})
+	started := make(chan struct{}, 1)
+	reg.MustRegister(blockingCollector{CollectStarted: started, Block: block})
+
+	cg := &coalescingGatherer{g: &syncGatherCounter{g: reg}}
+
+	type result struct {
+		mfs  []*dto.MetricFamily
+		done func()
+	}
+	got := make(chan result, 2)
+	call := func() {
+		mfs, done, err := cg.Gather()
+		if err != nil {
+			t.Errorf("Gather returned error: %v", err)
+		}
+		got <- result{mfs: mfs, done: done}
+	}
+
+	go call()
+	<-started             // leader is in-flight, blocked in Collect.
+	go call()             // second caller joins the same cycle.
+	waitForRefs(t, cg, 2) // both callers share the cycle before release.
+	close(block)
+
+	r1 := <-got
+	r2 := <-got
+	defer r1.done()
+	defer r2.done()
+
+	if len(r1.mfs) == 0 || len(r2.mfs) == 0 {
+		t.Fatalf("expected non-empty metric families, got %d and %d", len(r1.mfs), len(r2.mfs))
+	}
+	// Distinct backing arrays: clearing one caller's slot must not affect the
+	// other. This fails if the coalescer hands out the shared slice directly.
+	r1.mfs[0] = nil
+	if r2.mfs[0] == nil {
+		t.Error("callers share a slice backing array; each caller must get its own copy")
 	}
 }

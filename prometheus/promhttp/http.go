@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -96,7 +97,7 @@ type coalescingGatherer struct {
 // gatherCycle tracks a single in-flight Gather and all HTTP handlers sharing it.
 type gatherCycle struct {
 	ready chan struct{}       // closed when Gather completes; happens-before reads of mfs/err/done
-	mfs   []*dto.MetricFamily // set before ready is closed; shared across handlers, must not be mutated
+	mfs   []*dto.MetricFamily // canonical result, set before ready is closed; callers get a slices.Clone, the element values stay shared and must not be mutated
 	err   error               // set before ready is closed
 	done  func()              // underlying done callback; set before ready is closed
 	refs  int                 // number of handlers using this cycle; protected by coalescingGatherer.mu
@@ -107,7 +108,7 @@ var _ prometheus.TransactionalGatherer = (*coalescingGatherer)(nil) // compile-t
 // errGatherPanicked is returned to callers that joined an in-flight coalesced
 // Gather whose underlying gatherer panicked. See the panic guard in Gather for
 // why joiners receive this error instead of the panic itself.
-var errGatherPanicked = errors.New("promhttp: coalesced gather panicked")
+var errGatherPanicked = errors.New("coalesced gather panicked")
 
 func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	c.mu.Lock()
@@ -116,7 +117,10 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 		cy.refs++
 		c.mu.Unlock()
 		<-cy.ready
-		return cy.mfs, c.releaseFunc(cy), cy.err
+		// Each caller gets its own slice header so it can filter or reorder
+		// without racing other callers sharing this cycle. The *dto.MetricFamily
+		// values remain shared and must not be mutated in place.
+		return slices.Clone(cy.mfs), c.releaseFunc(cy), cy.err
 	}
 	cy := &gatherCycle{
 		ready: make(chan struct{}),
@@ -136,6 +140,12 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	// set cy.err before closing cy.ready so joiners waiting on <-cy.ready fail
 	// with that error instead of silently returning an empty, successful
 	// response, and we clear c.cycle so the next Gather starts a fresh cycle.
+	//
+	// The leader never runs its own releaseFunc on this path, so its ref is
+	// not decremented; that is harmless because the cycle is detached (c.cycle
+	// = nil) and cy.done is still the no-op set at construction (c.g.Gather
+	// panicked before assigning a real done). If cy.done is ever made non-nil
+	// before c.g.Gather runs, this path would need to release it.
 	panicked := true
 	defer func() {
 		if panicked {
@@ -152,7 +162,10 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	panicked = false
 	close(cy.ready) // happens-before joiners' reads of cy.mfs/err/done
 
-	return cy.mfs, c.releaseFunc(cy), cy.err
+	// Clone here too so cy.mfs stays the write-once canonical slice: joiners
+	// read it concurrently via slices.Clone, so the leader must not hand out
+	// (and potentially reorder) the same backing array.
+	return slices.Clone(cy.mfs), c.releaseFunc(cy), cy.err
 }
 
 // releaseFunc returns the done callback for one caller sharing cy.
@@ -535,14 +548,23 @@ type HandlerOpts struct {
 	// faster than the time collectors need to produce metrics.
 	//
 	// When enabled, concurrent scrapers share a single metric snapshot per
-	// collection cycle. The returned MetricFamily values are shared and must
-	// not be mutated in place. The built-in handler only reads them, so this
-	// is safe in practice, but custom TransactionalGatherer implementations
-	// that modify the returned families after Gather returns must not use
-	// this option.
+	// collection cycle. Each request receives its own copy of the returned
+	// slice, so filtering or reordering it (for example via name[] query
+	// parameters) is safe. The pointed-to MetricFamily values are still
+	// shared: the built-in handler only reads them, so this is safe in
+	// practice, but a custom TransactionalGatherer that mutates the returned
+	// families in place after Gather returns must not use this option.
 	//
-	// Consider using CoalesceGather together with Timeout to bound both the
-	// scrape response time and the number of concurrent background Gathers.
+	// Because the snapshot is shared, a request that arrives while a cycle is
+	// in flight receives that cycle's result even though collection began
+	// before the request; two scrapers joined to one cycle observe the same
+	// timestamps rather than independently gathered data.
+	//
+	// Consider using CoalesceGather together with Timeout. Timeout bounds the
+	// client-facing response time and keeps at most one collection running at
+	// a time, but it does not cancel the underlying Gather: a joined request
+	// that times out still holds a MaxRequestsInFlight slot until the shared
+	// collection completes.
 	//
 	// Panic handling: a panicking Collector is already turned into an error by
 	// the registry, so joiners receive that error like any other. In the rare
