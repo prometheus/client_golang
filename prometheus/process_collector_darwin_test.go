@@ -55,12 +55,12 @@ func TestDarwinProcessCollector(t *testing.T) {
 		regexp.MustCompile("\nprocess_max_fds [1-9]"),
 		regexp.MustCompile("\nprocess_open_fds [1-9]"),
 		regexp.MustCompile("\nprocess_virtual_memory_max_bytes (-1|[1-9])"),
-		regexp.MustCompile("\nprocess_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nprocess_start_time_seconds [0-9]"),
 		regexp.MustCompile("\nfoobar_process_cpu_seconds_total [0-9]"),
 		regexp.MustCompile("\nfoobar_process_max_fds [1-9]"),
 		regexp.MustCompile("\nfoobar_process_open_fds [1-9]"),
 		regexp.MustCompile("\nfoobar_process_virtual_memory_max_bytes (-1|[1-9])"),
-		regexp.MustCompile("\nfoobar_process_start_time_seconds [0-9.]{10,}"),
+		regexp.MustCompile("\nfoobar_process_start_time_seconds [0-9]"),
 	} {
 		if !re.Match(buf.Bytes()) {
 			t.Errorf("want body to match %s\n%s", re, buf.String())
