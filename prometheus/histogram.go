@@ -970,7 +970,7 @@ func (h *histogram) maybeReset(
 	// We are using the possibly mocked h.now() rather than
 	// time.Since(h.lastResetTime) to enable testing.
 	if h.nativeHistogramMinResetDuration == 0 || // No reset configured.
-		h.resetScheduled || // Do not interefere if a reset is already scheduled.
+		h.resetScheduled || // Do not interfere if a reset is already scheduled.
 		h.now().Sub(h.lastResetTime) < h.nativeHistogramMinResetDuration {
 		return false
 	}

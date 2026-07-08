@@ -112,7 +112,7 @@ func TestWithGoCollectorDefault(t *testing.T) {
 	expected := append(withBaseMetrics(memstatMetrics), defaultRuntimeMetrics...)
 	sort.Strings(expected)
 	if diff := cmp.Diff(got, expected); diff != "" {
-		t.Errorf("[IMPORTANT, those are default metrics, can't change in 1.x] missmatch (-want +got):\n%s", diff)
+		t.Errorf("[IMPORTANT, those are default metrics, can't change in 1.x] mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -132,7 +132,7 @@ func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
 	}
 
 	if diff := cmp.Diff(got, withBaseMetrics(defaultRuntimeMetrics)); diff != "" {
-		t.Errorf("missmatch (-want +got):\n%s", diff)
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -190,7 +190,7 @@ func TestGoCollectorAllowList(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(got, test.expected); diff != "" {
-				t.Errorf("missmatch (-want +got):\n%s", diff)
+				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -252,7 +252,7 @@ func TestGoCollectorDenyList(t *testing.T) {
 			}
 
 			if diff := cmp.Diff(got, test.expected); diff != "" {
-				t.Errorf("missmatch (-want +got):\n%s", diff)
+				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
