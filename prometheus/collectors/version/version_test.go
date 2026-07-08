@@ -56,13 +56,13 @@ func TestGoVersionCollector(t *testing.T) {
 		}
 
 		if diff := cmp.Diff(lk, defaultLabels); diff != "" {
-			t.Errorf("missmatch (-want +got):\n%s", diff)
+			t.Errorf("mismatch (-want +got):\n%s", diff)
 		}
 
 	}
 
 	if diff := cmp.Diff(got, []string{"foo_build_info"}); diff != "" {
-		t.Errorf("missmatch (-want +got):\n%s", diff)
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -103,12 +103,12 @@ func TestGoVersionCollectorWithLabels(t *testing.T) {
 		labels := append(defaultLabels, "z-mylabel")
 
 		if diff := cmp.Diff(lk, labels); diff != "" {
-			t.Errorf("missmatch (-want +got):\n%s", diff)
+			t.Errorf("mismatch (-want +got):\n%s", diff)
 		}
 
 	}
 
 	if diff := cmp.Diff(got, []string{"foo_build_info"}); diff != "" {
-		t.Errorf("missmatch (-want +got):\n%s", diff)
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
