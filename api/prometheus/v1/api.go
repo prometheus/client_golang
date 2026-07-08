@@ -732,9 +732,9 @@ type TSDBBlocksCompaction struct {
 
 // WalReplayStatus represents the wal replay status.
 type WalReplayStatus struct {
-	Min     int `json:"min"`
-	Max     int `json:"max"`
-	Current int `json:"current"`
+	StartOffset int `json:"startOffset"`
+	EndOffset   int `json:"endOffset"`
+	Current     int `json:"current"`
 }
 
 // Stat models information about statistic value.
