@@ -15,10 +15,10 @@ package prometheus
 
 import (
 	"errors"
-	"math"
 	"sync/atomic"
 	"time"
 
+	xsync "argc.dev/goexp/sync"
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -95,19 +95,29 @@ func NewCounter(opts CounterOpts) Counter {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	result := &counter{desc: desc, labelPairs: desc.constLabelPairs, now: opts.now}
+	result := &counter{
+		desc:       desc,
+		labelPairs: desc.constLabelPairs,
+		valBits:    xsync.NewCounter[float64](),
+		valInt:     xsync.NewCounter[int64](),
+		now:        opts.now,
+	}
 	result.init(result) // Init self-collection.
 	result.createdTs = timestamppb.New(opts.now())
 	return result
 }
 
 type counter struct {
-	// valBits contains the bits of the represented float64 value, while
-	// valInt stores values that are exact integers. Both have to go first
-	// in the struct to guarantee alignment for atomic operations.
-	// http://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	valBits uint64
-	valInt  uint64
+	// valInt accumulates the exact integer part of the counter (Inc calls
+	// and Add calls with integral values), while valBits accumulates values
+	// that cannot be represented as an int64. Both are per-P sharded
+	// counters (see argc.dev/goexp/sync): increments happen on hot paths and
+	// are made cheap and contention-free by striping them across processors,
+	// whereas reads (only at collection time) sum the shards. The split
+	// between integer and floating-point tracking is kept for precision, and
+	// the two are added up in the get method.
+	valBits *xsync.Counter[float64]
+	valInt  *xsync.Counter[int64]
 
 	selfCollector
 	desc *Desc
@@ -129,19 +139,13 @@ func (c *counter) Add(v float64) {
 		panic(errors.New("counter cannot decrease in value"))
 	}
 
-	ival := uint64(v)
+	ival := int64(v)
 	if float64(ival) == v {
-		atomic.AddUint64(&c.valInt, ival)
+		c.valInt.Add(ival)
 		return
 	}
 
-	for {
-		oldBits := atomic.LoadUint64(&c.valBits)
-		newBits := math.Float64bits(math.Float64frombits(oldBits) + v)
-		if atomic.CompareAndSwapUint64(&c.valBits, oldBits, newBits) {
-			return
-		}
-	}
+	c.valBits.Add(v)
 }
 
 func (c *counter) AddWithExemplar(v float64, e Labels) {
@@ -150,13 +154,11 @@ func (c *counter) AddWithExemplar(v float64, e Labels) {
 }
 
 func (c *counter) Inc() {
-	atomic.AddUint64(&c.valInt, 1)
+	c.valInt.Add(1)
 }
 
 func (c *counter) get() float64 {
-	fval := math.Float64frombits(atomic.LoadUint64(&c.valBits))
-	ival := atomic.LoadUint64(&c.valInt)
-	return fval + float64(ival)
+	return c.valBits.Value() + float64(c.valInt.Value())
 }
 
 func (c *counter) Write(out *dto.Metric) error {
@@ -216,7 +218,13 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 			if len(lvs) != len(desc.variableLabels.names) {
 				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
 			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+			result := &counter{
+				desc:       desc,
+				labelPairs: MakeLabelPairs(desc, lvs),
+				valBits:    xsync.NewCounter[float64](),
+				valInt:     xsync.NewCounter[int64](),
+				now:        opts.now,
+			}
 			result.init(result) // Init self-collection.
 			result.createdTs = timestamppb.New(opts.now())
 			return result

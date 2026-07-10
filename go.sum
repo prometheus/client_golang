@@ -1,3 +1,5 @@
+argc.dev/goexp v0.0.0-20260710001111-8c1f88208172 h1:PET7L5h+6EjqOnYjG2Z5sxuMHx2NFmn4OjA/ls/ywEI=
+argc.dev/goexp v0.0.0-20260710001111-8c1f88208172/go.mod h1:5KW5TTv68+fSFL3H+qywujHM1tkwM9JWcc2+ZtT2Vrc=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

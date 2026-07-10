@@ -3,6 +3,7 @@ module github.com/prometheus/client_golang
 go 1.25.0
 
 require (
+	argc.dev/goexp v0.0.0-20260710001111-8c1f88208172
 	github.com/beorn7/perks v1.0.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
