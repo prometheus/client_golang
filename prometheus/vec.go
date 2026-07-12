@@ -16,6 +16,7 @@ package prometheus
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/prometheus/common/model"
 )
@@ -43,13 +44,33 @@ type MetricVec struct {
 	hashAddByte func(h uint64, b byte) uint64
 }
 
+// MetricVecOpts bundles optional behavior that applies to metric vectors.
+type MetricVecOpts struct {
+	// IdleTTL evicts metrics that have not been observed for the configured
+	// duration. A zero value disables eviction.
+	IdleTTL time.Duration
+
+	// now is for testing purposes, by default it's time.Now.
+	now func() time.Time
+}
+
 // NewMetricVec returns an initialized metricVec.
 func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
+	return NewMetricVecWithOpts(desc, newMetric, MetricVecOpts{})
+}
+
+// NewMetricVecWithOpts returns an initialized metricVec with optional behavior.
+func NewMetricVecWithOpts(desc *Desc, newMetric func(lvs ...string) Metric, opts MetricVecOpts) *MetricVec {
+	if opts.now == nil {
+		opts.now = time.Now
+	}
 	return &MetricVec{
 		metricMap: &metricMap{
 			metrics:   map[uint64][]metricWithLabelValues{},
 			desc:      desc,
 			newMetric: newMetric,
+			idleTTL:   opts.IdleTTL,
+			now:       opts.now,
 		},
 		hashAdd:     hashAdd,
 		hashAddByte: hashAddByte,
@@ -321,6 +342,8 @@ type metricMap struct {
 	metrics   map[uint64][]metricWithLabelValues
 	desc      *Desc
 	newMetric func(labelValues ...string) Metric
+	idleTTL   time.Duration
+	now       func() time.Time
 }
 
 // Describe implements Collector. It will send exactly one Desc to the provided
@@ -331,6 +354,17 @@ func (m *metricMap) Describe(ch chan<- *Desc) {
 
 // Collect implements Collector.
 func (m *metricMap) Collect(ch chan<- Metric) {
+	if m.idleTTL > 0 {
+		m.mtx.Lock()
+		m.pruneExpiredLocked(m.now())
+		metrics := m.collectMetricsLocked()
+		m.mtx.Unlock()
+		for _, metric := range metrics {
+			ch <- metric
+		}
+		return
+	}
+
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -491,6 +525,20 @@ func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curr
 func (m *metricMap) getOrCreateMetricWithLabelValues(
 	hash uint64, lvs []string, curry []curriedLabelValue,
 ) Metric {
+	if m.idleTTL > 0 {
+		m.mtx.Lock()
+		m.pruneExpiredLocked(m.now())
+		metric, ok := m.getMetricWithHashAndLabelValues(hash, lvs, curry)
+		if !ok {
+			inlinedLVs := inlineLabelValues(lvs, curry)
+			metric = m.newMetric(inlinedLVs...)
+			m.markMetricActive(metric, m.now())
+			m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
+		}
+		m.mtx.Unlock()
+		return metric
+	}
+
 	m.mtx.RLock()
 	metric, ok := m.getMetricWithHashAndLabelValues(hash, lvs, curry)
 	m.mtx.RUnlock()
@@ -504,6 +552,7 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	if !ok {
 		inlinedLVs := inlineLabelValues(lvs, curry)
 		metric = m.newMetric(inlinedLVs...)
+		m.markMetricActive(metric, m.now())
 		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
 	}
 	return metric
@@ -516,6 +565,20 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 func (m *metricMap) getOrCreateMetricWithLabels(
 	hash uint64, labels Labels, curry []curriedLabelValue,
 ) Metric {
+	if m.idleTTL > 0 {
+		m.mtx.Lock()
+		m.pruneExpiredLocked(m.now())
+		metric, ok := m.getMetricWithHashAndLabels(hash, labels, curry)
+		if !ok {
+			lvs := extractLabelValues(m.desc, labels, curry)
+			metric = m.newMetric(lvs...)
+			m.markMetricActive(metric, m.now())
+			m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
+		}
+		m.mtx.Unlock()
+		return metric
+	}
+
 	m.mtx.RLock()
 	metric, ok := m.getMetricWithHashAndLabels(hash, labels, curry)
 	m.mtx.RUnlock()
@@ -529,9 +592,54 @@ func (m *metricMap) getOrCreateMetricWithLabels(
 	if !ok {
 		lvs := extractLabelValues(m.desc, labels, curry)
 		metric = m.newMetric(lvs...)
+		m.markMetricActive(metric, m.now())
 		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
 	}
 	return metric
+}
+
+func (m *metricMap) collectMetricsLocked() []Metric {
+	metrics := make([]Metric, 0, len(m.metrics))
+	for _, bucket := range m.metrics {
+		for _, metric := range bucket {
+			metrics = append(metrics, metric.metric)
+		}
+	}
+	return metrics
+}
+
+func (m *metricMap) pruneExpiredLocked(now time.Time) {
+	if m.idleTTL <= 0 {
+		return
+	}
+	for h, bucket := range m.metrics {
+		kept := bucket[:0]
+		for _, metric := range bucket {
+			if active, ok := metric.metric.(lastActiveMetric); ok && !active.isExpired(now, m.idleTTL) {
+				kept = append(kept, metric)
+				continue
+			}
+			if _, ok := metric.metric.(lastActiveMetric); !ok {
+				kept = append(kept, metric)
+			}
+		}
+		if len(kept) == 0 {
+			delete(m.metrics, h)
+			continue
+		}
+		m.metrics[h] = kept
+	}
+}
+
+func (m *metricMap) markMetricActive(metric Metric, now time.Time) {
+	if active, ok := metric.(lastActiveMetric); ok {
+		active.setLastActive(now)
+	}
+}
+
+type lastActiveMetric interface {
+	setLastActive(time.Time)
+	isExpired(time.Time, time.Duration) bool
 }
 
 // getMetricWithHashAndLabelValues gets a metric while handling possible
