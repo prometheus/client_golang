@@ -511,6 +511,8 @@ type HistogramOpts struct {
 type HistogramVecOpts struct {
 	HistogramOpts
 
+	MetricVecOpts
+
 	// VariableLabels are used to partition the metric vector by the given set
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
@@ -761,6 +763,8 @@ type histogram struct {
 
 	// afterFunc is for testing purposes, by default it's time.AfterFunc.
 	afterFunc func(time.Duration, func()) *time.Timer
+
+	lastActiveUnixNano atomic.Int64
 }
 
 func (h *histogram) Desc() *Desc {
@@ -768,6 +772,7 @@ func (h *histogram) Desc() *Desc {
 }
 
 func (h *histogram) Observe(v float64) {
+	h.setLastActive(h.now())
 	h.observe(v, h.findBucket(v))
 }
 
@@ -775,6 +780,7 @@ func (h *histogram) Observe(v float64) {
 // for a native histogram with configured exemplars. For this case,
 // the implementation isn't lock-free and might suffer from lock contention.
 func (h *histogram) ObserveWithExemplar(v float64, e Labels) {
+	h.setLastActive(h.now())
 	i := h.findBucket(v)
 	h.observe(v, i)
 	h.updateExemplar(v, i, e)
@@ -863,6 +869,18 @@ func (h *histogram) Write(out *dto.Metric) error {
 	}
 	addAndResetCounts(hotCounts, coldCounts)
 	return nil
+}
+
+func (h *histogram) setLastActive(t time.Time) {
+	h.lastActiveUnixNano.Store(t.UnixNano())
+}
+
+func (h *histogram) isExpired(now time.Time, idleTTL time.Duration) bool {
+	lastActiveUnixNano := h.lastActiveUnixNano.Load()
+	if lastActiveUnixNano == 0 {
+		return false
+	}
+	return now.Sub(time.Unix(0, lastActiveUnixNano)) > idleTTL
 }
 
 // findBucket returns the index of the bucket for the provided value, or
@@ -1189,6 +1207,9 @@ func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
 
 // NewHistogramVec creates a new HistogramVec based on the provided HistogramVecOpts.
 func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
+	if opts.MetricVecOpts.now == nil {
+		opts.MetricVecOpts.now = opts.HistogramOpts.now
+	}
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
@@ -1197,9 +1218,9 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		WithUnit(opts.Unit),
 	)
 	return &HistogramVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
+		MetricVec: NewMetricVecWithOpts(desc, func(lvs ...string) Metric {
 			return newHistogram(desc, opts.HistogramOpts, lvs...)
-		}),
+		}, opts.MetricVecOpts),
 	}
 }
 
