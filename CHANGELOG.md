@@ -1,6 +1,8 @@
 ## Unreleased
 
+* [CHANGE] prometheus: Name validation now always uses the UTF-8 scheme instead of the deprecated `model.NameValidationScheme` global. Default behavior is unchanged; code that set `NameValidationScheme = LegacyValidation` no longer gets legacy enforcement at metric, label, and push-grouping construction. #2051
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [BUGFIX] promhttp: `InstrumentHandlerDuration` and `InstrumentHandlerCounter` no longer panic when given an observer/counter that does not implement `ExemplarObserver`/`ExemplarAdder` (e.g. a `SummaryVec`). The exemplar is dropped and the value is recorded via the plain `Observe`/`Add` path, matching the safe-cast already used by `Timer.ObserveDurationWithExemplar`. #2005
 
 ## Unreleased `exp` module
 

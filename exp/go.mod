@@ -4,8 +4,8 @@ go 1.25.0
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/klauspost/compress v1.18.6
-	github.com/prometheus/common v0.68.0
+	github.com/klauspost/compress v1.19.0
+	github.com/prometheus/common v0.69.0
 	google.golang.org/protobuf v1.36.11
 )
 

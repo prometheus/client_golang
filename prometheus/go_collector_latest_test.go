@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"runtime/metrics"
 	"strings"
 	"sync"
@@ -147,7 +148,7 @@ func TestGoCollector_ExposedMetrics(t *testing.T) {
 	}
 }
 
-var sink interface{}
+var sink any
 
 func TestBatchHistogram(t *testing.T) {
 	goMetrics := collectGoMetrics(t, internal.GoCollectorOptions{
@@ -270,12 +271,16 @@ func TestMemStatsEquivalence(t *testing.T) {
 		samplesMap[descs[i].Name] = &samples[i]
 	}
 
-	// Force a GC cycle to try to reach a clean slate.
-	runtime.GC()
+	// Reach a stable slate and hold it for a single measurement window.
+	// FreeOSMemory runs a GC and returns freed memory to the OS, leaving the
+	// background scavenger nothing to release; disabling GC for the window
+	// keeps msReal and msFake observing the same runtime state. Without this,
+	// HeapReleased could drift between the two reads and fail the comparison.
+	debug.FreeOSMemory()
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 
-	// Populate msReal.
+	// Populate msReal, then msFake back-to-back within the frozen window.
 	runtime.ReadMemStats(&msReal)
-	// Populate msFake and hope that no GC happened in between (:
 	metrics.Read(samples)
 
 	memStatsFromRM(&msFake, samplesMap)
