@@ -571,6 +571,9 @@ type HandlerOpts struct {
 	// case where the wrapped gatherer itself panics, the panicking request's
 	// panic propagates as usual (handled by net/http), while requests that
 	// joined the same cycle receive an error rather than an empty response.
+	//
+	// NOTE: This option is experimental and may change or be removed in a
+	// future release.
 	CoalesceGather bool
 	// If handling a request takes longer than Timeout, it is responded to
 	// with 503 ServiceUnavailable and a suitable Message. No timeout is
