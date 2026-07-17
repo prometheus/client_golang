@@ -1,13 +1,31 @@
 ## Unreleased
 
+## 1.24.0-rc.0 / 2026-07-17
+
+* [CHANGE] Minimum required Go version is now 1.25, only the two latest Go versions (1.25 and 1.26) are supported from now on. #1862
 * [CHANGE] prometheus: Name validation now always uses the UTF-8 scheme instead of the deprecated `model.NameValidationScheme` global. Default behavior is unchanged; code that set `NameValidationScheme = LegacyValidation` no longer gets legacy enforcement at metric, label, and push-grouping construction. #2051
-* [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [CHANGE] api/prometheus/v1: Support matchers (`matches[]` parameter) in `Rules` method (`Rules(ctx context.Context, matches []string) (RulesResult, error)`). #1843
+* [CHANGE] api/prometheus/v1: Refactor `LabelNames` method to return `model.LabelNames` instead of `[]string` for consistency across the API. #1850
+* [CHANGE] exp/api/remote: Simplify `Store` interface, rename `Handler` to `WriteHandler`, and encapsulate write response handling. #1855
+* [FEATURE] prometheus: Add new Go 1.26 runtime metrics (`/sched/goroutines-created:goroutines`, `/sched/goroutines/not-in-go:goroutines`, `/sched/goroutines/runnable:goroutines`, `/sched/goroutines/running:goroutines`, `/sched/goroutines/waiting:goroutines`, `/sched/threads/total:threads`). #1942
+* [FEATURE] prometheus: Add `WithUnit(unit string)` option and explicit OpenMetrics unit support in `CounterOpts`, `GaugeOpts`, `SummaryOpts`, and `HistogramOpts`. #1392
+* [FEATURE] prometheus: Expose descriptor construction error through public `Err()` method on `Desc`. #1902
 * [FEATURE] promhttp: Add opt-in `HandlerOpts.CoalesceGather` to deduplicate concurrent `Gather` calls so overlapping scrapes share one collection cycle, preventing goroutine pile-up when the scrape rate outpaces collection time. #1969
+* [FEATURE] promhttp: HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
+* [FEATURE] api/prometheus/v1: Add query formatting endpoint support (`/format_query`) and `FormatQuery(ctx context.Context, query string) (string, error)` method. #1846, #1856
+* [FEATURE] api/prometheus/v1: Add support for `/status/tsdb/blocks` endpoint via `TSDBBlocks(ctx context.Context) ([]TSDBBlock, error)` method. #1896
+* [FEATURE] exp/api/remote: Export `BackoffConfig` to allow customization when using `WithAPIBackoff`. #1895
+* [FEATURE] exp/api/remote: Add `RetryCallBack` to allow custom logging or handling on retry attempts in the remote write client. #1888, #1890
+* [ENHANCEMENT] prometheus/collectors/version: Allow specifying custom labels when registering the version collector. #1860
+* [ENHANCEMENT] api: Use cloned `http.DefaultTransport` when constructing default HTTP clients to prevent accidental mutations of shared global transport state. #1885
+* [BUGFIX] prometheus: Recover from collector panics during `Gather()` and return an error instead of crashing the process. #1961
+* [BUGFIX] prometheus: Fix `cpu-seconds` unit suffix handling for metric `go_cpu_classes_gc_mark_assist_cpu_seconds`. #1991
 * [BUGFIX] promhttp: `InstrumentHandlerDuration` and `InstrumentHandlerCounter` no longer panic when given an observer/counter that does not implement `ExemplarObserver`/`ExemplarAdder` (e.g. a `SummaryVec`). The exemplar is dropped and the value is recorded via the plain `Observe`/`Add` path, matching the safe-cast already used by `Timer.ObserveDurationWithExemplar`. #2005
-
-## Unreleased `exp` module
-
-* [BUGFIX] exp/api: Reject malformed snappy payloads declaring huge decoded sizes. Enforce a 32MB decoded-size limit to prevent OOM from oversized remote-write requests. #1917.
+* [BUGFIX] api/prometheus/v1: Fall back to `GET` requests when `POST` requests return `403 Forbidden` or method not allowed. #2030
+* [BUGFIX] api: Respect context cancellation inside `httpClient.Do`. #1971
+* [BUGFIX] exp/api/remote: Fix compression buffer pooling where compressed buffers were released prematurely, causing corrupted remote-write payloads. #1889
+* [BUGFIX] exp/api/remote: Reject malformed snappy payloads declaring huge decoded sizes. Enforce a 32MB decoded-size limit to prevent OOM from oversized remote-write requests. #1917
+* [BUGFIX] exp/api/remote: Ensure remote write v2 headers cannot be returned on v1 requests. #1927
 
 ## 1.23.2 / 2025-09-05
 
