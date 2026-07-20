@@ -1,6 +1,6 @@
 ## Unreleased
 
-## 1.24.0-rc.0 / 2026-07-17
+## 1.24.0 / 2026-07-20
 
 * [CHANGE] Minimum required Go version is now 1.25, only the two latest Go versions (1.25 and 1.26) are supported from now on. #1862
 * [CHANGE] prometheus: Name validation now always uses the UTF-8 scheme instead of the deprecated `model.NameValidationScheme` global. Default behavior is unchanged; code that set `NameValidationScheme = LegacyValidation` no longer gets legacy enforcement at metric, label, and push-grouping construction. #2051
