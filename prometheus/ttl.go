@@ -20,11 +20,20 @@ import (
 
 // ExpiredCleaner is implemented by collectors that support TTL-based cleanup of
 // unused children (for example MetricVec with a non-zero Opts.TTL).
-// Registry.Gather calls CleanupExpired on registered collectors that implement
-// this interface so expired children can be reclaimed even when Collect alone
-// would only skip them.
+//
+// Registry.Gather only invokes CleanupExpired on collectors that also report
+// TTL as enabled (see ttlEnabled), so vectors with TTL == 0 are not touched on
+// the Gather hot path.
 type ExpiredCleaner interface {
 	CleanupExpired() int
+}
+
+// ttlEnabledCollector is the Gather-time check for automatic TTL cleanup.
+// ttlEnabled is unexported so only types in this package (e.g. *MetricVec and
+// the built-in *Vec types) can opt into automatic cleanup.
+type ttlEnabledCollector interface {
+	ExpiredCleaner
+	ttlEnabled() bool
 }
 
 // ttlMetric is implemented by decorator wrappers that track last access time.
@@ -148,3 +157,24 @@ func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
 
 func (h *ttlHistogram) lastAccessed() int64 { return h.lastAccessedTs.Load() }
 func (h *ttlHistogram) touch()              { h.lastAccessedTs.Store(nowUnixMilli()) }
+
+// --- Summary wrapper ---
+
+type ttlSummary struct {
+	Summary
+	lastAccessedTs atomic.Int64
+}
+
+func newTTLSummary(s Summary) *ttlSummary {
+	ts := &ttlSummary{Summary: s}
+	ts.lastAccessedTs.Store(nowUnixMilli())
+	return ts
+}
+
+func (s *ttlSummary) Observe(v float64) {
+	s.Summary.Observe(v)
+	s.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (s *ttlSummary) lastAccessed() int64 { return s.lastAccessedTs.Load() }
+func (s *ttlSummary) touch()              { s.lastAccessedTs.Store(nowUnixMilli()) }
