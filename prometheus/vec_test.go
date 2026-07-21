@@ -1390,13 +1390,16 @@ type cleanupCallSpy struct {
 }
 
 func (s *cleanupCallSpy) Desc() *Desc { return s.desc }
+
 func (s *cleanupCallSpy) Write(out *dto.Metric) error {
 	return populateMetric(GaugeValue, 0, nil, nil, out, nil)
 }
+
 func (s *cleanupCallSpy) CleanupExpired() int {
 	s.calls++
 	return 0
 }
+
 func (s *cleanupCallSpy) ttlEnabled() bool { return s.enableTTL }
 
 func TestRegistryGatherSkipsCleanupWhenTTLDisabled(t *testing.T) {
@@ -1427,4 +1430,3 @@ func TestRegistryGatherSkipsCleanupWhenTTLDisabled(t *testing.T) {
 		t.Fatal("plain CounterVec must not be ttlEnabled")
 	}
 }
-
