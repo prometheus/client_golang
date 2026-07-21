@@ -13,6 +13,11 @@
 
 package prometheus
 
+import (
+	"sync/atomic"
+	"time"
+)
+
 // ExpiredCleaner is implemented by collectors that support TTL-based cleanup of
 // unused children (for example MetricVec with a non-zero Opts.TTL).
 // Registry.Gather calls CleanupExpired on registered collectors that implement
@@ -28,3 +33,118 @@ type ttlMetric interface {
 	lastAccessed() int64
 	touch()
 }
+
+func nowUnixMilli() int64 {
+	return time.Now().UnixMilli()
+}
+
+// --- Counter wrapper ---
+
+type ttlCounter struct {
+	Counter
+	lastAccessedTs atomic.Int64
+}
+
+func newTTLCounter(c Counter) *ttlCounter {
+	tc := &ttlCounter{Counter: c}
+	tc.lastAccessedTs.Store(nowUnixMilli())
+	return tc
+}
+
+func (c *ttlCounter) Inc() {
+	c.Counter.Inc()
+	c.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (c *ttlCounter) Add(v float64) {
+	c.Counter.Add(v)
+	c.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (c *ttlCounter) AddWithExemplar(v float64, e Labels) {
+	if ea, ok := c.Counter.(ExemplarAdder); ok {
+		ea.AddWithExemplar(v, e)
+	} else {
+		c.Counter.Add(v)
+	}
+	c.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (c *ttlCounter) lastAccessed() int64 { return c.lastAccessedTs.Load() }
+func (c *ttlCounter) touch()              { c.lastAccessedTs.Store(nowUnixMilli()) }
+
+// --- Gauge wrapper ---
+
+type ttlGauge struct {
+	Gauge
+	lastAccessedTs atomic.Int64
+}
+
+func newTTLGauge(g Gauge) *ttlGauge {
+	tg := &ttlGauge{Gauge: g}
+	tg.lastAccessedTs.Store(nowUnixMilli())
+	return tg
+}
+
+func (g *ttlGauge) Set(v float64) {
+	g.Gauge.Set(v)
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) Inc() {
+	g.Gauge.Inc()
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) Dec() {
+	g.Gauge.Dec()
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) Add(v float64) {
+	g.Gauge.Add(v)
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) Sub(v float64) {
+	g.Gauge.Sub(v)
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) SetToCurrentTime() {
+	g.Gauge.SetToCurrentTime()
+	g.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (g *ttlGauge) lastAccessed() int64 { return g.lastAccessedTs.Load() }
+func (g *ttlGauge) touch()              { g.lastAccessedTs.Store(nowUnixMilli()) }
+
+// --- Histogram wrapper ---
+
+type ttlHistogram struct {
+	Histogram
+	lastAccessedTs atomic.Int64
+}
+
+func newTTLHistogram(h Histogram) *ttlHistogram {
+	th := &ttlHistogram{Histogram: h}
+	th.lastAccessedTs.Store(nowUnixMilli())
+	return th
+}
+
+func (h *ttlHistogram) Observe(v float64) {
+	h.Histogram.Observe(v)
+	h.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
+	if eo, ok := h.Histogram.(ExemplarObserver); ok {
+		eo.ObserveWithExemplar(v, e)
+	} else {
+		h.Histogram.Observe(v)
+	}
+	h.lastAccessedTs.Store(nowUnixMilli())
+}
+
+func (h *ttlHistogram) lastAccessed() int64 { return h.lastAccessedTs.Load() }
+func (h *ttlHistogram) touch()              { h.lastAccessedTs.Store(nowUnixMilli()) }

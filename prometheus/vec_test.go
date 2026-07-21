@@ -48,11 +48,11 @@ func TestDeleteWithCollisions(t *testing.T) {
 
 func TestDeleteWithConstraints(t *testing.T) {
 	vec := V2.NewGaugeVec(GaugeVecOpts{
-		GaugeOpts{
+		GaugeOpts: GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
-		ConstrainedLabels{
+		VariableLabels: ConstrainedLabels{
 			{Name: "l1"},
 			{Name: "l2", Constraint: func(s string) string { return "x" + s }},
 		},
@@ -116,11 +116,11 @@ func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 
 func TestDeleteLabelValuesWithConstraints(t *testing.T) {
 	vec := V2.NewGaugeVec(GaugeVecOpts{
-		GaugeOpts{
+		GaugeOpts: GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
-		ConstrainedLabels{
+		VariableLabels: ConstrainedLabels{
 			{Name: "l1"},
 			{Name: "l2", Constraint: func(s string) string { return "x" + s }},
 		},
@@ -168,11 +168,11 @@ func TestDeletePartialMatch(t *testing.T) {
 
 func TestDeletePartialMatchWithConstraints(t *testing.T) {
 	vec := V2.NewGaugeVec(GaugeVecOpts{
-		GaugeOpts{
+		GaugeOpts: GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
-		ConstrainedLabels{
+		VariableLabels: ConstrainedLabels{
 			{Name: "l1"},
 			{Name: "l2", Constraint: func(s string) string { return "x" + s }},
 			{Name: "l3"},
@@ -344,11 +344,11 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 func TestMetricVecWithConstraints(t *testing.T) {
 	constraint := func(s string) string { return "x" + s }
 	vec := V2.NewGaugeVec(GaugeVecOpts{
-		GaugeOpts{
+		GaugeOpts: GaugeOpts{
 			Name: "test",
 			Help: "helpless",
 		},
-		ConstrainedLabels{
+		VariableLabels: ConstrainedLabels{
 			{Name: "l1"},
 			{Name: "l2", Constraint: constraint},
 		},
@@ -474,11 +474,11 @@ func TestCurryVecWithConstraints(t *testing.T) {
 	constraint := func(s string) string { return "x" + s }
 	t.Run("constrainedLabels overlap variableLabels", func(t *testing.T) {
 		vec := V2.NewCounterVec(CounterVecOpts{
-			CounterOpts{
+			CounterOpts: CounterOpts{
 				Name: "test",
 				Help: "helpless",
 			},
-			ConstrainedLabels{
+			VariableLabels: ConstrainedLabels{
 				{Name: "one"},
 				{Name: "two"},
 				{Name: "three", Constraint: constraint},
@@ -489,11 +489,11 @@ func TestCurryVecWithConstraints(t *testing.T) {
 	t.Run("constrainedLabels reducing cardinality", func(t *testing.T) {
 		constraint := func(s string) string { return "x" }
 		vec := V2.NewCounterVec(CounterVecOpts{
-			CounterOpts{
+			CounterOpts: CounterOpts{
 				Name: "test",
 				Help: "helpless",
 			},
-			ConstrainedLabels{
+			VariableLabels: ConstrainedLabels{
 				{Name: "one"},
 				{Name: "two"},
 				{Name: "three", Constraint: constraint},
