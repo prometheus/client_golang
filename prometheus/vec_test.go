@@ -1248,3 +1248,183 @@ func TestRegistryGatherCleansExpired(t *testing.T) {
 	})
 }
 
+func TestTTLZeroHasNoWrapper(t *testing.T) {
+	vec := NewCounterVec(CounterOpts{Name: "ttl_zero_wrap", Help: "test"}, []string{"code"})
+	c := vec.WithLabelValues("200")
+	if _, ok := c.(*ttlCounter); ok {
+		t.Fatal("TTL==0 must not wrap children in ttlCounter")
+	}
+	if _, ok := c.(*counter); !ok {
+		t.Fatalf("TTL==0 child should be *counter, got %T", c)
+	}
+	if vec.ttlEnabled() {
+		t.Fatal("TTL==0 vector must not report ttlEnabled")
+	}
+}
+
+func TestTTLWrapsChildren(t *testing.T) {
+	vec := V2.NewCounterVec(CounterVecOpts{
+		CounterOpts:    CounterOpts{Name: "ttl_wrap", Help: "test"},
+		VariableLabels: UnconstrainedLabels([]string{"code"}),
+		TTL:            time.Minute,
+	})
+	c := vec.WithLabelValues("200")
+	if _, ok := c.(*ttlCounter); !ok {
+		t.Fatalf("TTL>0 child should be *ttlCounter, got %T", c)
+	}
+	if !vec.ttlEnabled() {
+		t.Fatal("TTL>0 vector must report ttlEnabled")
+	}
+
+	gvec := V2.NewGaugeVec(GaugeVecOpts{
+		GaugeOpts:      GaugeOpts{Name: "ttl_wrap_g", Help: "test"},
+		VariableLabels: UnconstrainedLabels([]string{"code"}),
+		TTL:            time.Minute,
+	})
+	if _, ok := gvec.WithLabelValues("200").(*ttlGauge); !ok {
+		t.Fatal("expected *ttlGauge")
+	}
+
+	hvec := V2.NewHistogramVec(HistogramVecOpts{
+		HistogramOpts:  HistogramOpts{Name: "ttl_wrap_h", Help: "test"},
+		VariableLabels: UnconstrainedLabels([]string{"code"}),
+		TTL:            time.Minute,
+	})
+	if _, ok := hvec.WithLabelValues("200").(*ttlHistogram); !ok {
+		t.Fatal("expected *ttlHistogram")
+	}
+
+	svec := V2.NewSummaryVec(SummaryVecOpts{
+		SummaryOpts:    SummaryOpts{Name: "ttl_wrap_s", Help: "test"},
+		VariableLabels: UnconstrainedLabels([]string{"code"}),
+		TTL:            time.Minute,
+	})
+	if _, ok := svec.WithLabelValues("200").(*ttlSummary); !ok {
+		t.Fatal("expected *ttlSummary")
+	}
+}
+
+func TestTTLCustomMetricVecRequiresTTLMetric(t *testing.T) {
+	desc := NewDesc("ttl_custom", "help", []string{"l"}, nil)
+	mv := V2.NewMetricVec(MetricVecOpts{
+		Desc:      desc,
+		NewMetric: func(lvs ...string) Metric { return &counter{} },
+		TTL:       time.Minute,
+	})
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic when NewMetric does not return a ttlMetric")
+		}
+	}()
+	_, _ = mv.GetMetricWithLabelValues("x")
+}
+
+func TestTTLOrphanedCachedHandleAfterCleanup(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 50 * time.Millisecond
+		vec := V2.NewCounterVec(CounterVecOpts{
+			CounterOpts:    CounterOpts{Name: "ttl_orphan", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+
+		cached := vec.WithLabelValues("200")
+		cached.Add(1)
+
+		time.Sleep(ttl + 20*time.Millisecond)
+		if n := vec.CleanupExpired(); n != 1 {
+			t.Fatalf("expected 1 cleaned, got %d", n)
+		}
+
+		// Cached handle is detached: updates are not exported.
+		cached.Add(5)
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 exported after orphan update, got %d", n)
+		}
+
+		// Re-lookup creates a fresh child.
+		fresh := vec.WithLabelValues("200")
+		if fresh == cached {
+			t.Fatal("expected a new child metric after cleanup")
+		}
+		fresh.Add(1)
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 after re-lookup, got %d", n)
+		}
+	})
+}
+
+func TestTTLSummaryVec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewSummaryVec(SummaryVecOpts{
+			SummaryOpts:    SummaryOpts{Name: "test_ttl_summary", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+
+		cached := vec.WithLabelValues("ok")
+		cached.Observe(0.5)
+
+		for i := 0; i < 5; i++ {
+			time.Sleep(80 * time.Millisecond)
+			cached.Observe(0.1)
+		}
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric via cached Observe, got %d", n)
+		}
+
+		time.Sleep(ttl + 50*time.Millisecond)
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 after idle TTL, got %d", n)
+		}
+	})
+}
+
+// cleanupCallSpy tracks whether Gather invoked CleanupExpired.
+type cleanupCallSpy struct {
+	selfCollector
+	desc      *Desc
+	calls     int
+	enableTTL bool
+}
+
+func (s *cleanupCallSpy) Desc() *Desc { return s.desc }
+func (s *cleanupCallSpy) Write(out *dto.Metric) error {
+	return populateMetric(GaugeValue, 0, nil, nil, out, nil)
+}
+func (s *cleanupCallSpy) CleanupExpired() int {
+	s.calls++
+	return 0
+}
+func (s *cleanupCallSpy) ttlEnabled() bool { return s.enableTTL }
+
+func TestRegistryGatherSkipsCleanupWhenTTLDisabled(t *testing.T) {
+	reg := NewRegistry()
+
+	disabled := &cleanupCallSpy{desc: NewDesc("spy_disabled", "help", nil, nil), enableTTL: false}
+	disabled.init(disabled)
+	enabled := &cleanupCallSpy{desc: NewDesc("spy_enabled", "help", nil, nil), enableTTL: true}
+	enabled.init(enabled)
+
+	reg.MustRegister(disabled, enabled)
+	if _, err := reg.Gather(); err != nil {
+		t.Fatal(err)
+	}
+	if disabled.calls != 0 {
+		t.Fatalf("Gather must not CleanupExpired when ttlEnabled is false, got %d calls", disabled.calls)
+	}
+	if enabled.calls != 1 {
+		t.Fatalf("Gather must CleanupExpired when ttlEnabled is true, got %d calls", enabled.calls)
+	}
+
+	// Non-TTL built-in vecs must not report ttlEnabled.
+	plain := NewCounterVec(CounterOpts{Name: "plain_gather", Help: "test"}, []string{"c"})
+	if _, ok := any(plain).(ttlEnabledCollector); !ok {
+		t.Fatal("CounterVec should satisfy ttlEnabledCollector via MetricVec")
+	}
+	if plain.ttlEnabled() {
+		t.Fatal("plain CounterVec must not be ttlEnabled")
+	}
+}
+

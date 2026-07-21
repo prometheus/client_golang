@@ -57,11 +57,19 @@ type MetricVecOpts struct {
 	// expiration (identical to NewMetricVec).
 	//
 	// Access includes GetMetricWith / GetMetricWithLabelValues and, when using
-	// the built-in CounterVec / GaugeVec / HistogramVec with TTL, mutating
-	// methods on cached children (Inc, Add, Set, Observe, …). Caching a child
-	// and never calling those methods (nor looking it up again) lets the child
-	// expire; the cached handle then behaves like after Delete — updates are
-	// not exported until the label set is looked up again. See Delete docs.
+	// the built-in CounterVec / GaugeVec / HistogramVec / SummaryVec with TTL,
+	// mutating methods on cached children (Inc, Add, Set, Observe, …). Caching
+	// a child and never calling those methods (nor looking it up again) lets
+	// the child expire; the cached handle then behaves like after Delete —
+	// updates are not exported until the label set is looked up again. See
+	// Delete docs.
+	//
+	// When TTL > 0, NewMetric must return a Metric that implements the internal
+	// TTL touch hooks (the built-in *Vec constructors wrap children for you).
+	// Passing a plain Metric panics when the child is created.
+	//
+	// TTL > 0 adds a small per-child wrapper allocation and a timestamp update
+	// on each mutating call; TTL == 0 keeps the default Vec path with neither.
 	//
 	// If metrics are never scraped, call CleanupExpired periodically (or rely
 	// on Gather) so expired children can be reclaimed; there is no background
@@ -95,11 +103,15 @@ func (v2) NewMetricVec(opts MetricVecOpts) *MetricVec {
 // configured TTL. It returns the number of children removed. If TTL is not
 // configured (zero), this is a no-op and returns 0.
 //
-// Registry.Gather invokes CleanupExpired for collectors that implement
-// ExpiredCleaner. If scrapes are rare or absent, call CleanupExpired
-// periodically yourself; client_golang does not start a background cleaner.
+// Registry.Gather invokes CleanupExpired only for collectors with TTL enabled.
+// If scrapes are rare or absent, call CleanupExpired periodically yourself;
+// client_golang does not start a background cleaner.
 func (m *MetricVec) CleanupExpired() int {
 	return m.metricMap.cleanupExpired()
+}
+
+func (m *MetricVec) ttlEnabled() bool {
+	return m.metricMap.ttl > 0
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
@@ -604,6 +616,7 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	if !ok {
 		inlinedLVs := inlineLabelValues(lvs, curry)
 		metric = m.newMetric(inlinedLVs...)
+		m.requireTTLMetric(metric)
 		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
 	} else if m.ttl > 0 {
 		touchIfTTL(metric)
@@ -634,11 +647,21 @@ func (m *metricMap) getOrCreateMetricWithLabels(
 	if !ok {
 		lvs := extractLabelValues(m.desc, labels, curry)
 		metric = m.newMetric(lvs...)
+		m.requireTTLMetric(metric)
 		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
 	} else if m.ttl > 0 {
 		touchIfTTL(metric)
 	}
 	return metric
+}
+
+func (m *metricMap) requireTTLMetric(metric Metric) {
+	if m.ttl <= 0 {
+		return
+	}
+	if _, ok := metric.(ttlMetric); !ok {
+		panic("MetricVec with TTL > 0 requires NewMetric to return a TTL-aware Metric; use CounterVec/GaugeVec/HistogramVec/SummaryVec Opts.TTL or wrap the Metric yourself")
+	}
 }
 
 // getMetricWithHashAndLabelValues gets a metric while handling possible
