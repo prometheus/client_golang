@@ -201,12 +201,6 @@ func NewCounterVec(opts CounterOpts, labelNames []string) *CounterVec {
 
 // NewCounterVec creates a new CounterVec based on the provided CounterVecOpts.
 func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
-	return newCounterVecWithTTL(opts, 0)
-}
-
-// newCounterVecWithTTL creates a CounterVec. ttl must be >= 0; ttl == 0 disables
-// TTL behavior (identical to NewMetricVec).
-func newCounterVecWithTTL(opts CounterVecOpts, ttl time.Duration) *CounterVec {
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,
@@ -217,22 +211,16 @@ func newCounterVecWithTTL(opts CounterVecOpts, ttl time.Duration) *CounterVec {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	newMetric := func(lvs ...string) Metric {
-		if len(lvs) != len(desc.variableLabels.names) {
-			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-		}
-		result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
-		result.init(result) // Init self-collection.
-		result.createdTs = timestamppb.New(opts.now())
-		return result
-	}
-	if ttl > 0 {
-		return &CounterVec{
-			MetricVec: NewMetricVecWithTTL(desc, newMetric, ttl),
-		}
-	}
 	return &CounterVec{
-		MetricVec: NewMetricVec(desc, newMetric),
+		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
+			if len(lvs) != len(desc.variableLabels.names) {
+				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+			}
+			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+			result.init(result) // Init self-collection.
+			result.createdTs = timestamppb.New(opts.now())
+			return result
+		}),
 	}
 }
 
