@@ -432,6 +432,9 @@ func (r *Registry) MustGather() []*dto.MetricFamily {
 }
 
 // Gather implements Gatherer.
+//
+// Before Collect, Gather calls CleanupExpired on any registered collector that
+// implements ExpiredCleaner (for example a MetricVec with a non-zero TTL).
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	r.mtx.RLock()
 
@@ -476,8 +479,14 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		for {
 			select {
 			case collector := <-checkedCollectors:
+				if cleaner, ok := collector.(ExpiredCleaner); ok {
+					cleaner.CleanupExpired()
+				}
 				safeErrs.Append((safeCollect(collector, checkedMetricChan)))
 			case collector := <-uncheckedCollectors:
+				if cleaner, ok := collector.(ExpiredCleaner); ok {
+					cleaner.CleanupExpired()
+				}
 				safeErrs.Append(safeCollect(collector, uncheckedMetricChan))
 			default:
 				return

@@ -18,6 +18,8 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -1004,3 +1006,245 @@ func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string)
 		vec.WithLabelValues(values...)
 	}
 }
+
+func collectCount(c Collector) int {
+	ch := make(chan Metric, 100)
+	c.Collect(ch)
+	close(ch)
+	n := 0
+	for range ch {
+		n++
+	}
+	return n
+}
+
+func TestTTLCounterVec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewCounterVec(CounterVecOpts{
+			CounterOpts:    CounterOpts{Name: "test_ttl_counter", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+
+		vec.WithLabelValues("200").Add(1)
+		vec.WithLabelValues("404").Add(1)
+
+		if n := collectCount(vec); n != 2 {
+			t.Fatalf("expected 2 metrics, got %d", n)
+		}
+
+		time.Sleep(ttl + 50*time.Millisecond)
+
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 metrics after TTL, got %d", n)
+		}
+
+		cleaned := vec.CleanupExpired()
+		if cleaned != 2 {
+			t.Fatalf("expected 2 cleaned, got %d", cleaned)
+		}
+	})
+}
+
+func TestTTLGaugeVec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewGaugeVec(GaugeVecOpts{
+			GaugeOpts:      GaugeOpts{Name: "test_ttl_gauge", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"method"}),
+			TTL:            ttl,
+		})
+
+		vec.WithLabelValues("GET").Set(10)
+		vec.WithLabelValues("POST").Set(20)
+
+		if n := collectCount(vec); n != 2 {
+			t.Fatalf("expected 2 metrics, got %d", n)
+		}
+
+		time.Sleep(ttl + 50*time.Millisecond)
+		// Touch only one
+		vec.WithLabelValues("GET").Set(30)
+
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric after partial TTL, got %d", n)
+		}
+
+		cleaned := vec.CleanupExpired()
+		if cleaned != 1 {
+			t.Fatalf("expected 1 cleaned, got %d", cleaned)
+		}
+	})
+}
+
+func TestTTLHistogramVec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewHistogramVec(HistogramVecOpts{
+			HistogramOpts:  HistogramOpts{Name: "test_ttl_histo", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"status"}),
+			TTL:            ttl,
+		})
+
+		vec.WithLabelValues("ok").Observe(0.5)
+		vec.WithLabelValues("err").Observe(1.5)
+
+		if n := collectCount(vec); n != 2 {
+			t.Fatalf("expected 2 metrics, got %d", n)
+		}
+
+		time.Sleep(ttl + 50*time.Millisecond)
+
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 metrics after TTL, got %d", n)
+		}
+	})
+}
+
+func TestTTLCachedChildKeepsAlive(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewHistogramVec(HistogramVecOpts{
+			HistogramOpts:  HistogramOpts{Name: "test_ttl_cached", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"status"}),
+			TTL:            ttl,
+		})
+
+		cached := vec.WithLabelValues("ok")
+		cached.Observe(0.5)
+
+		// Hot path: only Observe on the cached child (no WithLabelValues).
+		for i := 0; i < 5; i++ {
+			time.Sleep(80 * time.Millisecond)
+			cached.Observe(0.1)
+		}
+
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric still alive via cached Observe, got %d", n)
+		}
+	})
+}
+
+func TestTTLRefreshPreventsExpiration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 150 * time.Millisecond
+		vec := V2.NewCounterVec(CounterVecOpts{
+			CounterOpts:    CounterOpts{Name: "test_ttl_refresh", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+
+		cached := vec.WithLabelValues("200")
+		cached.Add(1)
+
+		for i := 0; i < 5; i++ {
+			time.Sleep(80 * time.Millisecond)
+			cached.Add(1)
+		}
+
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric still alive, got %d", n)
+		}
+	})
+}
+
+func TestMetricVecOptsTTLZeroAndNegative(t *testing.T) {
+	desc := NewDesc("test", "help", []string{"l"}, nil)
+	newMetric := func(lvs ...string) Metric { return &counter{} }
+
+	mv0 := V2.NewMetricVec(MetricVecOpts{Desc: desc, NewMetric: newMetric, TTL: 0})
+	if mv0.ttl != 0 {
+		t.Fatal("ttl==0 should leave metricMap.ttl at 0")
+	}
+	if cleaned := mv0.CleanupExpired(); cleaned != 0 {
+		t.Fatalf("expected 0 cleaned, got %d", cleaned)
+	}
+
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic for negative ttl")
+		}
+	}()
+	V2.NewMetricVec(MetricVecOpts{Desc: desc, NewMetric: newMetric, TTL: -time.Second})
+}
+
+func TestTTLZeroMeansNoExpiration(t *testing.T) {
+	vec := NewCounterVec(CounterOpts{
+		Name: "test_no_ttl",
+		Help: "test",
+	}, []string{"code"})
+
+	vec.WithLabelValues("200").Add(1)
+
+	cleaned := vec.CleanupExpired()
+	if cleaned != 0 {
+		t.Fatalf("expected 0 cleaned with no TTL, got %d", cleaned)
+	}
+
+	if n := collectCount(vec); n != 1 {
+		t.Fatalf("expected 1 metric, got %d", n)
+	}
+}
+
+func TestTTLWithGetMetricWith(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 100 * time.Millisecond
+		vec := V2.NewGaugeVec(GaugeVecOpts{
+			GaugeOpts:      GaugeOpts{Name: "test_ttl_getmetricwith", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"method"}),
+			TTL:            ttl,
+		})
+
+		g, err := vec.GetMetricWith(Labels{"method": "GET"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g.Set(42)
+
+		time.Sleep(ttl + 50*time.Millisecond)
+
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 after TTL, got %d", n)
+		}
+
+		g, _ = vec.GetMetricWith(Labels{"method": "GET"})
+		g.Set(99)
+
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 after re-access, got %d", n)
+		}
+	})
+}
+
+func TestRegistryGatherCleansExpired(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ttl := 80 * time.Millisecond
+		reg := NewRegistry()
+		vec := V2.NewCounterVec(CounterVecOpts{
+			CounterOpts:    CounterOpts{Name: "ttl_reg_gather", Help: "test"},
+			VariableLabels: UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+		reg.MustRegister(vec)
+
+		vec.WithLabelValues("200").Add(1)
+		if n := collectCount(vec); n != 1 {
+			t.Fatalf("expected 1 metric before sleep, got %d", n)
+		}
+
+		time.Sleep(ttl + 40*time.Millisecond)
+
+		if _, err := reg.Gather(); err != nil {
+			t.Fatal(err)
+		}
+
+		if n := collectCount(vec); n != 0 {
+			t.Fatalf("expected 0 metrics after Gather cleanup, got %d", n)
+		}
+		if cleaned := vec.CleanupExpired(); cleaned != 0 {
+			t.Fatalf("expected nothing left to clean, got %d", cleaned)
+		}
+	})
+}
+
