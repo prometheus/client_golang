@@ -1521,6 +1521,16 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 
 	if http.StatusNoContent != code {
 		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+			// Non-2xx API error codes (400/422) with a non-JSON body (e.g. HTML from a
+			// proxy) should surface the HTTP status instead of a confusing unmarshal error.
+			if code/100 != 2 {
+				errorType, errorMsg := errorTypeAndMsgFor(resp)
+				return resp, body, nil, &Error{
+					Type:   errorType,
+					Msg:    errorMsg,
+					Detail: string(body),
+				}
+			}
 			return resp, body, nil, &Error{
 				Type: ErrBadResponse,
 				Msg:  jsonErr.Error(),
