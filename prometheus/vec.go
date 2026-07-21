@@ -107,11 +107,11 @@ func (v2) NewMetricVec(opts MetricVecOpts) *MetricVec {
 // If scrapes are rare or absent, call CleanupExpired periodically yourself;
 // client_golang does not start a background cleaner.
 func (m *MetricVec) CleanupExpired() int {
-	return m.metricMap.cleanupExpired()
+	return m.cleanupExpired()
 }
 
 func (m *MetricVec) ttlEnabled() bool {
-	return m.metricMap.ttl > 0
+	return m.ttl > 0
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same
