@@ -879,6 +879,28 @@ func TestHandlerWithMetricFilter(t *testing.T) {
 	}
 }
 
+func TestHandlerWithNilRequestURL(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_counter",
+		Help: "A test counter.",
+	})
+	reg.MustRegister(counter)
+	counter.Inc()
+
+	writer := httptest.NewRecorder()
+	handler := HandlerFor(reg, HandlerOpts{ErrorHandling: ContinueOnError})
+	handler.ServeHTTP(writer, &http.Request{})
+
+	if got, want := writer.Code, http.StatusOK; got != want {
+		t.Errorf("got HTTP status code %d, want %d", got, want)
+	}
+	if body := writer.Body.String(); !strings.Contains(body, "test_counter") {
+		t.Errorf("expected body to contain test_counter, got: %s", body)
+	}
+}
+
 // syncGatherCounter is a thread-safe TransactionalGatherer wrapper that counts
 // Gather and done invocations. Safe for concurrent use from multiple goroutines,
 // unlike mockTransactionGatherer whose counters are not race-safe.
