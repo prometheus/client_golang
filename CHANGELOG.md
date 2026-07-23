@@ -1,5 +1,9 @@
 ## Unreleased
 
+## 1.24.1 / 2026-07-23
+
+* [BUGFIX] promhttp: Fix panic on requests with nil URL. #2065
+
 ## 1.24.0 / 2026-07-20
 
 * [CHANGE] Minimum required Go version is now 1.25, only the two latest Go versions (1.25 and 1.26) are supported from now on. #1862
