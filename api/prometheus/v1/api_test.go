@@ -1497,8 +1497,28 @@ func TestAPIClientDo(t *testing.T) {
 			code:     http.StatusUnprocessableEntity,
 			response: "bad json",
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "readObjectStart: expect { or n, but found b, error found in #1 byte of ...|bad json|..., bigger context ...|bad json|...",
+				Type:   ErrClient,
+				Msg:    "client error: 422",
+				Detail: "bad json",
+			},
+		},
+		{
+			// Proxy-style HTML body on a Prometheus API error status must not yield a JSON unmarshal error.
+			code:     http.StatusBadRequest,
+			response: "<html>400 Bad Request</html>",
+			expectedErr: &Error{
+				Type:   ErrClient,
+				Msg:    "client error: 400",
+				Detail: "<html>400 Bad Request</html>",
+			},
+		},
+		{
+			code:     http.StatusForbidden,
+			response: "<html>403 Forbidden</html>",
+			expectedErr: &Error{
+				Type:   ErrClient,
+				Msg:    "client error: 403",
+				Detail: "<html>403 Forbidden</html>",
 			},
 		},
 		{
