@@ -46,6 +46,25 @@ The
 [`examples` directory](https://github.com/prometheus/client_golang/tree/main/examples)
 contains simple examples of instrumented code.
 
+## Pushing metrics via OpenTelemetry OTLP
+
+Applications instrumented with `client_golang` can also export their
+metrics via the OpenTelemetry OTLP push protocol without re-instrumenting
+against a different metric API. The
+[`go.opentelemetry.io/contrib/bridges/prometheus`](https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/prometheus)
+module wraps a `prometheus.Registry` as an OpenTelemetry metric producer,
+which an OTLP exporter (HTTP or gRPC) can then push to an OTel collector
+or OTLP-accepting backend. This is useful for batch jobs or environments
+where pull-based `/metrics` scraping is not an option.
+
+Pull-based collection via `promhttp` remains the recommended default for
+reliability, central discovery, and failover. The bridge is intended as
+an additional option, not a replacement.
+
+See the [bridge's Go reference](https://pkg.go.dev/go.opentelemetry.io/contrib/bridges/prometheus)
+and [source](https://github.com/open-telemetry/opentelemetry-go-contrib/tree/main/bridges/prometheus)
+for setup details.
+
 ## Client for the Prometheus HTTP API
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/prometheus/client_golang/api.svg)](https://pkg.go.dev/github.com/prometheus/client_golang/api)
