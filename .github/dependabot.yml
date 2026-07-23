@@ -24,6 +24,9 @@ updates:
       k8s.io:
         patterns:
           - "k8s.io/*"
+      prometheus:
+        patterns:
+          - "github.com/prometheus/*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -37,6 +40,7 @@ updates:
           - "github/codeql-action*"
     # Exclude configs synced from upstream prometheus/prometheus.
     exclude-paths:
+      - .github/workflows/approve-workflows.yml
       - .github/workflows/container_description.yml
       - .github/workflows/golangci-lint.yml
       - .github/workflows/govulncheck.yml
