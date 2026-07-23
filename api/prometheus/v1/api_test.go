@@ -1613,6 +1613,43 @@ func TestAPIClientDo(t *testing.T) {
 	}
 }
 
+func TestFormatTimeUsesModelTimestampEncoding(t *testing.T) {
+	tests := []struct {
+		name string
+		ts   time.Time
+		want string
+	}{
+		{
+			name: "regular time keeps millisecond precision",
+			ts:   time.Unix(1700000000, 123456789).UTC(),
+			want: "1700000000.123456789",
+		},
+		{
+			name: "negative fractional times keep the correct sign and fraction",
+			ts:   time.Unix(-1, 100000000).UTC(),
+			want: "-0.9",
+		},
+		{
+			name: "model earliest clamps to prometheus parseable boundary",
+			ts:   model.Earliest.Time(),
+			want: minTimeFormatted,
+		},
+		{
+			name: "model latest clamps to prometheus parseable boundary",
+			ts:   model.Latest.Time(),
+			want: maxTimeFormatted,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatTime(tt.ts); got != tt.want {
+				t.Fatalf("formatTime() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSamplesJSONSerialization(t *testing.T) {
 	tests := []struct {
 		point    model.SamplePair
