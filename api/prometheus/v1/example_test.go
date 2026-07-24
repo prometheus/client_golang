@@ -42,13 +42,16 @@ func ExampleAPI_query() {
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result, warnings, err := v1api.Query(ctx, "up", time.Now(), v1.WithTimeout(5*time.Second))
+	result, warnings, infos, err := v1api.Query(ctx, "up", time.Now(), v1.WithTimeout(5*time.Second))
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -70,13 +73,16 @@ func ExampleAPI_queryRange() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r, v1.WithTimeout(5*time.Second))
+	result, warnings, infos, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r, v1.WithTimeout(5*time.Second))
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -122,13 +128,16 @@ func ExampleAPI_queryRangeWithUserAgent() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, infos, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -156,13 +165,16 @@ func ExampleAPI_queryRangeWithBasicAuth() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, infos, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -190,13 +202,16 @@ func ExampleAPI_queryRangeWithAuthBearerToken() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, infos, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -229,13 +244,16 @@ func ExampleAPI_queryRangeWithAuthBearerTokenHeadersRoundTripper() {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
+	result, warnings, infos, err := v1api.QueryRange(ctx, "rate(prometheus_tsdb_head_samples_appended_total[5m])", r)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Printf("Result:\n%v\n", result)
 }
@@ -252,7 +270,7 @@ func ExampleAPI_series() {
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	lbls, warnings, err := v1api.Series(ctx, []string{
+	lbls, warnings, infos, err := v1api.Series(ctx, []string{
 		"{__name__=~\"scrape_.+\",job=\"node\"}",
 		"{__name__=~\"scrape_.+\",job=\"prometheus\"}",
 	}, time.Now().Add(-time.Hour), time.Now())
@@ -262,6 +280,9 @@ func ExampleAPI_series() {
 	}
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	if len(infos) > 0 {
+		fmt.Printf("Infos: %v\n", infos)
 	}
 	fmt.Println("Result:")
 	for _, lbl := range lbls {
