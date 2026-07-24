@@ -432,6 +432,10 @@ func (r *Registry) MustGather() []*dto.MetricFamily {
 }
 
 // Gather implements Gatherer.
+//
+// Before Collect, Gather calls CleanupExpired on registered collectors that
+// implement ExpiredCleaner and have TTL enabled, so expired Vec children can be
+// reclaimed on scrape without touching non-TTL collectors.
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	r.mtx.RLock()
 
@@ -476,8 +480,14 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		for {
 			select {
 			case collector := <-checkedCollectors:
+				if cleaner, ok := collector.(ttlEnabledCollector); ok && cleaner.ttlEnabled() {
+					cleaner.CleanupExpired()
+				}
 				safeErrs.Append((safeCollect(collector, checkedMetricChan)))
 			case collector := <-uncheckedCollectors:
+				if cleaner, ok := collector.(ttlEnabledCollector); ok && cleaner.ttlEnabled() {
+					cleaner.CleanupExpired()
+				}
 				safeErrs.Append(safeCollect(collector, uncheckedMetricChan))
 			default:
 				return
@@ -641,12 +651,10 @@ func WriteToTextfile(filename string, g Gatherer) error {
 
 	mfs, err := g.Gather()
 	if err != nil {
-		tmp.Close()
 		return err
 	}
 	for _, mf := range mfs {
 		if _, err := expfmt.MetricFamilyToText(tmp, mf); err != nil {
-			tmp.Close()
 			return err
 		}
 	}

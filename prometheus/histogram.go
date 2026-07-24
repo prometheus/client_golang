@@ -515,6 +515,10 @@ type HistogramVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics.
+	TTL time.Duration
 }
 
 // NewHistogram creates a new Histogram based on the provided HistogramOpts. It
@@ -970,7 +974,7 @@ func (h *histogram) maybeReset(
 	// We are using the possibly mocked h.now() rather than
 	// time.Since(h.lastResetTime) to enable testing.
 	if h.nativeHistogramMinResetDuration == 0 || // No reset configured.
-		h.resetScheduled || // Do not interfere if a reset is already scheduled.
+		h.resetScheduled || // Do not interefere if a reset is already scheduled.
 		h.now().Sub(h.lastResetTime) < h.nativeHistogramMinResetDuration {
 		return false
 	}
@@ -1057,8 +1061,8 @@ func (h *histogram) maybeWidenZeroBucket(hot, cold *histogramCounts) bool {
 	atomic.StoreUint64(&cold.nativeHistogramZeroThresholdBits, math.Float64bits(newZeroThreshold))
 	// ...and then merge the newly deleted buckets into the wider zero
 	// bucket.
-	mergeAndDeleteOrAddAndReset := func(hotBuckets, coldBuckets *sync.Map) func(k, v any) bool {
-		return func(k, v any) bool {
+	mergeAndDeleteOrAddAndReset := func(hotBuckets, coldBuckets *sync.Map) func(k, v interface{}) bool {
+		return func(k, v interface{}) bool {
 			key := k.(int)
 			bucket := v.(*int64)
 			if key == smallestKey {
@@ -1111,8 +1115,8 @@ func (h *histogram) doubleBucketWidth(hot, cold *histogramCounts) {
 	// ...adjust the schema in the cold counts, too...
 	atomic.StoreInt32(&cold.nativeHistogramSchema, coldSchema)
 	// ...and then merge the cold buckets into the wider hot buckets.
-	merge := func(hotBuckets *sync.Map) func(k, v any) bool {
-		return func(k, v any) bool {
+	merge := func(hotBuckets *sync.Map) func(k, v interface{}) bool {
+		return func(k, v interface{}) bool {
 			key := k.(int)
 			bucket := v.(*int64)
 			// Adjust key to match the bucket to merge into.
@@ -1196,9 +1200,21 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
+	if opts.TTL < 0 {
+		panic(fmt.Sprintf("invalid negative ttl: %v", opts.TTL))
+	}
+	newMetric := func(lvs ...string) Metric {
+		h := newHistogram(desc, opts.HistogramOpts, lvs...)
+		if opts.TTL <= 0 {
+			return h
+		}
+		return newTTLHistogram(h)
+	}
 	return &HistogramVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			return newHistogram(desc, opts.HistogramOpts, lvs...)
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc:      desc,
+			NewMetric: newMetric,
+			TTL:       opts.TTL,
 		}),
 	}
 }
@@ -1481,7 +1497,7 @@ func pickSchema(bucketFactor float64) int32 {
 
 func makeBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 	var ii []int
-	buckets.Range(func(k, v any) bool {
+	buckets.Range(func(k, v interface{}) bool {
 		ii = append(ii, k.(int))
 		return true
 	})
@@ -1558,8 +1574,8 @@ func addToBucket(buckets *sync.Map, key int, increment int64) bool {
 // according to the buckets ranged through. It then resets all buckets ranged
 // through to 0 (but leaves them in place so that they don't need to get
 // recreated on the next scrape).
-func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v any) bool {
-	return func(k, v any) bool {
+func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v interface{}) bool {
+	return func(k, v interface{}) bool {
 		bucket := v.(*int64)
 		if addToBucket(hotBuckets, k.(int), atomic.LoadInt64(bucket)) {
 			atomic.AddUint32(bucketNumber, 1)
@@ -1570,7 +1586,7 @@ func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v any) bool
 }
 
 func deleteSyncMap(m *sync.Map) {
-	m.Range(func(k, v any) bool {
+	m.Range(func(k, v interface{}) bool {
 		m.Delete(k)
 		return true
 	})
@@ -1578,7 +1594,7 @@ func deleteSyncMap(m *sync.Map) {
 
 func findSmallestKey(m *sync.Map) int {
 	result := math.MaxInt32
-	m.Range(func(k, v any) bool {
+	m.Range(func(k, v interface{}) bool {
 		key := k.(int)
 		if key < result {
 			result = key
