@@ -116,25 +116,34 @@ The spec covers all 22 endpoints from the existing `API` interface:
 - Custom `http.Client` / `RoundTripper`: ✅ via `WithHTTPClient`
 - Transport-level integration with `api.Client`: ✅ via our wrapper
 
-### 6. What's missing for production readiness
+### 6. Real OpenAPI 3.1 spec status
 
-1. **OpenAPI 3.1 name collisions** — The real Prometheus OpenAPI 3.1 spec (5,510 lines, from `openapi_3.1_golden.yaml`) generates a 12,739-line client, but produces `ParseQueryResponse` name collisions when multiple endpoints share the same response type. This is resolvable with oapi-codegen operation ID disambiguation or schema prefixing.
+The real Prometheus OpenAPI 3.1 spec (saved as `spec_real_31.yaml`, 5,510 lines
+from `openapi_3.1_golden.yaml`) generates a 12,739-line client with oapi-codegen
+v2.8.0. However, it produces two categories of issues that need resolution before
+this client can replace the hand-written one:
 
-2. **Full response type mapping** — converting every generated type to the
-   existing hand-written equivalents with zero loss.
+**Parse function collisions:** `/query` GET and POST both return `QueryOutputBody`,
+generating duplicate `ParseQueryResponse` functions. Same for `ParseQueryPostResponse`.
+Fix: add unique response schema wrappers per operation in the spec, e.g.:
 
-3. **json-iterator template injection** — to close the performance gap for
-   large query results (histogram benchmarks show 7,101 allocs for just 10×100
-   datapoints, due to the double-encoding round-trip).
+```yaml
+QueryOutputBody_GET:  # distinct from QueryOutputBody_POST
+  allOf:
+    - $ref: "#/components/schemas/QueryOutputBody"
+```
 
-4. **DoGetFallback integration** — the generated client exposes GET and POST
-   as separate methods; the current client's POST-first-then-GET fallback
-   must be implemented in the wrapper.
+**Type name mismatches:** Our wrapper (`client.go`) expects `GetInstantQueryParams`,
+`GetInstantQueryWithResponse`, etc. — names derived from our hand-crafted spec's
+`operationId: getInstantQuery`. The real spec uses `operationId: query`, generating
+`QueryParams`, `QueryWithResponse`, etc. Fix: update the wrapper to match real
+operation IDs, or add `x-oapi-codegen-extra-tags` to the spec.
 
-5. **Comprehensive testing** — this PoC has 8 unit tests and 3 benchmarks;
-   production needs parity with the 2,071 lines of existing tests.
-
-6. **CI/CD** — automated regeneration on Prometheus spec changes.
+**Why we ship a hand-crafted spec for the PoC:** The hand-crafted spec produces
+a fully compilable client today. The real spec requires pre-processing to resolve
+the above issues — this is implementable, just not prioritized for the initial
+investigation since the PoC's goal is to verify oapi-codegen viability, not to
+ship a production client.
 
 ## Conclusion
 
