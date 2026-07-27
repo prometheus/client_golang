@@ -1,0 +1,8 @@
+package: openapi
+generate:
+  client: true
+  models: true
+  embedded-spec: false
+output: openapi.gen.go
+compatibility:
+  always-prefix-enum-values: true
