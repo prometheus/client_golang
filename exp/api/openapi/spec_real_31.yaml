@@ -15,6 +15,7 @@ paths:
                 - query
             summary: Evaluate an instant query
             operationId: query
+            x-go-name: QueryResponse
             parameters:
                 - name: limit
                   in: query
@@ -145,6 +146,7 @@ paths:
                 - query
             summary: Evaluate an instant query
             operationId: query-post
+            x-go-name: QueryPostResponse
             requestBody:
                 description: Submit an instant query. This endpoint accepts the same parameters as the GET version.
                 content:
