@@ -85,10 +85,11 @@ which round-trips through `json.Marshal` → `json.Unmarshal` against
 
 Benchmarks on Apple M1:
 
-| Scenario | This PoC (round-trip) | Existing client (direct jsoniter) |
-|---|---|---|
-| Vector: 100 series | ~100µs, 30KB, 819 allocs | See `api_bench_test.go` |
-| Matrix: 10×1000 datapoints | ~2.4ms, 235KB, 101 allocs | See `api_bench_test.go` |
+| Scenario | This PoC (round-trip) |
+|---|---|
+| Vector: 100 series | ~89µs, 30KB, 819 allocs |
+| Matrix: 10×1000 datapoints | ~2.4ms, 234KB, 101 allocs |
+| Histogram: 10×100 datapoints | ~1.2ms, 327KB, 7,101 allocs |
 
 The PoC path involves `json.Unmarshal(body, &QueryResponse)` followed by
 `json.Marshal(data.Result)` → `json.Unmarshal(bytes, &model.Vector)`
@@ -96,7 +97,7 @@ The PoC path involves `json.Unmarshal(body, &QueryResponse)` followed by
 using json-iterator's `unsafe`-based decoders — no intermediate allocations.
 
 **Mitigation:** Custom oapi-codegen templates could inject json-iterator
-and custom decoders for the hot-path types.
+and custom decoders for the hot-path types (SamplePair, SampleHistogramPair).
 
 ### 4. Endpoint coverage
 
@@ -117,22 +118,21 @@ The spec covers all 22 endpoints from the existing `API` interface:
 
 ### 6. What's missing for production readiness
 
-1. **OpenAPI 3.1 support** — oapi-codegen v2.8.0 supports 3.1 via `kin-openapi`
-   but Prometheus serves 3.1 at runtime. We used 3.0.3 for broader compatibility
-   but a real implementation should be tested against a live YAML export.
+1. **OpenAPI 3.1 name collisions** — The real Prometheus OpenAPI 3.1 spec (5,510 lines, from `openapi_3.1_golden.yaml`) generates a 12,739-line client, but produces `ParseQueryResponse` name collisions when multiple endpoints share the same response type. This is resolvable with oapi-codegen operation ID disambiguation or schema prefixing.
 
 2. **Full response type mapping** — converting every generated type to the
    existing hand-written equivalents with zero loss.
 
 3. **json-iterator template injection** — to close the performance gap for
-   large query results.
+   large query results (histogram benchmarks show 7,101 allocs for just 10×100
+   datapoints, due to the double-encoding round-trip).
 
 4. **DoGetFallback integration** — the generated client exposes GET and POST
    as separate methods; the current client's POST-first-then-GET fallback
    must be implemented in the wrapper.
 
-5. **Comprehensive testing** — this PoC has 5 unit tests; production needs
-   parity with the 2,071 lines of existing tests.
+5. **Comprehensive testing** — this PoC has 8 unit tests and 3 benchmarks;
+   production needs parity with the 2,071 lines of existing tests.
 
 6. **CI/CD** — automated regeneration on Prometheus spec changes.
 
@@ -145,9 +145,13 @@ The generated code is idiomatic and compilable. The main challenges are:
    in OpenAPI and must be handled via wrapper code.
 2. **Performance** — standard `encoding/json` decoding + wrapper round-trip
    is slower than the current json-iterator+unsafe path, but the gap can
-   be narrowed with template customization.
-3. **Spec fidelity** — the PoC uses a hand-crafted spec; the real solution
-   should fetch the spec from a running Prometheus instance.
+   be narrowed with template customization. Histogram decoding is especially
+   allocation-heavy (7,101 allocs for 10×100 datapoints).
+3. **Spec fidelity** — the real Prometheus OpenAPI 3.1 spec (5,510 lines from
+   `openapi_3.1_golden.yaml`) generates 12,739 lines but has name collisions
+   from shared response types. This is resolvable with oapi-codegen config
+   and brings the spec 5× larger than our hand-crafted version.
 
-**Recommended next step:** Fetch the real OpenAPI spec from a live Prometheus
-instance, regenerate against it, and evaluate the delta.
+**Recommended next step:** Resolve the operation ID collisions in the real
+3.1 spec, add `x-go-name` extensions for cleaner type naming, and inject
+json-iterator into the oapi-codegen template for hot-path types.
