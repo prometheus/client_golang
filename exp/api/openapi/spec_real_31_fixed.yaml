@@ -658,7 +658,7 @@ paths:
             tags:
                 - query
             summary: Parse a PromQL query
-            operationId: parse-query
+            operationId: parse-promql
             x-go-name: ParseQueryResponse
             parameters:
                 - name: query
@@ -702,7 +702,7 @@ paths:
             tags:
                 - query
             summary: Parse a PromQL query
-            operationId: parse-query-post
+            operationId: parse-promql-post
             x-go-name: ParseQueryPostResponse
             requestBody:
                 description: Submit a PromQL query to parse. This endpoint accepts the same parameters as the GET version.
