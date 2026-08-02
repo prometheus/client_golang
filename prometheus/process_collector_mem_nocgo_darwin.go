@@ -29,11 +29,11 @@ func (c *processCollector) describe(ch chan<- *Desc) {
 	ch <- c.maxFDs
 	ch <- c.maxVsize
 	ch <- c.startTime
+	ch <- c.inBytes
+	ch <- c.outBytes
 
 	/* the process could be collected but not implemented yet
 	ch <- c.rss
 	ch <- c.vsize
-	ch <- c.inBytes
-	ch <- c.outBytes
 	*/
 }
