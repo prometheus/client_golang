@@ -43,9 +43,6 @@ func (c *processCollector) describe(ch chan<- *Desc) {
 	ch <- c.startTime
 	ch <- c.rss
 	ch <- c.vsize
-
-	/* the process could be collected but not implemented yet
 	ch <- c.inBytes
 	ch <- c.outBytes
-	*/
 }
