@@ -136,6 +136,11 @@ func (c *processCollector) processCollect(ch chan<- Metric) {
 		c.reportError(ch, c.maxVsize, err)
 	}
 
-	// TODO: socket(PF_SYSTEM) to fetch "com.apple.network.statistics" might
-	//  be able to get the per-process network send/receive counts.
+	if rxBytes, txBytes, err := getNetworkBytes(); err == nil {
+		ch <- MustNewConstMetric(c.inBytes, CounterValue, float64(rxBytes))
+		ch <- MustNewConstMetric(c.outBytes, CounterValue, float64(txBytes))
+	} else {
+		c.reportError(ch, c.inBytes, err)
+		c.reportError(ch, c.outBytes, err)
+	}
 }
