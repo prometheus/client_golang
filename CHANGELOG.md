@@ -4,7 +4,7 @@
 * [FEATURE] HTTP handlers created by `promhttp` package now support metrics filtering by providing one or more `name[]` query parameters. The default behavior when none are provided remains the same, returning all metrics. #1925
 * [FEATURE] promhttp: Add opt-in `HandlerOpts.CoalesceGather` to deduplicate concurrent `Gather` calls so overlapping scrapes share one collection cycle, preventing goroutine pile-up when the scrape rate outpaces collection time. #1969
 * [BUGFIX] promhttp: `InstrumentHandlerDuration` and `InstrumentHandlerCounter` no longer panic when given an observer/counter that does not implement `ExemplarObserver`/`ExemplarAdder` (e.g. a `SummaryVec`). The exemplar is dropped and the value is recorded via the plain `Observe`/`Add` path, matching the safe-cast already used by `Timer.ObserveDurationWithExemplar`. #2005
-* [FEATURE] prometheus: `NewProcessCollector` on Darwin now reports `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`, read via the `com.apple.network.statistics` kernel control socket (no cgo, no third-party dependency). Closes #1590.
+* [FEATURE] prometheus: `NewProcessCollector` on Darwin now reports `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`, read via the `com.apple.network.statistics` kernel control socket (no cgo, no third-party dependency). Closes #1590. #2083
 
 ## Unreleased `exp` module
 
