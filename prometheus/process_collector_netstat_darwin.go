@@ -71,11 +71,12 @@ type nstatMsgAddAllSrcs struct {
 	TargetUUID [16]byte
 }
 
+// nstatMsgSrcAdded mirrors the leading fields of struct nstat_msg_src_added;
+// trailing Provider/Reserved fields are present on the wire but unused here,
+// so binary.Read simply leaves them unread.
 type nstatMsgSrcAdded struct {
-	Hdr      nstatMsgHdr
-	SrcRef   uint64
-	Provider uint32
-	Reserved [4]byte
+	Hdr    nstatMsgHdr
+	SrcRef uint64
 }
 
 type nstatMsgQuerySrcReq struct {
@@ -83,27 +84,15 @@ type nstatMsgQuerySrcReq struct {
 	SrcRef uint64
 }
 
-// nstatCounts mirrors struct nstat_counts. Only the first four fields are used
-// here; the rest are read (to consume the full wire message) but not exposed.
+// nstatCounts mirrors the leading fields of struct nstat_counts. The real
+// struct has more trailing fields (retransmits, RTT estimates, etc.); we only
+// need the byte counters, and binary.Read leaves the rest of the message
+// unread, so trimming here avoids coupling to the full XNU layout.
 type nstatCounts struct {
-	RxPackets         uint64
-	RxBytes           uint64
-	TxPackets         uint64
-	TxBytes           uint64
-	CellRxBytes       uint64
-	CellTxBytes       uint64
-	WifiRxBytes       uint64
-	WifiTxBytes       uint64
-	WiredRxBytes      uint64
-	WiredTxBytes      uint64
-	RxDuplicateBytes  uint32
-	RxOutOfOrderBytes uint32
-	TxRetransmit      uint32
-	ConnectAttempts   uint32
-	ConnectSuccesses  uint32
-	MinRtt            uint32
-	AvgRtt            uint32
-	VarRtt            uint32
+	RxPackets uint64
+	RxBytes   uint64
+	TxPackets uint64
+	TxBytes   uint64
 }
 
 type nstatMsgSrcCounts struct {
@@ -113,10 +102,11 @@ type nstatMsgSrcCounts struct {
 	Counts     nstatCounts
 }
 
+// nstatMsgErr mirrors the leading fields of struct nstat_msg_error; the
+// trailing Reserved field is unused here.
 type nstatMsgErr struct {
-	Hdr      nstatMsgHdr
-	Error    uint32
-	Reserved [4]byte
+	Hdr   nstatMsgHdr
+	Error uint32
 }
 
 // getNetworkBytes returns the total bytes received and sent over the network
@@ -168,6 +158,12 @@ func openNstatSocket() (int, error) {
 		return -1, fmt.Errorf("nstat: connect: %w", err)
 	}
 
+	tv := unix.NsecToTimeval(nstatReadTimeout.Nanoseconds())
+	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+		unix.Close(fd)
+		return -1, fmt.Errorf("nstat: SetsockoptTimeval: %w", err)
+	}
+
 	return fd, nil
 }
 
@@ -189,11 +185,10 @@ func nstatCollectSrcRefs(fd int, provider uint32, pid int32) ([]uint64, error) {
 		return nil, err
 	}
 
-	deadline := time.Now().Add(nstatReadTimeout)
 	var refs []uint64
 	buf := make([]byte, 4096)
 	for {
-		n, err := nstatRead(fd, buf, deadline)
+		n, err := nstatRead(fd, buf)
 		if err != nil {
 			return nil, err
 		}
@@ -236,10 +231,9 @@ func nstatQueryCounts(fd int, srcref uint64) (rxBytes, txBytes uint64, err error
 		return 0, 0, err
 	}
 
-	deadline := time.Now().Add(nstatReadTimeout)
 	buf := make([]byte, 4096)
 	for {
-		n, err := nstatRead(fd, buf, deadline)
+		n, err := nstatRead(fd, buf)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -277,28 +271,21 @@ func nstatSend(fd int, msg any) error {
 	return nil
 }
 
-// nstatRead reads one datagram from the control socket, applying deadline as a
-// per-call receive timeout.
-func nstatRead(fd int, buf []byte, deadline time.Time) (int, error) {
-	d := time.Until(deadline)
-	if d < 0 {
-		d = 0
-	}
-	tv := unix.NsecToTimeval(d.Nanoseconds())
-	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
-		return 0, fmt.Errorf("nstat: SetsockoptTimeval: %w", err)
-	}
+// nstatRead reads one datagram from the control socket. SO_RCVTIMEO is set
+// once on the socket in openNstatSocket, so a stalled kernel response can't
+// hang collection forever.
+func nstatRead(fd int, buf []byte) (int, error) {
 	n, err := unix.Read(fd, buf)
 	if err != nil {
 		return 0, fmt.Errorf("nstat: read: %w", err)
 	}
-	if n < int(unsafeSizeofNstatMsgHdr) {
+	if n < nstatMsgHdrSize {
 		return 0, fmt.Errorf("nstat: short read (%d bytes)", n)
 	}
 	return n, nil
 }
 
-const unsafeSizeofNstatMsgHdr = 16
+const nstatMsgHdrSize = 16
 
 func nstatReadHdr(buf []byte) (nstatMsgHdr, error) {
 	var hdr nstatMsgHdr
