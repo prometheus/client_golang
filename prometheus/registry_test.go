@@ -751,12 +751,14 @@ func TestHandler(t *testing.T) {
 func TestGatherAllowsHelpTextFinalPeriodDifference(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
 	registry.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "period_compatibility",
-		Help: "help text",
+		Name:        "period_compatibility",
+		Help:        "help text",
+		ConstLabels: prometheus.Labels{"source": "old"},
 	}))
 	registry.MustRegister(uncheckedCollector{c: prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "period_compatibility",
-		Help: "help text.",
+		Name:        "period_compatibility",
+		Help:        "help text.",
+		ConstLabels: prometheus.Labels{"source": "new"},
 	})})
 
 	if _, err := registry.Gather(); err != nil {
@@ -767,12 +769,14 @@ func TestGatherAllowsHelpTextFinalPeriodDifference(t *testing.T) {
 func TestGatherRejectsOtherHelpTextDifference(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
 	registry.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "period_compatibility_strict",
-		Help: "help text",
+		Name:        "period_compatibility_strict",
+		Help:        "help text",
+		ConstLabels: prometheus.Labels{"source": "old"},
 	}))
 	registry.MustRegister(uncheckedCollector{c: prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "period_compatibility_strict",
-		Help: "different help text",
+		Name:        "period_compatibility_strict",
+		Help:        "different help text",
+		ConstLabels: prometheus.Labels{"source": "new"},
 	})})
 
 	if _, err := registry.Gather(); err == nil {
