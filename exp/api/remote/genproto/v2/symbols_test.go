@@ -70,11 +70,41 @@ func TestSymbolsTable(t *testing.T) {
 	ls := []string{"__name__", "qwer", "zxcv", "1234"}
 	encoded := s.SymbolizeLabels(ls, nil)
 	requireEqual(t, []uint32{1, 3, 4, 5}, encoded)
-	decoded := DesymbolizeLabels(encoded, s.Symbols(), nil)
+	decoded, err := DesymbolizeLabels(encoded, s.Symbols(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	requireEqual(t, ls, decoded)
 
 	// Different buf.
 	ls = []string{"__name__", "qwer", "zxcv2222", "1234"}
 	encoded = s.SymbolizeLabels(ls, []uint32{1, 3, 4, 5})
 	requireEqual(t, []uint32{1, 3, 6, 5}, encoded)
+}
+
+func TestDesymbolizeLabelsInvalidInput(t *testing.T) {
+	// Label references come from a remote-write request, so malformed input has
+	// to be reported as an error rather than panicking the receiver.
+	for _, tcase := range []struct {
+		name      string
+		labelRefs []uint32
+		symbols   []string
+	}{
+		{name: "odd number of refs", labelRefs: []uint32{1}, symbols: []string{"", "a"}},
+		{name: "odd number of refs, longer", labelRefs: []uint32{1, 1, 1}, symbols: []string{"", "a"}},
+		{name: "name ref out of range", labelRefs: []uint32{9, 1}, symbols: []string{"", "a"}},
+		{name: "value ref out of range", labelRefs: []uint32{1, 9}, symbols: []string{"", "a"}},
+		{name: "refs against empty symbols", labelRefs: []uint32{0, 0}, symbols: nil},
+	} {
+		t.Run(tcase.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("unexpected panic: %v", r)
+				}
+			}()
+			if _, err := DesymbolizeLabels(tcase.labelRefs, tcase.symbols, nil); err == nil {
+				t.Fatal("expected an error, got none")
+			}
+		})
+	}
 }
