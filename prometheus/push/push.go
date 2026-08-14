@@ -129,6 +129,14 @@ func (p *Pusher) Push() error {
 // PushContext is like Push but includes a context.
 //
 // If the context expires before HTTP request is complete, an error is returned.
+//
+// As metrics are often pushed on completion of a job, and jobs may
+// complete due to cancelation of their context, take care not to use
+// the potentially canceled context as the argument to this function.
+// You can can reset a context's timeout with [context.WithoutCancel],
+// e.g.
+//
+//	p.PushContext(context.WithTimeout(context.WithoutCancel(ctx), time.Second))
 func (p *Pusher) PushContext(ctx context.Context) error {
 	return p.push(ctx, http.MethodPut)
 }
