@@ -1,5 +1,7 @@
 ## Unreleased
 
+* [CHANGE] **breaking** api/prometheus/v1: Fix `TSDBBlocks` so it can decode real server responses; fixes issues with data enveloping and aligns the TSDB Blocks struct types to match the upstream Prometheus counterpart. #1928
+
 ## 1.24.1 / 2026-07-23
 
 * [BUGFIX] promhttp: Fix panic on requests with nil URL. #2065

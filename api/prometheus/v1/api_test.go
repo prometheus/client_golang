@@ -1207,48 +1207,42 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb/blocks",
 			inRes: map[string]any{
-				"status": "success",
-				"data": map[string]any{
-					"blocks": []any{
-						map[string]any{
-							"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-							"minTime": 1750860620060,
-							"maxTime": 1750867200000,
-							"stats": map[string]any{
-								"numSamples": 13701,
-								"numSeries":  716,
-								"numChunks":  716,
-							},
-							"compaction": map[string]any{
-								"level": 1,
-								"sources": []any{
-									"01JZ8JKZY6XSK3PTDP9ZKRWT60",
-								},
-							},
-							"version": 1,
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+						"minTime": 1750860620060,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 13701,
+							"numSeries":  716,
+							"numChunks":  716,
 						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01JZ8JKZY6XSK3PTDP9ZKRWT60",
+							},
+						},
+						"version": 1,
 					},
 				},
 			},
 			res: TSDBBlocksResult{
-				Status: "success",
-				Data: TSDBBlocksData{
-					Blocks: []TSDBBlocksBlockMetadata{{
-						Ulid:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-						MinTime: 1750860620060,
-						MaxTime: 1750867200000,
-						Version: 1,
-						Stats: TSDBBlocksStats{
-							NumSamples: 13701,
-							NumSeries:  716,
-							NumChunks:  716,
-						},
-						Compaction: TSDBBlocksCompaction{
-							Level:   1,
-							Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
-						},
-					}},
-				},
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+					MinTime: 1750860620060,
+					MaxTime: 1750867200000,
+					Version: 1,
+					Stats: TSDBBlockStats{
+						NumSamples: 13701,
+						NumSeries:  716,
+						NumChunks:  716,
+					},
+					Compaction: TSDBBlockMetaCompaction{
+						Level:   1,
+						Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+					},
+				}},
 			},
 		},
 
