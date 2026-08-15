@@ -71,6 +71,28 @@ test-exp:
 test-exp-short:
 	cd exp && $(GOTEST) -short $(GOOPTS) $(pkgs)
 
+# Download-only on purpose: running `go mod tidy` here would silently
+# rewrite the tracked go.mod/go.sum whenever main-module dependencies
+# change, because the module's replace directive resolves client_golang's
+# requirements from the root go.mod. A stale go.sum should instead fail
+# test-parity loudly ("missing go.sum entry"); the fix is to run
+# `go mod tidy` in api/prometheus/v1/paritytest and commit the result.
+.PHONY: parity-deps
+parity-deps:
+	cd api/prometheus/v1/paritytest && $(GO) mod download
+
+# Runs the API parity tests, which live in their own module so that
+# their prometheus/prometheus dependency stays out of the main module.
+# Deliberately not part of test/test-short: the module compiles the
+# pinned prometheus/prometheus release against the in-tree
+# client_golang main module (the separate exp module resolves from the
+# proxy), a build that exists to catch drift in the v1 API types, so
+# CI runs it as the dedicated path-filtered Parity workflow
+# (.github/workflows/parity.yml) instead of on every PR.
+.PHONY: test-parity
+test-parity: parity-deps
+	cd api/prometheus/v1/paritytest && $(GOTEST) $(test-flags) $(GOOPTS) $(pkgs)
+
 .PHONY: check-crlf
 check-crlf:
 	@echo ">> checking for CRLF line endings"

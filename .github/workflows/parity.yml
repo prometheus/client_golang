@@ -1,0 +1,143 @@
+---
+name: Parity
+# The parity tests compile the pinned prometheus/prometheus release
+# against the in-tree client_golang main module (see
+# api/prometheus/v1/paritytest). They run as their own workflow, rather
+# than inside `make test`, so that unrelated PRs don't pay the cost of
+# building Prometheus and a parity failure is clearly labeled as such
+# instead of surfacing as an unrelated red test job.
+#
+# The path filters cover the inputs most likely to change parity
+# behavior. Because of the module's replace directive, any in-tree
+# package that prometheus imports (prometheus/, promauto/, ...) can in
+# principle break this build too; those paths are deliberately not
+# filtered on, to avoid re-coupling most of CI to the pinned version.
+# Breakage sneaking in through them is caught by the weekly scheduled
+# run and by the next PR that does match the filters.
+on:
+  pull_request:
+    paths:
+      - "api/prometheus/v1/**"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "Makefile.common"
+      - "supported_go_versions.json"
+      - ".github/workflows/parity.yml"
+  push:
+    branches:
+      - main
+      - "release-*"
+    paths:
+      - "api/prometheus/v1/**"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "Makefile.common"
+      - "supported_go_versions.json"
+      - ".github/workflows/parity.yml"
+  schedule:
+    # Weekly drift check against the newest prometheus/prometheus
+    # release (see parity-latest below), so upstream type changes are
+    # noticed even if the dependabot bump of the pinned version fails
+    # to materialize.
+    - cron: "42 7 * * 1"
+
+concurrency:
+  # github.event_name is part of the key because push-to-main and
+  # schedule runs otherwise share a group (both resolve to
+  # refs/heads/main) and would cancel each other, silently dropping
+  # either the weekly drift check or the post-merge parity run.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  supported_versions:
+    name: Fetch supported Go versions
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.versions.outputs.matrix }}
+      stable: ${{ steps.versions.outputs.stable }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Get supported Go versions JSON
+        id: versions
+        run: |
+          echo "matrix=$(cat supported_go_versions.json | jq -c .)" >> "$GITHUB_OUTPUT"
+          echo "stable=$(jq -r '.versions[] | select(.label == "stable") | .version' supported_go_versions.json)" >> "$GITHUB_OUTPUT"
+
+  parity:
+    name: Parity (${{ matrix.label }})
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    needs: supported_versions
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.supported_versions.outputs.matrix).versions }}
+    concurrency:
+      group: ${{ github.workflow }}-parity-${{ matrix.label }}-${{ (github.event.pull_request && github.event.pull_request.number) || github.ref || github.run_id }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go ${{ matrix.version }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.version }}
+          check-latest: true
+          # The parity module's replace directive resolves client_golang
+          # requirements from the root go.mod, so both sums shape its
+          # build.
+          cache-dependency-path: |
+            go.sum
+            api/prometheus/v1/paritytest/go.sum
+
+      - name: Run parity tests
+        run: make test-parity
+        env:
+          CI: true
+
+  parity-latest:
+    name: Parity vs latest prometheus
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    needs: supported_versions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # Selected by label rather than positionally: nothing
+          # guarantees the stable entry is listed first in
+          # supported_go_versions.json.
+          go-version: ${{ needs.supported_versions.outputs.stable }}
+          check-latest: true
+          cache-dependency-path: |
+            go.sum
+            api/prometheus/v1/paritytest/go.sum
+
+      - name: Bump prometheus to latest release
+        run: |
+          cd api/prometheus/v1/paritytest
+          go get github.com/prometheus/prometheus@latest
+          go mod tidy
+
+      - name: Run parity tests
+        run: make test-parity
+        env:
+          CI: true
