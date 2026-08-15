@@ -78,5 +78,4 @@ func TestAcceptance(t *testing.T) {
 	if gotErr {
 		fmt.Println("Got this response from ", fmt.Sprintf("http://localhost:%v", WhatsupPort), ":", metrics)
 	}
-
 }

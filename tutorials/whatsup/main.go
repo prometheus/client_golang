@@ -73,7 +73,7 @@ func runMain(opts internal.Config) (err error) {
 	m := http.NewServeMux()
 	// Create HTTP handler for Prometheus metrics.
 	// TODO
-	//m.Handle("/metrics", ...
+	// m.Handle("/metrics", ...
 
 	promClient, err := api.NewClient(api.Config{
 		Client:  &http.Client{Transport: instrumentRoundTripper(nil, "prometheus", http.DefaultTransport)},
