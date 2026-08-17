@@ -47,6 +47,7 @@ var (
 		"/godebug/non-default-behavior/containermaxprocs:events":           "go_godebug_non_default_behavior_containermaxprocs_events_total",
 		"/godebug/non-default-behavior/embedfollowsymlinks:events":         "go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"/godebug/non-default-behavior/execerrdot:events":                  "go_godebug_non_default_behavior_execerrdot_events_total",
+		"/godebug/non-default-behavior/fips140ems:events":                  "go_godebug_non_default_behavior_fips140ems_events_total",
 		"/godebug/non-default-behavior/gocachehash:events":                 "go_godebug_non_default_behavior_gocachehash_events_total",
 		"/godebug/non-default-behavior/gocachetest:events":                 "go_godebug_non_default_behavior_gocachetest_events_total",
 		"/godebug/non-default-behavior/gocacheverify:events":               "go_godebug_non_default_behavior_gocacheverify_events_total",
@@ -117,4 +118,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 180
+const expectedRuntimeMetricsCardinality = 181
