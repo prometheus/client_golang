@@ -1,6 +1,6 @@
 ## Unreleased
 
-* [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2079
+* [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2091
 
 ## 1.24.1 / 2026-07-23
 
