@@ -1,6 +1,6 @@
 ## Unreleased
 
-* [BUGFIX] prometheus: Update Go collector expected metrics for `/godebug/non-default-behavior/fips140ems:events` (Go 1.25.13+ / 1.26).
+* [BUGFIX] prometheus: Update Go collector expected metrics for `/godebug/non-default-behavior/fips140ems:events` (Go 1.25.13+ / 1.26). #2092
 
 ## 1.24.1 / 2026-07-23
 
