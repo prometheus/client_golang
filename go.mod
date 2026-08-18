@@ -30,5 +30,3 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 )
-
-exclude github.com/prometheus/client_golang v1.12.1
