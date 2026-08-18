@@ -1,5 +1,7 @@
 ## Unreleased
 
+* [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2079
+
 ## 1.24.1 / 2026-07-23
 
 * [BUGFIX] promhttp: Fix panic on requests with nil URL. #2065

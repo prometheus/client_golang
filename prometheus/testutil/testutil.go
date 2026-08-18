@@ -30,7 +30,9 @@
 // most appropriate use is not so much testing instrumentation of your code, but
 // testing custom prometheus.Collector implementations and in particular whole
 // exporters, i.e. programs that retrieve telemetry data from a 3rd party source
-// and convert it into Prometheus metrics.
+// and convert it into Prometheus metrics. CollectAndFormat and GatherAndFormat
+// return the same exposition bytes when you need to inspect a subset without a
+// full expected fixture.
 //
 // In a similar pattern, CollectAndLint and GatherAndLint can be used to detect
 // metrics that have issues with their name, type, or metadata without being
@@ -240,8 +242,17 @@ func CollectAndFormat(c prometheus.Collector, format expfmt.FormatType, metricNa
 	if err := reg.Register(c); err != nil {
 		return nil, fmt.Errorf("registering collector failed: %w", err)
 	}
+	return GatherAndFormat(reg, format, metricNames...)
+}
 
-	gotFiltered, err := reg.Gather()
+// GatherAndFormat gathers metrics from the provided Gatherer, optionally
+// filtered to metricNames, and returns them encoded in the given format.
+//
+// Unlike CollectAndFormat, this works with any Gatherer, so tests can inspect
+// metrics that were registered elsewhere (for example prometheus.DefaultGatherer)
+// without holding a reference to the Collector.
+func GatherAndFormat(g prometheus.Gatherer, format expfmt.FormatType, metricNames ...string) ([]byte, error) {
+	gotFiltered, err := g.Gather()
 	if err != nil {
 		return nil, fmt.Errorf("gathering metrics failed: %w", err)
 	}

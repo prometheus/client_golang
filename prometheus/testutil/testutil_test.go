@@ -462,3 +462,42 @@ foo_bar{fizz="bang"} 1
 		t.Errorf("unexpected metric output, got %q, expected %q", gotS, expected)
 	}
 }
+
+func TestGatherAndFormat(t *testing.T) {
+	const expected = `# HELP foo_bar A value that represents the number of bars in foo.
+# TYPE foo_bar counter
+foo_bar{fizz="bang"} 1
+`
+	reg := prometheus.NewPedanticRegistry()
+	want := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "foo_bar",
+			Help: "A value that represents the number of bars in foo.",
+		},
+		[]string{"fizz"},
+	)
+	other := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "other_total",
+		Help: "A metric that should be filtered out.",
+	})
+	if err := reg.Register(want); err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Register(other); err != nil {
+		t.Fatal(err)
+	}
+	want.WithLabelValues("bang").Inc()
+	other.Inc()
+
+	got, err := GatherAndFormat(reg, expfmt.TypeTextPlain, "foo_bar")
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err.Error())
+	}
+	gotS := string(got)
+	if gotS != expected {
+		t.Errorf("unexpected metric output, got %q, expected %q", gotS, expected)
+	}
+	if strings.Contains(gotS, "other_total") {
+		t.Errorf("filtered gather included unexpected metric: %q", gotS)
+	}
+}
