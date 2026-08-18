@@ -1,5 +1,7 @@
 ## Unreleased
 
+* [BUGFIX] prometheus: Update Go collector expected metrics for `/godebug/non-default-behavior/fips140ems:events` (Go 1.25.13+ / 1.26).
+
 ## 1.24.1 / 2026-07-23
 
 * [BUGFIX] promhttp: Fix panic on requests with nil URL. #2065
