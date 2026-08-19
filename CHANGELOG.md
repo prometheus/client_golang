@@ -1,5 +1,7 @@
 ## Unreleased
 
+* [FEATURE] prometheus: `NewProcessCollector` on Darwin now reports `process_network_receive_bytes_total` and `process_network_transmit_bytes_total`, read via the `com.apple.network.statistics` kernel control socket (no cgo, no third-party dependency). Closes #1590. #2083
+
 ## 1.24.1 / 2026-07-23
 
 * [BUGFIX] promhttp: Fix panic on requests with nil URL. #2065
