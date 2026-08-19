@@ -679,7 +679,7 @@ func processMetric(
 	}
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
-		if metricFamily.GetHelp() != desc.help {
+		if !helpTextMatches(metricFamily.GetHelp(), desc.help) {
 			return fmt.Errorf(
 				"collected metric %s %s has help %q but should have %q",
 				desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
@@ -812,7 +812,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 		for _, mf := range mfs {
 			existingMF, exists := metricFamiliesByName[mf.GetName()]
 			if exists {
-				if existingMF.GetHelp() != mf.GetHelp() {
+				if !helpTextMatches(existingMF.GetHelp(), mf.GetHelp()) {
 					errs = append(errs, fmt.Errorf(
 						"gathered metric family %s has help %q but should have %q",
 						mf.GetName(), mf.GetHelp(), existingMF.GetHelp(),
@@ -1001,7 +1001,7 @@ func checkDescConsistency(
 	desc *Desc,
 ) error {
 	// Desc help consistency with metric family help.
-	if metricFamily.GetHelp() != desc.help {
+	if !helpTextMatches(metricFamily.GetHelp(), desc.help) {
 		return fmt.Errorf(
 			"collected metric %s %s has help %q but should have %q",
 			metricFamily.GetName(), dtoMetric, metricFamily.GetHelp(), desc.help,
@@ -1034,6 +1034,20 @@ func checkDescConsistency(
 		}
 	}
 	return nil
+}
+
+// helpTextMatches preserves compatibility with collectors that changed only a
+// final period in their help text. This is needed when applications using
+// different client versions share a registry, but other help-text changes
+// remain strict consistency errors.
+func helpTextMatches(a, b string) bool {
+	if a == b {
+		return true
+	}
+	if len(a) > 1 && strings.HasSuffix(a, ".") && strings.TrimSuffix(a, ".") == b {
+		return true
+	}
+	return len(b) > 1 && strings.HasSuffix(b, ".") && strings.TrimSuffix(b, ".") == a
 }
 
 var _ TransactionalGatherer = &MultiTRegistry{}
