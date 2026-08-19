@@ -44,6 +44,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
@@ -131,6 +132,19 @@ func (p *Pusher) Push() error {
 // If the context expires before HTTP request is complete, an error is returned.
 func (p *Pusher) PushContext(ctx context.Context) error {
 	return p.push(ctx, http.MethodPut)
+}
+
+// PushWithTimeout is like PushContext but overrides the the provided
+// context with a separate timeout. When a job fails due to a
+// higher-level context being canceled (for example, a global timeout)
+// it is easy to reuse that context to push metrics, which fails
+// immediately and metrics pertaining to the original failure will be
+// lost. Use this method for an additional grace period beyond the
+// original context's deadline.
+func (p *Pusher) PushWithTimeout(ctx context.Context, grace time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grace)
+	defer cancel()
+	return p.PushContext(ctx)
 }
 
 // Add works like push, but only previously pushed metrics with the same name
