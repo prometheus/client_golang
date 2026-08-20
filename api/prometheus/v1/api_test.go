@@ -1202,52 +1202,553 @@ func TestAPIs(t *testing.T) {
 			err:       errors.New("some error"),
 		},
 
+		// Empty blocks list.
 		{
 			do:        doTSDBBlocks(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb/blocks",
 			inRes: map[string]any{
-				"status": "success",
-				"data": map[string]any{
-					"blocks": []any{
-						map[string]any{
-							"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-							"minTime": 1750860620060,
-							"maxTime": 1750867200000,
-							"stats": map[string]any{
-								"numSamples": 13701,
-								"numSeries":  716,
-								"numChunks":  716,
-							},
-							"compaction": map[string]any{
-								"level": 1,
-								"sources": []any{
-									"01JZ8JKZY6XSK3PTDP9ZKRWT60",
-								},
-							},
-							"version": 1,
+				"blocks": []any{},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{},
+			},
+		},
+
+		// Single uncompacted block with minimal fields. The unknown
+		// fields must be ignored by the decoder: upstream grows the
+		// block metadata over time (that history is why this endpoint's
+		// types needed fixing), so older clients must tolerate fields
+		// they don't know yet.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+						"minTime": 1750860620060,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples":                        13701,
+							"numSeries":                         716,
+							"numChunks":                         716,
+							"someFutureStatUnknownToThisClient": 42,
 						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01JZ8JKZY6XSK3PTDP9ZKRWT60",
+							},
+						},
+						"version":                            1,
+						"someFutureFieldUnknownToThisClient": "ignored",
 					},
 				},
 			},
 			res: TSDBBlocksResult{
-				Status: "success",
-				Data: TSDBBlocksData{
-					Blocks: []TSDBBlocksBlockMetadata{{
-						Ulid:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-						MinTime: 1750860620060,
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+					MinTime: 1750860620060,
+					MaxTime: 1750867200000,
+					Version: 1,
+					Stats: TSDBBlockStats{
+						NumSamples: 13701,
+						NumSeries:  716,
+						NumChunks:  716,
+					},
+					Compaction: TSDBBlockMetaCompaction{
+						Level:   1,
+						Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+					},
+				}},
+			},
+		},
+
+		// Block with all optional fields populated. The stats values
+		// deliberately exceed 2^32: narrowing any of the uint64 stats
+		// fields (which real blocks do overflow past 32 bits) makes the
+		// expected literal below a compile error and the decode a
+		// truncation failure.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA00",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples":          9000000000,
+							"numFloatSamples":     5000000000,
+							"numHistogramSamples": 4000000000,
+							"numSeries":           4400000000,
+							"numChunks":           4500000000,
+							"numTombstones":       4300000000,
+						},
+						"compaction": map[string]any{
+							"level": 3,
+							"sources": []any{
+								"01AAAAAAAAAAAAAAAAAAAAAA01",
+								"01AAAAAAAAAAAAAAAAAAAAAA02",
+								"01AAAAAAAAAAAAAAAAAAAAAA03",
+							},
+							"deletable": true,
+							"parents": []any{
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA01",
+									"minTime": 1750853000000,
+									"maxTime": 1750860000000,
+								},
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA02",
+									"minTime": 1750860000000,
+									"maxTime": 1750867200000,
+								},
+							},
+							"failed": true,
+							"hints": []any{
+								"deduplication",
+								"downsampling",
+							},
+						},
+						"version": 1,
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01AAAAAAAAAAAAAAAAAAAAAA00",
+					MinTime: 1750860000000,
+					MaxTime: 1750867200000,
+					Version: 1,
+					Stats: TSDBBlockStats{
+						NumSamples:          9000000000,
+						NumFloatSamples:     5000000000,
+						NumHistogramSamples: 4000000000,
+						NumSeries:           4400000000,
+						NumChunks:           4500000000,
+						NumTombstones:       4300000000,
+					},
+					Compaction: TSDBBlockMetaCompaction{
+						Level: 3,
+						Sources: []string{
+							"01AAAAAAAAAAAAAAAAAAAAAA01",
+							"01AAAAAAAAAAAAAAAAAAAAAA02",
+							"01AAAAAAAAAAAAAAAAAAAAAA03",
+						},
+						Deletable: true,
+						Parents: []TSDBBlockDesc{
+							{
+								ULID:    "01AAAAAAAAAAAAAAAAAAAAAA01",
+								MinTime: 1750853000000,
+								MaxTime: 1750860000000,
+							},
+							{
+								ULID:    "01AAAAAAAAAAAAAAAAAAAAAA02",
+								MinTime: 1750860000000,
+								MaxTime: 1750867200000,
+							},
+						},
+						Failed: true,
+						Hints:  []string{"deduplication", "downsampling"},
+					},
+				}},
+			},
+		},
+
+		// Multiple blocks at different compaction levels.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB01",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 5000,
+							"numSeries":  200,
+							"numChunks":  200,
+						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01BBBBBBBBBBBBBBBBBBBBBB01",
+							},
+						},
+						"version": 1,
+					},
+					map[string]any{
+						"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB02",
+						"minTime": 1750846800000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 25000,
+							"numSeries":  500,
+							"numChunks":  1500,
+						},
+						"compaction": map[string]any{
+							"level": 2,
+							"sources": []any{
+								"01BBBBBBBBBBBBBBBBBBBBBB03",
+								"01BBBBBBBBBBBBBBBBBBBBBB04",
+							},
+							"parents": []any{
+								map[string]any{
+									"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB03",
+									"minTime": 1750846800000,
+									"maxTime": 1750860000000,
+								},
+							},
+						},
+						"version": 1,
+					},
+					map[string]any{
+						"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB05",
+						"minTime": 1750820000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 100000,
+							"numSeries":  1000,
+							"numChunks":  5000,
+						},
+						"compaction": map[string]any{
+							"level": 3,
+							"sources": []any{
+								"01BBBBBBBBBBBBBBBBBBBBBB06",
+								"01BBBBBBBBBBBBBBBBBBBBBB07",
+								"01BBBBBBBBBBBBBBBBBBBBBB08",
+							},
+							"parents": []any{
+								map[string]any{
+									"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB06",
+									"minTime": 1750820000000,
+									"maxTime": 1750840000000,
+								},
+								map[string]any{
+									"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB07",
+									"minTime": 1750840000000,
+									"maxTime": 1750855000000,
+								},
+								map[string]any{
+									"ulid":    "01BBBBBBBBBBBBBBBBBBBBBB08",
+									"minTime": 1750855000000,
+									"maxTime": 1750867200000,
+								},
+							},
+						},
+						"version": 1,
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{
+					{
+						ULID:    "01BBBBBBBBBBBBBBBBBBBBBB01",
+						MinTime: 1750860000000,
 						MaxTime: 1750867200000,
 						Version: 1,
-						Stats: TSDBBlocksStats{
-							NumSamples: 13701,
-							NumSeries:  716,
-							NumChunks:  716,
+						Stats: TSDBBlockStats{
+							NumSamples: 5000,
+							NumSeries:  200,
+							NumChunks:  200,
 						},
-						Compaction: TSDBBlocksCompaction{
+						Compaction: TSDBBlockMetaCompaction{
 							Level:   1,
-							Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+							Sources: []string{"01BBBBBBBBBBBBBBBBBBBBBB01"},
 						},
-					}},
+					},
+					{
+						ULID:    "01BBBBBBBBBBBBBBBBBBBBBB02",
+						MinTime: 1750846800000,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats: TSDBBlockStats{
+							NumSamples: 25000,
+							NumSeries:  500,
+							NumChunks:  1500,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level: 2,
+							Sources: []string{
+								"01BBBBBBBBBBBBBBBBBBBBBB03",
+								"01BBBBBBBBBBBBBBBBBBBBBB04",
+							},
+							Parents: []TSDBBlockDesc{
+								{
+									ULID:    "01BBBBBBBBBBBBBBBBBBBBBB03",
+									MinTime: 1750846800000,
+									MaxTime: 1750860000000,
+								},
+							},
+						},
+					},
+					{
+						ULID:    "01BBBBBBBBBBBBBBBBBBBBBB05",
+						MinTime: 1750820000000,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats: TSDBBlockStats{
+							NumSamples: 100000,
+							NumSeries:  1000,
+							NumChunks:  5000,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level: 3,
+							Sources: []string{
+								"01BBBBBBBBBBBBBBBBBBBBBB06",
+								"01BBBBBBBBBBBBBBBBBBBBBB07",
+								"01BBBBBBBBBBBBBBBBBBBBBB08",
+							},
+							Parents: []TSDBBlockDesc{
+								{
+									ULID:    "01BBBBBBBBBBBBBBBBBBBBBB06",
+									MinTime: 1750820000000,
+									MaxTime: 1750840000000,
+								},
+								{
+									ULID:    "01BBBBBBBBBBBBBBBBBBBBBB07",
+									MinTime: 1750840000000,
+									MaxTime: 1750855000000,
+								},
+								{
+									ULID:    "01BBBBBBBBBBBBBBBBBBBBBB08",
+									MinTime: 1750855000000,
+									MaxTime: 1750867200000,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+
+		// Null blocks field (server returns null instead of empty array).
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": nil,
+			},
+			res: TSDBBlocksResult{
+				Blocks: nil,
+			},
+		},
+
+		// Block with missing optional stats field (should deserialize with zero values).
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01CCCCCCCCCCCCCCCCCCCCCC01",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01CCCCCCCCCCCCCCCCCCCCCC01",
+							},
+						},
+						"version": 1,
+						// Note: no "stats" field
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01CCCCCCCCCCCCCCCCCCCCCC01",
+					MinTime: 1750860000000,
+					MaxTime: 1750867200000,
+					Version: 1,
+					Stats:   TSDBBlockStats{}, // zero values
+					Compaction: TSDBBlockMetaCompaction{
+						Level:   1,
+						Sources: []string{"01CCCCCCCCCCCCCCCCCCCCCC01"},
+					},
+				}},
+			},
+		},
+
+		// Block with the compaction hint Prometheus's OOO feature emits
+		// (CompactionHintFromOutOfOrder upstream).
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01DDDDDDDDDDDDDDDDDDDDDD01",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 1000,
+							"numSeries":  100,
+							"numChunks":  100,
+						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01DDDDDDDDDDDDDDDDDDDDDD01",
+							},
+							"hints": []any{
+								"from-out-of-order",
+							},
+						},
+						"version": 1,
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01DDDDDDDDDDDDDDDDDDDDDD01",
+					MinTime: 1750860000000,
+					MaxTime: 1750867200000,
+					Version: 1,
+					Stats: TSDBBlockStats{
+						NumSamples: 1000,
+						NumSeries:  100,
+						NumChunks:  100,
+					},
+					Compaction: TSDBBlockMetaCompaction{
+						Level:   1,
+						Sources: []string{"01DDDDDDDDDDDDDDDDDDDDDD01"},
+						Hints:   []string{"from-out-of-order"},
+					},
+				}},
+			},
+		},
+
+		// Block with zero-value time boundaries (edge case).
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01EEEEEEEEEEEEEEEEEEEEEE01",
+						"minTime": 0,
+						"maxTime": 0,
+						"stats": map[string]any{
+							"numSamples": 0,
+							"numSeries":  0,
+							"numChunks":  0,
+						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01EEEEEEEEEEEEEEEEEEEEEE01",
+							},
+						},
+						"version": 1,
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{{
+					ULID:    "01EEEEEEEEEEEEEEEEEEEEEE01",
+					MinTime: 0,
+					MaxTime: 0,
+					Version: 1,
+					Stats: TSDBBlockStats{
+						NumSamples: 0,
+						NumSeries:  0,
+						NumChunks:  0,
+					},
+					Compaction: TSDBBlockMetaCompaction{
+						Level:   1,
+						Sources: []string{"01EEEEEEEEEEEEEEEEEEEEEE01"},
+					},
+				}},
+			},
+		},
+
+		// Block with different version values.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01FFFFFFFFFFFFFFFFFFFFFF01",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples": 500,
+							"numSeries":  50,
+							"numChunks":  50,
+						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01FFFFFFFFFFFFFFFFFFFFFF01",
+							},
+						},
+						"version": 0, // Version 0 (legacy/unset)
+					},
+					map[string]any{
+						"ulid":    "01FFFFFFFFFFFFFFFFFFFFFF02",
+						"minTime": 1750867200000,
+						"maxTime": 1750874400000,
+						"stats": map[string]any{
+							"numSamples": 600,
+							"numSeries":  60,
+							"numChunks":  60,
+						},
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01FFFFFFFFFFFFFFFFFFFFFF02",
+							},
+						},
+						"version": 2, // Hypothetical future version
+					},
+				},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{
+					{
+						ULID:    "01FFFFFFFFFFFFFFFFFFFFFF01",
+						MinTime: 1750860000000,
+						MaxTime: 1750867200000,
+						Version: 0,
+						Stats: TSDBBlockStats{
+							NumSamples: 500,
+							NumSeries:  50,
+							NumChunks:  50,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level:   1,
+							Sources: []string{"01FFFFFFFFFFFFFFFFFFFFFF01"},
+						},
+					},
+					{
+						ULID:    "01FFFFFFFFFFFFFFFFFFFFFF02",
+						MinTime: 1750867200000,
+						MaxTime: 1750874400000,
+						Version: 2,
+						Stats: TSDBBlockStats{
+							NumSamples: 600,
+							NumSeries:  60,
+							NumChunks:  60,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level:   1,
+							Sources: []string{"01FFFFFFFFFFFFFFFFFFFFFF02"},
+						},
+					},
 				},
 			},
 		},
