@@ -1,0 +1,1054 @@
+openapi: "3.0.3"
+info:
+  title: Prometheus HTTP API
+  version: "1.0.0"
+  description: |
+    Generated from Prometheus's OpenAPI specification for the client_golang PoC.
+    See https://github.com/prometheus/client_golang/issues/1998
+servers:
+  - url: /api/v1
+
+paths:
+  # ── Query ──────────────────────────────────────────────────────────────
+  /query:
+    get:
+      operationId: getInstantQuery
+      tags: [query]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: time
+          in: query
+          schema: { type: number }
+        - name: timeout
+          in: query
+          schema: { type: string }
+        - name: lookback_delta
+          in: query
+          schema: { type: string }
+        - name: stats
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+    post:
+      operationId: postInstantQuery
+      tags: [query]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/QueryPostBody"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+
+  /query_range:
+    get:
+      operationId: getRangeQuery
+      tags: [query]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: start
+          in: query
+          required: true
+          schema: { type: number }
+        - name: end
+          in: query
+          required: true
+          schema: { type: number }
+        - name: step
+          in: query
+          required: true
+          schema: { type: string }
+        - name: timeout
+          in: query
+          schema: { type: string }
+        - name: lookback_delta
+          in: query
+          schema: { type: string }
+        - name: stats
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+    post:
+      operationId: postRangeQuery
+      tags: [query]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/QueryRangePostBody"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+
+  /query_exemplars:
+    get:
+      operationId: getQueryExemplars
+      tags: [query]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: start
+          in: query
+          required: true
+          schema: { type: number }
+        - name: end
+          in: query
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExemplarArrayResponse"
+    post:
+      operationId: postQueryExemplars
+      tags: [query]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                query: { type: string }
+                start: { type: number }
+                end: { type: number }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExemplarArrayResponse"
+
+  /format_query:
+    get:
+      operationId: getFormatQuery
+      tags: [query]
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Formatted query string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleResponse"
+    post:
+      operationId: postFormatQuery
+      tags: [query]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                query: { type: string }
+      responses:
+        "200":
+          description: Formatted query string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleResponse"
+
+  # ── Labels ─────────────────────────────────────────────────────────────
+  /labels:
+    get:
+      operationId: getLabelNames
+      tags: [labels]
+      parameters:
+        - name: start
+          in: query
+          schema: { type: number }
+        - name: end
+          in: query
+          schema: { type: number }
+        - name: "match[]"
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StringArrayResponse"
+    post:
+      operationId: postLabelNames
+      tags: [labels]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                start: { type: number }
+                end: { type: number }
+                "match[]":
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StringArrayResponse"
+
+  /label/{name}/values:
+    get:
+      operationId: getLabelValues
+      tags: [labels]
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+        - name: start
+          in: query
+          schema: { type: number }
+        - name: end
+          in: query
+          schema: { type: number }
+        - name: "match[]"
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StringArrayResponse"
+
+  # ── Series ─────────────────────────────────────────────────────────────
+  /series:
+    get:
+      operationId: getSeries
+      tags: [series]
+      parameters:
+        - name: start
+          in: query
+          schema: { type: number }
+        - name: end
+          in: query
+          schema: { type: number }
+        - name: "match[]"
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsArrayResponse"
+    post:
+      operationId: postSeries
+      tags: [series]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                start: { type: number }
+                end: { type: number }
+                "match[]":
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsArrayResponse"
+
+  # ── Targets ────────────────────────────────────────────────────────────
+  /targets:
+    get:
+      operationId: getTargets
+      tags: [targets]
+      parameters:
+        - name: state
+          in: query
+          schema: { type: string, enum: [active, dropped, any] }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TargetsResponse"
+
+  /targets/metadata:
+    get:
+      operationId: getTargetsMetadata
+      tags: [targets]
+      parameters:
+        - name: match_target
+          in: query
+          required: true
+          schema: { type: string }
+        - name: metric
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricMetadataArrayResponse"
+
+  # ── Metadata ───────────────────────────────────────────────────────────
+  /metadata:
+    get:
+      operationId: getMetadata
+      tags: [metadata]
+      parameters:
+        - name: metric
+          in: query
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetadataMapResponse"
+
+  # ── Rules ──────────────────────────────────────────────────────────────
+  /rules:
+    get:
+      operationId: getRules
+      tags: [rules]
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [alert, record] }
+        - name: "match[]"
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, items: { type: string } }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RulesResponse"
+
+  # ── Alerts ─────────────────────────────────────────────────────────────
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertsResponse"
+
+  /alertmanagers:
+    get:
+      operationId: getAlertManagers
+      tags: [alerts]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertManagersResponse"
+
+  # ── Status ─────────────────────────────────────────────────────────────
+  /status/config:
+    get:
+      operationId: getStatusConfig
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigResponse"
+
+  /status/flags:
+    get:
+      operationId: getStatusFlags
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlagsResponse"
+
+  /status/buildinfo:
+    get:
+      operationId: getStatusBuildinfo
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BuildinfoResponse"
+
+  /status/runtimeinfo:
+    get:
+      operationId: getStatusRuntimeinfo
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeinfoResponse"
+
+  /status/tsdb:
+    get:
+      operationId: getStatusTSDB
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TSDBResponse"
+
+  /status/tsdb/blocks:
+    get:
+      operationId: getStatusTSDBBlocks
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TSDBBlocksResponse"
+
+  /status/walreplay:
+    get:
+      operationId: getStatusWALReplay
+      tags: [status]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalReplayResponse"
+
+  # ── Admin ──────────────────────────────────────────────────────────────
+  /admin/tsdb/snapshot:
+    post:
+      operationId: postSnapshot
+      tags: [admin]
+      parameters:
+        - name: skip_head
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SnapshotResponse"
+
+  /admin/tsdb/delete_series:
+    post:
+      operationId: postDeleteSeries
+      tags: [admin]
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                start: { type: number }
+                end: { type: number }
+                "match[]":
+                  type: array
+                  items: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOnlyResponse"
+
+  /admin/tsdb/clean_tombstones:
+    post:
+      operationId: postCleanTombstones
+      tags: [admin]
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusOnlyResponse"
+
+# ══════════════════════════════════════════════════════════════════════════
+# Components / Schemas
+# ══════════════════════════════════════════════════════════════════════════
+components:
+  schemas:
+    # ── Generic Envelopes ──────────────────────────────────────────────
+    QueryResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/QueryData"
+        warnings:
+          type: array
+          items: { type: string }
+        infos:
+          type: array
+          items: { type: string }
+        errorType: { type: string }
+        error: { type: string }
+      required: [status, data]
+
+    QueryData:
+      type: object
+      properties:
+        resultType: { type: string }
+        result: {}
+      required: [resultType, result]
+
+    StringArrayResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data: { type: array, items: { type: string } }
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    LabelsArrayResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    SimpleResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data: { type: object }
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    StatusOnlyResponse:
+      type: object
+      properties:
+        status: { type: string }
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status]
+
+    # ── Query / Exemplars ──────────────────────────────────────────────
+    QueryPostBody:
+      type: object
+      properties:
+        query: { type: string }
+        time: { type: number }
+        timeout: { type: string }
+        lookback_delta: { type: string }
+        stats: { type: string }
+
+    QueryRangePostBody:
+      type: object
+      properties:
+        query: { type: string }
+        start: { type: number }
+        end: { type: number }
+        step: { type: string }
+        timeout: { type: string }
+        lookback_delta: { type: string }
+        stats: { type: string }
+
+    ExemplarArrayResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExemplarQueryResult"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    ExemplarQueryResult:
+      type: object
+      properties:
+        seriesLabels:
+          type: object
+          additionalProperties: { type: string }
+        exemplars:
+          type: array
+          items:
+            $ref: "#/components/schemas/Exemplar"
+      required: [seriesLabels, exemplars]
+
+    Exemplar:
+      type: object
+      properties:
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        value: { type: string }
+        timestamp: { type: number }
+      required: [labels, value, timestamp]
+
+    # ── Targets ────────────────────────────────────────────────────────
+    TargetsResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/TargetDiscovery"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    TargetDiscovery:
+      type: object
+      properties:
+        activeTargets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActiveTarget"
+        droppedTargets:
+          type: array
+          items:
+            $ref: "#/components/schemas/DroppedTarget"
+      required: [activeTargets, droppedTargets]
+
+    ActiveTarget:
+      type: object
+      properties:
+        discoveredLabels:
+          type: object
+          additionalProperties: { type: string }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        scrapePool: { type: string }
+        scrapeUrl: { type: string }
+        globalUrl: { type: string }
+        lastError: { type: string }
+        lastScrape: { type: string }
+        lastScrapeDuration: { type: number }
+        health: { type: string }
+      required: [discoveredLabels, labels, scrapePool, scrapeUrl, health]
+
+    DroppedTarget:
+      type: object
+      properties:
+        discoveredLabels:
+          type: object
+          additionalProperties: { type: string }
+      required: [discoveredLabels]
+
+    # ── Metadata ───────────────────────────────────────────────────────
+    MetricMetadataArrayResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MetricMetadata"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    MetricMetadata:
+      type: object
+      properties:
+        target:
+          type: object
+          additionalProperties: { type: string }
+        metric: { type: string }
+        type: { type: string }
+        help: { type: string }
+        unit: { type: string }
+      required: [target, type, help, unit]
+
+    MetadataMapResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/Metadata"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    Metadata:
+      type: object
+      properties:
+        type: { type: string }
+        help: { type: string }
+        unit: { type: string }
+      required: [type, help, unit]
+
+    # ── Rules ──────────────────────────────────────────────────────────
+    RulesResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/RuleDiscovery"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    RuleDiscovery:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuleGroup"
+      required: [groups]
+
+    RuleGroup:
+      type: object
+      properties:
+        name: { type: string }
+        file: { type: string }
+        interval: { type: number }
+        rules:
+          type: array
+          items: { type: object }
+      required: [name, file, interval, rules]
+
+    # ── Alerts ─────────────────────────────────────────────────────────
+    AlertsResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/AlertDiscovery"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    AlertDiscovery:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alert"
+      required: [alerts]
+
+    Alert:
+      type: object
+      properties:
+        activeAt: { type: string }
+        annotations:
+          type: object
+          additionalProperties: { type: string }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+        state: { type: string }
+        value: { type: string }
+      required: [activeAt, annotations, labels, state, value]
+
+    AlertManagersResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/AlertmanagerDiscovery"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    AlertmanagerDiscovery:
+      type: object
+      properties:
+        activeAlertManagers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertManager"
+        droppedAlertManagers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertManager"
+      required: [activeAlertManagers, droppedAlertManagers]
+
+    AlertManager:
+      type: object
+      properties:
+        url: { type: string }
+      required: [url]
+
+    # ── Status ─────────────────────────────────────────────────────────
+    ConfigResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: object
+          properties:
+            yaml: { type: string }
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    FlagsResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: object
+          additionalProperties: { type: string }
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    BuildinfoResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/BuildinfoData"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    BuildinfoData:
+      type: object
+      properties:
+        version: { type: string }
+        revision: { type: string }
+        branch: { type: string }
+        buildUser: { type: string }
+        buildDate: { type: string }
+        goVersion: { type: string }
+      required: [version, revision, branch, buildUser, buildDate, goVersion]
+
+    RuntimeinfoResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/RuntimeinfoData"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    RuntimeinfoData:
+      type: object
+      properties:
+        startTime: { type: string }
+        CWD: { type: string }
+        reloadConfigSuccess: { type: boolean }
+        lastConfigTime: { type: string }
+        corruptionCount: { type: integer }
+        goroutineCount: { type: integer }
+        GOMAXPROCS: { type: integer }
+        GOGC: { type: string }
+        GODEBUG: { type: string }
+        storageRetention: { type: string }
+
+    TSDBResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/TSDBData"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    TSDBData:
+      type: object
+      properties:
+        headStats:
+          $ref: "#/components/schemas/TSDBHeadStats"
+        seriesCountByMetricName:
+          type: array
+          items: { $ref: "#/components/schemas/Stat" }
+        labelValueCountByLabelName:
+          type: array
+          items: { $ref: "#/components/schemas/Stat" }
+        memoryInBytesByLabelName:
+          type: array
+          items: { $ref: "#/components/schemas/Stat" }
+        seriesCountByLabelValuePair:
+          type: array
+          items: { $ref: "#/components/schemas/Stat" }
+
+    TSDBHeadStats:
+      type: object
+      properties:
+        numSeries: { type: integer }
+        numLabelPairs: { type: integer }
+        chunkCount: { type: integer }
+        minTime: { type: integer }
+        maxTime: { type: integer }
+
+    Stat:
+      type: object
+      properties:
+        name: { type: string }
+        value: { type: integer, format: int64 }
+
+    TSDBBlocksResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/TSDBBlocksData"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    TSDBBlocksData:
+      type: object
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TSDBBlockMetadata"
+
+    TSDBBlockMetadata:
+      type: object
+      properties:
+        ulid: { type: string }
+        minTime: { type: integer, format: int64 }
+        maxTime: { type: integer, format: int64 }
+        stats:
+          $ref: "#/components/schemas/TSDBBlockStats"
+        compaction:
+          $ref: "#/components/schemas/TSDBBlockCompaction"
+        version: { type: integer }
+
+    TSDBBlockStats:
+      type: object
+      properties:
+        numSamples: { type: integer }
+        numSeries: { type: integer }
+        numChunks: { type: integer }
+
+    TSDBBlockCompaction:
+      type: object
+      properties:
+        level: { type: integer }
+        sources:
+          type: array
+          items: { type: string }
+
+    WalReplayResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          $ref: "#/components/schemas/WalReplayData"
+        warnings: { type: array, items: { type: string } }
+        infos: { type: array, items: { type: string } }
+      required: [status, data]
+
+    WalReplayData:
+      type: object
+      properties:
+        min: { type: integer }
+        max: { type: integer }
+        current: { type: integer }
+
+    # ── Admin ──────────────────────────────────────────────────────────
+    SnapshotResponse:
+      type: object
+      properties:
+        status: { type: string }
+        data:
+          type: object
+          properties:
+            name: { type: string }
+      required: [status, data]

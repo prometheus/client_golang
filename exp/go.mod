@@ -9,4 +9,9 @@ require (
 	google.golang.org/protobuf v1.36.11
 )
 
-require github.com/prometheus/client_model v0.6.2 // indirect
+require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/oapi-codegen/runtime v1.6.0 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+)
