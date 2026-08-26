@@ -9,6 +9,7 @@ updates:
       - /
       - /exp
       - /tutorial/whatsup
+      - /api/prometheus/v1/paritytest
     schedule:
       interval: "monthly"
     groups:
