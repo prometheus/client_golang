@@ -71,6 +71,14 @@ test-exp:
 test-exp-short:
 	cd exp && $(GOTEST) -short $(GOOPTS) $(pkgs)
 
+.PHONY: parity-deps
+parity-deps:
+	cd api/prometheus/v1/paritytest && $(GO) mod download
+
+.PHONY: test-parity
+test-parity: parity-deps
+	cd api/prometheus/v1/paritytest && $(GOTEST) $(test-flags) $(GOOPTS) $(pkgs)
+
 .PHONY: check-crlf
 check-crlf:
 	@echo ">> checking for CRLF line endings"
