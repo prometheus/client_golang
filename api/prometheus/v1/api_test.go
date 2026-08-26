@@ -1202,6 +1202,33 @@ func TestAPIs(t *testing.T) {
 			err:       errors.New("some error"),
 		},
 
+		// Empty blocks list.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{},
+			},
+		},
+
+		// A single success case covers the decode quirks in one round
+		// trip: a fully populated block exercising every optional
+		// stats and compaction field (including the compaction hint
+		// Prometheus's OOO feature emits, CompactionHintFromOutOfOrder
+		// upstream), plus a minimal uncompacted block with no stats
+		// field at all.
+		// The fully populated block's stats deliberately exceed 2^32:
+		// narrowing any of the uint64 stats fields (which real blocks
+		// do overflow past 32 bits) makes the expected literal below a
+		// compile error and the decode a truncation failure. The
+		// unknown fields must be ignored by the decoder: upstream grows
+		// the block metadata over time (that history is why this
+		// endpoint's types needed fixing), so older clients must
+		// tolerate fields they don't know yet.
 		{
 			do:        doTSDBBlocks(),
 			reqMethod: "GET",
@@ -1209,14 +1236,52 @@ func TestAPIs(t *testing.T) {
 			inRes: map[string]any{
 				"blocks": []any{
 					map[string]any{
+						"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA00",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples":                        9000000000,
+							"numFloatSamples":                   5000000000,
+							"numHistogramSamples":               4000000000,
+							"numSeries":                         4400000000,
+							"numChunks":                         4500000000,
+							"numTombstones":                     4300000000,
+							"someFutureStatUnknownToThisClient": 42,
+						},
+						"compaction": map[string]any{
+							"level": 3,
+							"sources": []any{
+								"01AAAAAAAAAAAAAAAAAAAAAA01",
+								"01AAAAAAAAAAAAAAAAAAAAAA02",
+								"01AAAAAAAAAAAAAAAAAAAAAA03",
+							},
+							"deletable": true,
+							"parents": []any{
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA01",
+									"minTime": 1750853000000,
+									"maxTime": 1750860000000,
+								},
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA02",
+									"minTime": 1750860000000,
+									"maxTime": 1750867200000,
+								},
+							},
+							"failed": true,
+							"hints": []any{
+								"from-out-of-order",
+								"deduplication",
+								"downsampling",
+							},
+						},
+						"version":                            1,
+						"someFutureFieldUnknownToThisClient": "ignored",
+					},
+					map[string]any{
 						"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
 						"minTime": 1750860620060,
 						"maxTime": 1750867200000,
-						"stats": map[string]any{
-							"numSamples": 13701,
-							"numSeries":  716,
-							"numChunks":  716,
-						},
 						"compaction": map[string]any{
 							"level": 1,
 							"sources": []any{
@@ -1228,21 +1293,56 @@ func TestAPIs(t *testing.T) {
 				},
 			},
 			res: TSDBBlocksResult{
-				Blocks: []TSDBBlockMeta{{
-					ULID:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-					MinTime: 1750860620060,
-					MaxTime: 1750867200000,
-					Version: 1,
-					Stats: TSDBBlockStats{
-						NumSamples: 13701,
-						NumSeries:  716,
-						NumChunks:  716,
+				Blocks: []TSDBBlockMeta{
+					{
+						ULID:    "01AAAAAAAAAAAAAAAAAAAAAA00",
+						MinTime: 1750860000000,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats: TSDBBlockStats{
+							NumSamples:          9000000000,
+							NumFloatSamples:     5000000000,
+							NumHistogramSamples: 4000000000,
+							NumSeries:           4400000000,
+							NumChunks:           4500000000,
+							NumTombstones:       4300000000,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level: 3,
+							Sources: []string{
+								"01AAAAAAAAAAAAAAAAAAAAAA01",
+								"01AAAAAAAAAAAAAAAAAAAAAA02",
+								"01AAAAAAAAAAAAAAAAAAAAAA03",
+							},
+							Deletable: true,
+							Parents: []TSDBBlockDesc{
+								{
+									ULID:    "01AAAAAAAAAAAAAAAAAAAAAA01",
+									MinTime: 1750853000000,
+									MaxTime: 1750860000000,
+								},
+								{
+									ULID:    "01AAAAAAAAAAAAAAAAAAAAAA02",
+									MinTime: 1750860000000,
+									MaxTime: 1750867200000,
+								},
+							},
+							Failed: true,
+							Hints:  []string{"from-out-of-order", "deduplication", "downsampling"},
+						},
 					},
-					Compaction: TSDBBlockMetaCompaction{
-						Level:   1,
-						Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+					{
+						ULID:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+						MinTime: 1750860620060,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats:   TSDBBlockStats{}, // zero values
+						Compaction: TSDBBlockMetaCompaction{
+							Level:   1,
+							Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
+						},
 					},
-				}},
+				},
 			},
 		},
 
