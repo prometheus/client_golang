@@ -7,14 +7,14 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/google/go-cmp v0.7.0
 	github.com/json-iterator/go v1.1.12
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.19.2
 	github.com/kylelemons/godebug v1.1.0
 	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.70.1
-	github.com/prometheus/procfs v0.21.1
+	github.com/prometheus/procfs v0.22.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/sys v0.47.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
