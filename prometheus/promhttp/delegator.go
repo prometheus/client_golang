@@ -53,6 +53,17 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
+	// Informational (1xx) responses are interim and must not be recorded as
+	// the final status code. net/http itself applies the same rule — see
+	// https://github.com/golang/go/blob/go1.24.1/src/net/http/server.go#L1212-L1228.
+	// We still forward them to the underlying ResponseWriter so the client
+	// receives the correct wire behaviour (e.g. 100 Continue for Expect
+	// headers), but we do not update wroteHeader or status so that the
+	// eventual non-informational response is recorded correctly.
+	if code >= 100 && code <= 199 {
+		r.ResponseWriter.WriteHeader(code)
+		return
+	}
 	if r.observeWriteHeader != nil && !r.wroteHeader {
 		// Only call observeWriteHeader for the 1st time. It's a bug if
 		// WriteHeader is called more than once, but we want to protect
