@@ -595,6 +595,26 @@ func (r *Registry) Describe(ch chan<- *Desc) {
 	}
 }
 
+// DescribeAll returns the Desc of every checked Collector registered with r.
+// It is a convenience wrapper around Describe for callers that want a slice
+// rather than draining a channel, e.g. tests that assert on the metrics an
+// application declares. Unchecked Collectors are not included, as they do not
+// report any Desc.
+func (r *Registry) DescribeAll() []*Desc {
+	ch := make(chan *Desc)
+	go func() {
+		r.Describe(ch)
+		close(ch)
+	}()
+
+	var descs []*Desc
+	for d := range ch {
+		descs = append(descs, d)
+	}
+
+	return descs
+}
+
 // Helper wrapper around Collector.Collect.
 // It tries to collect from the channel, recovers on panic and
 // if it has recovered from a panic, then it sends an InvalidMetric into

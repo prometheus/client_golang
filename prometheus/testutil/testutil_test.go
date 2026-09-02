@@ -17,9 +17,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -499,5 +501,34 @@ foo_bar{fizz="bang"} 1
 	}
 	if strings.Contains(gotS, "other_total") {
 		t.Errorf("filtered gather included unexpected metric: %q", gotS)
+	}
+}
+
+func TestCollectAndDescribe(t *testing.T) {
+	c := prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "described_total", Help: "help", Unit: "s"},
+		[]string{"label"},
+	)
+
+	// The Vec has no children, so it reports nothing to Gather but still
+	// describes its Desc.
+	if got := CollectAndCount(c); got != 0 {
+		t.Fatalf("got %d gathered metrics, want 0", got)
+	}
+
+	got := CollectAndDescribe(c)
+	want := []prometheus.DescInfo{{
+		FQName:         "described_total",
+		Help:           "help",
+		Unit:           "s",
+		Type:           dto.MetricType_COUNTER,
+		VariableLabels: []string{"label"},
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+
+	if got := CollectAndDescribe(c, "other_total"); got != nil {
+		t.Errorf("got %+v for a non-matching metricNames filter, want nil", got)
 	}
 }

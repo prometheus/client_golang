@@ -45,6 +45,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
@@ -118,6 +119,37 @@ func ToFloat64(c prometheus.Collector) float64 {
 		return pb.Untyped.GetValue()
 	}
 	panic(fmt.Errorf("collected a non-gauge/counter/untyped metric: %s", pb))
+}
+
+// CollectAndDescribe returns the DescInfo of every Desc the provided Collector
+// describes, restricted to the provided metricNames if any are given.
+//
+// In contrast to the GatherAnd… functions, it also reports metrics that have
+// not produced a sample yet and would therefore be absent from an exposition.
+// That makes it suitable for asserting that a Collector still declares the
+// metrics it is expected to, e.g. to catch a renamed metric or a changed label
+// set before it reaches users.
+//
+// There is no GatherAndDescribe counterpart because the prometheus.Gatherer
+// interface does not expose descriptors. Use prometheus.Registry.DescribeAll
+// to inspect a whole Registry.
+func CollectAndDescribe(c prometheus.Collector, metricNames ...string) []prometheus.DescInfo {
+	ch := make(chan *prometheus.Desc)
+	go func() {
+		c.Describe(ch)
+		close(ch)
+	}()
+
+	var infos []prometheus.DescInfo
+	for desc := range ch {
+		info := desc.Info()
+		if len(metricNames) > 0 && !slices.Contains(metricNames, info.FQName) {
+			continue
+		}
+		infos = append(infos, info)
+	}
+
+	return infos
 }
 
 // CollectAndCount registers the provided Collector with a newly created

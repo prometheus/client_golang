@@ -189,7 +189,7 @@ func NewSummary(opts SummaryOpts) Summary {
 			opts.Help,
 			UnconstrainedLabels(nil),
 			opts.ConstLabels,
-			WithUnit(opts.Unit),
+			WithUnit(opts.Unit), withType(dto.MetricType_SUMMARY),
 		),
 		opts,
 	)
@@ -582,7 +582,7 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 		opts.Help,
 		opts.VariableLabels,
 		opts.ConstLabels,
-		WithUnit(opts.Unit),
+		WithUnit(opts.Unit), withType(dto.MetricType_SUMMARY),
 	)
 	return &SummaryVec{
 		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
