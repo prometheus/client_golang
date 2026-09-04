@@ -15,11 +15,13 @@ package push
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/prometheus/common/expfmt"
 
@@ -305,5 +307,17 @@ func TestPush(t *testing.T) {
 	}
 	if lastHeader == nil || lastHeader.Get("Authorization") == "" {
 		t.Error("empty Authorization header")
+	}
+
+	// Make sure a canceled context fails, and a reset cancelation
+	// timeout works.
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := New(pgwOK.URL, "test-timeout").PushContext(canceled); !errors.Is(err, context.Canceled) {
+		t.Errorf("expected canceled push to have failed with %v, not %v", context.Canceled, err)
+	}
+
+	if err := New(pgwOK.URL, "test-timeout").PushWithTimeout(canceled, time.Hour); err != nil {
+		t.Errorf("expected uncanceled push to have succeeded, not %v", err)
 	}
 }
