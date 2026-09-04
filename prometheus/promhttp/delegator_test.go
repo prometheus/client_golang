@@ -54,6 +54,60 @@ func (rw *responseWriter) SetReadDeadline(deadline time.Time) error {
 	return nil
 }
 
+// trackingResponseWriter records every status code passed to WriteHeader so we
+// can verify that 1xx informational codes are forwarded but not recorded as the
+// final status.
+type trackingResponseWriter struct {
+	codes []int
+}
+
+func (rw *trackingResponseWriter) Header() http.Header         { return http.Header{} }
+func (rw *trackingResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (rw *trackingResponseWriter) WriteHeader(code int)        { rw.codes = append(rw.codes, code) }
+
+// TestResponseWriterDelegatorInformationalStatusCode verifies that 1xx
+// responses (e.g. 100 Continue) are forwarded to the underlying
+// ResponseWriter but are NOT recorded as the final status code, mirroring
+// the behaviour of net/http's own responseWriter. See GitHub issue #1772.
+func TestResponseWriterDelegatorInformationalStatusCode(t *testing.T) {
+	var observed []int
+	observe := func(code int) { observed = append(observed, code) }
+
+	inner := &trackingResponseWriter{}
+	rwd := &responseWriterDelegator{
+		ResponseWriter:     inner,
+		observeWriteHeader: observe,
+	}
+
+	// Send 100 Continue first — should pass through to inner but not be
+	// recorded as the final status or trigger observeWriteHeader.
+	rwd.WriteHeader(http.StatusContinue)
+	if rwd.wroteHeader {
+		t.Error("wroteHeader must not be set after a 1xx informational response")
+	}
+	if rwd.status == http.StatusContinue {
+		t.Error("status must not be set to 100 after an informational response")
+	}
+	if len(observed) != 0 {
+		t.Errorf("observeWriteHeader must not be called for 1xx responses, got %v", observed)
+	}
+	if len(inner.codes) != 1 || inner.codes[0] != http.StatusContinue {
+		t.Errorf("100 Continue must be forwarded to the inner ResponseWriter, got %v", inner.codes)
+	}
+
+	// Now send the real response.
+	rwd.WriteHeader(http.StatusOK)
+	if !rwd.wroteHeader {
+		t.Error("wroteHeader must be set after the final response")
+	}
+	if rwd.status != http.StatusOK {
+		t.Errorf("status must be 200 after the final response, got %d", rwd.status)
+	}
+	if len(observed) != 1 || observed[0] != http.StatusOK {
+		t.Errorf("observeWriteHeader must be called once with 200, got %v", observed)
+	}
+}
+
 func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 	w := &responseWriter{}
 	rwd := &responseWriterDelegator{ResponseWriter: w}
