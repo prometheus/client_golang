@@ -748,6 +748,42 @@ func TestHandler(t *testing.T) {
 	testHandler(t)
 }
 
+func TestGatherAllowsHelpTextFinalPeriodDifference(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	registry.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        "period_compatibility",
+		Help:        "help text",
+		ConstLabels: prometheus.Labels{"source": "old"},
+	}))
+	registry.MustRegister(uncheckedCollector{c: prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        "period_compatibility",
+		Help:        "help text.",
+		ConstLabels: prometheus.Labels{"source": "new"},
+	})})
+
+	if _, err := registry.Gather(); err != nil {
+		t.Fatalf("Gather returned an error for a final-period-only difference: %v", err)
+	}
+}
+
+func TestGatherRejectsOtherHelpTextDifference(t *testing.T) {
+	registry := prometheus.NewPedanticRegistry()
+	registry.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        "period_compatibility_strict",
+		Help:        "help text",
+		ConstLabels: prometheus.Labels{"source": "old"},
+	}))
+	registry.MustRegister(uncheckedCollector{c: prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        "period_compatibility_strict",
+		Help:        "different help text",
+		ConstLabels: prometheus.Labels{"source": "new"},
+	})})
+
+	if _, err := registry.Gather(); err == nil {
+		t.Fatal("Gather accepted a non-period help-text difference")
+	}
+}
+
 func BenchmarkHandler(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		testHandler(b)
