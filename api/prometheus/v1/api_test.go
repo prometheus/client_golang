@@ -63,7 +63,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request, data interface{}) (*http.Response, []byte, Warnings, Infos, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -87,15 +87,23 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		resp.StatusCode = http.StatusOK
 	}
 
+	// Emulate apiClientImpl.Do by decoding the (already unwrapped) data body
+	// into the caller-provided destination on success.
+	if data != nil && test.inErr == nil {
+		if err := json.Unmarshal(b, data); err != nil {
+			c.Fatal(err)
+		}
+	}
+
 	return resp, b, test.inWarnings, test.inInfos, test.inErr
 }
 
-func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error) {
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values, data interface{}) (*http.Response, []byte, Warnings, Infos, error) {
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return c.Do(ctx, req)
+	return c.Do(ctx, req, data)
 }
 
 func TestAPIs(t *testing.T) {
@@ -271,6 +279,33 @@ func TestAPIs(t *testing.T) {
 			res: &model.Scalar{
 				Value:     2,
 				Timestamp: model.TimeFromUnix(testTime.Unix()),
+			},
+		},
+		{
+			do: doQuery("http_requests_total", testTime),
+			inRes: &queryResult{
+				Type: model.ValMatrix,
+				Result: model.Matrix{
+					&model.SampleStream{
+						Metric: model.Metric{"__name__": "http_requests_total", "job": "prometheus"},
+						Values: []model.SamplePair{
+							{Timestamp: model.TimeFromUnix(testTime.Add(-1 * time.Minute).Unix()), Value: 1},
+							{Timestamp: model.TimeFromUnix(testTime.Unix()), Value: 2},
+						},
+					},
+				},
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			res: model.Matrix{
+				&model.SampleStream{
+					Metric: model.Metric{"__name__": "http_requests_total", "job": "prometheus"},
+					Values: []model.SamplePair{
+						{Timestamp: model.TimeFromUnix(testTime.Add(-1 * time.Minute).Unix()), Value: 1},
+						{Timestamp: model.TimeFromUnix(testTime.Unix()), Value: 2},
+					},
+				},
 			},
 		},
 		{
@@ -1606,7 +1641,7 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
-			_, body, warnings, infos, err := client.Do(context.Background(), tc.req)
+			_, body, warnings, infos, err := client.Do(context.Background(), tc.req, nil)
 
 			if test.expectedWarnings != nil {
 				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
@@ -1964,7 +1999,7 @@ func TestDoGetFallback(t *testing.T) {
 		})
 
 		apiResp := &apiResponse{
-			Data: testResp,
+			Data: json.RawMessage(testResp),
 		}
 
 		body, _ := json.Marshal(apiResp)
@@ -2005,7 +2040,7 @@ func TestDoGetFallback(t *testing.T) {
 	}
 
 	// Do a post, and ensure that the post succeeds.
-	_, b, _, _, err := api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err := api.DoGetFallback(context.TODO(), u, v, nil)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -2022,7 +2057,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 403.
 	u.Path = "/blockPost403"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v, nil)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -2038,7 +2073,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 405.
 	u.Path = "/blockPost405"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v, nil)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
@@ -2054,7 +2089,7 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 501.
 	u.Path = "/blockPost501"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v, nil)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
