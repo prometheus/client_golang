@@ -27,9 +27,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,6 +54,24 @@ func (u uncheckedCollector) Describe(_ chan<- *prometheus.Desc) {}
 func (u uncheckedCollector) Collect(c chan<- prometheus.Metric) {
 	u.c.Collect(c)
 }
+
+// goexitCollector describes a single Desc on its first Describe call and
+// abandons the calling goroutine with runtime.Goexit on every call after that.
+// The first call lets it register; the later ones stand in for a Describe that
+// ends its goroutine without returning, as a call to testing.T.Fatal does.
+type goexitCollector struct {
+	desc      *prometheus.Desc
+	described atomic.Bool
+}
+
+func (c *goexitCollector) Describe(ch chan<- *prometheus.Desc) {
+	if c.described.Swap(true) {
+		runtime.Goexit()
+	}
+	ch <- c.desc
+}
+
+func (c *goexitCollector) Collect(_ chan<- prometheus.Metric) {}
 
 func testHandler(t testing.TB) {
 	// TODO(beorn7): This test is a bit too "end-to-end". It tests quite a
@@ -1418,5 +1438,24 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error from Gather: %v", err)
 		}
+	}
+}
+
+func TestDescribeAllReturnsIfDescribeAbandonsItsGoroutine(t *testing.T) {
+	reg := prometheus.NewPedanticRegistry()
+	reg.MustRegister(&goexitCollector{
+		desc: prometheus.NewDesc("goexit_total", "help", nil, nil),
+	})
+
+	done := make(chan []*prometheus.Desc, 1)
+	go func() { done <- reg.DescribeAll() }()
+
+	select {
+	case descs := <-done:
+		if len(descs) != 0 {
+			t.Errorf("got %d Descs, want 0", len(descs))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("DescribeAll did not return: its Desc channel stays open when Describe ends its goroutine")
 	}
 }

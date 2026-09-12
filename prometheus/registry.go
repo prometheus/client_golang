@@ -603,8 +603,8 @@ func (r *Registry) Describe(ch chan<- *Desc) {
 func (r *Registry) DescribeAll() []*Desc {
 	ch := make(chan *Desc)
 	go func() {
+		defer close(ch)
 		r.Describe(ch)
-		close(ch)
 	}()
 
 	var descs []*Desc
