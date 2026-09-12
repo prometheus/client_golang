@@ -18,8 +18,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -530,5 +532,29 @@ func TestCollectAndDescribe(t *testing.T) {
 
 	if got := CollectAndDescribe(c, "other_total"); got != nil {
 		t.Errorf("got %+v for a non-matching metricNames filter, want nil", got)
+	}
+}
+
+// describerFunc is a Collector that only describes, using the provided func.
+type describerFunc func(chan<- *prometheus.Desc)
+
+func (f describerFunc) Describe(ch chan<- *prometheus.Desc) { f(ch) }
+func (describerFunc) Collect(chan<- prometheus.Metric)      {}
+
+func TestCollectAndDescribeReturnsIfDescribeAbandonsItsGoroutine(t *testing.T) {
+	// runtime.Goexit stands in for a Describe that ends its goroutine without
+	// returning, as a call to testing.T.Fatal does.
+	c := describerFunc(func(chan<- *prometheus.Desc) { runtime.Goexit() })
+
+	done := make(chan []prometheus.DescInfo, 1)
+	go func() { done <- CollectAndDescribe(c) }()
+
+	select {
+	case infos := <-done:
+		if infos != nil {
+			t.Errorf("got %+v, want nil", infos)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("CollectAndDescribe did not return: its Desc channel stays open when Describe ends its goroutine")
 	}
 }

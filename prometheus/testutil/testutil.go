@@ -136,8 +136,8 @@ func ToFloat64(c prometheus.Collector) float64 {
 func CollectAndDescribe(c prometheus.Collector, metricNames ...string) []prometheus.DescInfo {
 	ch := make(chan *prometheus.Desc)
 	go func() {
+		defer close(ch)
 		c.Describe(ch)
-		close(ch)
 	}()
 
 	var infos []prometheus.DescInfo
