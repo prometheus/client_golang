@@ -142,6 +142,9 @@ func CollectAndDescribe(c prometheus.Collector, metricNames ...string) []prometh
 
 	var infos []prometheus.DescInfo
 	for desc := range ch {
+		if desc == nil {
+			continue
+		}
 		info := desc.Info()
 		if len(metricNames) > 0 && !slices.Contains(metricNames, info.FQName) {
 			continue

@@ -558,3 +558,17 @@ func TestCollectAndDescribeReturnsIfDescribeAbandonsItsGoroutine(t *testing.T) {
 		t.Fatal("CollectAndDescribe did not return: its Desc channel stays open when Describe ends its goroutine")
 	}
 }
+
+func TestCollectAndDescribeSkipsNilDesc(t *testing.T) {
+	desc := prometheus.NewDesc("described_total", "help", nil, nil)
+	c := describerFunc(func(ch chan<- *prometheus.Desc) {
+		ch <- nil
+		ch <- desc
+	})
+
+	got := CollectAndDescribe(c)
+	want := []prometheus.DescInfo{desc.Info()}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
