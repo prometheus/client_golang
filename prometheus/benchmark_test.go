@@ -63,24 +63,24 @@ func BenchmarkCounter(b *testing.B) {
 		constraint LabelConstraint
 		counters   fns
 	}{
-		{"With Label Values", nil, fns{deLV}},
-		{"With Label Values and Constraint", twoConstraint, fns{deLV}},
-		{"With triple Label Values", nil, fns{deLV, frLV, nlLV}},
-		{"With triple Label Values and Constraint", twoConstraint, fns{deLV, frLV, nlLV}},
-		{"With repeated Label Values", nil, fns{deLV, deLV}},
-		{"With repeated Label Values and Constraint", twoConstraint, fns{deLV, deLV}},
-		{"With Mapped Labels", nil, fns{deML}},
-		{"With Mapped Labels and Constraint", twoConstraint, fns{deML}},
-		{"With triple Mapped Labels", nil, fns{deML, frML, nlML}},
-		{"With triple Mapped Labels and Constraint", twoConstraint, fns{deML, frML, nlML}},
-		{"With repeated Mapped Labels", nil, fns{deML, deML}},
-		{"With repeated Mapped Labels and Constraint", twoConstraint, fns{deML, deML}},
-		{"With Prepared Mapped Labels", nil, fns{dePML}},
-		{"With Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML}},
-		{"With triple Prepared Mapped Labels", nil, fns{dePML, frPML, nlPML}},
-		{"With triple Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML, frPML, nlPML}},
-		{"With repeated Prepared Mapped Labels", nil, fns{dePML, dePML}},
-		{"With repeated Prepared Mapped Labels and Constraint", twoConstraint, fns{dePML, dePML}},
+		{"labels=values,constraint=no", nil, fns{deLV}},
+		{"labels=values,constraint=yes", twoConstraint, fns{deLV}},
+		{"labels=values-triple,constraint=no", nil, fns{deLV, frLV, nlLV}},
+		{"labels=values-triple,constraint=yes", twoConstraint, fns{deLV, frLV, nlLV}},
+		{"labels=values-repeated,constraint=no", nil, fns{deLV, deLV}},
+		{"labels=values-repeated,constraint=yes", twoConstraint, fns{deLV, deLV}},
+		{"labels=mapped,constraint=no", nil, fns{deML}},
+		{"labels=mapped,constraint=yes", twoConstraint, fns{deML}},
+		{"labels=mapped-triple,constraint=no", nil, fns{deML, frML, nlML}},
+		{"labels=mapped-triple,constraint=yes", twoConstraint, fns{deML, frML, nlML}},
+		{"labels=mapped-repeated,constraint=no", nil, fns{deML, deML}},
+		{"labels=mapped-repeated,constraint=yes", twoConstraint, fns{deML, deML}},
+		{"labels=mapped-prepared,constraint=no", nil, fns{dePML}},
+		{"labels=mapped-prepared,constraint=yes", twoConstraint, fns{dePML}},
+		{"labels=mapped-prepared-triple,constraint=no", nil, fns{dePML, frPML, nlPML}},
+		{"labels=mapped-prepared-triple,constraint=yes", twoConstraint, fns{dePML, frPML, nlPML}},
+		{"labels=mapped-prepared-repeated,constraint=no", nil, fns{dePML, dePML}},
+		{"labels=mapped-prepared-repeated,constraint=yes", twoConstraint, fns{dePML, dePML}},
 	}
 
 	for _, t := range table {
@@ -99,8 +99,7 @@ func BenchmarkCounter(b *testing.B) {
 				},
 			)
 			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				for _, fn := range t.counters {
 					fn(m).Inc()
 				}
@@ -138,8 +137,7 @@ func BenchmarkCounterNoLabels(b *testing.B) {
 		Help: "A counter to benchmark it.",
 	})
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.Inc()
 	}
 }
@@ -153,8 +151,7 @@ func BenchmarkGaugeWithLabelValues(b *testing.B) {
 		[]string{"one", "two", "three"},
 	)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.WithLabelValues("eins", "zwei", "drei").Set(3.1415)
 	}
 }
@@ -165,8 +162,7 @@ func BenchmarkGaugeNoLabels(b *testing.B) {
 		Help: "A gauge to benchmark it.",
 	})
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.Set(3.1415)
 	}
 }
@@ -181,8 +177,7 @@ func BenchmarkSummaryWithLabelValues(b *testing.B) {
 		[]string{"one", "two", "three"},
 	)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.WithLabelValues("eins", "zwei", "drei").Observe(3.1415)
 	}
 }
@@ -195,8 +190,7 @@ func BenchmarkSummaryNoLabels(b *testing.B) {
 	},
 	)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.Observe(3.1415)
 	}
 }
@@ -210,8 +204,7 @@ func BenchmarkHistogramWithLabelValues(b *testing.B) {
 		[]string{"one", "two", "three"},
 	)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.WithLabelValues("eins", "zwei", "drei").Observe(3.1415)
 	}
 }
@@ -223,8 +216,7 @@ func BenchmarkHistogramNoLabels(b *testing.B) {
 	},
 	)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		m.Observe(3.1415)
 	}
 }

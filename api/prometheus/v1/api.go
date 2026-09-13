@@ -17,6 +17,7 @@ package v1
 
 import (
 	"context"
+	gojson "encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -745,13 +746,13 @@ type Stat struct {
 
 func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	v := struct {
-		Name     string            `json:"name"`
-		File     string            `json:"file"`
-		Interval float64           `json:"interval"`
-		Rules    []json.RawMessage `json:"rules"`
+		Name     string              `json:"name"`
+		File     string              `json:"file"`
+		Interval float64             `json:"interval"`
+		Rules    []gojson.RawMessage `json:"rules"`
 	}{}
 
-	if err := json.Unmarshal(b, &v); err != nil {
+	if err := gojson.Unmarshal(b, &v); err != nil {
 		return err
 	}
 
@@ -760,111 +761,87 @@ func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	rg.Interval = v.Interval
 
 	for _, rule := range v.Rules {
-		alertingRule := AlertingRule{}
-		if err := json.Unmarshal(rule, &alertingRule); err == nil {
+		ruleType, err := unmarshalRuleType(rule)
+		if err != nil {
+			return err
+		}
+		switch ruleType {
+		case RuleTypeAlerting:
+			alertingRule := AlertingRule{}
+			if err := alertingRule.unmarshalTypeCheckedJSON(rule); err != nil {
+				return err
+			}
 			rg.Rules = append(rg.Rules, alertingRule)
-			continue
-		}
-		recordingRule := RecordingRule{}
-		if err := json.Unmarshal(rule, &recordingRule); err == nil {
+		case RuleTypeRecording:
+			recordingRule := RecordingRule{}
+			if err := recordingRule.unmarshalTypeCheckedJSON(rule); err != nil {
+				return err
+			}
 			rg.Rules = append(rg.Rules, recordingRule)
-			continue
+		default:
+			return errors.New("failed to decode JSON into an alerting or recording rule")
 		}
-		return errors.New("failed to decode JSON into an alerting or recording rule")
 	}
 
 	return nil
+}
+
+func unmarshalRuleType(b []byte) (RuleType, error) {
+	v := struct {
+		Type string `json:"type"`
+	}{}
+	if err := gojson.Unmarshal(b, &v); err != nil {
+		return RuleType(""), err
+	}
+	if v.Type == "" {
+		return RuleType(""), errors.New("type field not present in rule")
+	}
+	return RuleType(v.Type), nil
 }
 
 func (r *AlertingRule) UnmarshalJSON(b []byte) error {
-	v := struct {
-		Type string `json:"type"`
-	}{}
-	if err := json.Unmarshal(b, &v); err != nil {
+	ruleType, err := unmarshalRuleType(b)
+	if err != nil {
 		return err
 	}
-	if v.Type == "" {
-		return errors.New("type field not present in rule")
+	if ruleType != RuleTypeAlerting {
+		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeAlerting), ruleType)
 	}
-	if v.Type != string(RuleTypeAlerting) {
-		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeAlerting), v.Type)
-	}
+	return r.unmarshalTypeCheckedJSON(b)
+}
 
-	rule := struct {
-		Name           string         `json:"name"`
-		Query          string         `json:"query"`
-		Duration       float64        `json:"duration"`
-		Labels         model.LabelSet `json:"labels"`
-		Annotations    model.LabelSet `json:"annotations"`
-		Alerts         []*Alert       `json:"alerts"`
-		Health         RuleHealth     `json:"health"`
-		LastError      string         `json:"lastError,omitempty"`
-		EvaluationTime float64        `json:"evaluationTime"`
-		LastEvaluation time.Time      `json:"lastEvaluation"`
-		State          string         `json:"state"`
-	}{}
-	if err := json.Unmarshal(b, &rule); err != nil {
-		return err
-	}
-	r.Health = rule.Health
-	r.Annotations = rule.Annotations
-	r.Name = rule.Name
-	r.Query = rule.Query
-	r.Alerts = rule.Alerts
-	r.Duration = rule.Duration
-	r.Labels = rule.Labels
-	r.LastError = rule.LastError
-	r.EvaluationTime = rule.EvaluationTime
-	r.LastEvaluation = rule.LastEvaluation
-	r.State = rule.State
+type alertingRuleInternal AlertingRule
 
-	return nil
+// unmarshalTypeCheckedJSON unmarshals json with the type field already verified to be RuleTypeAlerting
+func (r *AlertingRule) unmarshalTypeCheckedJSON(b []byte) error {
+	return gojson.Unmarshal(b, (*alertingRuleInternal)(r))
 }
 
 func (r *RecordingRule) UnmarshalJSON(b []byte) error {
-	v := struct {
-		Type string `json:"type"`
-	}{}
-	if err := json.Unmarshal(b, &v); err != nil {
+	ruleType, err := unmarshalRuleType(b)
+	if err != nil {
 		return err
 	}
-	if v.Type == "" {
-		return errors.New("type field not present in rule")
+	if ruleType != RuleTypeRecording {
+		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeRecording), ruleType)
 	}
-	if v.Type != string(RuleTypeRecording) {
-		return fmt.Errorf("expected rule of type %s but got %s", string(RuleTypeRecording), v.Type)
-	}
+	return r.unmarshalTypeCheckedJSON(b)
+}
 
-	rule := struct {
-		Name           string         `json:"name"`
-		Query          string         `json:"query"`
-		Labels         model.LabelSet `json:"labels,omitempty"`
-		Health         RuleHealth     `json:"health"`
-		LastError      string         `json:"lastError,omitempty"`
-		EvaluationTime float64        `json:"evaluationTime"`
-		LastEvaluation time.Time      `json:"lastEvaluation"`
-	}{}
-	if err := json.Unmarshal(b, &rule); err != nil {
-		return err
-	}
-	r.Health = rule.Health
-	r.Labels = rule.Labels
-	r.Name = rule.Name
-	r.LastError = rule.LastError
-	r.Query = rule.Query
-	r.EvaluationTime = rule.EvaluationTime
-	r.LastEvaluation = rule.LastEvaluation
+type recordingRuleInternal RecordingRule
 
-	return nil
+// unmarshalTypeCheckedJSON unmarshals json with the type field already verified to be RuleTypeRecording
+func (r *RecordingRule) unmarshalTypeCheckedJSON(b []byte) error {
+	return gojson.Unmarshal(b, (*recordingRuleInternal)(r))
 }
 
 func (qr *queryResult) UnmarshalJSON(b []byte) error {
 	v := struct {
-		Type   model.ValueType `json:"resultType"`
-		Result json.RawMessage `json:"result"`
+		Type   model.ValueType   `json:"resultType"`
+		Result gojson.RawMessage `json:"result"`
 	}{}
 
-	err := json.Unmarshal(b, &v)
+	err := gojson.Unmarshal(b, &v)
 	if err != nil {
 		return err
 	}
@@ -1207,7 +1184,7 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 	}
 
 	var qres queryResult
-	return qres.v, warnings, infos, json.Unmarshal(body, &qres)
+	return qres.v, warnings, infos, gojson.Unmarshal(body, &qres)
 }
 
 func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, Infos, error) {
@@ -1296,7 +1273,7 @@ func (h *httpAPI) Rules(ctx context.Context, matches []string) (RulesResult, err
 	}
 
 	var res RulesResult
-	err = json.Unmarshal(body, &res)
+	err = gojson.Unmarshal(body, &res)
 	return res, err
 }
 
@@ -1477,12 +1454,12 @@ type apiClientImpl struct {
 }
 
 type apiResponse struct {
-	Status    string          `json:"status"`
-	Data      json.RawMessage `json:"data"`
-	ErrorType ErrorType       `json:"errorType"`
-	Error     string          `json:"error"`
-	Warnings  []string        `json:"warnings,omitempty"`
-	Infos     []string        `json:"infos,omitempty"`
+	Status    string            `json:"status"`
+	Data      gojson.RawMessage `json:"data"`
+	ErrorType ErrorType         `json:"errorType"`
+	Error     string            `json:"error"`
+	Warnings  []string          `json:"warnings,omitempty"`
+	Infos     []string          `json:"infos,omitempty"`
 }
 
 func apiError(code int) bool {
@@ -1524,7 +1501,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 	var result apiResponse
 
 	if http.StatusNoContent != code {
-		if jsonErr := json.Unmarshal(body, &result); jsonErr != nil {
+		if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
 			return resp, body, nil, nil, &Error{
 				Type: ErrBadResponse,
 				Msg:  jsonErr.Error(),

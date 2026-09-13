@@ -229,7 +229,7 @@ func BenchmarkClient(b *testing.B) {
 	ctx := context.Background()
 
 	for _, sizeKB := range []int{4, 50, 1000, 2000} {
-		b.Run(fmt.Sprintf("%dKB", sizeKB), func(b *testing.B) {
+		b.Run(fmt.Sprintf("size=%dKB", sizeKB), func(b *testing.B) {
 			testServer := httptest.NewServer(serveSpaces{sizeKB})
 			defer testServer.Close()
 
@@ -246,14 +246,12 @@ func BenchmarkClient(b *testing.B) {
 			req := &http.Request{
 				URL: url,
 			}
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_, _, err := client.Do(ctx, req)
 				if err != nil {
 					b.Fatalf("Query failed: %v", err)
 				}
 			}
-			b.StopTimer()
 		})
 	}
 }

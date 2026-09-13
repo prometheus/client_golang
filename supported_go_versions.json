@@ -1,12 +1,14 @@
 {
-    "versions": [
-        {
-            "label": "stable",
-            "version": "1.26"
-        },
-        {
-            "label": "oldstable",
-            "version": "1.25"
-        }
-    ]
+  "versions": [
+    {
+      "label": "stable",
+      "version": "1.27",
+      "name": "Tests (stable)"
+    },
+    {
+      "label": "oldstable",
+      "version": "1.26",
+      "name": "Tests (oldstable)"
+    }
+  ]
 }

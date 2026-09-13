@@ -1486,8 +1486,7 @@ func benchmarkFindBucket(b *testing.B, l int) {
 	}
 	v := float64(l / 2)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		resultFindBucket = h.findBucket(v)
 	}
 }
@@ -1515,8 +1514,7 @@ func BenchmarkFindBucketInf(b *testing.B) {
 	}
 	v := 1000.5
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		resultFindBucket = h.findBucket(v)
 	}
 }
@@ -1528,8 +1526,7 @@ func BenchmarkFindBucketLow(b *testing.B) {
 	}
 	v := -1.1
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		resultFindBucket = h.findBucket(v)
 	}
 }

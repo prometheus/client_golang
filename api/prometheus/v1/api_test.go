@@ -15,6 +15,7 @@ package v1
 
 import (
 	"context"
+	gojson "encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -1425,7 +1426,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	case string:
 		b = []byte(v)
 	default:
-		b, err = json.Marshal(v)
+		b, err = gojson.Marshal(v)
 		if err != nil {
 			c.Fatal(err)
 		}
@@ -1444,7 +1445,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`null`),
+				Data:      gojson.RawMessage(`null`),
 				ErrorType: ErrBadData,
 				Error:     "failed",
 			},
@@ -1458,7 +1459,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1490,7 +1491,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusBadRequest,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`null`),
+				Data:      gojson.RawMessage(`null`),
 				ErrorType: ErrBadData,
 				Error:     "end timestamp must not be before start time",
 			},
@@ -1504,14 +1505,14 @@ func TestAPIClientDo(t *testing.T) {
 			response: "bad json",
 			expectedErr: &Error{
 				Type: ErrBadResponse,
-				Msg:  "readObjectStart: expect { or n, but found b, error found in #1 byte of ...|bad json|..., bigger context ...|bad json|...",
+				Msg:  "invalid character 'b' looking for beginning of value",
 			},
 		},
 		{
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status: "success",
-				Data:   json.RawMessage(`"test"`),
+				Data:   gojson.RawMessage(`"test"`),
 			},
 			expectedErr: &Error{
 				Type: ErrBadResponse,
@@ -1522,7 +1523,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "success",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1535,7 +1536,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1548,7 +1549,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Warnings:  []string{"a"},
@@ -1563,7 +1564,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Infos:     []string{"b"},
@@ -1578,7 +1579,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Warnings:  []string{"a"},
@@ -1958,7 +1959,7 @@ func TestDoGetFallback(t *testing.T) {
 	// Start a local HTTP server.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		req.ParseForm()
-		testResp, _ := json.Marshal(&testResponse{
+		testResp, _ := gojson.Marshal(&testResponse{
 			Values: req.Form.Encode(),
 			Method: req.Method,
 		})
@@ -1967,7 +1968,7 @@ func TestDoGetFallback(t *testing.T) {
 			Data: testResp,
 		}
 
-		body, _ := json.Marshal(apiResp)
+		body, _ := gojson.Marshal(apiResp)
 
 		if req.Method == http.MethodPost {
 			if req.URL.Path == "/blockPost403" {

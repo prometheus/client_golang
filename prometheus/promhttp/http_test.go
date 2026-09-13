@@ -760,8 +760,8 @@ func BenchmarkCompression(b *testing.B) {
 		}
 
 		for _, benchmark := range benchmarks {
-			b.Run(benchmark.name+"_"+size.name, func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
+			b.Run("op="+benchmark.name+",size="+size.name, func(b *testing.B) {
+				for b.Loop() {
 					writer := httptest.NewRecorder()
 					request, _ := http.NewRequest(http.MethodGet, "/", nil)
 					request.Header.Add(acceptEncodingHeader, benchmark.compressionType)

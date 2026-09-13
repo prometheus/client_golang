@@ -971,8 +971,7 @@ func benchmarkMetricVecWith(b *testing.B, labels map[string]string) {
 	)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		vec.With(labels)
 	}
 }
@@ -993,8 +992,8 @@ func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string)
 	)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	i := 0
+	for b.Loop() {
 		// Varies input across provide map entries based on key size.
 		for j, k := range keys {
 			candidates := labels[k]
@@ -1002,5 +1001,6 @@ func benchmarkMetricVecWithLabelValues(b *testing.B, labels map[string][]string)
 		}
 
 		vec.WithLabelValues(values...)
+		i++
 	}
 }
