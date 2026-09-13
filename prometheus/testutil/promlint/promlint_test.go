@@ -827,12 +827,12 @@ mc_something_total 10
 	}
 
 	t.Helper()
-	t.Run(cv.name, func(t *testing.T) {
+	t.Run(cv.name, func(_ *testing.T) {
 		// no problems
 		l1 := promlint.New(strings.NewReader(cv.in))
 		lintAndVerify(l1, cv)
 	})
-	t.Run(cv.name, func(t *testing.T) {
+	t.Run(cv.name, func(_ *testing.T) {
 		// prefix problems
 		l2 := promlint.New(strings.NewReader(cv.in))
 		l2.AddCustomValidations(prefixValidation)

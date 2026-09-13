@@ -67,9 +67,9 @@ func TestGaugeConcurrency(t *testing.T) {
 			Name: "test_gauge",
 			Help: "no help can be found here",
 		})
-		for i := 0; i < concLevel; i++ {
+		for range concLevel {
 			vals := make([]float64, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				vals[j] = rand.Float64() - 0.5
 			}
 
@@ -110,7 +110,7 @@ func TestGaugeVecConcurrency(t *testing.T) {
 		results := make([]chan float64, vecLength)
 		done := make(chan struct{})
 
-		for i := 0; i < vecLength; i++ {
+		for i := range vecLength {
 			sStreams[i] = make(chan float64, mutations*concLevel)
 			results[i] = make(chan float64)
 			go listenGaugeStream(sStreams[i], results[i], done)
@@ -128,10 +128,10 @@ func TestGaugeVecConcurrency(t *testing.T) {
 			},
 			[]string{"label"},
 		)
-		for i := 0; i < concLevel; i++ {
+		for range concLevel {
 			vals := make([]float64, mutations)
 			pick := make([]int, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				vals[j] = rand.Float64() - 0.5
 				pick[j] = rand.Intn(vecLength)
 			}

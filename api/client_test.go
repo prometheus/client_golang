@@ -166,7 +166,7 @@ func TestDoContextCancellation(t *testing.T) {
 
 func TestDoContextCancellationSlowServer(t *testing.T) {
 	serverDone := make(chan struct{})
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
@@ -217,7 +217,7 @@ type serveSpaces struct {
 	sizeKB int
 }
 
-func (t serveSpaces) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (t serveSpaces) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	kb := bytes.Repeat([]byte{' '}, 1024)
 	for i := 0; i < t.sizeKB; i++ {
 		w.Write(kb)

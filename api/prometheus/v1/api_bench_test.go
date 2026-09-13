@@ -27,7 +27,7 @@ import (
 )
 
 func generateData(timeseries, datapoints int) (floatMatrix, histogramMatrix model.Matrix) {
-	for i := 0; i < timeseries; i++ {
+	for i := range timeseries {
 		lset := map[model.LabelName]model.LabelValue{
 			model.MetricNameLabel: model.LabelValue("timeseries_" + strconv.Itoa(i)),
 			"foo":                 "bar",

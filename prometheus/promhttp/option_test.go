@@ -48,7 +48,7 @@ func ExampleWithExtraMethods() {
 	)
 
 	// Create the handlers that will be wrapped by the middleware.
-	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Pull"))
 	})
 
@@ -93,7 +93,7 @@ func ExampleWithLabelFromCtx() {
 	)
 
 	// Create the handlers that will be wrapped by the middleware.
-	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Pull"))
 	})
 

@@ -43,7 +43,7 @@ func benchmarkHistogramObserve(w int, b *testing.B) {
 
 	s := NewHistogram(HistogramOpts{})
 
-	for i := 0; i < w; i++ {
+	for range w {
 		go func() {
 			g.Wait()
 
@@ -87,11 +87,11 @@ func benchmarkHistogramWrite(w int, b *testing.B) {
 
 	s := NewHistogram(HistogramOpts{})
 
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		s.Observe(float64(i))
 	}
 
-	for j := 0; j < w; j++ {
+	for range w {
 		outs := make([]dto.Metric, b.N)
 
 		go func(o []dto.Metric) {
@@ -176,9 +176,9 @@ func TestHistogramConcurrency(t *testing.T) {
 
 		allVars := make([]float64, total)
 		var sampleSum float64
-		for i := 0; i < concLevel; i++ {
+		for i := range concLevel {
 			vals := make([]float64, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				allVars[i*mutations+j] = v
@@ -265,10 +265,10 @@ func TestHistogramVecConcurrency(t *testing.T) {
 
 		allVars := make([][]float64, vecLength)
 		sampleSums := make([]float64, vecLength)
-		for i := 0; i < concLevel; i++ {
+		for range concLevel {
 			vals := make([]float64, mutations)
 			picks := make([]int, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				pick := rand.Intn(vecLength)
@@ -291,7 +291,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 		start.Done()
 		end.Wait()
 
-		for i := 0; i < vecLength; i++ {
+		for i := range vecLength {
 			m := &dto.Metric{}
 			s := his.WithLabelValues(string('A' + rune(i)))
 			s.(Histogram).Write(m)
@@ -391,7 +391,7 @@ func TestHistogramAtomicObserve(t *testing.T) {
 	go observe()
 	go observe()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		m := &dto.Metric{}
 		if err := his.Write(m); err != nil {
 			t.Fatal("unexpected error writing histogram:", err)
@@ -1039,9 +1039,9 @@ func TestNativeHistogramConcurrency(t *testing.T) {
 
 		allVars := make([]float64, total)
 		var sampleSum float64
-		for i := 0; i < concLevel; i++ {
+		for i := range concLevel {
 			vals := make([]float64, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				allVars[i*mutations+j] = v

@@ -2,7 +2,6 @@
 //go:generate go run gen_go_collector_metrics_set.go go1.26
 
 //go:build go1.26 && !go1.27
-// +build go1.26,!go1.27
 
 package prometheus
 

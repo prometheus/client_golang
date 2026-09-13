@@ -1133,7 +1133,7 @@ func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
 func TestAlreadyRegisteredCollision(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		// A collector should be considered unique if its name and const
 		// label values are unique.
 
@@ -1275,7 +1275,7 @@ func ExampleRegistry_grouping() {
 	globalReg := prometheus.NewRegistry()
 
 	// Spawn 10 workers, each of which will have their own group of metrics.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Create a new registry for each worker, which acts as a group of
 		// worker-specific metrics.
 		workerReg := prometheus.NewRegistry()
@@ -1404,7 +1404,7 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
 	// Register 100 simple Gauge metrics with distinct names and constant labels.
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		reg.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "test_metric_" + string(rune(i)),
 			Help:        "Test metric",
@@ -1413,7 +1413,7 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	}
 
 	// Call Gather repeatedly to simulate stress and check for potential goroutine leaks.
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		_, err := reg.Gather()
 		if err != nil {
 			t.Fatalf("unexpected error from Gather: %v", err)

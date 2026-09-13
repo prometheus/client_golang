@@ -62,7 +62,7 @@ func (b blockingCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("dummy_desc", "not helpful", nil, nil)
 }
 
-func (b blockingCollector) Collect(ch chan<- prometheus.Metric) {
+func (b blockingCollector) Collect(_ chan<- prometheus.Metric) {
 	select {
 	case b.CollectStarted <- struct{}{}:
 	default:
@@ -284,7 +284,7 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		writer.Body.Reset()
 		handler.ServeHTTP(writer, request)
 
@@ -407,7 +407,7 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		writer.Body.Reset()
 		handler.ServeHTTP(writer, request)
 

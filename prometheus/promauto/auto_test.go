@@ -19,7 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func TestNil(t *testing.T) {
+func TestNil(_ *testing.T) {
 	// A nil registerer should be treated as a no-op by promauto.
 	With(nil).NewCounter(prometheus.CounterOpts{Name: "test"}).Inc()
 }

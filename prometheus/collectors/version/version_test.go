@@ -28,7 +28,8 @@ var defaultLabels = []string{"branch", "goarch", "goos", "goversion", "revision"
 func TestGoVersionCollector(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
 	reg.MustRegister(NewCollector(
-		"foo"),
+		"foo",
+	),
 	)
 	result, err := reg.Gather()
 	if err != nil {
@@ -73,7 +74,8 @@ func TestGoVersionCollectorWithLabels(t *testing.T) {
 		"z-mylabel": "myvalue",
 	}
 	reg.MustRegister(NewCollector(
-		"foo", WithExtraConstLabels(labels)),
+		"foo", WithExtraConstLabels(labels),
+	),
 	)
 	result, err := reg.Gather()
 	if err != nil {

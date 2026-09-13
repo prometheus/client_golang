@@ -1481,7 +1481,7 @@ func pickSchema(bucketFactor float64) int32 {
 
 func makeBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 	var ii []int
-	buckets.Range(func(k, v any) bool {
+	buckets.Range(func(k, _ any) bool {
 		ii = append(ii, k.(int))
 		return true
 	})
@@ -1524,7 +1524,7 @@ func makeBuckets(buckets *sync.Map) ([]*dto.BucketSpan, []int64) {
 		} else {
 			// We have found a small gap (or no gap at all).
 			// Insert empty buckets as needed.
-			for j := int32(0); j < iDelta; j++ {
+			for range iDelta {
 				appendDelta(0)
 			}
 		}
@@ -1570,7 +1570,7 @@ func addAndReset(hotBuckets *sync.Map, bucketNumber *uint32) func(k, v any) bool
 }
 
 func deleteSyncMap(m *sync.Map) {
-	m.Range(func(k, v any) bool {
+	m.Range(func(k, _ any) bool {
 		m.Delete(k)
 		return true
 	})
@@ -1578,7 +1578,7 @@ func deleteSyncMap(m *sync.Map) {
 
 func findSmallestKey(m *sync.Map) int {
 	result := math.MaxInt32
-	m.Range(func(k, v any) bool {
+	m.Range(func(k, _ any) bool {
 		key := k.(int)
 		if key < result {
 			result = key
@@ -2050,7 +2050,7 @@ func makeBucketsFromMap(buckets map[int]int64) ([]*dto.BucketSpan, []int64) {
 		} else {
 			// We have found a small gap (or no gap at all).
 			// Insert empty buckets as needed.
-			for j := int32(0); j < iDelta; j++ {
+			for range iDelta {
 				appendDelta(0)
 			}
 		}

@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -296,6 +297,7 @@ func (r *Registry) Register(c Collector) error {
 	defer func() {
 		// Drain channel in case of premature return to not leak a goroutine.
 		for range descChan {
+			continue
 		}
 		r.mtx.Unlock()
 	}()
@@ -369,9 +371,7 @@ func (r *Registry) Register(c Collector) error {
 	for hash := range newDescIDs {
 		r.descIDs[hash] = struct{}{}
 	}
-	for name, dimHash := range newDimHashesByName {
-		r.dimHashesByName[name] = dimHash
-	}
+	maps.Copy(r.dimHashesByName, newDimHashesByName)
 	return nil
 }
 
@@ -476,7 +476,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		for {
 			select {
 			case collector := <-checkedCollectors:
-				safeErrs.Append((safeCollect(collector, checkedMetricChan)))
+				safeErrs.Append(safeCollect(collector, checkedMetricChan))
 			case collector := <-uncheckedCollectors:
 				safeErrs.Append(safeCollect(collector, uncheckedMetricChan))
 			default:
@@ -502,10 +502,12 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	defer func() {
 		if checkedMetricChan != nil {
 			for range checkedMetricChan {
+				continue
 			}
 		}
 		if uncheckedMetricChan != nil {
 			for range uncheckedMetricChan {
+				continue
 			}
 		}
 	}()
@@ -956,7 +958,8 @@ func checkMetricConsistency(
 		if !utf8.ValidString(labelPair.GetValue()) {
 			return fmt.Errorf(
 				"collected metric %q { %s} has a label named %q whose value is not utf8: %#v",
-				name, dtoMetric, labelName, labelPair.GetValue())
+				name, dtoMetric, labelName, labelPair.GetValue(),
+			)
 		}
 		previousLabelName = labelName
 	}
@@ -981,7 +984,7 @@ func checkMetricConsistency(
 		h.Write(separatorByteSlice)
 	}
 	if dtoMetric.TimestampMs != nil {
-		h.WriteString(strconv.FormatInt(*(dtoMetric.TimestampMs), 10))
+		h.WriteString(strconv.FormatInt(*dtoMetric.TimestampMs, 10))
 		h.Write(separatorByteSlice)
 	}
 	hSum := h.Sum64()

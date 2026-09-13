@@ -41,8 +41,8 @@ func TestDeleteWithCollisions(t *testing.T) {
 		},
 		[]string{"l1", "l2"},
 	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
+	vec.hashAddByte = func(_ uint64, _ byte) uint64 { return 1 }
 	testDelete(t, vec)
 }
 
@@ -109,8 +109,8 @@ func TestDeleteLabelValuesWithCollisions(t *testing.T) {
 		},
 		[]string{"l1", "l2"},
 	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
+	vec.hashAddByte = func(_ uint64, _ byte) uint64 { return 1 }
 	testDeleteLabelValues(t, vec)
 }
 
@@ -279,8 +279,8 @@ func TestMetricVecWithCollisions(t *testing.T) {
 		},
 		[]string{"l1", "l2"},
 	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
+	vec.hashAddByte = func(_ uint64, _ byte) uint64 { return 1 }
 	testMetricVec(t, vec)
 }
 
@@ -291,7 +291,7 @@ func testMetricVec(t *testing.T, vec *GaugeVec) {
 	// Keep track of metrics.
 	expected := map[[2]string]int{}
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[pair]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
@@ -363,7 +363,7 @@ func testConstrainedMetricVec(t *testing.T, vec *GaugeVec, constrain func(string
 	// Keep track of metrics.
 	expected := map[[2]string]int{}
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		pair[0], pair[1] = strconv.Itoa(i%4), strconv.Itoa(i%5) // Varying combinations multiples.
 		expected[[2]string{pair[0], constrain(pair[1])}]++
 		vec.WithLabelValues(pair[0], pair[1]).Inc()
@@ -465,8 +465,8 @@ func TestCurryVecWithCollisions(t *testing.T) {
 		},
 		[]string{"one", "two", "three"},
 	)
-	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
-	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
+	vec.hashAddByte = func(_ uint64, _ byte) uint64 { return 1 }
 	testCurryVec(t, vec)
 }
 
@@ -487,7 +487,7 @@ func TestCurryVecWithConstraints(t *testing.T) {
 		testCurryVec(t, vec)
 	})
 	t.Run("constrainedLabels reducing cardinality", func(t *testing.T) {
-		constraint := func(s string) string { return "x" }
+		constraint := func(_ string) string { return "x" }
 		vec := V2.NewCounterVec(CounterVecOpts{
 			CounterOpts{
 				Name: "test",
@@ -942,12 +942,12 @@ func BenchmarkMetricVecWithLabelValues10Keys1000ValueCardinality(b *testing.B) {
 func benchmarkMetricVecWithLabelValuesCardinality(b *testing.B, nkeys, nvalues int) {
 	labels := map[string][]string{}
 
-	for i := 0; i < nkeys; i++ {
+	for i := range nkeys {
 		var (
 			k  = fmt.Sprintf("key-%v", i)
 			vs = make([]string, 0, nvalues)
 		)
-		for j := 0; j < nvalues; j++ {
+		for j := range nvalues {
 			vs = append(vs, fmt.Sprintf("value-%v", j))
 		}
 		labels[k] = vs

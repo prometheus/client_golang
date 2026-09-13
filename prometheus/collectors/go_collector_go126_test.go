@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build go1.26 && !go1.27
-// +build go1.26,!go1.27
 
 package collectors
 

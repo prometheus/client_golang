@@ -70,9 +70,8 @@ const (
 func defaultCompressionFormats() []Compression {
 	if internal.NewZstdWriter != nil {
 		return []Compression{Identity, Gzip, Zstd}
-	} else {
-		return []Compression{Identity, Gzip}
 	}
+	return []Compression{Identity, Gzip}
 }
 
 var gzipPool = sync.Pool{

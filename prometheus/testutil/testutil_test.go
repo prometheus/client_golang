@@ -337,7 +337,7 @@ func TestScrapeAndCompare(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, expected)
 	}))
 	defer ts.Close()
@@ -362,7 +362,7 @@ func TestScrapeAndCompareWithMultipleExpected(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, expected)
 	}))
 	defer ts.Close()
@@ -392,7 +392,7 @@ func TestScrapeAndCompareBadStatusCode(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 		fmt.Fprintln(w, expected)
 	}))

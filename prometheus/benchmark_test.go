@@ -119,14 +119,12 @@ func BenchmarkCounterWithLabelValuesConcurrent(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	wg := sync.WaitGroup{}
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
+	for range 10 {
+		wg.Go(func() {
 			for j := 0; j < b.N/10; j++ {
 				m.WithLabelValues("eins", "zwei", "drei").Inc()
 			}
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 }

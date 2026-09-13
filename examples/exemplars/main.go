@@ -63,7 +63,8 @@ func main() {
 			registry,
 			promhttp.HandlerOpts{
 				EnableOpenMetrics: true,
-			}),
+			},
+		),
 	)
 	// To test: curl -H 'Accept: application/openmetrics-text' localhost:8080/metrics
 	log.Fatalln(http.ListenAndServe(":8080", nil))

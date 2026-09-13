@@ -40,7 +40,7 @@ var apiRequestDuration = prometheus.NewHistogramVec(
 	[]string{"status_class"},
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func handler(_ http.ResponseWriter, _ *http.Request) {
 	status := http.StatusOK
 	// The ObserverFunc gets called by the deferred ObserveDuration and
 	// decides which Histogram's Observe method is called.

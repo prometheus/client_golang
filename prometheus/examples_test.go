@@ -145,7 +145,7 @@ func ExampleCounterVec() {
 	// might be good to retrieve the metric only once and keep a handle to
 	// it. But beware of deletion of that metric, see below!
 	m := httpReqs.WithLabelValues("200", "GET")
-	for i := 0; i < 1000000; i++ {
+	for range 1000000 {
 		m.Inc()
 	}
 	// Delete a metric from the vector. If you have previously kept a handle
@@ -328,7 +328,7 @@ func ExampleSummary() {
 	})
 
 	// Simulate some observations.
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		temps.Observe(30 + math.Floor(120*math.Sin(float64(i)*0.1))/10)
 	}
 
@@ -355,7 +355,7 @@ func ExampleSummaryVec() {
 	)
 
 	// Simulate some observations.
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		temps.WithLabelValues("litoria-caerulea").Observe(30 + math.Floor(120*math.Sin(float64(i)*0.1))/10)
 		temps.WithLabelValues("lithobates-catesbeianus").Observe(32 + math.Floor(100*math.Cos(float64(i)*0.11))/10)
 	}
@@ -446,7 +446,7 @@ func ExampleHistogram() {
 	})
 
 	// Simulate some observations.
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		temps.Observe(30 + math.Floor(120*math.Sin(float64(i)*0.1))/10)
 	}
 
