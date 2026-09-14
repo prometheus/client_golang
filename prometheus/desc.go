@@ -49,6 +49,11 @@ type Desc struct {
 	help string
 	// unit provides the unit of this metric.
 	unit string
+	// metricType is the type of the metric this Desc belongs to. It is
+	// MetricType_UNTYPED unless a typed constructor of this package set it,
+	// as a Desc created via NewDesc does not carry a type: the type of a
+	// const metric is provided per sample, e.g. via MustNewConstMetric.
+	metricType dto.MetricType
 	// constLabelPairs contains precalculated DTO label pairs based on
 	// the constant labels.
 	constLabelPairs []*dto.LabelPair
@@ -75,6 +80,15 @@ type DescOpt func(*Desc)
 func WithUnit(unit string) DescOpt {
 	return func(d *Desc) {
 		d.unit = unit
+	}
+}
+
+// withType sets the metric type for a Desc. It is unexported on purpose: only
+// the typed constructors of this package know the type at Desc construction
+// time.
+func withType(t dto.MetricType) DescOpt {
+	return func(d *Desc) {
+		d.metricType = t
 	}
 }
 
@@ -106,6 +120,7 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		fqName:         fqName,
 		help:           help,
 		variableLabels: variableLabels.compile(),
+		metricType:     dto.MetricType_UNTYPED,
 	}
 
 	for _, opt := range opts {
@@ -195,8 +210,59 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 // a Collector to signal inability to describe itself.
 func NewInvalidDesc(err error) *Desc {
 	return &Desc{
-		err: err,
+		err:        err,
+		metricType: dto.MetricType_UNTYPED,
 	}
+}
+
+// DescInfo is a read-only view of the meta-data a Desc declares. It is meant
+// for introspection, e.g. to check that a Collector describes the metrics a
+// schema says it should. Info allocates on every call and is not meant for
+// hot paths.
+type DescInfo struct {
+	// FQName is the fully-qualified name of the metric.
+	FQName string
+	// Help is the help string of the metric.
+	Help string
+	// Unit is the unit of the metric, empty if none was set.
+	Unit string
+	// Type is the type of the metric. It is MetricType_UNTYPED for a Desc
+	// created via NewDesc, which does not carry a type.
+	Type dto.MetricType
+	// VariableLabels are the names of the labels whose values vary per
+	// metric, in the order they were provided at construction. It is nil if
+	// the metric has no variable labels.
+	VariableLabels []string
+	// ConstLabels are the labels fixed at construction time. It is nil if
+	// the metric has no const labels.
+	ConstLabels Labels
+	// Err is the error that occurred during construction, if any. The
+	// remaining fields may be zero if Err is non-nil.
+	Err error
+}
+
+// Info returns a read-only view of the meta-data of the Desc. In contrast to
+// String, the returned value is structured and therefore suitable for
+// programmatic inspection.
+func (d *Desc) Info() DescInfo {
+	info := DescInfo{
+		FQName: d.fqName,
+		Help:   d.help,
+		Unit:   d.unit,
+		Type:   d.metricType,
+		Err:    d.err,
+	}
+	if d.variableLabels != nil && len(d.variableLabels.names) > 0 {
+		info.VariableLabels = make([]string, len(d.variableLabels.names))
+		copy(info.VariableLabels, d.variableLabels.names)
+	}
+	if len(d.constLabelPairs) > 0 {
+		info.ConstLabels = make(Labels, len(d.constLabelPairs))
+		for _, lp := range d.constLabelPairs {
+			info.ConstLabels[lp.GetName()] = lp.GetValue()
+		}
+	}
+	return info
 }
 
 // Err returns an error that occurred during construction, if any.

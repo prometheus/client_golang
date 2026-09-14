@@ -1,5 +1,8 @@
 ## Unreleased
 
+* [FEATURE] prometheus: Add Desc.Info to inspect the meta-data a Desc declares without parsing Desc.String. #2094
+* [FEATURE] prometheus: Add Registry.DescribeAll to collect the Desc of every registered Collector into a slice. #2094
+* [FEATURE] testutil: Add CollectAndDescribe to inspect the metrics a Collector declares, including those that have not produced a sample. #2094
 * [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2091
 
 ## 1.24.1 / 2026-07-23
