@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -160,8 +161,23 @@ type wrappingCollector struct {
 func (c *wrappingCollector) Collect(ch chan<- Metric) {
 	wrappedCh := make(chan Metric)
 	go func() {
+		defer close(wrappedCh)
+		defer func() {
+			// The wrapped Collect runs in its own goroutine, so a panic
+			// here cannot be recovered by safeCollect in the Registry (a
+			// recover only catches panics from the same goroutine). Recover
+			// it locally and surface it as an invalid metric, mirroring how
+			// safeCollect handles panics from unwrapped collectors. Without
+			// this, a single misbehaving collector wrapped via
+			// WrapRegistererWith crashes the whole process during Gather.
+			if r := recover(); r != nil {
+				buf := make([]byte, 64<<10) // 64 KB
+				n := runtime.Stack(buf, false)
+				err := fmt.Errorf("prometheus collector panic recovered: type=%T: error=%v\nstack trace=%s", c.wrappedCollector, r, buf[:n])
+				wrappedCh <- NewInvalidMetric(NewInvalidDesc(err), err)
+			}
+		}()
 		c.wrappedCollector.Collect(wrappedCh)
-		close(wrappedCh)
 	}()
 	for m := range wrappedCh {
 		ch <- &wrappingMetric{
@@ -175,8 +191,21 @@ func (c *wrappingCollector) Collect(ch chan<- Metric) {
 func (c *wrappingCollector) Describe(ch chan<- *Desc) {
 	wrappedCh := make(chan *Desc)
 	go func() {
+		defer close(wrappedCh)
+		defer func() {
+			// As in Collect, the wrapped Describe runs in its own goroutine,
+			// so a panic here would crash the process and cannot be recovered
+			// by the caller. Recover it locally and surface it as an invalid
+			// Desc carrying the error, consistent with how invalid
+			// descriptors are reported elsewhere.
+			if r := recover(); r != nil {
+				buf := make([]byte, 64<<10) // 64 KB
+				n := runtime.Stack(buf, false)
+				err := fmt.Errorf("prometheus collector panic recovered: type=%T: error=%v\nstack trace=%s", c.wrappedCollector, r, buf[:n])
+				wrappedCh <- NewInvalidDesc(err)
+			}
+		}()
 		c.wrappedCollector.Describe(wrappedCh)
-		close(wrappedCh)
 	}()
 	for desc := range wrappedCh {
 		ch <- wrapDesc(desc, c.prefix, c.labels)
