@@ -101,7 +101,9 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		h := MustNewConstNativeHistogram(
 			V2.NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", UnconstrainedLabels(nil), nil, WithUnit("seconds")),
 			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
-				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
+				2009, 11, 17, 20, 34, 58, 651387237, time.UTC,
+			),
+		)
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
 			{Value: proto.Float64(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
 		}}
@@ -124,7 +126,9 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		h := MustNewConstNativeHistogram(
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
 			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
-				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
+				2009, 11, 17, 20, 34, 58, 651387237, time.UTC,
+			),
+		)
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
 			{Value: proto.Float64(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
 			{Value: proto.Float64(1000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 59, 3243244, time.UTC))},
@@ -148,7 +152,9 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 		h := MustNewConstNativeHistogram(
 			NewDesc("http_request_duration_seconds", "A histogram of the HTTP request durations.", nil, nil),
 			10, 12.1, map[int]int64{1: 7, 2: 1, 3: 2}, map[int]int64{}, 0, 2, 0.2, time.Date(
-				2009, 11, 17, 20, 34, 58, 651387237, time.UTC))
+				2009, 11, 17, 20, 34, 58, 651387237, time.UTC,
+			),
+		)
 		m := MustNewMetricWithExemplars(h, Exemplar{
 			Value: 1000.0,
 		})

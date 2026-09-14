@@ -11,9 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.17
-// +build go1.17
-
 package prometheus
 
 import (
@@ -179,7 +176,7 @@ func TestBatchHistogram(t *testing.T) {
 	// hist.
 	countsCopy := make([]uint64, len(hist.counts))
 	copy(countsCopy, hist.counts)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		sink = make([]byte, 128)
 	}
 
@@ -245,13 +242,11 @@ func collectGoMetrics(t *testing.T, opts internal.GoCollectorOptions) []Metric {
 	ch := make(chan Metric)
 	var wg sync.WaitGroup
 	var metrics []Metric
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for metric := range ch {
 			metrics = append(metrics, metric)
 		}
-	}()
+	})
 	c.Collect(ch)
 	close(ch)
 
@@ -397,20 +392,21 @@ func TestExpectedRuntimeMetrics(t *testing.T) {
 	}
 }
 
-func TestGoCollectorConcurrency(t *testing.T) {
+func TestGoCollectorConcurrency(_ *testing.T) {
 	c := NewGoCollector().(*goCollector)
 
 	// Set up multiple goroutines to Collect from the
 	// same GoCollector. In race mode with GOMAXPROCS > 1,
 	// this test should fail often if Collect is not
 	// concurrent-safe.
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		go func() {
 			ch := make(chan Metric)
 			go func() {
 				// Drain all metrics received until the
 				// channel is closed.
 				for range ch {
+					continue
 				}
 			}()
 			c.Collect(ch)

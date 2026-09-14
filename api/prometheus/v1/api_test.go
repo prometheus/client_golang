@@ -228,7 +228,7 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doTSDBBlocks := func(opts ...Option) func() (any, Warnings, Infos, error) {
+	doTSDBBlocks := func(_ ...Option) func() (any, Warnings, Infos, error) {
 		return func() (any, Warnings, Infos, error) {
 			v, err := promAPI.TSDBBlocks(context.Background())
 			return v, nil, nil, err
@@ -1405,7 +1405,7 @@ type apiClientTest struct {
 	expectedInfos    Infos
 }
 
-func (c *testClient) URL(ep string, args map[string]string) *url.URL {
+func (c *testClient) URL(_ string, _ map[string]string) *url.URL {
 	return nil
 }
 
@@ -1918,7 +1918,7 @@ type httpTestClient struct {
 	client http.Client
 }
 
-func (c *httpTestClient) URL(ep string, args map[string]string) *url.URL {
+func (c *httpTestClient) URL(_ string, _ map[string]string) *url.URL {
 	return nil
 }
 
@@ -2000,7 +2000,7 @@ func TestDoGetFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := &httpTestClient{client: *(server.Client())}
+	client := &httpTestClient{client: *server.Client()}
 	api := &apiClientImpl{
 		client: client,
 	}

@@ -164,6 +164,7 @@ func BenchmarkGoCollector(b *testing.B) {
 			// Drain all metrics received until the
 			// channel is closed.
 			for range ch {
+				continue
 			}
 		}()
 		c.Collect(ch)

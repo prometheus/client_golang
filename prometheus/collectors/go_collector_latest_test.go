@@ -11,9 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build go1.17
-// +build go1.17
-
 package collectors
 
 import (
@@ -283,7 +280,8 @@ func ExampleNewGoCollector_withAdvancedGoMetrics() {
 				},
 			),
 			WithoutGoCollectorRuntimeMetrics(regexp.MustCompile("^/gc/.*")),
-		))
+		),
+	)
 
 	http.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{}))
 	log.Fatal(http.ListenAndServe(":8080", nil))

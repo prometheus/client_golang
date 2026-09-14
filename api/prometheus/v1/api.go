@@ -74,7 +74,7 @@ func unmarshalSamplePairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 }
 
 func marshalSamplePairJSON(ptr unsafe.Pointer, stream *json.Stream) {
-	p := *((*model.SamplePair)(ptr))
+	p := *(*model.SamplePair)(ptr)
 	stream.WriteArrayStart()
 	marshalTimestamp(p.Timestamp, stream)
 	stream.WriteMore()
@@ -136,7 +136,7 @@ func unmarshalSampleHistogramPairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 }
 
 func marshalSampleHistogramPairJSON(ptr unsafe.Pointer, stream *json.Stream) {
-	p := *((*model.SampleHistogramPair)(ptr))
+	p := *(*model.SampleHistogramPair)(ptr)
 	stream.WriteArrayStart()
 	marshalTimestamp(p.Timestamp, stream)
 	stream.WriteMore()
@@ -174,7 +174,7 @@ func unmarshalSampleStreamJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 }
 
 func marshalSampleStreamJSON(ptr unsafe.Pointer, stream *json.Stream) {
-	ss := *((*model.SampleStream)(ptr))
+	ss := *(*model.SampleStream)(ptr)
 	stream.WriteObjectStart()
 	stream.WriteObjectField(`metric`)
 	m, err := json.ConfigCompatibleWithStandardLibrary.Marshal(ss.Metric)
@@ -354,7 +354,7 @@ func marshalHistogram(h model.SampleHistogram, stream *json.Stream) {
 	stream.WriteObjectEnd()
 }
 
-func marshalJSONIsEmpty(ptr unsafe.Pointer) bool {
+func marshalJSONIsEmpty(_ unsafe.Pointer) bool {
 	return false
 }
 

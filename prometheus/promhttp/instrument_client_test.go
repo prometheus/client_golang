@@ -184,7 +184,7 @@ func assetMetricAndExemplars(
 
 func TestClientMiddlewareAPI(t *testing.T) {
 	client, reg := makeInstrumentedClient()
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer backend.Close()
@@ -202,7 +202,7 @@ func TestClientMiddlewareAPI_WithExemplars(t *testing.T) {
 	exemplar := prometheus.Labels{"traceID": "example situation observed by this metric"}
 
 	client, reg := makeInstrumentedClient(WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }))
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer backend.Close()
@@ -218,7 +218,7 @@ func TestClientMiddlewareAPI_WithExemplars(t *testing.T) {
 
 func TestClientMiddlewareAPI_WithRequestContext(t *testing.T) {
 	client, reg := makeInstrumentedClient()
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer backend.Close()
@@ -270,7 +270,7 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	client, _ := makeInstrumentedClient()
 
 	// Slow testserver responding in 100ms.
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))

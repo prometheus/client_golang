@@ -115,7 +115,7 @@ func benchmarkSummaryObserve(w int, b *testing.B) {
 
 	s := NewSummary(SummaryOpts{})
 
-	for i := 0; i < w; i++ {
+	for range w {
 		go func() {
 			g.Wait()
 
@@ -159,11 +159,11 @@ func benchmarkSummaryWrite(w int, b *testing.B) {
 
 	s := NewSummary(SummaryOpts{})
 
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		s.Observe(float64(i))
 	}
 
-	for j := 0; j < w; j++ {
+	for range w {
 		outs := make([]dto.Metric, b.N)
 
 		go func(o []dto.Metric) {
@@ -223,9 +223,9 @@ func TestSummaryConcurrency(t *testing.T) {
 
 		allVars := make([]float64, total)
 		var sampleSum float64
-		for i := 0; i < concLevel; i++ {
+		for i := range concLevel {
 			vals := make([]float64, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				allVars[i*mutations+j] = v
@@ -313,10 +313,10 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 		allVars := make([][]float64, vecLength)
 		sampleSums := make([]float64, vecLength)
-		for i := 0; i < concLevel; i++ {
+		for range concLevel {
 			vals := make([]float64, mutations)
 			picks := make([]int, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				pick := rand.Intn(vecLength)
@@ -339,7 +339,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 		start.Done()
 		end.Wait()
 
-		for i := 0; i < vecLength; i++ {
+		for i := range vecLength {
 			m := &dto.Metric{}
 			s := sum.WithLabelValues(string('A' + rune(i)))
 			s.(Summary).Write(m)

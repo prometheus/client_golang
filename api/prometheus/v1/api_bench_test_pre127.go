@@ -19,10 +19,10 @@ import "errors"
 
 const supportsJSONv2 = false
 
-func jsonv2Marshal(v any) ([]byte, error) {
+func jsonv2Marshal(_ any) ([]byte, error) {
 	return nil, errors.New("unsupported")
 }
 
-func jsonv2Unmarshal(data []byte, v any) error {
+func jsonv2Unmarshal(_ []byte, _ any) error {
 	return errors.New("unsupported")
 }

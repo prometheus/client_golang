@@ -58,7 +58,7 @@ func TestPush(t *testing.T) {
 
 	// Fake a Pushgateway that always responds with 500.
 	pgwErr := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "fake error", http.StatusInternalServerError)
 		}),
 	)
