@@ -30,6 +30,9 @@ import (
 //
 // The other use-case is the specification of constant label pairs in Opts or to
 // create a Desc.
+//
+// Labels maps passed to MetricVec methods must not be mutated concurrently
+// with those calls.
 type Labels map[string]string
 
 // LabelConstraint normalizes label values.
