@@ -27,7 +27,7 @@ import (
 	"time"
 	"unsafe"
 
-	json "github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
 
@@ -35,12 +35,12 @@ import (
 )
 
 func init() {
-	json.RegisterTypeDecoderFunc("model.SamplePair", unmarshalSamplePairJSON)
-	json.RegisterTypeDecoderFunc("model.SampleHistogramPair", unmarshalSampleHistogramPairJSON)
-	json.RegisterTypeDecoderFunc("model.SampleStream", unmarshalSampleStreamJSON) // Only needed for benchmark.
+	jsoniter.RegisterTypeDecoderFunc("model.SamplePair", unmarshalSamplePairJSON)
+	jsoniter.RegisterTypeDecoderFunc("model.SampleHistogramPair", unmarshalSampleHistogramPairJSON)
+	jsoniter.RegisterTypeDecoderFunc("model.SampleStream", unmarshalSampleStreamJSON) // Only needed for benchmark.
 }
 
-func unmarshalSamplePairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
+func unmarshalSamplePairJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*model.SamplePair)(ptr)
 	if !iter.ReadArray() {
 		iter.ReportError("unmarshal model.SamplePair", "SamplePair must be [timestamp, value]")
@@ -69,7 +69,7 @@ func unmarshalSamplePairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 	}
 }
 
-func unmarshalSampleHistogramPairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
+func unmarshalSampleHistogramPairJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	p := (*model.SampleHistogramPair)(ptr)
 	if !iter.ReadArray() {
 		iter.ReportError("unmarshal model.SampleHistogramPair", "SampleHistogramPair must be [timestamp, {histogram}]")
@@ -122,13 +122,13 @@ func unmarshalSampleHistogramPairJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 	}
 }
 
-func unmarshalSampleStreamJSON(ptr unsafe.Pointer, iter *json.Iterator) {
+func unmarshalSampleStreamJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
 	ss := (*model.SampleStream)(ptr)
 	for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
 		switch key {
 		case "metric":
 			metricString := iter.ReadAny().ToString()
-			if err := json.UnmarshalFromString(metricString, &ss.Metric); err != nil {
+			if err := jsoniter.UnmarshalFromString(metricString, &ss.Metric); err != nil {
 				iter.ReportError("unmarshal model.SampleStream", err.Error())
 				return
 			}
@@ -151,7 +151,7 @@ func unmarshalSampleStreamJSON(ptr unsafe.Pointer, iter *json.Iterator) {
 	}
 }
 
-func unmarshalHistogramBucket(iter *json.Iterator) (*model.HistogramBucket, error) {
+func unmarshalHistogramBucket(iter *jsoniter.Iterator) (*model.HistogramBucket, error) {
 	b := model.HistogramBucket{}
 	if !iter.ReadArray() {
 		return nil, errors.New("HistogramBucket must be [boundaries, lower, upper, count]")
@@ -682,17 +682,17 @@ func (qr *queryResult) UnmarshalJSON(b []byte) error {
 	switch v.Type {
 	case model.ValScalar:
 		var sv model.Scalar
-		err = json.Unmarshal(v.Result, &sv)
+		err = jsoniter.Unmarshal(v.Result, &sv)
 		qr.v = &sv
 
 	case model.ValVector:
 		var vv model.Vector
-		err = json.Unmarshal(v.Result, &vv)
+		err = jsoniter.Unmarshal(v.Result, &vv)
 		qr.v = vv
 
 	case model.ValMatrix:
 		var mv model.Matrix
-		err = json.Unmarshal(v.Result, &mv)
+		err = jsoniter.Unmarshal(v.Result, &mv)
 		qr.v = mv
 
 	default:

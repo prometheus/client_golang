@@ -28,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	json "github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
 )
@@ -1767,7 +1767,7 @@ func TestSamplesJSONSerialization(t *testing.T) {
 			// can do a string compare, otherwise Nan values don't show equivalence
 			// properly.
 			var sp model.SamplePair
-			if err = json.Unmarshal(b, &sp); err != nil {
+			if err = jsoniter.Unmarshal(b, &sp); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1872,7 +1872,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 			// can do a string compare, otherwise NaN values don't show equivalence
 			// properly.
 			var sp model.SampleHistogramPair
-			if err = json.Unmarshal(b, &sp); err != nil {
+			if err = jsoniter.Unmarshal(b, &sp); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1918,7 +1918,7 @@ func TestSampleStreamJSONSerialization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := json.Marshal(test.stream)
+			b, err := jsoniter.Marshal(test.stream)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1927,7 +1927,7 @@ func TestSampleStreamJSONSerialization(t *testing.T) {
 			}
 
 			var stream model.SampleStream
-			if err = json.Unmarshal(b, &stream); err != nil {
+			if err = jsoniter.Unmarshal(b, &stream); err != nil {
 				t.Fatal(err)
 			}
 
