@@ -336,19 +336,16 @@ func BenchmarkAPIResponse(b *testing.B) {
 	}
 
 	for _, tc := range testcases {
-		data, err := json.Marshal(apiResponse{Status: "ok", Data: tc.data})
+		data, err := json.Marshal(apiResponse{Status: "ok", Data: json.RawMessage(tc.data)})
 		if err != nil {
 			b.Fatal(err)
 		}
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				r := apiResponse{}
 				r2 := tc.dest()
+				r := apiResponse{Data: r2}
 				if err := json.Unmarshal(data, &r); err != nil {
-					b.Fatal(err)
-				}
-				if err := jsoniter.Unmarshal(r.Data, r2); err != nil {
 					b.Fatal(err)
 				}
 			}

@@ -736,13 +736,8 @@ func (h *httpAPI) Alerts(ctx context.Context) (AlertsResult, error) {
 		return AlertsResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return AlertsResult{}, err
-	}
-
 	var res AlertsResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -754,13 +749,8 @@ func (h *httpAPI) AlertManagers(ctx context.Context) (AlertManagersResult, error
 		return AlertManagersResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return AlertManagersResult{}, err
-	}
-
 	var res AlertManagersResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -771,8 +761,7 @@ func (h *httpAPI) CleanTombstones(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	_, _, _, _, err = h.client.Do(ctx, req)
+	_, _, _, err = h.client.Do(ctx, req, nil)
 	return err
 }
 
@@ -784,13 +773,8 @@ func (h *httpAPI) Config(ctx context.Context) (ConfigResult, error) {
 		return ConfigResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return ConfigResult{}, err
-	}
-
 	var res ConfigResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -816,7 +800,7 @@ func (h *httpAPI) DeleteSeries(ctx context.Context, matches []string, startTime,
 		return err
 	}
 
-	_, _, _, _, err = h.client.Do(ctx, req)
+	_, _, _, err = h.client.Do(ctx, req, nil)
 	return err
 }
 
@@ -828,13 +812,8 @@ func (h *httpAPI) Flags(ctx context.Context) (FlagsResult, error) {
 		return FlagsResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return FlagsResult{}, err
-	}
-
 	var res FlagsResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -846,13 +825,8 @@ func (h *httpAPI) Buildinfo(ctx context.Context) (BuildinfoResult, error) {
 		return BuildinfoResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return BuildinfoResult{}, err
-	}
-
 	var res BuildinfoResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -864,13 +838,8 @@ func (h *httpAPI) Runtimeinfo(ctx context.Context) (RuntimeinfoResult, error) {
 		return RuntimeinfoResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return RuntimeinfoResult{}, err
-	}
-
 	var res RuntimeinfoResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -888,12 +857,8 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 		q.Add("match[]", m)
 	}
 
-	_, body, w, i, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return nil, w, i, err
-	}
 	var labelNames model.LabelNames
-	err = json.Unmarshal(body, &labelNames)
+	_, w, i, err := h.client.DoGetFallback(ctx, u, q, &labelNames)
 	return labelNames, w, i, err
 }
 
@@ -917,12 +882,8 @@ func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []strin
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	_, body, w, i, err := h.client.Do(ctx, req)
-	if err != nil {
-		return nil, w, i, err
-	}
 	var labelValues model.LabelValues
-	err = json.Unmarshal(body, &labelValues)
+	_, w, i, err := h.client.Do(ctx, req, &labelValues)
 	return labelValues, w, i, err
 }
 
@@ -1011,13 +972,9 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 		q.Set("time", formatTime(ts))
 	}
 
-	_, body, warnings, infos, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return nil, warnings, infos, err
-	}
-
 	var qres queryResult
-	return qres.v, warnings, infos, gojson.Unmarshal(body, &qres)
+	_, warnings, infos, err := h.client.DoGetFallback(ctx, u, q, &qres)
+	return qres.v, warnings, infos, err
 }
 
 func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, Infos, error) {
@@ -1029,13 +986,9 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 	q.Set("end", formatTime(r.End))
 	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
 
-	_, body, warnings, infos, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return nil, warnings, infos, err
-	}
-
 	var qres queryResult
-	return qres.v, warnings, infos, json.Unmarshal(body, &qres)
+	_, warnings, infos, err := h.client.DoGetFallback(ctx, u, q, &qres)
+	return qres.v, warnings, infos, err
 }
 
 func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time, opts ...Option) ([]model.LabelSet, Warnings, Infos, error) {
@@ -1053,13 +1006,9 @@ func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTi
 		q.Set("end", formatTime(endTime))
 	}
 
-	_, body, warnings, infos, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return nil, warnings, infos, err
-	}
-
 	var mset []model.LabelSet
-	return mset, warnings, infos, json.Unmarshal(body, &mset)
+	_, warnings, infos, err := h.client.DoGetFallback(ctx, u, q, &mset)
+	return mset, warnings, infos, err
 }
 
 func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, error) {
@@ -1075,13 +1024,8 @@ func (h *httpAPI) Snapshot(ctx context.Context, skipHead bool) (SnapshotResult, 
 		return SnapshotResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return SnapshotResult{}, err
-	}
-
 	var res SnapshotResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1100,13 +1044,8 @@ func (h *httpAPI) Rules(ctx context.Context, matches []string) (RulesResult, err
 		return RulesResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return RulesResult{}, err
-	}
-
 	var res RulesResult
-	err = gojson.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1118,13 +1057,8 @@ func (h *httpAPI) Targets(ctx context.Context) (TargetsResult, error) {
 		return TargetsResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return TargetsResult{}, err
-	}
-
 	var res TargetsResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1143,13 +1077,8 @@ func (h *httpAPI) TargetsMetadata(ctx context.Context, matchTarget, metric, limi
 		return nil, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
 	var res []MetricMetadata
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1167,13 +1096,8 @@ func (h *httpAPI) Metadata(ctx context.Context, metric, limit string) (map[strin
 		return nil, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
 	var res map[string][]Metadata
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1187,13 +1111,8 @@ func (h *httpAPI) TSDB(ctx context.Context, opts ...Option) (TSDBResult, error) 
 		return TSDBResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return TSDBResult{}, err
-	}
-
 	var res TSDBResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1205,13 +1124,8 @@ func (h *httpAPI) TSDBBlocks(ctx context.Context) (TSDBBlocksResult, error) {
 		return TSDBBlocksResult{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return TSDBBlocksResult{}, err
-	}
-
 	var res TSDBBlocksResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1223,13 +1137,8 @@ func (h *httpAPI) WalReplay(ctx context.Context) (WalReplayStatus, error) {
 		return WalReplayStatus{}, err
 	}
 
-	_, body, _, _, err := h.client.Do(ctx, req)
-	if err != nil {
-		return WalReplayStatus{}, err
-	}
-
 	var res WalReplayStatus
-	err = json.Unmarshal(body, &res)
+	_, _, _, err = h.client.Do(ctx, req, &res)
 	return res, err
 }
 
@@ -1245,13 +1154,8 @@ func (h *httpAPI) QueryExemplars(ctx context.Context, query string, startTime, e
 		q.Set("end", formatTime(endTime))
 	}
 
-	_, body, _, _, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return nil, err
-	}
-
 	var res []ExemplarQueryResult
-	err = json.Unmarshal(body, &res)
+	_, _, _, err := h.client.DoGetFallback(ctx, u, q, &res)
 	return res, err
 }
 
@@ -1260,12 +1164,9 @@ func (h *httpAPI) FormatQuery(ctx context.Context, query string) (string, error)
 	q := u.Query()
 	q.Set("query", query)
 
-	_, body, _, _, err := h.client.DoGetFallback(ctx, u, q)
-	if err != nil {
-		return "", err
-	}
-
-	return string(body), nil
+	into := gojson.RawMessage{}
+	_, _, _, err := h.client.DoGetFallback(ctx, u, q, &into)
+	return string(into), err
 }
 
 // Warnings is an array of non-critical errors.
@@ -1278,8 +1179,8 @@ type Infos []string
 // Successful also includes responses that errored at the API level.
 type apiClient interface {
 	URL(ep string, args map[string]string) *url.URL
-	Do(context.Context, *http.Request) (*http.Response, []byte, Warnings, Infos, error)
-	DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error)
+	Do(ctx context.Context, req *http.Request, into any) (*http.Response, Warnings, Infos, error)
+	DoGetFallback(ctx context.Context, u *url.URL, args url.Values, into any) (*http.Response, Warnings, Infos, error)
 }
 
 type apiClientImpl struct {
@@ -1287,12 +1188,12 @@ type apiClientImpl struct {
 }
 
 type apiResponse struct {
-	Status    string            `json:"status"`
-	Data      gojson.RawMessage `json:"data"`
-	ErrorType ErrorType         `json:"errorType"`
-	Error     string            `json:"error"`
-	Warnings  []string          `json:"warnings,omitempty"`
-	Infos     []string          `json:"infos,omitempty"`
+	Status    string    `json:"status"`
+	Data      any       `json:"data"`
+	ErrorType ErrorType `json:"errorType"`
+	Error     string    `json:"error"`
+	Warnings  []string  `json:"warnings,omitempty"`
+	Infos     []string  `json:"infos,omitempty"`
 }
 
 func apiError(code int) bool {
@@ -1314,10 +1215,10 @@ func (h *apiClientImpl) URL(ep string, args map[string]string) *url.URL {
 	return h.client.URL(ep, args)
 }
 
-func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
+func (h *apiClientImpl) Do(ctx context.Context, req *http.Request, into any) (*http.Response, Warnings, Infos, error) {
 	resp, body, err := h.client.Do(ctx, req)
 	if err != nil {
-		return resp, body, nil, nil, err
+		return resp, nil, nil, err
 	}
 
 	code := resp.StatusCode
@@ -1327,7 +1228,7 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		// Generic HTTP error.
 		if !apiError(code) {
 			errorType, errorMsg := errorTypeAndMsgFor(resp)
-			return resp, body, nil, nil, &Error{
+			return resp, nil, nil, &Error{
 				Type:   errorType,
 				Msg:    errorMsg,
 				Detail: string(body),
@@ -1335,18 +1236,18 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		}
 
 		// API response error.
-		// Decode to get warnings, info, errorType/error.
-		var result apiResponse
+		// Decode to get warnings, info, errorType/error, ignoring `into` object.
+		result := apiResponse{Data: &gojson.RawMessage{}}
 		if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
 			errorType, errorMsg := errorTypeAndMsgFor(resp)
-			return resp, body, nil, nil, &Error{
+			return resp, nil, nil, &Error{
 				Type:   errorType,
 				Msg:    errorMsg,
 				Detail: string(body),
 			}
 		}
 		if result.Status == "success" {
-			return resp, []byte(result.Data), result.Warnings, result.Infos, &Error{
+			return resp, result.Warnings, result.Infos, &Error{
 				Type: ErrBadResponse,
 				Msg:  "inconsistent body for response code",
 			}
@@ -1358,21 +1259,33 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		if result.Error == "" {
 			result.Error = fmt.Sprintf("client error: %d", code)
 		}
-		return resp, []byte(result.Data), result.Warnings, result.Infos, &Error{
+		return resp, result.Warnings, result.Infos, &Error{
 			Type: result.ErrorType,
 			Msg:  result.Error,
 		}
 	}
 
-	// If the response indicated no content, return early.
-	if http.StatusNoContent == code {
-		return resp, nil, nil, nil, nil
+	// If no into type was provided, tolerate arbitrary data.
+	if into == nil {
+		into = &gojson.RawMessage{}
+	}
+	_, untypedInto := into.(*gojson.RawMessage)
+
+	// If the response indicated no content, and no specific typed data was expected, return early.
+	if http.StatusNoContent == code && untypedInto {
+		return resp, nil, nil, nil
 	}
 
-	// Decode into the envelope.
-	var result apiResponse
+	// Decode into the envelope into the expected object.
+	result := apiResponse{Data: into}
 	if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
-		return resp, body, nil, nil, &Error{
+		// in case the decode error came from decoding into a typed `into` object,
+		// re-attempt to capture any warnings and infos in the response
+		if !untypedInto {
+			result = apiResponse{Data: &gojson.RawMessage{}}
+			_ = gojson.Unmarshal(body, &result)
+		}
+		return resp, result.Warnings, result.Infos, &Error{
 			Type: ErrBadResponse,
 			Msg:  jsonErr.Error(),
 		}
@@ -1386,16 +1299,16 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		}
 	}
 
-	return resp, []byte(result.Data), result.Warnings, result.Infos, err
+	return resp, result.Warnings, result.Infos, err
 }
 
 // DoGetFallback will attempt to do the request as-is, and on a 403, 405, or
 // 501 it will fallback to a GET request.
-func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error) {
+func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.Values, into any) (*http.Response, Warnings, Infos, error) {
 	encodedArgs := args.Encode()
 	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Following comment originates from https://pkg.go.dev/net/http#Transport
@@ -1407,16 +1320,16 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	// the header is not sent on the wire.
 	req.Header["Idempotency-Key"] = nil
 
-	resp, body, warnings, infos, err := h.Do(ctx, req)
+	resp, warnings, infos, err := h.Do(ctx, req, into)
 	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
 		u.RawQuery = encodedArgs
 		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
-			return nil, nil, warnings, infos, err
+			return nil, warnings, infos, err
 		}
-		return h.Do(ctx, req)
+		return h.Do(ctx, req, into)
 	}
-	return resp, body, warnings, infos, err
+	return resp, warnings, infos, err
 }
 
 func formatTime(t time.Time) string {

@@ -64,7 +64,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request, into any) (*http.Response, Warnings, Infos, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -74,7 +74,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		c.Errorf("unexpected request method: want %s, got %s", test.reqMethod, req.Method)
 	}
 
-	b, err := json.Marshal(test.inRes)
+	b, err := gojson.Marshal(test.inRes)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -88,26 +88,36 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inWarnings, test.inInfos, test.inErr
-}
-
-func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error) {
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
-	if err != nil {
-		return nil, nil, nil, nil, err
+	if test.inErr == nil {
+		// in non-error cases, unmarshal into the target object
+		if into == nil {
+			into = &gojson.RawMessage{}
+		}
+		if err := gojson.Unmarshal(b, into); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
-	resp, body, w, i, err := c.Do(ctx, req)
+	return resp, test.inWarnings, test.inInfos, test.inErr
+}
+
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values, into any) (*http.Response, Warnings, Infos, error) {
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	resp, w, i, err := c.Do(ctx, req, into)
 	// Match GET fallback implementation.
 	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
 		req, err = http.NewRequest(http.MethodGet, u.String(), strings.NewReader(args.Encode()))
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return nil, nil, nil, err
 		}
-		return c.Do(ctx, req)
+		return c.Do(ctx, req, into)
 	}
 
-	return resp, body, w, i, err
+	return resp, w, i, err
 }
 
 func TestAPIs(t *testing.T) {
@@ -1619,7 +1629,9 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
-			_, body, warnings, infos, err := client.Do(context.Background(), tc.req)
+			into := gojson.RawMessage{}
+			_, warnings, infos, err := client.Do(context.Background(), tc.req, &into)
+			body := []byte(into)
 
 			if test.expectedWarnings != nil {
 				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
@@ -1977,7 +1989,7 @@ func TestDoGetFallback(t *testing.T) {
 		})
 
 		apiResp := &apiResponse{
-			Data: testResp,
+			Data: gojson.RawMessage(testResp),
 		}
 
 		body, _ := gojson.Marshal(apiResp)
@@ -2018,16 +2030,13 @@ func TestDoGetFallback(t *testing.T) {
 	}
 
 	// Do a post, and ensure that the post succeeds.
-	_, b, _, _, err := api.DoGetFallback(context.TODO(), u, v)
+	resp := &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
-	resp := &testResponse{}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
-	}
 	if resp.Method != http.MethodPost {
-		t.Fatalf("Mismatch method")
+		t.Fatalf("Mismatch method: %#v", resp)
 	}
 	if resp.Values != v.Encode() {
 		t.Fatalf("Mismatch in values")
@@ -2035,12 +2044,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 403.
 	u.Path = "/blockPost403"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
@@ -2051,12 +2058,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 405.
 	u.Path = "/blockPost405"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
@@ -2067,12 +2072,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 501.
 	u.Path = "/blockPost501"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
