@@ -96,7 +96,18 @@ func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	return c.Do(ctx, req)
+
+	resp, body, w, i, err := c.Do(ctx, req)
+	// Match GET fallback implementation.
+	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
+		req, err = http.NewRequest(http.MethodGet, u.String(), strings.NewReader(args.Encode()))
+		if err != nil {
+			return nil, nil, nil, nil, err
+		}
+		return c.Do(ctx, req)
+	}
+
+	return resp, body, w, i, err
 }
 
 func TestAPIs(t *testing.T) {

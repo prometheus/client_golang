@@ -1322,34 +1322,62 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 
 	code := resp.StatusCode
 
-	if code/100 != 2 && !apiError(code) {
-		errorType, errorMsg := errorTypeAndMsgFor(resp)
-		return resp, body, nil, nil, &Error{
-			Type:   errorType,
-			Msg:    errorMsg,
-			Detail: string(body),
+	// Error response code, always return an error.
+	if code/100 != 2 {
+		// Generic HTTP error.
+		if !apiError(code) {
+			errorType, errorMsg := errorTypeAndMsgFor(resp)
+			return resp, body, nil, nil, &Error{
+				Type:   errorType,
+				Msg:    errorMsg,
+				Detail: string(body),
+			}
 		}
-	}
 
-	var result apiResponse
-
-	if http.StatusNoContent != code {
+		// API response error.
+		// Decode to get warnings, info, errorType/error.
+		var result apiResponse
 		if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
 			return resp, body, nil, nil, &Error{
 				Type: ErrBadResponse,
 				Msg:  jsonErr.Error(),
 			}
 		}
+		if result.Status == "success" {
+			return resp, []byte(result.Data), result.Warnings, result.Infos, &Error{
+				Type: ErrBadResponse,
+				Msg:  "inconsistent body for response code",
+			}
+		}
+		// Match errorTypeAndMsgFor() if errorType/error message is unset in response.
+		if result.ErrorType == "" {
+			result.ErrorType = ErrClient
+		}
+		if result.Error == "" {
+			result.Error = fmt.Sprintf("client error: %d", code)
+		}
+		return resp, []byte(result.Data), result.Warnings, result.Infos, &Error{
+			Type: result.ErrorType,
+			Msg:  result.Error,
+		}
 	}
 
-	if apiError(code) && result.Status == "success" {
-		err = &Error{
+	// If the response indicated no content, return early.
+	if http.StatusNoContent == code {
+		return resp, nil, nil, nil, nil
+	}
+
+	// Decode into the envelope.
+	var result apiResponse
+	if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
+		return resp, body, nil, nil, &Error{
 			Type: ErrBadResponse,
-			Msg:  "inconsistent body for response code",
+			Msg:  jsonErr.Error(),
 		}
 	}
 
 	if result.Status == "error" {
+		// Unexpected with a successful status code, but if the response body indicates an error, return an error.
 		err = &Error{
 			Type: result.ErrorType,
 			Msg:  result.Error,
