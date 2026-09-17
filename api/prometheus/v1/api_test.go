@@ -1515,8 +1515,9 @@ func TestAPIClientDo(t *testing.T) {
 			code:     http.StatusUnprocessableEntity,
 			response: "bad json",
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "invalid character 'b' looking for beginning of value",
+				Type:   ErrClient,
+				Msg:    "client error: 422",
+				Detail: "bad json",
 			},
 		},
 		{

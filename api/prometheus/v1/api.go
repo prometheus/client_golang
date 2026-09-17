@@ -1338,9 +1338,11 @@ func (h *apiClientImpl) Do(ctx context.Context, req *http.Request) (*http.Respon
 		// Decode to get warnings, info, errorType/error.
 		var result apiResponse
 		if jsonErr := gojson.Unmarshal(body, &result); jsonErr != nil {
+			errorType, errorMsg := errorTypeAndMsgFor(resp)
 			return resp, body, nil, nil, &Error{
-				Type: ErrBadResponse,
-				Msg:  jsonErr.Error(),
+				Type:   errorType,
+				Msg:    errorMsg,
+				Detail: string(body),
 			}
 		}
 		if result.Status == "success" {
