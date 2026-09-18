@@ -21,6 +21,4 @@ import (
 
 const supportsJSONv2 = true
 
-var jsonv2Marshal = jsonv2.Marshal
-
 var jsonv2Unmarshal = jsonv2.Unmarshal

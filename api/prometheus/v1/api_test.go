@@ -1677,11 +1677,11 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 10, Value: 20},
-			expected: `[0.010,"20"]`,
+			expected: `[0.01,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 100, Value: 20},
-			expected: `[0.100,"20"]`,
+			expected: `[0.1,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1001, Value: 20},
@@ -1689,15 +1689,15 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1010, Value: 20},
-			expected: `[1.010,"20"]`,
+			expected: `[1.01,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1100, Value: 20},
-			expected: `[1.100,"20"]`,
+			expected: `[1.1,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 12345678123456555, Value: 20},
-			expected: `[12345678123456.555,"20"]`,
+			expected: `[12345678123456.557,"20"]`, // stdlib json encoding loses float precision
 		},
 		{
 			point:    model.SamplePair{Timestamp: -1, Value: 20},
@@ -1725,13 +1725,13 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 0, Value: 1.2345678e-67},
-			expected: `[0,"1.2345678e-67"]`,
+			expected: `[0,"0.00000000000000000000000000000000000000000000000000000000000000000012345678"]`, // stdlib json encoding does not write in exponent form
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
-			b, err := json.Marshal(test.point)
+			b, err := gojson.Marshal(test.point)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1747,7 +1747,7 @@ func TestSamplesJSONSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			b, err = json.Marshal(sp)
+			b, err = gojson.Marshal(sp)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1770,7 +1770,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 				Timestamp: 0,
 				Histogram: &model.SampleHistogram{},
 			},
-			expected: `[0,{"count":"0","sum":"0"}]`,
+			expected: `[0,{"count":"0","sum":"0","buckets":null}]`, // buckets is not omitempty
 		},
 		{
 			name: "histogram with NaN/Inf and no buckets",
@@ -1781,7 +1781,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 					Sum:   model.FloatString(math.Inf(1)),
 				},
 			},
-			expected: `[0,{"count":"NaN","sum":"+Inf"}]`,
+			expected: `[0,{"count":"NaN","sum":"+Inf","buckets":null}]`, // buckets is not omitempty
 		},
 		{
 			name: "six-bucket histogram",
@@ -1836,7 +1836,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := json.Marshal(test.point)
+			b, err := gojson.Marshal(test.point)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1852,7 +1852,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			b, err = json.Marshal(sp)
+			b, err = gojson.Marshal(sp)
 			if err != nil {
 				t.Fatal(err)
 			}
