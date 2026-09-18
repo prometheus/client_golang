@@ -89,7 +89,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request, into any) (*htt
 	}
 
 	if test.inErr == nil {
-		// in non-error cases, unmarshal into the target object
+		// In non-error cases, unmarshal into the target object.
 		if into == nil {
 			into = &gojson.RawMessage{}
 		}
@@ -102,7 +102,8 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request, into any) (*htt
 }
 
 func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values, into any) (*http.Response, Warnings, Infos, error) {
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+	encodedArgs := args.Encode()
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -110,9 +111,10 @@ func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.
 	resp, w, i, err := c.Do(ctx, req, into)
 	// Match GET fallback implementation.
 	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
-		req, err = http.NewRequest(http.MethodGet, u.String(), strings.NewReader(args.Encode()))
+		u.RawQuery = encodedArgs
+		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, w, i, err
 		}
 		return c.Do(ctx, req, into)
 	}
