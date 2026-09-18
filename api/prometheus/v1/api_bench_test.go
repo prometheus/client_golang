@@ -194,10 +194,11 @@ func BenchmarkAPIResponse(b *testing.B) {
 	type apiResponseTest struct {
 		name string
 		data []byte
+		dest func() any
 	}
 
 	var testcases []apiResponseTest
-	addTestcase := func(name string, v any) {
+	addTestcase := func(name string, dest func() any, v any) {
 		data, err := json.Marshal(v)
 		if err != nil {
 			b.Fatal(err)
@@ -205,25 +206,26 @@ func BenchmarkAPIResponse(b *testing.B) {
 		testcases = append(testcases, apiResponseTest{
 			name: name,
 			data: data,
+			dest: dest,
 		})
 	}
 
-	addTestcase("AlertsResult", AlertsResult{Alerts: []Alert{{
+	addTestcase("AlertsResult", func() any { return &AlertsResult{} }, AlertsResult{Alerts: []Alert{{
 		ActiveAt:    time.Unix(1, 0),
 		Annotations: model.LabelSet{"key": "value"},
 		Labels:      model.LabelSet{"key": "value"},
 		State:       AlertStateFiring,
 		Value:       "somevalue",
 	}}})
-	addTestcase("AlertManagersResult", AlertManagersResult{
+	addTestcase("AlertManagersResult", func() any { return &AlertManagersResult{} }, AlertManagersResult{
 		Active:  []AlertManager{{URL: "https://example.com"}},
 		Dropped: []AlertManager{{URL: "https://example.com"}},
 	})
-	addTestcase("ConfigResult", ConfigResult{
+	addTestcase("ConfigResult", func() any { return &ConfigResult{} }, ConfigResult{
 		YAML: "somekey: somevalue",
 	})
-	addTestcase("FlagsResult", FlagsResult{"key": "value"})
-	addTestcase("BuildinfoResult", BuildinfoResult{
+	addTestcase("FlagsResult", func() any { return &FlagsResult{} }, FlagsResult{"key": "value"})
+	addTestcase("BuildinfoResult", func() any { return &BuildinfoResult{} }, BuildinfoResult{
 		Version:   "1.0.0",
 		Revision:  "v12",
 		Branch:    "dev",
@@ -231,28 +233,28 @@ func BenchmarkAPIResponse(b *testing.B) {
 		BuildDate: "2026-01-02",
 		GoVersion: "1.26.6",
 	})
-	addTestcase("RuntimeinfoResult", RuntimeinfoResult{})
-	addTestcase("model.LabelValues", model.LabelValues{"value1", "value2"})
-	addTestcase("SnapshotResult", SnapshotResult{Name: "name"})
-	addTestcase("TargetsResult", TargetsResult{
+	addTestcase("RuntimeinfoResult", func() any { return &RuntimeinfoResult{} }, RuntimeinfoResult{})
+	addTestcase("model.LabelValues", func() any { return &model.LabelValues{} }, model.LabelValues{"value1", "value2"})
+	addTestcase("SnapshotResult", func() any { return &SnapshotResult{} }, SnapshotResult{Name: "name"})
+	addTestcase("TargetsResult", func() any { return &TargetsResult{} }, TargetsResult{
 		Active:  []ActiveTarget{},
 		Dropped: []DroppedTarget{},
 	})
-	addTestcase("[]MetricMetadata", []MetricMetadata{{
+	addTestcase("[]MetricMetadata", func() any { return &[]MetricMetadata{} }, []MetricMetadata{{
 		Target: map[string]string{"key": "value"},
 		Metric: "mymetric",
 		Type:   MetricTypeGauge,
 		Help:   "help text",
 		Unit:   "unit",
 	}})
-	addTestcase("map[string][]Metadata", map[string][]Metadata{
+	addTestcase("map[string][]Metadata", func() any { return &map[string][]Metadata{} }, map[string][]Metadata{
 		"default": {{
 			Type: "default",
 			Help: "help text",
 			Unit: "unit",
 		}},
 	})
-	addTestcase("TSDBResult", TSDBResult{
+	addTestcase("TSDBResult", func() any { return &TSDBResult{} }, TSDBResult{
 		HeadStats: TSDBHeadStats{
 			NumSeries:     1000,
 			NumLabelPairs: 1000,
@@ -265,7 +267,7 @@ func BenchmarkAPIResponse(b *testing.B) {
 		MemoryInBytesByLabelName:    []Stat{{Name: "statname", Value: 12345}},
 		SeriesCountByLabelValuePair: []Stat{{Name: "statname", Value: 12345}},
 	})
-	addTestcase("TSDBBlocksResult", TSDBBlocksResult{
+	addTestcase("TSDBBlocksResult", func() any { return &TSDBBlocksResult{} }, TSDBBlocksResult{
 		Status: "ok",
 		Data: TSDBBlocksData{
 			Blocks: []TSDBBlocksBlockMetadata{{
@@ -285,8 +287,8 @@ func BenchmarkAPIResponse(b *testing.B) {
 			}},
 		},
 	})
-	addTestcase("WalReplayStatus", WalReplayStatus{Min: 1, Max: 1000, Current: 500})
-	addTestcase("[]ExemplarQueryResult", []ExemplarQueryResult{{
+	addTestcase("WalReplayStatus", func() any { return &WalReplayStatus{} }, WalReplayStatus{Min: 1, Max: 1000, Current: 500})
+	addTestcase("[]ExemplarQueryResult", func() any { return &[]ExemplarQueryResult{} }, []ExemplarQueryResult{{
 		SeriesLabels: model.LabelSet{"key": "value"},
 		Exemplars: []Exemplar{{
 			Labels:    model.LabelSet{"key": "value"},
@@ -295,21 +297,54 @@ func BenchmarkAPIResponse(b *testing.B) {
 		}},
 	}})
 
+	addTestcase(
+		"queryResult-scalar",
+		func() any { return &queryResult{} },
+		queryResult{
+			Type:   model.ValScalar,
+			Result: model.Scalar{Value: model.SampleValue(1234), Timestamp: model.Time(1234)},
+		},
+	)
+
+	addTestcase(
+		"queryResult-vector",
+		func() any { return &queryResult{} },
+		queryResult{
+			Type:   model.ValVector,
+			Result: model.Vector{genSample(), genSample(), genSample(), genSample(), genSample(), genSample(), genSample(), genSample(), genSample(), genSample()},
+		},
+	)
+
 	for _, size := range []int{10, 100, 1000} {
 		floats, histograms := generateData(size, size)
-		addTestcase(fmt.Sprintf("floats-%d", size), floats)
-		addTestcase(fmt.Sprintf("histograms-%d", size), histograms)
+		addTestcase(
+			fmt.Sprintf("queryResult-matrix-floats-%d", size),
+			func() any { return &queryResult{} },
+			queryResult{
+				Type:   model.ValMatrix,
+				Result: floats,
+			},
+		)
+		addTestcase(
+			fmt.Sprintf("queryResult-matrix-histograms-%d", size),
+			func() any { return &queryResult{} },
+			queryResult{
+				Type:   model.ValMatrix,
+				Result: histograms,
+			},
+		)
 	}
 
 	for _, tc := range testcases {
-		data, err := json.Marshal(apiResponse{Status: "ok", Data: tc.data})
+		data, err := json.Marshal(apiResponse{Status: "ok", Data: json.RawMessage(tc.data)})
 		if err != nil {
 			b.Fatal(err)
 		}
-		b.Log(string(data))
 		b.Run(tc.name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				var r apiResponse
+			b.ReportAllocs()
+			for b.Loop() {
+				r2 := tc.dest()
+				r := apiResponse{Data: r2}
 				if err := json.Unmarshal(data, &r); err != nil {
 					b.Fatal(err)
 				}
