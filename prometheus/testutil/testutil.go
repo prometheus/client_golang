@@ -266,6 +266,11 @@ func GatherAndFormat(g prometheus.Gatherer, format expfmt.FormatType, metricName
 			return nil, fmt.Errorf("encoding gathered metrics failed: %w", err)
 		}
 	}
+	if closer, ok := enc.(expfmt.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return nil, fmt.Errorf("finalizing gathered metrics failed: %w", err)
+		}
+	}
 
 	return gotFormatted.Bytes(), nil
 }
