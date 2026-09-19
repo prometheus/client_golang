@@ -113,76 +113,42 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 				b.Run("dp="+strconv.Itoa(datapointCount), func(b *testing.B) {
 					floats, histograms := generateData(timeseriesCount, datapointCount)
 
-					floatBytes, err := json.Marshal(floats)
+					floatBytes, err := json.Marshal(apiResponse{Data: queryResult{Type: model.ValMatrix, Result: floats}})
 					if err != nil {
 						b.Fatalf("Error marshaling: %v", err)
 					}
-					histogramBytes, err := json.Marshal(histograms)
+					histogramBytes, err := json.Marshal(apiResponse{Data: queryResult{Type: model.ValMatrix, Result: histograms}})
 					if err != nil {
 						b.Fatalf("Error marshaling: %v", err)
 					}
 
 					b.Run("type=floats", func(b *testing.B) {
-						b.Run("decoder=json", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := json.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+						b.ReportAllocs()
+						for b.Loop() {
+							data := jsoniter.RawMessage{}
+							r := apiResponse{Data: &data}
+							if err := jsoniter.Unmarshal(floatBytes, &r); err != nil {
+								b.Fatal(err)
 							}
-						})
-						if supportsJSONv2 {
-							b.Run("decoder=jsonv2", func(b *testing.B) {
-								b.ReportAllocs()
-								for b.Loop() {
-									var m model.Matrix
-									if err := jsonv2Unmarshal(floatBytes, &m); err != nil {
-										b.Fatal(err)
-									}
-								}
-							})
+							var m queryResult
+							if err := jsoniter.Unmarshal(data, &m); err != nil {
+								b.Fatal(err)
+							}
 						}
-						b.Run("decoder=jsoniter", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := jsoniter.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
-							}
-						})
 					})
 					b.Run("type=histograms", func(b *testing.B) {
-						b.Run("decoder=json", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := json.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+						b.ReportAllocs()
+						for b.Loop() {
+							data := jsoniter.RawMessage{}
+							r := apiResponse{Data: &data}
+							if err := jsoniter.Unmarshal(histogramBytes, &r); err != nil {
+								b.Fatal(err)
 							}
-						})
-						if supportsJSONv2 {
-							b.Run("decoder=jsonv2", func(b *testing.B) {
-								b.ReportAllocs()
-								for b.Loop() {
-									var m model.Matrix
-									if err := jsonv2Unmarshal(histogramBytes, &m); err != nil {
-										b.Fatal(err)
-									}
-								}
-							})
+							var m queryResult
+							if err := jsoniter.Unmarshal(data, &m); err != nil {
+								b.Fatal(err)
+							}
 						}
-						b.Run("decoder=jsoniter", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := jsoniter.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
-							}
-						})
 					})
 				})
 			}
