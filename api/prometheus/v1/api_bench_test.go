@@ -21,8 +21,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/prometheus/common/model"
 )
 
@@ -125,13 +123,9 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 					b.Run("type=floats", func(b *testing.B) {
 						b.ReportAllocs()
 						for b.Loop() {
-							data := jsoniter.RawMessage{}
-							r := apiResponse{Data: &data}
-							if err := jsoniter.Unmarshal(floatBytes, &r); err != nil {
-								b.Fatal(err)
-							}
 							var m queryResult
-							if err := jsoniter.Unmarshal(data, &m); err != nil {
+							r := apiResponse{Data: &m}
+							if err := json.Unmarshal(floatBytes, &r); err != nil {
 								b.Fatal(err)
 							}
 						}
@@ -139,13 +133,9 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 					b.Run("type=histograms", func(b *testing.B) {
 						b.ReportAllocs()
 						for b.Loop() {
-							data := jsoniter.RawMessage{}
-							r := apiResponse{Data: &data}
-							if err := jsoniter.Unmarshal(histogramBytes, &r); err != nil {
-								b.Fatal(err)
-							}
 							var m queryResult
-							if err := jsoniter.Unmarshal(data, &m); err != nil {
+							r := apiResponse{Data: &m}
+							if err := json.Unmarshal(histogramBytes, &r); err != nil {
 								b.Fatal(err)
 							}
 						}
