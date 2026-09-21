@@ -316,8 +316,10 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 
 		var contentType expfmt.Format
 		if opts.EnableOpenMetrics {
+			//nolint:staticcheck // Ignore SA1019
 			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
 		} else {
+			//nolint:staticcheck // Ignore SA1019
 			contentType = expfmt.Negotiate(req.Header)
 		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
