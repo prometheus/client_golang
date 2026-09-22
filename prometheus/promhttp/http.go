@@ -50,6 +50,42 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp/internal"
 )
 
+var (
+	standardAcceptedFormats    []expfmt.Format
+	openMetricsAcceptedFormats []expfmt.Format
+)
+
+func init() {
+	standardAcceptedFormats = []expfmt.Format{
+		expfmt.NewFormat(expfmt.TypeProtoDelim),
+		expfmt.NewFormat(expfmt.TypeProtoText),
+		expfmt.NewFormat(expfmt.TypeProtoCompact),
+		expfmt.NewFormat(expfmt.TypeTextPlain),
+	}
+
+	om20Format, err := expfmt.NewOpenMetricsFormat(expfmt.OpenMetricsVersion_2_0_0)
+	if err != nil {
+		panic(err)
+	}
+	om10Format, err := expfmt.NewOpenMetricsFormat(expfmt.OpenMetricsVersion_1_0_0)
+	if err != nil {
+		panic(err)
+	}
+	om001Format, err := expfmt.NewOpenMetricsFormat(expfmt.OpenMetricsVersion_0_0_1)
+	if err != nil {
+		panic(err)
+	}
+	openMetricsAcceptedFormats = []expfmt.Format{
+		om20Format,
+		om10Format,
+		om001Format,
+		expfmt.NewFormat(expfmt.TypeProtoDelim),
+		expfmt.NewFormat(expfmt.TypeProtoText),
+		expfmt.NewFormat(expfmt.TypeProtoCompact),
+		expfmt.NewFormat(expfmt.TypeTextPlain),
+	}
+}
+
 const (
 	contentTypeHeader      = "Content-Type"
 	contentEncodingHeader  = "Content-Encoding"
@@ -316,9 +352,9 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 
 		var contentType expfmt.Format
 		if opts.EnableOpenMetrics {
-			contentType = expfmt.NegotiateIncludingOpenMetrics(req.Header)
+			contentType = expfmt.NegotiateAccept(req.Header, openMetricsAcceptedFormats...)
 		} else {
-			contentType = expfmt.Negotiate(req.Header)
+			contentType = expfmt.NegotiateAccept(req.Header, standardAcceptedFormats...)
 		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
