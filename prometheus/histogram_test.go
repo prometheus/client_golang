@@ -1277,6 +1277,56 @@ func TestHistogramVecCreatedTimestampWithDeletes(t *testing.T) {
 	expectCTsForMetricVecValues(t, histogramVec.MetricVec, dto.MetricType_HISTOGRAM, expected)
 }
 
+func TestHistogramVecTTLPrunesIdleMetricsOnAccessAndCollect(t *testing.T) {
+	now := time.Unix(1, 0)
+	histogramVec := V2.NewHistogramVec(HistogramVecOpts{
+		HistogramOpts: HistogramOpts{
+			Name:    "test",
+			Help:    "test help",
+			Buckets: []float64{1, 2, 3, 4},
+			now:     func() time.Time { return now },
+		},
+		MetricVecOpts: MetricVecOpts{
+			IdleTTL: 50 * time.Millisecond,
+		},
+		VariableLabels: ConstrainableLabels{{Name: "label"}},
+	})
+
+	histogramVec.WithLabelValues("stale").Observe(1)
+	if got := len(histogramVec.metrics); got != 1 {
+		t.Fatalf("expected 1 metric after creation, got %d", got)
+	}
+
+	now = now.Add(100 * time.Millisecond)
+	histogramVec.WithLabelValues("fresh").Observe(2)
+	if got := len(histogramVec.metrics); got != 1 {
+		t.Fatalf("expected idle metric to be pruned on access, got %d metrics", got)
+	}
+	if _, ok := histogramVec.metrics[hashLabelValuesForTest(t, histogramVec, "fresh")]; !ok {
+		t.Fatalf("expected fresh metric to remain after pruning")
+	}
+
+	now = now.Add(100 * time.Millisecond)
+	ch := make(chan Metric, 10)
+	histogramVec.Collect(ch)
+	close(ch)
+	if got := len(histogramVec.metrics); got != 0 {
+		t.Fatalf("expected collect to prune idle metrics, got %d metrics", got)
+	}
+	if got := len(ch); got != 0 {
+		t.Fatalf("expected no active metrics after TTL eviction, got %d", got)
+	}
+}
+
+func hashLabelValuesForTest(t *testing.T, vec *HistogramVec, label string) uint64 {
+	t.Helper()
+	h, err := vec.hashLabelValues([]string{label})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
 func TestNewConstHistogramWithCreatedTimestamp(t *testing.T) {
 	metricDesc := NewDesc(
 		"sample_value",
