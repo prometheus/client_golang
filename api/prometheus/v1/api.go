@@ -1164,9 +1164,9 @@ func (h *httpAPI) FormatQuery(ctx context.Context, query string) (string, error)
 	q := u.Query()
 	q.Set("query", query)
 
-	into := gojson.RawMessage{}
+	var into string
 	_, _, _, err := h.client.DoGetFallback(ctx, u, q, &into)
-	return string(into), err
+	return into, err
 }
 
 // Warnings is an array of non-critical errors.
