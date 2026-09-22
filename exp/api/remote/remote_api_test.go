@@ -335,6 +335,82 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal("retry callback should not be invoked on successful request")
 		}
 	})
+
+	t.Run("retry logs include attempt context", func(t *testing.T) {
+		recorder := &recordingHandler{}
+		tLogger := slog.New(recorder)
+		mockCode := http.StatusInternalServerError
+		mStore := &mockStorage{
+			mockErr:  errors.New("storage error"),
+			mockCode: &mockCode,
+		}
+		srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(BackoffConfig{
+				Min:        1 * time.Millisecond,
+				Max:        1 * time.Millisecond,
+				MaxRetries: 3,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+
+		var retryRecords []slog.Record
+		for _, r := range recorder.records {
+			if r.Message == "failed to send remote write request; retrying after backoff" {
+				retryRecords = append(retryRecords, r)
+			}
+		}
+		if len(retryRecords) != 3 {
+			t.Fatalf("expected 3 retry log records, got %d", len(retryRecords))
+		}
+		for i, r := range retryRecords {
+			attrs := attrMap(r)
+			if got, want := attrs["attempt"], int64(i+1); got != want {
+				t.Errorf("record %d: expected attempt=%d, got %v", i, want, got)
+			}
+			if got, want := attrs["max_retries"], int64(3); got != want {
+				t.Errorf("record %d: expected max_retries=%d, got %v", i, want, got)
+			}
+		}
+	})
+}
+
+// recordingHandler is a minimal slog.Handler that records emitted records for assertions.
+type recordingHandler struct {
+	records []slog.Record
+}
+
+func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.records = append(h.records, r)
+	return nil
+}
+
+func (h *recordingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *recordingHandler) WithGroup(string) slog.Handler { return h }
+
+func attrMap(r slog.Record) map[string]any {
+	m := make(map[string]any, r.NumAttrs())
+	r.Attrs(func(a slog.Attr) bool {
+		m[a.Key] = a.Value.Any()
+		return true
+	})
+	return m
 }
 
 func TestSnappyDecodeMiddleware(t *testing.T) {
