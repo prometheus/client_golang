@@ -67,7 +67,7 @@ var (
 		"kilo",
 		"kibi",
 		"mega",
-		"mibi",
+		"mebi",
 		"giga",
 		"gibi",
 		"tera",
