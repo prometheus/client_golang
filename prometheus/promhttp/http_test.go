@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -677,6 +678,97 @@ rocket_launches_total 3.0
 
 	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
 		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
+}
+
+func TestHandlerOpenMetricsNegotiation(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		accept              string
+		enableOpenMetrics   bool
+		expectedContentType string
+		expectedBodyPattern string
+		expectedBody        string
+	}{
+		{
+			name:                "OpenMetrics 2.0 explicit accept",
+			accept:              "application/openmetrics-text;version=2.0.0",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 2.0 preferred by q-value over 1.0.0",
+			accept:              "application/openmetrics-text;version=2.0.0;q=0.9, application/openmetrics-text;version=1.0.0;q=0.8",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 1.0.0 preferred by q-value over 2.0.0",
+			accept:              "application/openmetrics-text;version=1.0.0;q=0.9, application/openmetrics-text;version=2.0.0;q=0.8",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=1.0.0; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`,
+		},
+		{
+			name:                "OpenMetrics 2.0 requested but EnableOpenMetrics is false",
+			accept:              "application/openmetrics-text;version=2.0.0",
+			enableOpenMetrics:   false,
+			expectedContentType: "text/plain; version=0.0.4; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests_total Total number of HTTP requests.
+# TYPE http_requests_total counter
+http_requests_total 10
+`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests.",
+			})
+			reg.MustRegister(counter)
+			counter.Add(10)
+
+			handler := HandlerFor(reg, HandlerOpts{EnableOpenMetrics: tc.enableOpenMetrics})
+			writer := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodGet, "/", nil)
+			if err != nil {
+				t.Fatalf("unexpected error creating request: %v", err)
+			}
+			request.Header.Add(acceptHeader, tc.accept)
+
+			handler.ServeHTTP(writer, request)
+
+			if got := writer.Header().Get(contentTypeHeader); got != tc.expectedContentType {
+				t.Errorf("expected Content-Type %q, got %q", tc.expectedContentType, got)
+			}
+
+			if tc.expectedBodyPattern != "" {
+				matched, err := regexp.MatchString(tc.expectedBodyPattern, writer.Body.String())
+				if err != nil {
+					t.Fatalf("invalid regexp pattern %q: %v", tc.expectedBodyPattern, err)
+				}
+				if !matched {
+					t.Errorf("expected body matching pattern:\n%s\ngot:\n%s", tc.expectedBodyPattern, writer.Body.String())
+				}
+			} else if got := writer.Body.String(); got != tc.expectedBody {
+				t.Errorf("expected body:\n%s\ngot:\n%s", tc.expectedBody, got)
+			}
+		})
 	}
 }
 
