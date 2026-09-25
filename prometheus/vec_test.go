@@ -166,6 +166,19 @@ func TestDeletePartialMatch(t *testing.T) {
 	testDeletePartialMatch(t, vec)
 }
 
+func TestDeletePartialMatchWithCollisions(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2", "l3"},
+	)
+	vec.hashAdd = func(h uint64, s string) uint64 { return 1 }
+	vec.hashAddByte = func(h uint64, b byte) uint64 { return 1 }
+	testDeletePartialMatch(t, vec)
+}
+
 func TestDeletePartialMatchWithConstraints(t *testing.T) {
 	vec := V2.NewGaugeVec(GaugeVecOpts{
 		GaugeOpts{

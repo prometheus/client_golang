@@ -416,29 +416,28 @@ func (m *metricMap) deleteByLabels(labels Labels, curry []curriedLabelValue) int
 	var numDeleted int
 
 	for h, metrics := range m.metrics {
-		i := findMetricWithPartialLabels(m.desc, metrics, labels, curry)
-		if i >= len(metrics) {
-			// Didn't find matching labels in this metric slice.
-			continue
+		remaining := metrics[:0]
+		for _, metric := range metrics {
+			if matchPartialLabels(m.desc, metric.values, labels, curry) {
+				numDeleted++
+				continue
+			}
+			remaining = append(remaining, metric)
 		}
-		delete(m.metrics, h)
-		numDeleted++
+		// Clear the tail of the backing array so deleted metrics don't
+		// stay reachable (and hence unable to be garbage collected)
+		// through the array's spare capacity.
+		for i := len(remaining); i < len(metrics); i++ {
+			metrics[i] = metricWithLabelValues{}
+		}
+		if len(remaining) == 0 {
+			delete(m.metrics, h)
+		} else {
+			m.metrics[h] = remaining
+		}
 	}
 
 	return numDeleted
-}
-
-// findMetricWithPartialLabel returns the index of the matching metric or
-// len(metrics) if not found.
-func findMetricWithPartialLabels(
-	desc *Desc, metrics []metricWithLabelValues, labels Labels, curry []curriedLabelValue,
-) int {
-	for i, metric := range metrics {
-		if matchPartialLabels(desc, metric.values, labels, curry) {
-			return i
-		}
-	}
-	return len(metrics)
 }
 
 // indexOf searches the given slice of strings for the target string and returns
