@@ -1,6 +1,6 @@
 ## Unreleased
 
-* [CHANGE] Upgrade prometheus/common to v0.72.0 and switch promhttp to expfmt.NegotiateAccept. #2138
+* [CHANGE] Change required go.mod version to 1.26 #2138
 * [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2091
 
 ## 1.24.1 / 2026-07-23
