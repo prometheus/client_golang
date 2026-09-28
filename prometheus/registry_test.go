@@ -73,19 +73,19 @@ func testHandler(t testing.TB) {
 	metricVec.WithLabelValues("val2").Inc()
 
 	externalMetricFamily := &dto.MetricFamily{
-		Name: proto.String("externalname"),
-		Help: proto.String("externaldocstring"),
+		Name: new("externalname"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("externalconstname"),
-						Value: proto.String("externalconstvalue"),
+						Name:  new("externalconstname"),
+						Value: new("externalconstvalue"),
 					},
 					{
-						Name:  proto.String("externallabelname"),
-						Value: proto.String("externalval1"),
+						Name:  new("externallabelname"),
+						Value: new("externalval1"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -126,19 +126,19 @@ metric: <
 	externalMetricFamilyAsProtoCompactText = append(externalMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	expectedMetricFamily := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val1"),
+						Name:  new("labelname"),
+						Value: new("val1"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -149,12 +149,12 @@ metric: <
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val2"),
+						Name:  new("labelname"),
+						Value: new("val2"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -210,19 +210,19 @@ metric: <
 	expectedMetricFamilyAsProtoCompactText = append(expectedMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("different_val"),
+						Name:  new("labelname"),
+						Value: new("different_val"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -236,19 +236,19 @@ metric: <
 	expectedMetricFamilyMergedWithExternalAsProtoCompactText = append(expectedMetricFamilyMergedWithExternalAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithInvalidLabelValue := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("\xFF"),
+						Name:  new("constname"),
+						Value: new("\xFF"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("different_val"),
+						Name:  new("labelname"),
+						Value: new("different_val"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -281,8 +281,8 @@ complex_count 0
 		Help: "A metric to check collisions with _sun, _count, and _bucket.",
 	})
 	externalMetricFamilyWithBucketSuffix := &dto.MetricFamily{
-		Name: proto.String("complex_bucket"),
-		Help: proto.String("externaldocstring"),
+		Name: new("complex_bucket"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
@@ -297,8 +297,8 @@ complex_count 0
 complex_bucket 1
 `)
 	externalMetricFamilyWithCountSuffix := &dto.MetricFamily{
-		Name: proto.String("complex_count"),
-		Help: proto.String("externaldocstring"),
+		Name: new("complex_count"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
@@ -321,23 +321,23 @@ collected metric named "complex_count" collides with previously collected summar
 collected metric named "complex_count" collides with previously collected histogram named "complex"
 `)
 	externalMetricFamilyWithDuplicateLabel := &dto.MetricFamily{
-		Name: proto.String("broken_metric"),
-		Help: proto.String("The registry should detect the duplicate label."),
+		Name: new("broken_metric"),
+		Help: new("The registry should detect the duplicate label."),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("foo"),
-						Value: proto.String("bar"),
+						Name:  new("foo"),
+						Value: new("bar"),
 					},
 					{
-						Name:  proto.String("foo"),
-						Value: proto.String("baz"),
+						Name:  new("foo"),
+						Value: new("baz"),
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(2.7),
+					Value: new(2.7),
 				},
 			},
 		},

@@ -32,7 +32,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -729,10 +728,10 @@ func processMetric(
 		}
 	} else { // New name.
 		metricFamily = &dto.MetricFamily{}
-		metricFamily.Name = proto.String(desc.fqName)
-		metricFamily.Help = proto.String(desc.help)
+		metricFamily.Name = new(desc.fqName)
+		metricFamily.Help = new(desc.help)
 		if desc.unit != "" {
-			metricFamily.Unit = proto.String(desc.unit)
+			metricFamily.Unit = new(desc.unit)
 		}
 		// TODO(beorn7): Simplify switch once Desc has type.
 		switch {
@@ -1016,7 +1015,7 @@ func checkDescConsistency(
 	copy(lpsFromDesc, desc.constLabelPairs)
 	for _, l := range desc.variableLabels.names {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l),
+			Name: new(l),
 		})
 	}
 	if len(lpsFromDesc) != len(dtoMetric.Label) {

@@ -50,7 +50,6 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -294,7 +293,7 @@ func convertReaderToMetricFamily(reader io.Reader) ([]*dto.MetricFamily, error) 
 	// when we compare text encodings, the results are consistent.
 	for _, metric := range notNormalized {
 		if metric.Help == nil {
-			metric.Help = proto.String("")
+			metric.Help = new("")
 		}
 	}
 
