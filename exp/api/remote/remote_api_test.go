@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
@@ -181,6 +183,45 @@ func stats(req *writev2.Request) (s WriteResponseStats) {
 		s.Exemplars += len(ts.Exemplars)
 	}
 	return s
+}
+
+func TestRemoteAPI_Write_GenericProtoResetsPooledBuffer(t *testing.T) {
+	var got []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		compressed, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		got, err = snappy.Decode(nil, compressed)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := NewAPI(srv.URL, WithAPIHTTPClient(srv.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.bufPool = sync.Pool{New: func() any {
+		b := []byte("stale")
+		return &b
+	}}
+
+	msg := timestamppb.New(time.Unix(123, 456))
+	want, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Write(context.Background(), WriteV1MessageType, msg); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("unexpected payload: got %x, want %x", got, want)
+	}
 }
 
 func TestRemoteAPI_Write_WithHandler(t *testing.T) {
