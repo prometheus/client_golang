@@ -1396,6 +1396,105 @@ func TestCheckMetricConsistency(t *testing.T) {
 	reg.Unregister(invalidCollector)
 }
 
+// shortLabeledCollector is a checked Collector that reports a Desc declaring
+// more const labels than the metrics it collects actually carry.
+type shortLabeledCollector struct {
+	desc   *prometheus.Desc
+	labels []*dto.LabelPair
+}
+
+func (c *shortLabeledCollector) Describe(ch chan<- *prometheus.Desc) { ch <- c.desc }
+
+func (c *shortLabeledCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- &shortLabeledMetric{desc: c.desc, labels: c.labels}
+}
+
+// shortLabeledMetric is a Metric whose Desc is inconsistent with the labels it
+// writes.
+type shortLabeledMetric struct {
+	desc   *prometheus.Desc
+	labels []*dto.LabelPair
+}
+
+func (m *shortLabeledMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m *shortLabeledMetric) Write(out *dto.Metric) error {
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	out.Label = m.labels
+	return nil
+}
+
+func labelPair(name, value string) *dto.LabelPair {
+	return &dto.LabelPair{Name: proto.String(name), Value: proto.String(value)}
+}
+
+// TestCheckDescConsistency verifies that a pedantic Registry reports a metric
+// whose labels do not match its Desc as a gather error, rather than crashing
+// the caller with a runtime panic.
+func TestCheckDescConsistency(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		variableLabels []string
+		constLabels    prometheus.Labels
+		writtenLabels  []*dto.LabelPair
+		wantErr        string
+	}{
+		{
+			name:          "labels match desc",
+			constLabels:   prometheus.Labels{"a": "1", "b": "2"},
+			writtenLabels: []*dto.LabelPair{labelPair("a", "1"), labelPair("b", "2")},
+		},
+		{
+			name:          "fewer labels than const labels in desc",
+			constLabels:   prometheus.Labels{"a": "1", "b": "2"},
+			writtenLabels: []*dto.LabelPair{labelPair("a", "1")},
+			wantErr:       "are inconsistent with descriptor",
+		},
+		{
+			name:           "fewer labels than const and variable labels in desc",
+			variableLabels: []string{"v"},
+			constLabels:    prometheus.Labels{"a": "1"},
+			writtenLabels:  []*dto.LabelPair{labelPair("a", "1")},
+			wantErr:        "are inconsistent with descriptor",
+		},
+		{
+			name:          "more labels than desc",
+			constLabels:   prometheus.Labels{"a": "1"},
+			writtenLabels: []*dto.LabelPair{labelPair("a", "1"), labelPair("b", "2")},
+			wantErr:       "are inconsistent with descriptor",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			desc := prometheus.NewDesc("some_metric", "help text.", tc.variableLabels, tc.constLabels)
+			reg := prometheus.NewPedanticRegistry()
+			reg.MustRegister(&shortLabeledCollector{desc: desc, labels: tc.writtenLabels})
+
+			var err error
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						t.Fatalf("Gather panicked instead of returning an error: %v", r)
+					}
+				}()
+				_, err = reg.Gather()
+			}()
+
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected gather error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected gather error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected gather error containing %q, got %q", tc.wantErr, err.Error())
+			}
+		})
+	}
+}
+
 func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	// Use goleak to verify that no unexpected goroutines are leaked during the test.
 	defer goleak.VerifyNone(t)
