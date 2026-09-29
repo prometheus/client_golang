@@ -51,8 +51,9 @@ import (
 )
 
 var (
-	standardAcceptedFormats    = expfmt.DefaultAcceptedFormats()
-	openMetricsAcceptedFormats = expfmt.DefaultOpenMetricsAcceptedFormats()
+	standardAcceptedFormats = expfmt.DefaultAcceptedFormats()
+	// OpenMetrics 2.0 is included ahead of stable OpenMetrics formats.
+	openMetricsAcceptedFormats = slices.Concat([]expfmt.Format{expfmt.FmtOpenMetrics_2_0_0}, expfmt.DefaultOpenMetricsAcceptedFormats())
 )
 
 const (
