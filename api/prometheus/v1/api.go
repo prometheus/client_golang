@@ -417,6 +417,39 @@ type Stat struct {
 	Value uint64 `json:"value"`
 }
 
+func (qr *queryResult) UnmarshalJSON(b []byte) error {
+	v := struct {
+		Type   model.ValueType   `json:"resultType"`
+		Result gojson.RawMessage `json:"result"`
+	}{}
+
+	err := gojson.Unmarshal(b, &v)
+	if err != nil {
+		return err
+	}
+
+	switch v.Type {
+	case model.ValScalar:
+		var sv model.Scalar
+		err = gojson.Unmarshal(v.Result, &sv)
+		qr.v = &sv
+
+	case model.ValVector:
+		var vv model.Vector
+		err = gojson.Unmarshal(v.Result, &vv)
+		qr.v = vv
+
+	case model.ValMatrix:
+		var mv model.Matrix
+		err = gojson.Unmarshal(v.Result, &mv)
+		qr.v = mv
+
+	default:
+		err = fmt.Errorf("unexpected value type %q", v.Type)
+	}
+	return err
+}
+
 func (rg *RuleGroup) UnmarshalJSON(b []byte) error {
 	v := struct {
 		Name     string              `json:"name"`
