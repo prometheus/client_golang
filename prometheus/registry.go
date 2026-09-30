@@ -52,15 +52,10 @@ const (
 // consequences. Users who want to avoid global state altogether should not use
 // the convenience functions and act on custom instances instead.
 var (
-	defaultRegistry              = NewRegistry()
+	defaultRegistry              = NewDefaultRegistry()
 	DefaultRegisterer Registerer = defaultRegistry
 	DefaultGatherer   Gatherer   = defaultRegistry
 )
-
-func init() {
-	MustRegister(NewProcessCollector(ProcessCollectorOpts{}))
-	MustRegister(NewGoCollector())
-}
 
 // NewRegistry creates a new vanilla Registry without any Collectors
 // pre-registered.
@@ -70,6 +65,15 @@ func NewRegistry() *Registry {
 		descIDs:         map[uint64]struct{}{},
 		dimHashesByName: map[string]uint64{},
 	}
+}
+
+func NewDefaultRegistry() *Registry {
+	reg := NewRegistry()
+	reg.MustRegister(
+		NewProcessCollector(ProcessCollectorOpts{}),
+		NewGoCollector(),
+	)
+	return reg
 }
 
 // NewPedanticRegistry returns a registry that checks during collection if each
