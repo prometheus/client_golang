@@ -53,6 +53,14 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
+	// 1xx informational responses (e.g. 100 Continue) are not the final
+	// status code.  Delegate them to the underlying ResponseWriter but do
+	// not record them as the response status or call observeWriteHeader,
+	// mirroring the behaviour of net/http's own responseWriter.
+	if code >= 100 && code < 200 {
+		r.ResponseWriter.WriteHeader(code)
+		return
+	}
 	if r.observeWriteHeader != nil && !r.wroteHeader {
 		// Only call observeWriteHeader for the 1st time. It's a bug if
 		// WriteHeader is called more than once, but we want to protect
