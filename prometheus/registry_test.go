@@ -1312,6 +1312,49 @@ func (co *customCollector) Collect(ch chan<- prometheus.Metric) {
 	co.collectFunc(ch)
 }
 
+func TestRegistryDisableMetricSorting(t *testing.T) {
+	desc := prometheus.NewDesc("test_metric_order", "Test metric order.", []string{"letter"}, nil)
+	collect := func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "z")
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "a")
+	}
+	checkOrder := func(reg *prometheus.Registry, want ...string) {
+		t.Helper()
+
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatalf("unexpected gather error: %v", err)
+		}
+		if len(mfs) != 1 {
+			t.Fatalf("expected one metric family, got %d", len(mfs))
+		}
+		if got := mfs[0].GetName(); got != "test_metric_order" {
+			t.Fatalf("expected test_metric_order metric family, got %q", got)
+		}
+		if len(mfs[0].Metric) != len(want) {
+			t.Fatalf("expected %d metrics, got %d", len(want), len(mfs[0].Metric))
+		}
+		for i, metric := range mfs[0].Metric {
+			if len(metric.Label) != 1 {
+				t.Fatalf("expected one label on metric %d, got %d", i, len(metric.Label))
+			}
+			if got := metric.Label[0].GetValue(); got != want[i] {
+				t.Fatalf("metric %d label value = %q, want %q", i, got, want[i])
+			}
+		}
+	}
+
+	defaultReg := prometheus.NewRegistry()
+	defaultReg.MustRegister(&customCollector{collectFunc: collect})
+	checkOrder(defaultReg, "a", "z")
+
+	unsortedReg := prometheus.NewRegistryWithOptions(prometheus.RegistryOpts{
+		DisableMetricSorting: true,
+	})
+	unsortedReg.MustRegister(&customCollector{collectFunc: collect})
+	checkOrder(unsortedReg, "z", "a")
+}
+
 // TestCollectorOnMetricPanic ensures that if a collector panics while collecting a metric,
 // the panic is recovered and the error is returned by Gather. It also checks that the metric
 // collected before the panic is still present in the gathered metrics. Additionally,
