@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/prometheus/common/model"
@@ -93,8 +94,8 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 // This method is used for the same purpose as DeleteLabelValues(...string). See
 // there for pros and cons of the two methods.
 func (m *MetricVec) Delete(labels Labels) bool {
-	labels, closer := constrainLabels(m.desc, labels)
-	defer closer()
+	labels = constrainLabels(m.desc, labels)
+	defer putLabelsToPool(labels)
 
 	h, err := m.hashLabels(labels)
 	if err != nil {
@@ -111,8 +112,8 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // Note that curried labels will never be matched if deleting from the curried vector.
 // To match curried labels with DeletePartialMatch, it must be called on the base vector.
 func (m *MetricVec) DeletePartialMatch(labels Labels) int {
-	labels, closer := constrainLabels(m.desc, labels)
-	defer closer()
+	labels = constrainLabels(m.desc, labels)
+	defer putLabelsToPool(labels)
 
 	return m.deleteByLabels(labels, m.curry)
 }
@@ -238,8 +239,8 @@ func (m *MetricVec) GetMetricWithLabelValues(lvs ...string) (Metric, error) {
 // around MetricVec, implementing a vector for a specific Metric implementation,
 // for example GaugeVec.
 func (m *MetricVec) GetMetricWith(labels Labels) (Metric, error) {
-	labels, closer := constrainLabels(m.desc, labels)
-	defer closer()
+	labels = constrainLabels(m.desc, labels)
+	defer putLabelsToPool(labels)
 
 	h, err := m.hashLabels(labels)
 	if err != nil {
@@ -664,23 +665,26 @@ var labelsPool = &sync.Pool{
 	},
 }
 
-func constrainLabels(desc *Desc, labels Labels) (Labels, func()) {
-	if len(desc.variableLabels.labelConstraints) == 0 {
-		// Fast path when there's no constraints
-		return labels, func() {}
+func putLabelsToPool(labels Labels) {
+	for k := range labels {
+		delete(labels, k)
 	}
+	labelsPool.Put(labels)
+}
 
+func constrainLabels(desc *Desc, labels Labels) Labels {
+	// Always copy into a pooled map. Returning the caller's map allowed the
+	// labels used for hashing to differ from the labels used to create the metric
+	// if the caller mutated the map between those operations (#1951).
 	constrainedLabels := labelsPool.Get().(Labels)
-	for l, v := range labels {
-		constrainedLabels[l] = desc.variableLabels.constrain(l, v)
-	}
-
-	return constrainedLabels, func() {
-		for k := range constrainedLabels {
-			delete(constrainedLabels, k)
+	if len(desc.variableLabels.labelConstraints) == 0 {
+		maps.Copy(constrainedLabels, labels)
+	} else {
+		for l, v := range labels {
+			constrainedLabels[l] = desc.variableLabels.constrain(l, v)
 		}
-		labelsPool.Put(constrainedLabels)
 	}
+	return constrainedLabels
 }
 
 func constrainLabelValues(desc *Desc, lvs []string, curry []curriedLabelValue) []string {
