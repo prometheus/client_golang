@@ -51,10 +51,12 @@ import (
 )
 
 const (
+	acceptHeader           = "Accept"
 	contentTypeHeader      = "Content-Type"
 	contentEncodingHeader  = "Content-Encoding"
 	acceptEncodingHeader   = "Accept-Encoding"
 	processStartTimeHeader = "Process-Start-Time-Unix"
+	varyHeader             = "Vary"
 )
 
 // Compression represents the content encodings handlers support for the HTTP
@@ -325,6 +327,10 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			}
 		}
 		contentType = expfmt.NegotiateAccept(req.Header, acceptedFormats...)
+		rsp.Header().Add(varyHeader, acceptHeader)
+		if len(compressions) > 0 {
+			rsp.Header().Add(varyHeader, acceptEncodingHeader)
+		}
 		rsp.Header().Set(contentTypeHeader, string(contentType))
 
 		w, encodingHeader, closeWriter, err := negotiateEncodingWriter(req, rsp, compressions)

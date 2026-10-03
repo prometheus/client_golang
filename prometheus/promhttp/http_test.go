@@ -40,10 +40,7 @@ import (
 
 type errorCollector struct{}
 
-const (
-	acceptHeader    = "Accept"
-	acceptTextPlain = "text/plain"
-)
+const acceptTextPlain = "text/plain"
 
 func (e errorCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("invalid_metric", "not helpful", nil, nil)
@@ -484,6 +481,38 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 		if got := body; !strings.Contains(got, want) {
 			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
 		}
+	}
+}
+
+func TestHandlerSetsVaryHeader(t *testing.T) {
+	testCases := []struct {
+		name               string
+		disableCompression bool
+		want               string
+	}{
+		{
+			name: "compression enabled",
+			want: "Accept, Accept-Encoding",
+		},
+		{
+			name:               "compression disabled",
+			disableCompression: true,
+			want:               "Accept",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := HandlerFor(prometheus.NewRegistry(), HandlerOpts{DisableCompression: tc.disableCompression})
+			writer := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			handler.ServeHTTP(writer, request)
+
+			if got := strings.Join(writer.Header().Values(varyHeader), ", "); got != tc.want {
+				t.Errorf("got Vary header %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
