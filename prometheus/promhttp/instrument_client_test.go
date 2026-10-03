@@ -295,6 +295,61 @@ func TestClientMiddlewareAPIWithRequestContextTimeout(t *testing.T) {
 	}
 }
 
+func TestInstrumentRoundTripperDynamicLabelUsesOutgoingRequest(t *testing.T) {
+	tests := []struct {
+		name       string
+		instrument func(http.RoundTripper, func(*http.Request) string) RoundTripperFunc
+	}{
+		{
+			name: "counter",
+			instrument: func(next http.RoundTripper, resolve func(*http.Request) string) RoundTripperFunc {
+				counter := prometheus.NewCounterVec(
+					prometheus.CounterOpts{Name: "requests_total", Help: "Test counter."},
+					[]string{"path"},
+				)
+				return InstrumentRoundTripperCounter(counter, next, WithLabelFromRequest("path", resolve))
+			},
+		},
+		{
+			name: "duration",
+			instrument: func(next http.RoundTripper, resolve func(*http.Request) string) RoundTripperFunc {
+				duration := prometheus.NewHistogramVec(
+					prometheus.HistogramOpts{Name: "request_duration_seconds", Help: "Test duration."},
+					[]string{"path"},
+				)
+				return InstrumentRoundTripperDuration(duration, next, WithLabelFromRequest("path", resolve))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var resolvedRequest *http.Request
+			resolve := func(r *http.Request) string {
+				resolvedRequest = r
+				return r.URL.Path
+			}
+			next := RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusNoContent,
+					Body:       http.NoBody,
+				}, nil
+			})
+			roundTripper := test.instrument(next, resolve)
+			request := httptest.NewRequest(http.MethodGet, "http://example.test/metrics", nil)
+
+			response, err := roundTripper.RoundTrip(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			if resolvedRequest != request {
+				t.Errorf("resolver received request %p, want outgoing request %p", resolvedRequest, request)
+			}
+		})
+	}
+}
+
 func ExampleInstrumentRoundTripperDuration() {
 	client := http.DefaultClient
 	client.Timeout = 1 * time.Second
