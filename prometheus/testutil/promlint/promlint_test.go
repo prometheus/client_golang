@@ -203,6 +203,18 @@ x_gigabytes 10
 			}},
 		},
 		{
+			name: "mebibytes",
+			in: `
+# HELP x_mebibytes Test metric.
+# TYPE x_mebibytes untyped
+x_mebibytes 10
+`,
+			problems: []promlint.Problem{{
+				Metric: "x_mebibytes",
+				Text:   `use base unit "bytes" instead of "mebibytes"`,
+			}},
+		},
+		{
 			name: "kilograms",
 			in: `
 # HELP x_kilograms Test metric.

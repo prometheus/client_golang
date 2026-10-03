@@ -19,8 +19,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -101,7 +99,7 @@ func TestTimerObserveWithExemplar(t *testing.T) {
 			}
 		}
 
-		want := []*dto.LabelPair{{Name: proto.String("foo"), Value: proto.String("bar")}}
+		want := []*dto.LabelPair{{Name: new("foo"), Value: new("bar")}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("expected %v exemplar labels, got %v", want, got)
 		}
