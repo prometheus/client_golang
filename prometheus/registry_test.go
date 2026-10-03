@@ -890,6 +890,121 @@ func TestRegisterUnregisterCollector(t *testing.T) {
 	}
 }
 
+// blockingWriteMetric blocks its first Write call until the test releases it.
+type blockingWriteMetric struct {
+	desc         *prometheus.Desc
+	labelPairs   []*dto.LabelPair
+	writeStarted chan struct{}
+	releaseWrite <-chan struct{}
+	writeOnce    *sync.Once
+}
+
+func (m *blockingWriteMetric) Desc() *prometheus.Desc {
+	return m.desc
+}
+
+func (m *blockingWriteMetric) Write(out *dto.Metric) error {
+	m.writeOnce.Do(func() {
+		close(m.writeStarted)
+		<-m.releaseWrite
+	})
+	out.Label = m.labelPairs
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	return nil
+}
+
+func TestMetricVecCollectDoesNotHoldLockWhileSendingToBlockedConsumer(t *testing.T) {
+	const metricCount = 2000 // Exceeds the registry's 1000-metric channel capacity.
+
+	desc := prometheus.NewDesc("test_blocking_write_metric", "A test metric.", []string{"id"}, nil)
+	writeStarted := make(chan struct{})
+	releaseWrite := make(chan struct{})
+	writeOnce := &sync.Once{}
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() { close(releaseWrite) })
+	}
+	t.Cleanup(release)
+
+	vec := prometheus.NewMetricVec(desc, func(labelValues ...string) prometheus.Metric {
+		return &blockingWriteMetric{
+			desc:         desc,
+			labelPairs:   prometheus.MakeLabelPairs(desc, labelValues),
+			writeStarted: writeStarted,
+			releaseWrite: releaseWrite,
+			writeOnce:    writeOnce,
+		}
+	})
+	for i := range metricCount {
+		if _, err := vec.GetMetricWithLabelValues(strconv.Itoa(i)); err != nil {
+			t.Fatal("creating metric failed:", err)
+		}
+	}
+
+	reg := prometheus.NewRegistry()
+	if err := reg.Register(vec); err != nil {
+		t.Fatal("registering metric vector failed:", err)
+	}
+	gatherDone := make(chan error, 1)
+	go func() {
+		_, err := reg.Gather()
+		gatherDone <- err
+	}()
+
+	select {
+	case <-writeStarted:
+	case <-time.After(5 * time.Second):
+		release()
+		select {
+		case err := <-gatherDone:
+			if err != nil {
+				t.Error("gathering failed:", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("gather did not finish after releasing the metric write")
+		}
+		t.Fatal("gather did not reach the blocked metric write")
+	}
+
+	lookupDone := make(chan error, 1)
+	go func() {
+		_, err := vec.GetMetricWithLabelValues("after-snapshot")
+		lookupDone <- err
+	}()
+
+	lookupBlocked := false
+	select {
+	case err := <-lookupDone:
+		if err != nil {
+			t.Error("creating a metric while gathering failed:", err)
+		}
+	case <-time.After(time.Second):
+		lookupBlocked = true
+	}
+
+	release()
+	select {
+	case err := <-gatherDone:
+		if err != nil {
+			t.Error("gathering failed:", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("gather did not finish after releasing the metric write")
+	}
+
+	if lookupBlocked {
+		select {
+		case err := <-lookupDone:
+			if err != nil {
+				t.Error("creating a metric after gathering failed:", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("metric lookup did not finish after gathering completed")
+		}
+		t.Fatal("metric lookup blocked while a gathered metric write was blocked")
+	}
+}
+
 // TestHistogramVecRegisterGatherConcurrency is an end-to-end test that
 // concurrently calls Observe on random elements of a HistogramVec while the
 // same HistogramVec is registered concurrently and the Gather method of the
