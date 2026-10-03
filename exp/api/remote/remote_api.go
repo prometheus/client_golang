@@ -288,7 +288,9 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 				)
 			}
 			// Success!
-			// TODO(bwplotka): Debug log with retry summary?
+			if b.NumRetries() > 0 {
+				r.opts.logger.Debug("sent remote write request successfully after retrying", "attempts", b.NumRetries()+1)
+			}
 			return accumulatedStats, nil
 		}
 
@@ -301,6 +303,10 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 			return accumulatedStats, err
 		}
 
+		// b.NumRetries() counts the retries made so far, so the attempt that just
+		// failed is attempt number b.NumRetries()+1 (the initial request is attempt 1).
+		// Capture it before NextDelay() below advances the counter.
+		failedAttempt := b.NumRetries() + 1
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
 
 		// Invoke retry callback if provided.
@@ -308,7 +314,8 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 			writeOpts.retryCallback(retryableErr.error)
 		}
 
-		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
+		r.opts.logger.Error("failed to send remote write request; retrying after backoff",
+			"err", err, "backoff", backoffDelay, "attempt", failedAttempt, "max_retries", r.opts.backoffConfig.MaxRetries)
 		select {
 		case <-ctx.Done():
 			return WriteResponseStats{}, ctx.Err()
