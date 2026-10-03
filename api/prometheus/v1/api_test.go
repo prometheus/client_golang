@@ -1364,7 +1364,16 @@ func TestAPIs(t *testing.T) {
 			reqMethod: "POST",
 			reqPath:   "/api/v1/format_query",
 			inRes:     "foo / bar",
-			res:       "\"foo / bar\"",
+			res:       "foo / bar",
+		},
+		{
+			// Formatted queries commonly contain label matchers, whose quotes
+			// must survive decoding unescaped.
+			do:        doFormatQuery(`up{job="prometheus"}`),
+			reqMethod: "POST",
+			reqPath:   "/api/v1/format_query",
+			inRes:     `up{job="prometheus"}`,
+			res:       `up{job="prometheus"}`,
 		},
 	}
 
