@@ -20,3 +20,20 @@ Prometheus uses GitHub to manage reviews of pull requests.
   Environments](http://peter.bourgon.org/go-in-production/#formatting-and-style).
 
 * Be sure to sign off on the [DCO](https://github.com/probot/dco#how-it-works)
+
+## Managing dependencies
+
+This repository uses Go modules and does not commit a `vendor` directory. Add
+dependencies to the module that uses them: the root module, `exp`, or a
+tutorial module with its own `go.mod` file.
+
+* Prefer stable, well-maintained dependencies. Discuss the use of a
+  pre-release, unstable, or otherwise unusual dependency with maintainers
+  before opening a PR.
+* Add or update a dependency with `go get module/path@version`, then run
+  `go mod tidy`. Commit the resulting `go.mod` and `go.sum` changes.
+* Do not manually add or remove `// indirect` comments. `go mod tidy`
+  determines whether a dependency is direct based on imports in the module.
+* Dependencies imported only by tests or examples still belong in that
+  module's `go.mod`. Use the module containing the test or example rather than
+  adding a dependency to the root module unnecessarily.
