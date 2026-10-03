@@ -24,6 +24,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -409,7 +410,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		var retryRecords []slog.Record
-		for _, r := range recorder.records {
+		for _, r := range recorder.snapshot() {
 			if r.Message == "failed to send remote write request; retrying after backoff" {
 				retryRecords = append(retryRecords, r)
 			}
@@ -427,16 +428,74 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("success after retries logs total attempts", func(t *testing.T) {
+		recorder := &recordingHandler{}
+		tLogger := slog.New(recorder)
+		mStore := &mockStorage{}
+		inner := NewWriteHandler(mStore, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger))
+
+		// Fail the first two requests, then let the real handler succeed.
+		var reqCount atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if reqCount.Add(1) <= 2 {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			inner.ServeHTTP(w, r)
+		}))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+			WithAPIBackoff(BackoffConfig{
+				Min:        1 * time.Millisecond,
+				Max:        1 * time.Millisecond,
+				MaxRetries: 5,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if _, err = client.Write(context.Background(), WriteV2MessageType, testV2()); err != nil {
+			t.Fatal(err)
+		}
+
+		var successRecords []slog.Record
+		for _, r := range recorder.snapshot() {
+			if r.Message == "sent remote write request successfully after retrying" {
+				successRecords = append(successRecords, r)
+			}
+		}
+		if len(successRecords) != 1 {
+			t.Fatalf("expected 1 success log record, got %d", len(successRecords))
+		}
+		if got, want := attrMap(successRecords[0])["attempts"], int64(3); got != want {
+			t.Errorf("expected attempts=%d, got %v", want, got)
+		}
+	})
 }
 
 // recordingHandler is a minimal slog.Handler that records emitted records for assertions.
 type recordingHandler struct {
+	mu      sync.Mutex
 	records []slog.Record
+}
+
+func (h *recordingHandler) snapshot() []slog.Record {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]slog.Record(nil), h.records...)
 }
 
 func (h *recordingHandler) Enabled(context.Context, slog.Level) bool { return true }
 
 func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.records = append(h.records, r)
 	return nil
 }
