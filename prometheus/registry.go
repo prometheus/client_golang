@@ -1011,7 +1011,10 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
+	// The capacity must be at least len(desc.constLabelPairs), otherwise a
+	// metric carrying fewer labels than the Desc declares panics here instead
+	// of being reported as an inconsistent metric below.
+	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), max(len(dtoMetric.Label), len(desc.constLabelPairs)))
 	copy(lpsFromDesc, desc.constLabelPairs)
 	for _, l := range desc.variableLabels.names {
 		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
