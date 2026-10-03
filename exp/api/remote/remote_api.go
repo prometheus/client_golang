@@ -303,9 +303,9 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 			return accumulatedStats, err
 		}
 
-		// b.NumRetries() reflects the number of retries so far, so the attempt that
-		// just failed is retry number b.NumRetries()+1; capture it before NextDelay()
-		// below advances the counter for the upcoming retry.
+		// b.NumRetries() counts the retries made so far, so the attempt that just
+		// failed is attempt number b.NumRetries()+1 (the initial request is attempt 1).
+		// Capture it before NextDelay() below advances the counter.
 		failedAttempt := b.NumRetries() + 1
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
 
