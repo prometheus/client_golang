@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -331,7 +332,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 func getCumulativeCounts(vars []float64) []uint64 {
 	counts := make([]uint64, len(testBuckets))
 	for _, v := range vars {
-		for i := len(testBuckets) - 1; i >= 0; i-- {
+		for i := range slices.Backward(testBuckets) {
 			if v > testBuckets[i] {
 				break
 			}

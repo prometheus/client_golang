@@ -45,6 +45,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
@@ -338,11 +339,8 @@ func compare(got, want []*dto.MetricFamily) error {
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
 	var filtered []*dto.MetricFamily
 	for _, m := range metrics {
-		for _, name := range names {
-			if m.GetName() == name {
-				filtered = append(filtered, m)
-				break
-			}
+		if slices.Contains(names, m.GetName()) {
+			filtered = append(filtered, m)
 		}
 	}
 	return filtered
