@@ -224,24 +224,21 @@ func BenchmarkAPIResponse(b *testing.B) {
 		SeriesCountByLabelValuePair: []Stat{{Name: "statname", Value: 12345}},
 	})
 	addTestcase("TSDBBlocksResult", func() any { return &TSDBBlocksResult{} }, TSDBBlocksResult{
-		Status: "ok",
-		Data: TSDBBlocksData{
-			Blocks: []TSDBBlocksBlockMetadata{{
-				Ulid:    "ulid",
-				MinTime: 1,
-				MaxTime: 1000,
-				Stats: TSDBBlocksStats{
-					NumSamples: 1000,
-					NumSeries:  1000,
-					NumChunks:  1000,
-				},
-				Compaction: TSDBBlocksCompaction{
-					Level:   1234,
-					Sources: []string{"sourcea"},
-				},
-				Version: 1,
-			}},
-		},
+		Blocks: []TSDBBlockMeta{{
+			ULID:    "ulid",
+			MinTime: 1,
+			MaxTime: 1000,
+			Stats: TSDBBlockStats{
+				NumSamples: 1000,
+				NumSeries:  1000,
+				NumChunks:  1000,
+			},
+			Compaction: TSDBBlockMetaCompaction{
+				Level:   1234,
+				Sources: []string{"sourcea"},
+			},
+			Version: 1,
+		}},
 	})
 	addTestcase("WalReplayStatus", func() any { return &WalReplayStatus{} }, WalReplayStatus{Min: 1, Max: 1000, Current: 500})
 	addTestcase("[]ExemplarQueryResult", func() any { return &[]ExemplarQueryResult{} }, []ExemplarQueryResult{{
