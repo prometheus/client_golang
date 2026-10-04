@@ -388,7 +388,7 @@ type TSDBBlockMeta struct {
 	ULID       string                  `json:"ulid"`
 	MinTime    int64                   `json:"minTime"`
 	MaxTime    int64                   `json:"maxTime"`
-	Stats      TSDBBlockStats          `json:"stats,omitempty"`
+	Stats      TSDBBlockStats          `json:"stats,omitempty"` //nolint:modernize
 	Compaction TSDBBlockMetaCompaction `json:"compaction"`
 	Version    int                     `json:"version"`
 }
