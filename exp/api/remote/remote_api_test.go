@@ -67,48 +67,104 @@ func TestRetryAfterDuration(t *testing.T) {
 	}
 }
 
-type defaultResponseStore struct{}
-
-func (m *defaultResponseStore) Store(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
-	return NewWriteResponse(), nil
-}
-
-func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
-	tLogger := slog.Default()
-
-	h := NewWriteHandler(&defaultResponseStore{}, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
-
-	body := "test"
-	bodyBytes := snappy.Encode(nil, []byte(body))
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
-	req.Header.Set("Content-Type", "application/x-protobuf")
-	rec := httptest.NewRecorder()
-
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
-	}
-
-	samplesHeader := rec.Header().Get(writtenSamplesHeader)
-	exemplarsHeader := rec.Header().Get(writtenExemplarsHeader)
-	histogramHeader := rec.Header().Get(writtenHistogramsHeader)
-
-	if samplesHeader != "" {
-		t.Fatal("expected no written samples header, got", samplesHeader)
-	}
-	if exemplarsHeader != "" {
-		t.Fatal("expected no written exemplars header, got", exemplarsHeader)
-	}
-	if histogramHeader != "" {
-		t.Fatal("expected no written histograms header, got", histogramHeader)
-	}
-}
-
 type storeFunc func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error)
 
 func (f storeFunc) Store(r *http.Request, msgType WriteMessageType, mode WriteMode) (*WriteResponse, error) {
 	return f(r, msgType, mode)
+}
+
+func TestWriteHandler_StatsHeaders(t *testing.T) {
+	tLogger := slog.Default()
+
+	for _, tc := range []struct {
+		name            string
+		msgType         WriteMessageType
+		store           storeFunc
+		expectedHeaders map[string]string
+	}{
+		{
+			name:    "v1 unconfirmed does not add stats headers",
+			msgType: WriteV1MessageType,
+			store: func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
+				return NewWriteResponse(), nil
+			},
+			expectedHeaders: nil,
+		},
+		{
+			name:    "v1 confirmed adds stats headers",
+			msgType: WriteV1MessageType,
+			store: func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
+				resp := NewWriteResponse()
+				resp.Add(WriteResponseStats{Samples: 42, Histograms: 10, Exemplars: 5})
+				return resp, nil
+			},
+			expectedHeaders: map[string]string{
+				writtenSamplesHeader:    "42",
+				writtenHistogramsHeader: "10",
+				writtenExemplarsHeader:  "5",
+			},
+		},
+		{
+			name:    "v2 unconfirmed adds stats headers with zeroes",
+			msgType: WriteV2MessageType,
+			store: func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
+				return NewWriteResponse(), nil
+			},
+			expectedHeaders: map[string]string{
+				writtenSamplesHeader:    "0",
+				writtenHistogramsHeader: "0",
+				writtenExemplarsHeader:  "0",
+			},
+		},
+		{
+			name:    "v2 confirmed adds stats headers",
+			msgType: WriteV2MessageType,
+			store: func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
+				resp := NewWriteResponse()
+				resp.Add(WriteResponseStats{Samples: 42, Histograms: 10, Exemplars: 5})
+				return resp, nil
+			},
+			expectedHeaders: map[string]string{
+				writtenSamplesHeader:    "42",
+				writtenHistogramsHeader: "10",
+				writtenExemplarsHeader:  "5",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewWriteHandler(tc.store, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
+
+			body := "test"
+			bodyBytes := snappy.Encode(nil, []byte(body))
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
+			req.Header.Set("Content-Type", ContentTypeHeader(tc.msgType, WriteModeNone))
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
+			}
+
+			if tc.expectedHeaders == nil {
+				if got := rec.Header().Get(writtenSamplesHeader); got != "" {
+					t.Fatalf("expected no written samples header, got %q", got)
+				}
+				if got := rec.Header().Get(writtenHistogramsHeader); got != "" {
+					t.Fatalf("expected no written histograms header, got %q", got)
+				}
+				if got := rec.Header().Get(writtenExemplarsHeader); got != "" {
+					t.Fatalf("expected no written exemplars header, got %q", got)
+				}
+			} else {
+				for hdr, want := range tc.expectedHeaders {
+					if got := rec.Header().Get(hdr); got != want {
+						t.Fatalf("expected header %s = %q, got %q", hdr, want, got)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestWriteHandler_StatusCode(t *testing.T) {
@@ -156,6 +212,7 @@ func TestWriteHandler_StatusCode(t *testing.T) {
 		})
 	}
 }
+
 
 type mockStorage struct {
 	v2Reqs []*writev2.Request
