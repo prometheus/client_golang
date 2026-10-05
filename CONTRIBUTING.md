@@ -27,6 +27,10 @@ This repository uses Go modules and does not commit a `vendor` directory. Add
 dependencies to the module that uses them: the root module, `exp`, or a
 tutorial module with its own `go.mod` file.
 
+> [!CAUTION]
+> Please think carefully before adding a new dependency. `client_golang` is
+> used heavily, and we do not want to burden users.
+
 * Prefer stable, well-maintained dependencies. Discuss the use of a
   pre-release, unstable, or otherwise unusual dependency with maintainers
   before opening a PR.
