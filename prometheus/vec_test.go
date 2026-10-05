@@ -1115,7 +1115,7 @@ func TestTTLCachedChildKeepsAlive(t *testing.T) {
 		cached.Observe(0.5)
 
 		// Hot path: only Observe on the cached child (no WithLabelValues).
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			time.Sleep(80 * time.Millisecond)
 			cached.Observe(0.1)
 		}
@@ -1138,7 +1138,7 @@ func TestTTLRefreshPreventsExpiration(t *testing.T) {
 		cached := vec.WithLabelValues("200")
 		cached.Add(1)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			time.Sleep(80 * time.Millisecond)
 			cached.Add(1)
 		}
@@ -1151,7 +1151,7 @@ func TestTTLRefreshPreventsExpiration(t *testing.T) {
 
 func TestMetricVecOptsTTLZeroAndNegative(t *testing.T) {
 	desc := NewDesc("test", "help", []string{"l"}, nil)
-	newMetric := func(lvs ...string) Metric { return &counter{} }
+	newMetric := func(_ ...string) Metric { return &counter{} }
 
 	mv0 := V2.NewMetricVec(MetricVecOpts{Desc: desc, NewMetric: newMetric, TTL: 0})
 	if mv0.ttl != 0 {
@@ -1308,7 +1308,7 @@ func TestTTLCustomMetricVecRequiresTTLMetric(t *testing.T) {
 	desc := NewDesc("ttl_custom", "help", []string{"l"}, nil)
 	mv := V2.NewMetricVec(MetricVecOpts{
 		Desc:      desc,
-		NewMetric: func(lvs ...string) Metric { return &counter{} },
+		NewMetric: func(_ ...string) Metric { return &counter{} },
 		TTL:       time.Minute,
 	})
 	defer func() {
@@ -1366,7 +1366,7 @@ func TestTTLSummaryVec(t *testing.T) {
 		cached := vec.WithLabelValues("ok")
 		cached.Observe(0.5)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			time.Sleep(80 * time.Millisecond)
 			cached.Observe(0.1)
 		}
