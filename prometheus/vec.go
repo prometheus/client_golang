@@ -332,12 +332,20 @@ func (m *metricMap) Describe(ch chan<- *Desc) {
 // Collect implements Collector.
 func (m *metricMap) Collect(ch chan<- Metric) {
 	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
+	kadi := 0
+	for _, metrics := range m.metrics {
+		kadi += len(metrics)
+	}
+	snapshot := make([]Metric, 0, kadi)
 	for _, metrics := range m.metrics {
 		for _, metric := range metrics {
-			ch <- metric.metric
+			snapshot = append(snapshot, metric.metric)
 		}
+	}
+	m.mtx.RUnlock()
+
+	for _, metric := range snapshot {
+		ch <- metric
 	}
 }
 

@@ -894,6 +894,105 @@ func TestRegisterUnregisterCollector(t *testing.T) {
 // concurrently calls Observe on random elements of a HistogramVec while the
 // same HistogramVec is registered concurrently and the Gather method of the
 // registry is called concurrently.
+
+type blockingWriteMetric struct {
+	desc       *prometheus.Desc
+	labelPairs []*dto.LabelPair
+	entered    chan struct{} // Closed by the first Write of any such metric.
+	enterOnce  *sync.Once    // Shared by all metrics that close entered.
+	release    chan struct{}
+}
+
+func (m *blockingWriteMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m *blockingWriteMetric) Write(out *dto.Metric) error {
+	m.enterOnce.Do(func() { close(m.entered) })
+	<-m.release
+	out.Label = m.labelPairs
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	return nil
+}
+
+// TestMetricVecCollectWithBlockedGather verifies that a MetricVec stays usable while Registry.Gather is stuck in one of its Metric.Write calls.
+//
+// See https://github.com/prometheus/client_golang/issues/2147.
+func TestMetricVecCollectWithBlockedGather(t *testing.T) {
+	// More children than Registry.Gather buffers, so Collect cannot finish before the stuck Write returns.
+	const children = 2000
+
+	var (
+		desc        = prometheus.NewDesc("test_blocking_write", "A test metric.", []string{"id"}, nil)
+		entered     = make(chan struct{})
+		release     = make(chan struct{})
+		enterOnce   sync.Once
+		releaseOnce sync.Once
+	)
+	releaseWrites := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseWrites)
+
+	vec := prometheus.NewMetricVec(desc, func(lvs ...string) prometheus.Metric {
+		return &blockingWriteMetric{
+			desc:       desc,
+			labelPairs: prometheus.MakeLabelPairs(desc, lvs),
+			entered:    entered,
+			enterOnce:  &enterOnce,
+			release:    release,
+		}
+	})
+	for i := range children {
+		if _, err := vec.GetMetricWithLabelValues(strconv.Itoa(i)); err != nil {
+			t.Fatal("creating metric failed:", err)
+		}
+	}
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(vec)
+
+	type gatherResult struct {
+		mfs []*dto.MetricFamily
+		err error
+	}
+	gathered := make(chan gatherResult, 1)
+	go func() {
+		mfs, err := reg.Gather()
+		gathered <- gatherResult{mfs, err}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Gather did not reach Metric.Write")
+	}
+
+	for _, lv := range []string{"new", "0"} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := vec.GetMetricWithLabelValues(lv)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("GetMetricWithLabelValues(%q) failed: %v", lv, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("GetMetricWithLabelValues(%q) blocked while Gather was stuck in Metric.Write", lv)
+		}
+	}
+
+	releaseWrites()
+	select {
+	case res := <-gathered:
+		if res.err != nil {
+			t.Fatal("gathering failed:", res.err)
+		}
+		// The child created above is not part of the snapshot of this Gather, all children that existed before it must be.
+		if len(res.mfs) != 1 || len(res.mfs[0].GetMetric()) != children {
+			t.Fatalf("expected one metric family with %d metrics, got %v", children, res.mfs)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Gather did not finish after releasing Metric.Write")
+	}
+}
+
 func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 	labelNames := make([]string, 16) // Need at least 13 to expose #512.
 	for i := range labelNames {
