@@ -108,15 +108,40 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
 
+// readFromProbeLen is the number of bytes ReadFrom copies through Write
+// before delegating to the underlying io.ReaderFrom. It mirrors the
+// sniffLen probe net/http performs in (*response).ReadFrom.
+const readFromProbeLen = 512
+
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
-	// If applicable, call WriteHeader here so that observeWriteHeader is
-	// handled appropriately.
-	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
+	if d.wroteHeader || re == nil {
+		// The header is already committed, or there is no source to
+		// probe: delegate directly, as before.
+		n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
+		d.written += n
+		return n, err
 	}
-	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
-	d.written += n
-	return n, err
+	// Do not commit a status code before the source has produced any
+	// bytes. The underlying ReadFrom bypasses this delegator, so writing
+	// StatusOK up front (as done previously) prevented a handler whose
+	// copy failed immediately from still sending an error status.
+	// Instead, mirror net/http: copy the first bytes through Write,
+	// which sends StatusOK implicitly once data actually flows, and only
+	// then delegate the remainder to the underlying ReadFrom. If the
+	// source fails or is exhausted before producing anything, the header
+	// is left unwritten.
+	// d.responseWriterDelegator does not implement io.ReaderFrom, and
+	// io.LimitReader does not implement io.WriterTo, so CopyBuffer goes
+	// through Write and keeps d.written and observeWriteHeader accurate
+	// for the probed bytes.
+	buf := make([]byte, readFromProbeLen)
+	n, err := io.CopyBuffer(d.responseWriterDelegator, io.LimitReader(re, readFromProbeLen), buf)
+	if err != nil || n < readFromProbeLen {
+		return n, err
+	}
+	n2, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
+	d.written += n2
+	return n + n2, err
 }
 
 func (d pusherDelegator) Push(target string, opts *http.PushOptions) error {
