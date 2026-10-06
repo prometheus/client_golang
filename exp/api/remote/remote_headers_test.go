@@ -187,7 +187,7 @@ func TestWriteResponse(t *testing.T) {
 		resp.writeHeaders(WriteV2MessageType, w)
 
 		expectedHeaders := map[string]string{
-			"Custom-Header":                                "custom-value",
+			"Custom-Header": "custom-value",
 			"X-Prometheus-Remote-Write-Samples-Written":    "10",
 			"X-Prometheus-Remote-Write-Histograms-Written": "5",
 			"X-Prometheus-Remote-Write-Exemplars-Written":  "2",
