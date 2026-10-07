@@ -496,3 +496,44 @@ func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
 		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)
 	}
 }
+
+// TestSummaryWritePanicCausesCooldownDeadlock is a regression test for
+// https://github.com/prometheus/client_golang/issues/2147.
+func TestSummaryWritePanicCausesCooldownDeadlock(t *testing.T) {
+	s := NewSummary(SummaryOpts{
+		Name: "test_request_duration_seconds",
+		Help: "Request duration in seconds.",
+	}).(*noObjectivesSummary)
+	s.Observe(0.5)
+
+	// Trigger a panic inside Write after flipping countAndHotIdx (e.g. out == nil,
+	// which panics at `out.Summary = sum`). Because coldCounts is merged into
+	// hotCounts right after cooldown, counts[0] is still merged into counts[1]
+	// before `defer s.writeMtx.Unlock()` runs.
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic from Write(nil)")
+			}
+		}()
+		_ = s.Write(nil)
+	}()
+
+	writeDone := make(chan error, 1)
+	var out dto.Metric
+	go func() {
+		writeDone <- s.Write(&out)
+	}()
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("unexpected Write error: %v", err)
+		}
+		if got := out.GetSummary().GetSampleCount(); got != 1 {
+			t.Fatalf("expected sample count 1, got %d", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Write timed out spinning in cooldown")
+	}
+}

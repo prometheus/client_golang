@@ -2103,3 +2103,48 @@ func TestConstNativeHistogram(t *testing.T) {
 		})
 	}
 }
+
+// TestHistogramWritePanicCausesWaitForCooldownDeadlock is a regression test for
+// https://github.com/prometheus/client_golang/issues/2147.
+func TestHistogramWritePanicCausesWaitForCooldownDeadlock(t *testing.T) {
+	h := NewHistogram(HistogramOpts{
+		Name:                        "test_request_duration_seconds",
+		Help:                        "Request duration in seconds.",
+		NativeHistogramBucketFactor: 1.1,
+	}).(*histogram)
+	h.Observe(0.5)
+
+	// Trigger a panic inside Write after flipping countAndHotIdx (e.g. out == nil,
+	// which panics at `out.Histogram = his`). Because cold counts and native
+	// buckets are merged via defer right after waitForCooldown, counts[0] is
+	// still merged into counts[1] before `defer h.mtx.Unlock()` runs.
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic from Write(nil)")
+			}
+		}()
+		_ = h.Write(nil)
+	}()
+
+	writeDone := make(chan error, 1)
+	var out dto.Metric
+	go func() {
+		writeDone <- h.Write(&out)
+	}()
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("unexpected Write error: %v", err)
+		}
+		if got := out.GetHistogram().GetSampleCount(); got != 1 {
+			t.Fatalf("expected sample count 1, got %d", got)
+		}
+		if got := out.GetHistogram().GetPositiveDelta(); len(got) != 1 || got[0] != 1 {
+			t.Fatalf("expected positive delta [1], got %v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Write timed out spinning in waitForCooldown")
+	}
+}
