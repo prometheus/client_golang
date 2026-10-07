@@ -65,6 +65,40 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
+func TestWriteTags(t *testing.T) {
+	testCases := []struct {
+		name         string
+		label, value string
+		out          string
+	}{
+		{name: "valid", label: "path", value: "/api/v1.0", out: "m;path=/api/v1.0"},
+		{name: "newline in value", label: "ua", value: "x 1 0\nevil.metric 9999", out: "m;ua=x_1_0_evil.metric_9999"},
+		{name: "separator in value", label: "ua", value: "a;b=c", out: "m;ua=a_b=c"},
+		{name: "leading tilde in value", label: "ua", value: "~a~b", out: "m;ua=_a~b"},
+		{name: "control character in value", label: "ua", value: "a\x00b\tc\rd", out: "m;ua=a_b_c_d"},
+		{name: "invalid characters in name", label: "a b;c!d^e=f\ng", value: "v", out: "m;a_b_c_d_e_f_g=v"},
+	}
+
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf.Reset()
+			m := model.Metric{model.MetricNameLabel: "m", model.LabelName(tc.label): model.LabelValue(tc.value)}
+			if err := writeMetric(w, m, true); err != nil {
+				t.Fatalf("write failed: %v", err)
+			}
+			if err := w.Flush(); err != nil {
+				t.Fatalf("flush failed: %v", err)
+			}
+			if want, got := tc.out, buf.String(); want != got {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestWriteSummary(t *testing.T) {
 	testWriteSummary(t, false)
 	testWriteSummary(t, true)
