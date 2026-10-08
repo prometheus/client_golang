@@ -319,13 +319,12 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 }
 
 // fullURL assembles the URL used to push/delete metrics and returns it as a
-// string. The job name and any grouping label values containing a '/' will
-// trigger a base64 encoding of the affected component and proper suffixing of
-// the preceding component. Similarly, an empty grouping label value will be
-// encoded as base64 just with a single `=` padding character (to avoid an empty
-// path component). If the component does not contain a '/' but other special
-// characters, the usual url.QueryEscape is used for compatibility with older
-// versions of the Pushgateway and for better readability.
+// string. The job name and any grouping label values containing a '/' or equal
+// to '.' or '..' will trigger a base64 encoding of the affected component and
+// proper suffixing of the preceding component. Similarly, an empty grouping
+// label value will be encoded as base64 just with a single `=` padding character
+// (to avoid an empty path component). Other special characters use url.QueryEscape for
+// compatibility with older versions of the Pushgateway and better readability.
 func (p *Pusher) fullURL() string {
 	urlComponents := []string{}
 	if encodedJob, base64 := encodeComponent(p.job); base64 {
@@ -344,13 +343,13 @@ func (p *Pusher) fullURL() string {
 }
 
 // encodeComponent encodes the provided string with base64.RawURLEncoding in
-// case it contains '/' and as "=" in case it is empty. If neither is the case,
-// it uses url.QueryEscape instead. It returns true in the former two cases.
+// case it contains '/' or equals '.' or '..', and as "=" in case it is empty.
+// Otherwise, it uses url.QueryEscape. It returns true when base64 encoding is used.
 func encodeComponent(s string) (string, bool) {
 	if s == "" {
 		return "=", true
 	}
-	if strings.Contains(s, "/") {
+	if strings.Contains(s, "/") || s == "." || s == ".." {
 		return base64.RawURLEncoding.EncodeToString([]byte(s)), true
 	}
 	return url.QueryEscape(s), false
