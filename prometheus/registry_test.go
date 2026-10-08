@@ -754,6 +754,60 @@ func BenchmarkHandler(b *testing.B) {
 	}
 }
 
+// BenchmarkGatherMetricVec measures Registry.Gather on a registry with one MetricVec of the given size.
+//
+// https://github.com/prometheus/client_golang/issues/2147.
+func BenchmarkGatherMetricVec(b *testing.B) {
+	// Gauge is the worst case for Collect, its Write is almost free.
+	cases := []struct {
+		kind     string
+		children int
+	}{
+		{"gauge", 10},
+		{"gauge", 900},
+		{"gauge", 2000},
+		{"gauge", 5000},
+		{"histogram", 10},
+		{"histogram", 900},
+		{"histogram", 2000},
+		{"histogram", 5000},
+	}
+	for _, c := range cases {
+		b.Run(fmt.Sprintf("%s/children=%d", c.kind, c.children), func(b *testing.B) {
+			var vec prometheus.Collector
+			switch c.kind {
+			case "gauge":
+				gv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+					Name: "test_gauge",
+					Help: "A test gauge.",
+				}, []string{"id"})
+				for i := range c.children {
+					gv.WithLabelValues(strconv.Itoa(i)).Set(1)
+				}
+				vec = gv
+			case "histogram":
+				hv := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+					Name: "test_histogram",
+					Help: "A test histogram.",
+				}, []string{"id"})
+				for i := range c.children {
+					hv.WithLabelValues(strconv.Itoa(i)).Observe(0.1)
+				}
+				vec = hv
+			}
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(vec)
+
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := reg.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestAlreadyRegistered(t *testing.T) {
 	original := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
