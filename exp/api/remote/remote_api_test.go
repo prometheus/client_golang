@@ -105,6 +105,68 @@ func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
 	}
 }
 
+type confirmedResponseStore struct{}
+
+func (m *confirmedResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+	return NewWriteResponseWithStats(NewConfirmedWriteResponseStats(42, 10, 5)), nil
+}
+
+func Test_WriteHandler_V2UnconfirmedStatsDoesNotAddStatsHeaders(t *testing.T) {
+	tLogger := slog.Default()
+
+	h := NewWriteHandler(&defaultResponseStore{}, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
+
+	body := "test"
+	bodyBytes := snappy.Encode(nil, []byte(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/x-protobuf;proto=io.prometheus.write.v2.Request")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
+	}
+
+	if got := rec.Header().Get(writtenSamplesHeader); got != "" {
+		t.Fatal("expected no written samples header, got", got)
+	}
+	if got := rec.Header().Get(writtenExemplarsHeader); got != "" {
+		t.Fatal("expected no written exemplars header, got", got)
+	}
+	if got := rec.Header().Get(writtenHistogramsHeader); got != "" {
+		t.Fatal("expected no written histograms header, got", got)
+	}
+}
+
+func Test_WriteHandler_V2ConfirmedStatsAddsStatsHeaders(t *testing.T) {
+	tLogger := slog.Default()
+
+	h := NewWriteHandler(&confirmedResponseStore{}, MessageTypes{WriteV2MessageType, WriteV1MessageType}, WithWriteHandlerLogger(tLogger))
+
+	body := "test"
+	bodyBytes := snappy.Encode(nil, []byte(body))
+	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/x-protobuf;proto=io.prometheus.write.v2.Request")
+	rec := httptest.NewRecorder()
+
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected status code 204, got %d with body %s", rec.Code, rec.Body.String())
+	}
+
+	if got := rec.Header().Get(writtenSamplesHeader); got != "42" {
+		t.Fatalf("expected samples header 42, got %q", got)
+	}
+	if got := rec.Header().Get(writtenHistogramsHeader); got != "10" {
+		t.Fatalf("expected histograms header 10, got %q", got)
+	}
+	if got := rec.Header().Get(writtenExemplarsHeader); got != "5" {
+		t.Fatalf("expected exemplars header 5, got %q", got)
+	}
+}
+
 type mockStorage struct {
 	v2Reqs []*writev2.Request
 	protos []WriteMessageType

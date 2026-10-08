@@ -115,9 +115,23 @@ func NewWriteResponse() *WriteResponse {
 	}
 }
 
+// NewWriteResponseWithStats creates a new WriteResponse with the given statistics and status code http.StatusNoContent.
+func NewWriteResponseWithStats(stats WriteResponseStats) *WriteResponse {
+	return &WriteResponse{
+		WriteResponseStats: stats,
+		statusCode:         http.StatusNoContent,
+		extraHeaders:       make(http.Header),
+	}
+}
+
 // Stats returns the current statistics.
 func (w *WriteResponse) Stats() WriteResponseStats {
 	return w.WriteResponseStats
+}
+
+// SetStats sets the statistics for the write response.
+func (w *WriteResponse) SetStats(stats WriteResponseStats) {
+	w.WriteResponseStats = stats
 }
 
 // SetStatusCode sets the HTTP status code for the response. http.StatusNoContent is the default unless 5xx is set.
@@ -133,12 +147,12 @@ func (w *WriteResponse) SetExtraHeader(key, value string) {
 // writeHeaders sets response headers in a given response writer.
 // Make sure to use it before http.ResponseWriter.WriteHeader and .Write.
 func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseWriter) {
+	if w == nil {
+		return
+	}
 	h := rw.Header()
 
-	// TODO make it easier to indicate if the stats are valid before adding the headers. WriteResponseStats.confirmed
-	//  could be used if there was a reliable way for it to be set without parsing headers. For now ensure we don't
-	//  add stats headers for v1 messages which can cause confusion/false positive errors logs.
-	if msgType != WriteV1MessageType {
+	if w.shouldWriteStatsHeaders(msgType) {
 		h.Set(writtenSamplesHeader, strconv.Itoa(w.Samples))
 		h.Set(writtenHistogramsHeader, strconv.Itoa(w.Histograms))
 		h.Set(writtenExemplarsHeader, strconv.Itoa(w.Exemplars))
@@ -149,6 +163,22 @@ func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseW
 			h.Add(k, vv)
 		}
 	}
+}
+
+func (w *WriteResponse) shouldWriteStatsHeaders(msgType WriteMessageType) bool {
+	if err := msgType.Validate(); err != nil {
+		return false
+	}
+	if msgType == WriteV1MessageType {
+		return false
+	}
+	if !w.confirmed {
+		return false
+	}
+	if err := w.Validate(); err != nil {
+		return false
+	}
+	return true
 }
 
 // WriteResponseStats represents the response, remote write statistics.
@@ -167,6 +197,50 @@ type WriteResponseStats struct {
 	confirmed bool
 }
 
+// NewWriteResponseStats returns a WriteResponseStats with the given statistics and confirmation status.
+func NewWriteResponseStats(samples, histograms, exemplars int, confirmed bool) WriteResponseStats {
+	return WriteResponseStats{
+		Samples:    samples,
+		Histograms: histograms,
+		Exemplars:  exemplars,
+		confirmed:  confirmed,
+	}
+}
+
+// NewConfirmedWriteResponseStats returns a confirmed WriteResponseStats with the given statistics.
+func NewConfirmedWriteResponseStats(samples, histograms, exemplars int) WriteResponseStats {
+	return WriteResponseStats{
+		Samples:    samples,
+		Histograms: histograms,
+		Exemplars:  exemplars,
+		confirmed:  true,
+	}
+}
+
+// Confirmed returns true if the statistics are confirmed.
+func (s WriteResponseStats) Confirmed() bool {
+	return s.confirmed
+}
+
+// SetConfirmed sets whether the statistics are confirmed.
+func (s *WriteResponseStats) SetConfirmed(confirmed bool) {
+	s.confirmed = confirmed
+}
+
+// Validate returns an error if any statistics count is negative.
+func (s WriteResponseStats) Validate() error {
+	if s.Samples < 0 {
+		return errors.New("samples count cannot be negative")
+	}
+	if s.Histograms < 0 {
+		return errors.New("histograms count cannot be negative")
+	}
+	if s.Exemplars < 0 {
+		return errors.New("exemplars count cannot be negative")
+	}
+	return nil
+}
+
 // NoDataWritten returns true if statistics indicate no data was written.
 func (s WriteResponseStats) NoDataWritten() bool {
 	return (s.Samples + s.Histograms + s.Exemplars) == 0
@@ -180,7 +254,7 @@ func (s WriteResponseStats) AllSamples() int {
 // Add adds the given WriteResponseStats to this WriteResponseStats.
 // If this WriteResponseStats is empty, it will be replaced by the given WriteResponseStats.
 func (s *WriteResponseStats) Add(rs WriteResponseStats) {
-	s.confirmed = rs.confirmed
+	s.confirmed = s.confirmed || rs.confirmed
 	s.Samples += rs.Samples
 	s.Histograms += rs.Histograms
 	s.Exemplars += rs.Exemplars
