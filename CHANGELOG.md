@@ -1,4 +1,4 @@
-## 1.25.0-rc.0 / 2026-10-05
+## 1.25.0 / 2026-10-07
 
 * [CHANGE] Minimum required Go version is now 1.26, only the two latest Go versions (1.26 and 1.27) are supported from now on. #2138
 * [CHANGE] api/prometheus/v1: `Query`, `QueryRange`, `Series`, `LabelNames`, and `LabelValues` now return `Infos` annotations in addition to `Warnings`, matching the Prometheus server's info annotations. This changes the signatures of these methods and of `api.Client`'s `Do`/`DoGetFallback`; custom API client implementations must be updated. #1963
