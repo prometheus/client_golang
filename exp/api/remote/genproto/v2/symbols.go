@@ -30,6 +30,8 @@
 
 package writev2
 
+import "fmt"
+
 // SymbolsTable implements table for easy symbol use.
 type SymbolsTable struct {
 	strings    []string
@@ -88,10 +90,21 @@ func (t *SymbolsTable) Reset() {
 }
 
 // DesymbolizeLabels decodes label references, with given symbols to labels.
-func DesymbolizeLabels(labelRefs []uint32, symbols, buf []string) []string {
+//
+// The references are decoded from a remote-write request, so they are not
+// trusted: an odd number of references, or a reference outside the symbols
+// table, is reported as an error rather than panicking.
+func DesymbolizeLabels(labelRefs []uint32, symbols, buf []string) ([]string, error) {
+	if len(labelRefs)%2 != 0 {
+		return nil, fmt.Errorf("invalid labelRefs length %v, must be even", len(labelRefs))
+	}
 	result := buf[:0]
 	for i := 0; i < len(labelRefs); i += 2 {
-		result = append(result, symbols[labelRefs[i]], symbols[labelRefs[i+1]])
+		nameRef, valueRef := labelRefs[i], labelRefs[i+1]
+		if int(nameRef) >= len(symbols) || int(valueRef) >= len(symbols) {
+			return nil, fmt.Errorf("labelRefs %v (name), %v (value) outside of symbols table (size %v)", nameRef, valueRef, len(symbols))
+		}
+		result = append(result, symbols[nameRef], symbols[valueRef])
 	}
-	return result
+	return result, nil
 }
