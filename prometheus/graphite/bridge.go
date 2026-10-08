@@ -23,7 +23,9 @@ import (
 	"io"
 	"net"
 	"sort"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
@@ -54,7 +56,9 @@ const (
 
 // Config defines the Graphite bridge config.
 type Config struct {
-	// Whether to use Graphite tags or not. Defaults to false.
+	// Whether to use Graphite tags or not. Defaults to false. Whitespace,
+	// control characters, and characters reserved by the Graphite tag syntax
+	// in tag names and values are replaced with "_".
 	UseTags bool
 
 	// The url to push data to. Required.
@@ -250,16 +254,32 @@ func writeTags(buf *bufio.Writer, m model.Metric) error {
 	for label, value := range m {
 		if label != model.MetricNameLabel {
 			buf.WriteRune(';')
-			if _, err := buf.WriteString(string(label)); err != nil {
+			if _, err := buf.WriteString(sanitizeTag(string(label), ";!^=")); err != nil {
 				return err
 			}
 			buf.WriteRune('=')
-			if _, err := buf.WriteString(string(value)); err != nil {
+			v := sanitizeTag(string(value), ";")
+			if strings.HasPrefix(v, "~") {
+				v = "_" + v[1:]
+			}
+			if _, err := buf.WriteString(v); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// sanitizeTag replaces whitespace, control characters, and the given
+// forbidden characters with '_'. This prevents a tag name or value from
+// breaking the plaintext protocol line, e.g. by injecting a newline.
+func sanitizeTag(s, forbidden string) string {
+	return strings.Map(func(c rune) rune {
+		if unicode.IsSpace(c) || unicode.IsControl(c) || strings.ContainsRune(forbidden, c) {
+			return '_'
+		}
+		return c
+	}, s)
 }
 
 func writeLabels(buf *bufio.Writer, m model.Metric, numLabels int) error {
