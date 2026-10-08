@@ -800,6 +800,17 @@ func (h *histogram) Write(out *dto.Metric) error {
 	coldCounts := h.counts[(^n)>>63]
 
 	waitForCooldown(count, coldCounts)
+	// NOTE: Always merge coldCounts into hotCounts before h.mtx.Unlock() runs,
+	// even if a panic occurs below (e.g. out == nil). Otherwise hotCounts.count
+	// stays permanently behind countAndHotIdx and the next Write spins forever
+	// in waitForCooldown.
+	defer func() {
+		if h.nativeHistogramSchema > math.MinInt32 {
+			coldCounts.nativeHistogramBucketsPositive.Range(addAndReset(&hotCounts.nativeHistogramBucketsPositive, &hotCounts.nativeHistogramBucketsNumber))
+			coldCounts.nativeHistogramBucketsNegative.Range(addAndReset(&hotCounts.nativeHistogramBucketsNegative, &hotCounts.nativeHistogramBucketsNumber))
+		}
+		addAndResetCounts(hotCounts, coldCounts)
+	}()
 
 	his := &dto.Histogram{
 		Bucket:           make([]*dto.Bucket, len(h.upperBounds)),
@@ -835,11 +846,6 @@ func (h *histogram) Write(out *dto.Metric) error {
 		his.Schema = new(atomic.LoadInt32(&coldCounts.nativeHistogramSchema))
 		zeroBucket := atomic.LoadUint64(&coldCounts.nativeHistogramZeroBucket)
 
-		defer func() {
-			coldCounts.nativeHistogramBucketsPositive.Range(addAndReset(&hotCounts.nativeHistogramBucketsPositive, &hotCounts.nativeHistogramBucketsNumber))
-			coldCounts.nativeHistogramBucketsNegative.Range(addAndReset(&hotCounts.nativeHistogramBucketsNegative, &hotCounts.nativeHistogramBucketsNumber))
-		}()
-
 		his.ZeroCount = new(zeroBucket)
 		his.NegativeSpan, his.NegativeDelta = makeBuckets(&coldCounts.nativeHistogramBucketsNegative)
 		his.PositiveSpan, his.PositiveDelta = makeBuckets(&coldCounts.nativeHistogramBucketsPositive)
@@ -861,7 +867,6 @@ func (h *histogram) Write(out *dto.Metric) error {
 		}
 
 	}
-	addAndResetCounts(hotCounts, coldCounts)
 	return nil
 }
 
