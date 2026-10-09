@@ -15,7 +15,6 @@ package prometheus
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
@@ -216,9 +215,6 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	)
 	if opts.now == nil {
 		opts.now = time.Now
-	}
-	if opts.TTL < 0 {
-		panic(fmt.Sprintf("invalid negative ttl: %v", opts.TTL))
 	}
 	newMetric := func(lvs ...string) Metric {
 		if len(lvs) != len(desc.variableLabels.names) {

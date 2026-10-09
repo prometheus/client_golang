@@ -1200,9 +1200,6 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
-	if opts.TTL < 0 {
-		panic(fmt.Sprintf("invalid negative ttl: %v", opts.TTL))
-	}
 	newMetric := func(lvs ...string) Metric {
 		h := newHistogram(desc, opts.HistogramOpts, lvs...)
 		if opts.TTL <= 0 {

@@ -580,9 +580,6 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 			panic(errQuantileLabelNotAllowed)
 		}
 	}
-	if opts.TTL < 0 {
-		panic(fmt.Sprintf("invalid negative ttl: %v", opts.TTL))
-	}
 	desc := V2.NewDesc(
 		BuildFQName(opts.Namespace, opts.Subsystem, opts.Name),
 		opts.Help,

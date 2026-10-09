@@ -19,21 +19,14 @@ import (
 )
 
 // ExpiredCleaner is implemented by collectors that support TTL-based cleanup of
-// unused children (for example MetricVec with a non-zero Opts.TTL).
+// unused children (for example MetricVec with a positive MetricVecOpts.TTL).
 //
-// Registry.Gather only invokes CleanupExpired on collectors that also report
-// TTL as enabled (see ttlEnabled), so vectors with TTL == 0 are not touched on
-// the Gather hot path.
+// Registry.Gather invokes CleanupExpired on registered collectors. Vectors with
+// TTL <= 0 make CleanupExpired a no-op.
+// CleanupExpired returns the number of children removed and must be safe to
+// call concurrently with Collect and other CleanupExpired calls.
 type ExpiredCleaner interface {
 	CleanupExpired() int
-}
-
-// ttlEnabledCollector is the Gather-time check for automatic TTL cleanup.
-// ttlEnabled is unexported so only types in this package (e.g. *MetricVec and
-// the built-in *Vec types) can opt into automatic cleanup.
-type ttlEnabledCollector interface {
-	ExpiredCleaner
-	ttlEnabled() bool
 }
 
 // ttlMetric is implemented by decorator wrappers that track last access time.
@@ -43,8 +36,26 @@ type ttlMetric interface {
 	touch()
 }
 
-func nowUnixMilli() int64 {
-	return time.Now().UnixMilli()
+type ttlMetricWrapper struct {
+	Metric
+	lastAccessedTs atomic.Int64
+}
+
+func newTTLMetric(metric Metric) *ttlMetricWrapper {
+	tm := &ttlMetricWrapper{Metric: metric}
+	tm.lastAccessedTs.Store(time.Now().UnixMilli())
+	return tm
+}
+
+func (m *ttlMetricWrapper) lastAccessed() int64 { return m.lastAccessedTs.Load() }
+func (m *ttlMetricWrapper) touch()              { m.lastAccessedTs.Store(time.Now().UnixMilli()) }
+
+// unwrapTTLMetric preserves the concrete type returned by custom constructors.
+func unwrapTTLMetric(metric Metric) Metric {
+	if tm, ok := metric.(*ttlMetricWrapper); ok {
+		return tm.Metric
+	}
+	return metric
 }
 
 // --- Counter wrapper ---
@@ -56,18 +67,18 @@ type ttlCounter struct {
 
 func newTTLCounter(c Counter) *ttlCounter {
 	tc := &ttlCounter{Counter: c}
-	tc.lastAccessedTs.Store(nowUnixMilli())
+	tc.lastAccessedTs.Store(time.Now().UnixMilli())
 	return tc
 }
 
 func (c *ttlCounter) Inc() {
 	c.Counter.Inc()
-	c.lastAccessedTs.Store(nowUnixMilli())
+	c.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (c *ttlCounter) Add(v float64) {
 	c.Counter.Add(v)
-	c.lastAccessedTs.Store(nowUnixMilli())
+	c.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (c *ttlCounter) AddWithExemplar(v float64, e Labels) {
@@ -76,11 +87,11 @@ func (c *ttlCounter) AddWithExemplar(v float64, e Labels) {
 	} else {
 		c.Counter.Add(v)
 	}
-	c.lastAccessedTs.Store(nowUnixMilli())
+	c.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (c *ttlCounter) lastAccessed() int64 { return c.lastAccessedTs.Load() }
-func (c *ttlCounter) touch()              { c.lastAccessedTs.Store(nowUnixMilli()) }
+func (c *ttlCounter) touch()              { c.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
 // --- Gauge wrapper ---
 
@@ -91,42 +102,42 @@ type ttlGauge struct {
 
 func newTTLGauge(g Gauge) *ttlGauge {
 	tg := &ttlGauge{Gauge: g}
-	tg.lastAccessedTs.Store(nowUnixMilli())
+	tg.lastAccessedTs.Store(time.Now().UnixMilli())
 	return tg
 }
 
 func (g *ttlGauge) Set(v float64) {
 	g.Gauge.Set(v)
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) Inc() {
 	g.Gauge.Inc()
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) Dec() {
 	g.Gauge.Dec()
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) Add(v float64) {
 	g.Gauge.Add(v)
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) Sub(v float64) {
 	g.Gauge.Sub(v)
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) SetToCurrentTime() {
 	g.Gauge.SetToCurrentTime()
-	g.lastAccessedTs.Store(nowUnixMilli())
+	g.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (g *ttlGauge) lastAccessed() int64 { return g.lastAccessedTs.Load() }
-func (g *ttlGauge) touch()              { g.lastAccessedTs.Store(nowUnixMilli()) }
+func (g *ttlGauge) touch()              { g.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
 // --- Histogram wrapper ---
 
@@ -137,13 +148,13 @@ type ttlHistogram struct {
 
 func newTTLHistogram(h Histogram) *ttlHistogram {
 	th := &ttlHistogram{Histogram: h}
-	th.lastAccessedTs.Store(nowUnixMilli())
+	th.lastAccessedTs.Store(time.Now().UnixMilli())
 	return th
 }
 
 func (h *ttlHistogram) Observe(v float64) {
 	h.Histogram.Observe(v)
-	h.lastAccessedTs.Store(nowUnixMilli())
+	h.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
@@ -152,11 +163,11 @@ func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
 	} else {
 		h.Histogram.Observe(v)
 	}
-	h.lastAccessedTs.Store(nowUnixMilli())
+	h.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (h *ttlHistogram) lastAccessed() int64 { return h.lastAccessedTs.Load() }
-func (h *ttlHistogram) touch()              { h.lastAccessedTs.Store(nowUnixMilli()) }
+func (h *ttlHistogram) touch()              { h.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
 // --- Summary wrapper ---
 
@@ -167,14 +178,14 @@ type ttlSummary struct {
 
 func newTTLSummary(s Summary) *ttlSummary {
 	ts := &ttlSummary{Summary: s}
-	ts.lastAccessedTs.Store(nowUnixMilli())
+	ts.lastAccessedTs.Store(time.Now().UnixMilli())
 	return ts
 }
 
 func (s *ttlSummary) Observe(v float64) {
 	s.Summary.Observe(v)
-	s.lastAccessedTs.Store(nowUnixMilli())
+	s.lastAccessedTs.Store(time.Now().UnixMilli())
 }
 
 func (s *ttlSummary) lastAccessed() int64 { return s.lastAccessedTs.Load() }
-func (s *ttlSummary) touch()              { s.lastAccessedTs.Store(nowUnixMilli()) }
+func (s *ttlSummary) touch()              { s.lastAccessedTs.Store(time.Now().UnixMilli()) }

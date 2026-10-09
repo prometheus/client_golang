@@ -14,7 +14,6 @@
 package prometheus
 
 import (
-	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
@@ -171,9 +170,6 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
-	if opts.TTL < 0 {
-		panic(fmt.Sprintf("invalid negative ttl: %v", opts.TTL))
-	}
 	newMetric := func(lvs ...string) Metric {
 		if len(lvs) != len(desc.variableLabels.names) {
 			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
