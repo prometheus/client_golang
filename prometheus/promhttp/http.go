@@ -76,11 +76,35 @@ func defaultCompressionFormats() []Compression {
 	return []Compression{Identity, Gzip}
 }
 
-var gzipPool = sync.Pool{
-	New: func() any {
-		return gzip.NewWriter(nil)
-	},
+// maxIdleGzipWriters bounds retained compressor memory while covering a small
+// number of concurrent scrapers. Extra writers are discarded after use.
+const maxIdleGzipWriters = 4
+
+type boundedGzipPool struct {
+	writers chan *gzip.Writer
 }
+
+func newBoundedGzipPool(maxIdle int) *boundedGzipPool {
+	return &boundedGzipPool{writers: make(chan *gzip.Writer, maxIdle)}
+}
+
+func (p *boundedGzipPool) Get() *gzip.Writer {
+	select {
+	case gz := <-p.writers:
+		return gz
+	default:
+		return gzip.NewWriter(nil)
+	}
+}
+
+func (p *boundedGzipPool) Put(gz *gzip.Writer) {
+	select {
+	case p.writers <- gz:
+	default:
+	}
+}
+
+var gzipPool = newBoundedGzipPool(maxIdleGzipWriters)
 
 // coalescingGatherer wraps a TransactionalGatherer to deduplicate concurrent
 // Gather calls. When a Gather is already in flight, new callers join the
@@ -682,7 +706,7 @@ func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []strin
 		writer, closeWriter, err := internal.NewZstdWriter(rw)
 		return writer, selected, closeWriter, err
 	case "gzip":
-		gz := gzipPool.Get().(*gzip.Writer)
+		gz := gzipPool.Get()
 		gz.Reset(rw)
 		return gz, selected, func() { _ = gz.Close(); gzipPool.Put(gz) }, nil
 	case "identity":
