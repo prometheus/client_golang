@@ -821,16 +821,27 @@ type Gatherers []Gatherer
 func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		metricFamiliesByName = map[string]*dto.MetricFamily{}
-		metricHashes         = map[uint64]struct{}{}
 		errs                 MultiError // The collected errors to return in the end.
+		mfsByGatherer        = make([][]*dto.MetricFamily, len(gs))
+		errsByGatherer       = make([]error, len(gs))
+		metricCount          int
 	)
 
 	xxh := xxhashPool.Get().(*xxhash.Digest)
 	defer xxhashPool.Put(xxh)
 
+	// Gather from all Gatherers first, so that the map of metric hashes can
+	// be presized with the total number of metrics.
 	for i, g := range gs {
-		mfs, err := g.Gather()
-		if err != nil {
+		mfsByGatherer[i], errsByGatherer[i] = g.Gather()
+		for _, mf := range mfsByGatherer[i] {
+			metricCount += len(mf.Metric)
+		}
+	}
+	metricHashes := make(map[uint64]struct{}, metricCount)
+
+	for i, mfs := range mfsByGatherer {
+		if err := errsByGatherer[i]; err != nil {
 			multiErr := MultiError{}
 			if errors.As(err, &multiErr) {
 				for _, err := range multiErr {
