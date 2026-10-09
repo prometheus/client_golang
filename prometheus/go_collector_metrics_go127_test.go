@@ -62,6 +62,7 @@ var (
 		"/godebug/non-default-behavior/httplaxcontentlength:events":        "go_godebug_non_default_behavior_httplaxcontentlength_events_total",
 		"/godebug/non-default-behavior/httpmuxgo121:events":                "go_godebug_non_default_behavior_httpmuxgo121_events_total",
 		"/godebug/non-default-behavior/httpservecontentkeepheaders:events": "go_godebug_non_default_behavior_httpservecontentkeepheaders_events_total",
+		"/godebug/non-default-behavior/httpservecontentmaxranges:events":   "go_godebug_non_default_behavior_httpservecontentmaxranges_events_total",
 		"/godebug/non-default-behavior/installgoroot:events":               "go_godebug_non_default_behavior_installgoroot_events_total",
 		"/godebug/non-default-behavior/multipartmaxheaders:events":         "go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"/godebug/non-default-behavior/multipartmaxparts:events":           "go_godebug_non_default_behavior_multipartmaxparts_events_total",
@@ -123,4 +124,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 187
+const expectedRuntimeMetricsCardinality = 188
