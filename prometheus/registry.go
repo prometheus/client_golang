@@ -431,6 +431,11 @@ func (r *Registry) MustGather() []*dto.MetricFamily {
 }
 
 // Gather implements Gatherer.
+//
+// Before Collect, Gather calls CleanupExpired on registered collectors that
+// implement ExpiredCleaner, so expired Vec children can be reclaimed on scrape.
+// This includes collectors registered through wrapping collectors and nested
+// registries. Cleanup panics are recovered and reported as collection errors.
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	r.mtx.RLock()
 
@@ -609,9 +614,36 @@ func safeCollect(c Collector, ch chan<- Metric) (err error) {
 			ch <- NewInvalidMetric(NewInvalidDesc(err), err)
 		}
 	}()
+	cleanupExpiredCollector(c)
 	c.Collect(ch)
 
 	return err
+}
+
+// cleanupExpiredCollector follows wrapping collectors and nested registries.
+// It runs inside safeCollect so cleanup panics are recovered there.
+func cleanupExpiredCollector(c Collector) {
+	if wc, ok := c.(*wrappingCollector); ok {
+		c = wc.unwrapRecursively()
+	}
+	if cleaner, ok := c.(ExpiredCleaner); ok {
+		cleaner.CleanupExpired()
+		return
+	}
+	if r, ok := c.(*Registry); ok {
+		r.mtx.RLock()
+		collectors := make([]Collector, 0, len(r.collectorsByID)+len(r.uncheckedCollectors))
+		for _, collector := range r.collectorsByID {
+			collectors = append(collectors, collector)
+		}
+		collectors = append(collectors, r.uncheckedCollectors...)
+		r.mtx.RUnlock()
+
+		// Release the registry lock before invoking user-defined cleanup methods.
+		for _, collector := range collectors {
+			cleanupExpiredCollector(collector)
+		}
+	}
 }
 
 // Collect implements Collector.
@@ -642,12 +674,12 @@ func WriteToTextfile(filename string, g Gatherer) error {
 
 	mfs, err := g.Gather()
 	if err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	for _, mf := range mfs {
 		if _, err := expfmt.MetricFamilyToText(tmp, mf); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return err
 		}
 	}

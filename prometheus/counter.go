@@ -70,6 +70,11 @@ type CounterVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics, orphaned-handle behavior, and
+	// cleanup via Registry.Gather / CleanupExpired.
+	TTL time.Duration
 }
 
 // NewCounter creates a new Counter based on the provided CounterOpts.
@@ -211,15 +216,23 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 	if opts.now == nil {
 		opts.now = time.Now
 	}
-	return &CounterVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			if len(lvs) != len(desc.variableLabels.names) {
-				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
-			result.init(result) // Init self-collection.
-			result.createdTs = timestamppb.New(opts.now())
+	newMetric := func(lvs ...string) Metric {
+		if len(lvs) != len(desc.variableLabels.names) {
+			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+		}
+		result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+		result.init(result) // Init self-collection.
+		result.createdTs = timestamppb.New(opts.now())
+		if opts.TTL <= 0 {
 			return result
+		}
+		return newTTLCounter(result)
+	}
+	return &CounterVec{
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc:      desc,
+			NewMetric: newMetric,
+			TTL:       opts.TTL,
 		}),
 	}
 }

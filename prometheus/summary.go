@@ -163,6 +163,10 @@ type SummaryVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics.
+	TTL time.Duration
 }
 
 // Problem with the sliding-window decay algorithm... The Merge method of
@@ -587,9 +591,18 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
+	newMetric := func(lvs ...string) Metric {
+		s := newSummary(desc, opts.SummaryOpts, lvs...)
+		if opts.TTL <= 0 {
+			return s
+		}
+		return newTTLSummary(s)
+	}
 	return &SummaryVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			return newSummary(desc, opts.SummaryOpts, lvs...)
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc:      desc,
+			NewMetric: newMetric,
+			TTL:       opts.TTL,
 		}),
 	}
 }

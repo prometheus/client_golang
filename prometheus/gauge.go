@@ -65,6 +65,10 @@ type GaugeVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics.
+	TTL time.Duration
 }
 
 // NewGauge creates a new Gauge based on the provided GaugeOpts.
@@ -166,14 +170,22 @@ func (v2) NewGaugeVec(opts GaugeVecOpts) *GaugeVec {
 		opts.ConstLabels,
 		WithUnit(opts.Unit),
 	)
-	return &GaugeVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			if len(lvs) != len(desc.variableLabels.names) {
-				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-			}
-			result := &gauge{desc: desc, labelPairs: MakeLabelPairs(desc, lvs)}
-			result.init(result) // Init self-collection.
+	newMetric := func(lvs ...string) Metric {
+		if len(lvs) != len(desc.variableLabels.names) {
+			panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+		}
+		result := &gauge{desc: desc, labelPairs: MakeLabelPairs(desc, lvs)}
+		result.init(result) // Init self-collection.
+		if opts.TTL <= 0 {
 			return result
+		}
+		return newTTLGauge(result)
+	}
+	return &GaugeVec{
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc:      desc,
+			NewMetric: newMetric,
+			TTL:       opts.TTL,
 		}),
 	}
 }
