@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -277,6 +278,9 @@ type Registry struct {
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+	// lastMetricCount is the number of metrics gathered by the previous
+	// Gather call. It is used to presize the map of metric hashes.
+	lastMetricCount atomic.Int64
 }
 
 // Register implements Registerer.
@@ -443,7 +447,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		checkedMetricChan   = make(chan Metric, capMetricChan)
 		uncheckedMetricChan = make(chan Metric, capMetricChan)
-		metricHashes        = map[uint64]struct{}{}
+		metricHashes        = make(map[uint64]struct{}, r.lastMetricCount.Load())
 		wg                  sync.WaitGroup
 		safeErrs            = &SafeMultiError{} // To collect errors in a threadsafe way
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
@@ -581,6 +585,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 
+	r.lastMetricCount.Store(int64(len(metricHashes)))
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), safeErrs.errs.MaybeUnwrap()
 }
 
