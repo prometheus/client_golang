@@ -16,6 +16,7 @@ package prometheus
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -223,7 +224,30 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		// Moderately fast path.
 		return desc.constLabelPairs
 	}
-	labelPairs := make([]*dto.LabelPair, 0, totalLen)
+	if len(desc.orderedLabels) != totalLen {
+		// Desc not created by NewDesc, e.g. an invalid one.
+		return makeLabelPairsSorted(desc, labelValues)
+	}
+	// Allocate the variable label pairs and a copy of their values in one
+	// go instead of once per label. The constant label pairs are shared.
+	values := slices.Clone(labelValues[:len(desc.variableLabels.names)])
+	variableLabelPairs := make([]dto.LabelPair, len(values))
+	labelPairs := make([]*dto.LabelPair, totalLen)
+	for i, l := range desc.orderedLabels {
+		if l.constIndex >= 0 {
+			labelPairs[i] = desc.constLabelPairs[l.constIndex]
+			continue
+		}
+		lp := &variableLabelPairs[l.variableIndex]
+		lp.Name = l.name
+		lp.Value = &values[l.variableIndex]
+		labelPairs[i] = lp
+	}
+	return labelPairs
+}
+
+func makeLabelPairsSorted(desc *Desc, labelValues []string) []*dto.LabelPair {
+	labelPairs := make([]*dto.LabelPair, 0, len(desc.variableLabels.names)+len(desc.constLabelPairs))
 	for i, l := range desc.variableLabels.names {
 		labelPairs = append(labelPairs, &dto.LabelPair{
 			Name:  new(l),

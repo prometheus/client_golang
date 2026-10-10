@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -54,6 +55,10 @@ type Desc struct {
 	// variableLabels contains names of labels and normalization function for
 	// which the metric maintains variable values.
 	variableLabels *compiledLabels
+	// orderedLabels lists all labels (constant and variable) sorted by
+	// name. MakeLabelPairs uses it to build sorted label pairs without
+	// sorting on every call.
+	orderedLabels []orderedLabel
 	// id is a hash of the values of the ConstLabels and fqName. This
 	// must be unique among all registered descriptors and can therefore be
 	// used as an identifier of the descriptor.
@@ -65,6 +70,20 @@ type Desc struct {
 	// err is an error that occurred during construction. It is reported on
 	// registration time.
 	err error
+}
+
+// orderedLabel is one entry of Desc.orderedLabels. It refers either to a
+// constant label pair or to a variable label.
+type orderedLabel struct {
+	// constIndex is the index in Desc.constLabelPairs, or -1 for a
+	// variable label.
+	constIndex int
+	// variableIndex is the index in Desc.variableLabels.names (and thus in
+	// the label values), or -1 for a constant label.
+	variableIndex int
+	// name is the label name. Label pairs created from the Desc share
+	// it, as they are immutable by contract.
+	name *string
 }
 
 // DescOpt allows setting optional fields for NewDesc.
@@ -185,7 +204,26 @@ func (v2) NewDesc(fqName, help string, variableLabels ConstrainableLabels, const
 		})
 	}
 	sort.Sort(internal.LabelPairSorter(d.constLabelPairs))
+	d.orderedLabels = makeOrderedLabels(d.constLabelPairs, d.variableLabels.names)
 	return d
+}
+
+// makeOrderedLabels returns the constant and variable labels sorted by name.
+func makeOrderedLabels(constLabelPairs []*dto.LabelPair, variableLabels []string) []orderedLabel {
+	// Copy all variable label names at once, so that each name pointer
+	// doesn't need its own allocation.
+	names := slices.Clone(variableLabels)
+	orderedLabels := make([]orderedLabel, 0, len(constLabelPairs)+len(names))
+	for i, lp := range constLabelPairs {
+		orderedLabels = append(orderedLabels, orderedLabel{constIndex: i, variableIndex: -1, name: lp.Name})
+	}
+	for i := range names {
+		orderedLabels = append(orderedLabels, orderedLabel{constIndex: -1, variableIndex: i, name: &names[i]})
+	}
+	slices.SortFunc(orderedLabels, func(a, b orderedLabel) int {
+		return strings.Compare(*a.name, *b.name)
+	})
+	return orderedLabels
 }
 
 // NewInvalidDesc returns an invalid descriptor, i.e. a descriptor with the
