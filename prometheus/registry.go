@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -969,7 +970,7 @@ func checkMetricConsistency(
 	h.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
-	if !sort.IsSorted(internal.LabelPairSorter(dtoMetric.Label)) {
+	if !slices.IsSortedFunc(dtoMetric.Label, compareLabelPairNames) {
 		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
 		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
 		copy(copiedLabels, dtoMetric.Label)
@@ -1011,24 +1012,23 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
-	copy(lpsFromDesc, desc.constLabelPairs)
-	for _, l := range desc.variableLabels.names {
-		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: new(l),
-		})
-	}
-	if len(lpsFromDesc) != len(dtoMetric.Label) {
+	if len(desc.orderedLabels) != len(dtoMetric.Label) {
 		return fmt.Errorf(
 			"labels in collected metric %s %s are inconsistent with descriptor %s",
 			metricFamily.GetName(), dtoMetric, desc,
 		)
 	}
-	sort.Sort(internal.LabelPairSorter(lpsFromDesc))
-	for i, lpFromDesc := range lpsFromDesc {
+	for i, l := range desc.orderedLabels {
 		lpFromMetric := dtoMetric.Label[i]
-		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+		var consistent bool
+		if l.constIndex >= 0 {
+			lpFromDesc := desc.constLabelPairs[l.constIndex]
+			consistent = lpFromDesc.GetName() == lpFromMetric.GetName() &&
+				lpFromDesc.GetValue() == lpFromMetric.GetValue()
+		} else {
+			consistent = *l.name == lpFromMetric.GetName()
+		}
+		if !consistent {
 			return fmt.Errorf(
 				"labels in collected metric %s %s are inconsistent with descriptor %s",
 				metricFamily.GetName(), dtoMetric, desc,
@@ -1036,6 +1036,12 @@ func checkDescConsistency(
 		}
 	}
 	return nil
+}
+
+// compareLabelPairNames orders label pairs like internal.LabelPairSorter
+// without boxing the slice into an interface.
+func compareLabelPairNames(a, b *dto.LabelPair) int {
+	return strings.Compare(a.GetName(), b.GetName())
 }
 
 var _ TransactionalGatherer = &MultiTRegistry{}

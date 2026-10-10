@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -86,5 +87,32 @@ func TestNewDescWithUnit_String(t *testing.T) {
 	)
 	if desc.String() != `Desc{fqName: "sample_metric_bytes", help: "sample metric with unit", unit: "bytes", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output:\ngot:  %s\nwant: %s", desc.String(), desc.String())
+	}
+}
+
+func BenchmarkNewDesc(b *testing.B) {
+	for _, bm := range []struct {
+		labelCount int
+		descFunc   func() *Desc
+	}{
+		{
+			labelCount: 1,
+			descFunc:   new1LabelDescFunc,
+		},
+		{
+			labelCount: 3,
+			descFunc:   new3LabelsDescFunc,
+		},
+		{
+			labelCount: 10,
+			descFunc:   new10LabelsDescFunc,
+		},
+	} {
+		b.Run(fmt.Sprintf("labels=%v", bm.labelCount), func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				bm.descFunc()
+			}
+		})
 	}
 }
