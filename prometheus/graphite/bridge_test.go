@@ -75,6 +75,7 @@ func TestWriteTags(t *testing.T) {
 		{name: "newline in value", label: "ua", value: "x 1 0\nevil.metric 9999", out: "m;ua=x_1_0_evil.metric_9999"},
 		{name: "separator in value", label: "ua", value: "a;b=c", out: "m;ua=a_b=c"},
 		{name: "leading tilde in value", label: "ua", value: "~a~b", out: "m;ua=_a~b"},
+		{name: "empty value", label: "ua", value: "", out: "m;ua=_"},
 		{name: "control character in value", label: "ua", value: "a\x00b\tc\rd", out: "m;ua=a_b_c_d"},
 		{name: "invalid characters in name", label: "a b;c!d^e=f\ng", value: "v", out: "m;a_b_c_d_e_f_g=v"},
 	}
