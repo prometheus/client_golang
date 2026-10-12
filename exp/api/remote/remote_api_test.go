@@ -105,6 +105,58 @@ func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
 	}
 }
 
+type storeFunc func(*http.Request, WriteMessageType) (*WriteResponse, error)
+
+func (f storeFunc) Store(r *http.Request, msgType WriteMessageType) (*WriteResponse, error) {
+	return f(r, msgType)
+}
+
+func TestWriteHandler_StatusCode(t *testing.T) {
+	withCode := func(code int) *WriteResponse {
+		w := NewWriteResponse()
+		w.SetStatusCode(code)
+		return w
+	}
+	storeErr := errors.New("storage error")
+
+	for _, tc := range []struct {
+		name     string
+		resp     *WriteResponse
+		err      error
+		expected int
+	}{
+		{name: "success with default response", resp: NewWriteResponse(), expected: http.StatusNoContent},
+		{name: "success with nil response", resp: nil, expected: http.StatusNoContent},
+		{name: "success with zero value response", resp: &WriteResponse{}, expected: http.StatusNoContent},
+		{name: "success with explicit status", resp: withCode(http.StatusOK), expected: http.StatusOK},
+		{name: "error with default response", resp: NewWriteResponse(), err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with nil response", resp: nil, err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with zero value response", resp: &WriteResponse{}, err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with explicit 2xx status", resp: withCode(http.StatusOK), err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with explicit 4xx status", resp: withCode(http.StatusBadRequest), err: storeErr, expected: http.StatusBadRequest},
+		{name: "error with explicit 5xx status", resp: withCode(http.StatusServiceUnavailable), err: storeErr, expected: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewWriteHandler(storeFunc(func(*http.Request, WriteMessageType) (*WriteResponse, error) {
+				return tc.resp, tc.err
+			}), MessageTypes{WriteV2MessageType})
+
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(snappy.Encode(nil, nil)))
+			req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType))
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != tc.expected {
+				t.Fatalf("expected status code %d, got %d with body %q", tc.expected, rec.Code, rec.Body.String())
+			}
+			if tc.err != nil && !strings.Contains(rec.Body.String(), tc.err.Error()) {
+				t.Fatalf("expected body to contain %q, got %q", tc.err.Error(), rec.Body.String())
+			}
+		})
+	}
+}
+
 type mockStorage struct {
 	v2Reqs []*writev2.Request
 	protos []WriteMessageType
