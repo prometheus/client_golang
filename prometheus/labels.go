@@ -14,8 +14,10 @@
 package prometheus
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -75,7 +77,7 @@ func (cls ConstrainedLabels) compile() *compiledLabels {
 			compiled.labelConstraints[label.Name] = label.Constraint
 		}
 	}
-
+	compiled.initSortedIndices()
 	return compiled
 }
 
@@ -101,9 +103,11 @@ func (cls ConstrainedLabels) labelNames() []string {
 type UnconstrainedLabels []string
 
 func (uls UnconstrainedLabels) compile() *compiledLabels {
-	return &compiledLabels{
+	compiled := &compiledLabels{
 		names: uls,
 	}
+	compiled.initSortedIndices()
+	return compiled
 }
 
 func (uls UnconstrainedLabels) labelNames() []string {
@@ -113,6 +117,23 @@ func (uls UnconstrainedLabels) labelNames() []string {
 type compiledLabels struct {
 	names            []string
 	labelConstraints map[string]LabelConstraint
+	// sortedIndices holds indices into names in lexicographical label name
+	// order. It is nil when names is already sorted (including when len <= 1)
+	// to avoid an extra allocation in NewDesc.
+	sortedIndices []int
+}
+
+func (cls *compiledLabels) initSortedIndices() {
+	if slices.IsSorted(cls.names) {
+		return
+	}
+	cls.sortedIndices = make([]int, len(cls.names))
+	for i := range cls.names {
+		cls.sortedIndices[i] = i
+	}
+	slices.SortFunc(cls.sortedIndices, func(a, b int) int {
+		return cmp.Compare(cls.names[a], cls.names[b])
+	})
 }
 
 func (cls *compiledLabels) compile() *compiledLabels {
