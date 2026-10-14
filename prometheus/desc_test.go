@@ -120,3 +120,19 @@ func BenchmarkNewDesc(b *testing.B) {
 		})
 	}
 }
+
+func TestNewDescCopiesVariableLabels(t *testing.T) {
+	names := []string{"b", "a"}
+	desc := NewDesc("sample_label", "sample label", names, nil)
+	names[0] = "zzz"
+
+	pairs := MakeLabelPairs(desc, []string{"value-b", "value-a"})
+	got := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		got = append(got, p.GetName()+"="+p.GetValue())
+	}
+	want := []string{"a=value-a", "b=value-b"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("label pairs after mutating caller slice: got %v, want %v", got, want)
+	}
+}

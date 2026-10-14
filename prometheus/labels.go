@@ -104,7 +104,10 @@ type UnconstrainedLabels []string
 
 func (uls UnconstrainedLabels) compile() *compiledLabels {
 	compiled := &compiledLabels{
-		names: uls,
+		// Copy the names so that callers mutating their slice after NewDesc
+		// can neither rename labels on created metrics nor invalidate
+		// sortedIndices.
+		names: slices.Clone(uls),
 	}
 	compiled.initSortedIndices()
 	return compiled
