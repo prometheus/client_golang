@@ -1441,7 +1441,7 @@ func TestGatherInterleavedConstAndVariableLabels(t *testing.T) {
 		"a": "const-a",
 	})
 	pair := func(name, value string) *dto.LabelPair {
-		return &dto.LabelPair{Name: proto.String(name), Value: proto.String(value)}
+		return &dto.LabelPair{Name: new(name), Value: new(value)}
 	}
 
 	t.Run("consistent", func(t *testing.T) {
