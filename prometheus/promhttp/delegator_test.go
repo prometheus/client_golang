@@ -84,7 +84,7 @@ func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 // failingReader always fails without producing any bytes.
 type failingReader struct{}
 
-func (f *failingReader) Read(p []byte) (int, error) {
+func (f *failingReader) Read(_ []byte) (int, error) {
 	return 0, errors.New("upstream failed")
 }
 
@@ -94,7 +94,7 @@ func (f *failingReader) Read(p []byte) (int, error) {
 // status code (e.g. 502) via http.Error.
 // This is a regression test for https://github.com/prometheus/client_golang/issues/2155.
 func TestReaderFromZeroByteFailDoesNotLockStatus200(t *testing.T) {
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := io.Copy(w, &failingReader{}); err != nil {
 			http.Error(w, err.Error(), http.StatusBadGateway)
 		}
@@ -122,7 +122,7 @@ func TestReaderFromZeroByteFailDoesNotLockStatus200(t *testing.T) {
 // TestReaderFromSuccessWrites200 verifies that when ReadFrom succeeds
 // and writes bytes, the HTTP status code is correctly set to 200.
 func TestReaderFromSuccessWrites200(t *testing.T) {
-	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if _, err := io.Copy(w, strings.NewReader("hello world")); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
