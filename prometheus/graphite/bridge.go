@@ -70,7 +70,8 @@ type Config struct {
 	// The interval to use for pushing data to Graphite. Defaults to 15 seconds.
 	Interval time.Duration
 
-	// The timeout for pushing metrics to Graphite. Defaults to 15 seconds.
+	// The timeout for connecting to Graphite and for writing metrics after
+	// connecting. Defaults to 15 seconds.
 	Timeout time.Duration
 
 	// The Gatherer to use for metrics. Defaults to prometheus.DefaultGatherer.
@@ -187,6 +188,9 @@ func (b *Bridge) Push() error {
 		return err
 	}
 	defer conn.Close()
+	if err := conn.SetWriteDeadline(time.Now().Add(b.timeout)); err != nil {
+		return err
+	}
 
 	return writeMetrics(conn, mfs, b.useTags, b.prefix, model.Now())
 }
