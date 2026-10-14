@@ -90,6 +90,9 @@ func TestNewDescWithUnit_String(t *testing.T) {
 	}
 }
 
+// Recommended CLI invocation:
+//
+//	export bench=newDesc && go test ./prometheus -run '^$' -bench '^BenchmarkNewDesc$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkNewDesc(b *testing.B) {
 	for _, bm := range []struct {
 		labelCount int
@@ -110,6 +113,7 @@ func BenchmarkNewDesc(b *testing.B) {
 	} {
 		b.Run(fmt.Sprintf("labels=%v", bm.labelCount), func(b *testing.B) {
 			b.ReportAllocs()
+			b.ResetTimer()
 			for b.Loop() {
 				bm.descFunc()
 			}

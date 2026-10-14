@@ -184,6 +184,22 @@ func TestMakeLabelPairs(t *testing.T) {
 				{Name: new("var-label-3"), Value: new("3")},
 			},
 		},
+		{
+			name: "interleaved unsorted variable and const labels",
+			desc: NewDesc("metric-1", "", []string{"d", "b"}, map[string]string{
+				"e": "const-e",
+				"c": "const-c",
+				"a": "const-a",
+			}),
+			labelValues: []string{"var-d", "var-b"},
+			want: []*dto.LabelPair{
+				{Name: new("a"), Value: new("const-a")},
+				{Name: new("b"), Value: new("var-b")},
+				{Name: new("c"), Value: new("const-c")},
+				{Name: new("d"), Value: new("var-d")},
+				{Name: new("e"), Value: new("const-e")},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -218,6 +234,9 @@ var new10LabelsDescFunc = func() *Desc {
 		Labels{"const-label-4": "value", "const-label-1": "value", "const-label-7": "value", "const-label-2": "value", "const-label-9": "value", "const-label-8": "value", "const-label-10": "value", "const-label-3": "value", "const-label-6": "value", "const-label-5": "value"})
 }
 
+// Recommended CLI invocation:
+//
+//	export bench=makeLabelPairs && go test ./prometheus -run '^$' -bench '^BenchmarkMakeLabelPairs$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkMakeLabelPairs(b *testing.B) {
 	for _, bm := range []struct {
 		desc                *Desc
@@ -238,6 +257,7 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 	} {
 		b.Run(fmt.Sprintf("labels=%v", len(bm.makeLabelPairValues)), func(b *testing.B) {
 			b.ReportAllocs()
+			b.ResetTimer()
 			for b.Loop() {
 				MakeLabelPairs(bm.desc, bm.makeLabelPairValues)
 			}
@@ -245,6 +265,9 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 	}
 }
 
+// Recommended CLI invocation:
+//
+//	export bench=constMetricFlow && go test ./prometheus -run '^$' -bench '^BenchmarkConstMetricFlow$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkConstMetricFlow(b *testing.B) {
 	for _, bm := range []struct {
 		descFunc    func() *Desc
@@ -267,6 +290,7 @@ func BenchmarkConstMetricFlow(b *testing.B) {
 			for _, metricsToCreate := range []int{1, 2, 3, 5} {
 				b.Run(fmt.Sprintf("metrics=%v", metricsToCreate), func(b *testing.B) {
 					b.ReportAllocs()
+					b.ResetTimer()
 					for b.Loop() {
 						desc := bm.descFunc()
 						for range metricsToCreate {
@@ -297,6 +321,9 @@ func (c constMetricsCollector) Collect(ch chan<- Metric) {
 	}
 }
 
+// Recommended CLI invocation:
+//
+//	export bench=registryGatherConstMetrics && go test ./prometheus -run '^$' -bench '^BenchmarkRegistryGatherConstMetrics$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkRegistryGatherConstMetrics(b *testing.B) {
 	for _, bm := range []struct {
 		descFunc    func() *Desc
@@ -326,6 +353,7 @@ func BenchmarkRegistryGatherConstMetrics(b *testing.B) {
 			reg.MustRegister(c)
 
 			b.ReportAllocs()
+			b.ResetTimer()
 			for b.Loop() {
 				if _, err := reg.Gather(); err != nil {
 					b.Fatal(err)
