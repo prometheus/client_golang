@@ -1573,3 +1573,69 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 		}
 	}
 }
+
+// constMetricsCollector emits n const gauges with two variable labels on every
+// Collect, similar to exporters that build their metrics during collection.
+type constMetricsCollector struct {
+	desc   *prometheus.Desc
+	values []string
+}
+
+func newConstMetricsCollector(name string, n int) *constMetricsCollector {
+	c := &constMetricsCollector{
+		desc: prometheus.NewDesc(
+			name, "A const gauge to benchmark Gather.",
+			[]string{"instance", "mode"}, nil,
+		),
+		values: make([]string, n),
+	}
+	for i := range c.values {
+		c.values[i] = strconv.Itoa(i)
+	}
+	return c
+}
+
+func (c *constMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c *constMetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, v := range c.values {
+		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, 1, v, "idle")
+	}
+}
+
+func BenchmarkRegistryGather(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(newConstMetricsCollector("benchmark_gauge", n))
+
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := reg.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkGatherersGather(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
+			reg1 := prometheus.NewRegistry()
+			reg1.MustRegister(newConstMetricsCollector("benchmark_gauge_one", n/2))
+			reg2 := prometheus.NewRegistry()
+			reg2.MustRegister(newConstMetricsCollector("benchmark_gauge_two", n/2))
+			gatherers := prometheus.Gatherers{reg1, reg2}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := gatherers.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
