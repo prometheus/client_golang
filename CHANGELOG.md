@@ -1,8 +1,16 @@
-## Unreleased
+## 1.25.0 / 2026-10-07
 
-* [CHANGE] Change required go.mod version to 1.26 #2138
-* [FEATURE] testutil: Add GatherAndFormat to encode a subset of metrics from a Gatherer. #2091
-* [BUGFIX] **breaking** api/prometheus/v1: Fix `TSDBBlocks` so it can decode real server responses; fixes issues with data enveloping and aligns the TSDB Blocks struct types to match the upstream Prometheus counterpart. #1928
+* [CHANGE] Minimum required Go version is now 1.26, only the two latest Go versions (1.26 and 1.27) are supported from now on. #2138
+* [CHANGE] api/prometheus/v1: `Query`, `QueryRange`, `Series`, `LabelNames`, and `LabelValues` now return `Infos` annotations in addition to `Warnings`, matching the Prometheus server's info annotations. This changes the signatures of these methods and of `api.Client`'s `Do`/`DoGetFallback`; custom API client implementations must be updated. #1963
+* [CHANGE] api/prometheus/v1: Rework `TSDBBlocks` result types to align with the Prometheus server's `tsdb.BlockMeta`: `TSDBBlocksResult` now contains `Blocks []TSDBBlockMeta` directly instead of mirroring the full API envelope, nested types are renamed (`TSDBBlockMeta`, `TSDBBlockStats`, `TSDBBlockMetaCompaction`), stat fields are `uint64` with `omitempty` tags, and the optional compaction `parents` field is included. #1928
+* [FEATURE] testutil: Add `GatherAndFormat` to encode a subset of metrics from a Gatherer. #2091
+* [FEATURE] promhttp: Add `HandlerOpts.AcceptedFormats` to customize the formats negotiated from the incoming `Accept` header, enabling opt-in to experimental formats such as OpenMetrics 2.0 without changing default negotiation. #2146
+* [ENHANCEMENT] promhttp: Negotiated metrics responses now include a `Vary` header. #2142
+* [ENHANCEMENT] prometheus: Regenerate the default runtime collector metrics for Go 1.25 and Go 1.26. #2090, #2095
+* [ENHANCEMENT] testutil: Finalize OpenMetrics output in `GatherAndFormat` and `CollectAndFormat` (terminating `# EOF`). #2125
+* [BUGFIX] api: Match complete URL path placeholders only; a `:foo` argument no longer substitutes inside `:foobar`. #2136
+* [BUGFIX] exp/api/remote: Reset the pooled buffer before generic proto marshaling, preventing corrupted remote-write payloads. #2139
+* [BUGFIX] testutil/promlint: Fix "mibi" unit prefix to "mebi". #2135
 
 ## 1.24.1 / 2026-07-23
 
