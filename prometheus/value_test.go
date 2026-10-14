@@ -248,6 +248,8 @@ var new1LabelDescFunc = func() *Desc {
 		Labels{"const-label-1": "value"})
 }
 
+// new3LabelsDescFunc and new10LabelsDescFunc use unsorted label names, so
+// NewDesc builds sortedIndices. The sorted variants below skip it.
 var new3LabelsDescFunc = func() *Desc {
 	return NewDesc(
 		"metric",
@@ -264,11 +266,37 @@ var new10LabelsDescFunc = func() *Desc {
 		Labels{"const-label-4": "value", "const-label-1": "value", "const-label-7": "value", "const-label-2": "value", "const-label-9": "value", "const-label-8": "value", "const-label-10": "value", "const-label-3": "value", "const-label-6": "value", "const-label-5": "value"})
 }
 
+var new3SortedLabelsDescFunc = func() *Desc {
+	return NewDesc(
+		"metric",
+		"help",
+		[]string{"var-label-1", "var-label-2", "var-label-3"},
+		Labels{"const-label-1": "value", "const-label-2": "value", "const-label-3": "value"})
+}
+
+var new10SortedLabelsDescFunc = func() *Desc {
+	return NewDesc(
+		"metric",
+		"help",
+		[]string{"var-label-0", "var-label-1", "var-label-2", "var-label-3", "var-label-4", "var-label-5", "var-label-6", "var-label-7", "var-label-8", "var-label-9"},
+		Labels{"const-label-0": "value", "const-label-1": "value", "const-label-2": "value", "const-label-3": "value", "const-label-4": "value", "const-label-5": "value", "const-label-6": "value", "const-label-7": "value", "const-label-8": "value", "const-label-9": "value"})
+}
+
+// benchLabelsName keeps the names of the unsorted cases stable so that results
+// stay comparable with older benchmark runs.
+func benchLabelsName(labels int, sorted bool) string {
+	if sorted {
+		return fmt.Sprintf("sorted-labels=%v", labels)
+	}
+	return fmt.Sprintf("labels=%v", labels)
+}
+
 // Recommended CLI invocation:
 //
 //	export bench=makeLabelPairs && go test ./prometheus -run '^$' -bench '^BenchmarkMakeLabelPairs$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkMakeLabelPairs(b *testing.B) {
 	for _, bm := range []struct {
+		sorted              bool
 		desc                *Desc
 		makeLabelPairValues []string
 	}{
@@ -284,8 +312,18 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 			desc:                new10LabelsDescFunc(),
 			makeLabelPairValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
 		},
+		{
+			sorted:              true,
+			desc:                new3SortedLabelsDescFunc(),
+			makeLabelPairValues: []string{"value", "value", "value"},
+		},
+		{
+			sorted:              true,
+			desc:                new10SortedLabelsDescFunc(),
+			makeLabelPairValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
+		},
 	} {
-		b.Run(fmt.Sprintf("labels=%v", len(bm.makeLabelPairValues)), func(b *testing.B) {
+		b.Run(benchLabelsName(len(bm.makeLabelPairValues), bm.sorted), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
@@ -300,6 +338,7 @@ func BenchmarkMakeLabelPairs(b *testing.B) {
 //	export bench=constMetricFlow && go test ./prometheus -run '^$' -bench '^BenchmarkConstMetricFlow$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkConstMetricFlow(b *testing.B) {
 	for _, bm := range []struct {
+		sorted      bool
 		descFunc    func() *Desc
 		labelValues []string
 	}{
@@ -315,8 +354,18 @@ func BenchmarkConstMetricFlow(b *testing.B) {
 			descFunc:    new10LabelsDescFunc,
 			labelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
 		},
+		{
+			sorted:      true,
+			descFunc:    new3SortedLabelsDescFunc,
+			labelValues: []string{"value", "value", "value"},
+		},
+		{
+			sorted:      true,
+			descFunc:    new10SortedLabelsDescFunc,
+			labelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
+		},
 	} {
-		b.Run(fmt.Sprintf("labels=%v", len(bm.labelValues)), func(b *testing.B) {
+		b.Run(benchLabelsName(len(bm.labelValues), bm.sorted), func(b *testing.B) {
 			for _, metricsToCreate := range []int{1, 2, 3, 5} {
 				b.Run(fmt.Sprintf("metrics=%v", metricsToCreate), func(b *testing.B) {
 					b.ReportAllocs()
@@ -356,6 +405,7 @@ func (c constMetricsCollector) Collect(ch chan<- Metric) {
 //	export bench=registryGatherConstMetrics && go test ./prometheus -run '^$' -bench '^BenchmarkRegistryGatherConstMetrics$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
 func BenchmarkRegistryGatherConstMetrics(b *testing.B) {
 	for _, bm := range []struct {
+		sorted      bool
 		descFunc    func() *Desc
 		labelValues []string
 	}{
@@ -371,8 +421,18 @@ func BenchmarkRegistryGatherConstMetrics(b *testing.B) {
 			descFunc:    new10LabelsDescFunc,
 			labelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
 		},
+		{
+			sorted:      true,
+			descFunc:    new3SortedLabelsDescFunc,
+			labelValues: []string{"value", "value", "value"},
+		},
+		{
+			sorted:      true,
+			descFunc:    new10SortedLabelsDescFunc,
+			labelValues: []string{"value", "value", "value", "value", "value", "value", "value", "value", "value", "value"},
+		},
 	} {
-		b.Run(fmt.Sprintf("labels=%v", len(bm.labelValues)), func(b *testing.B) {
+		b.Run(benchLabelsName(len(bm.labelValues), bm.sorted), func(b *testing.B) {
 			c := constMetricsCollector{desc: bm.descFunc(), labelValues: make([][]string, 1000)}
 			for i := range c.labelValues {
 				lvs := append([]string(nil), bm.labelValues...)

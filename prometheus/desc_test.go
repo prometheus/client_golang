@@ -96,6 +96,7 @@ func TestNewDescWithUnit_String(t *testing.T) {
 func BenchmarkNewDesc(b *testing.B) {
 	for _, bm := range []struct {
 		labelCount int
+		sorted     bool
 		descFunc   func() *Desc
 	}{
 		{
@@ -110,8 +111,18 @@ func BenchmarkNewDesc(b *testing.B) {
 			labelCount: 10,
 			descFunc:   new10LabelsDescFunc,
 		},
+		{
+			labelCount: 3,
+			sorted:     true,
+			descFunc:   new3SortedLabelsDescFunc,
+		},
+		{
+			labelCount: 10,
+			sorted:     true,
+			descFunc:   new10SortedLabelsDescFunc,
+		},
 	} {
-		b.Run(fmt.Sprintf("labels=%v", bm.labelCount), func(b *testing.B) {
+		b.Run(benchLabelsName(bm.labelCount, bm.sorted), func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
