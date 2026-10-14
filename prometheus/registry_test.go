@@ -1420,3 +1420,72 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 		}
 	}
 }
+
+type interleavedLabelsMetric struct {
+	desc   *prometheus.Desc
+	labels []*dto.LabelPair
+}
+
+func (m interleavedLabelsMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m interleavedLabelsMetric) Write(out *dto.Metric) error {
+	out.Label = m.labels
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	return nil
+}
+
+func TestGatherInterleavedConstAndVariableLabels(t *testing.T) {
+	desc := prometheus.NewDesc("interleaved", "help", []string{"d", "b"}, prometheus.Labels{
+		"e": "const-e",
+		"c": "const-c",
+		"a": "const-a",
+	})
+	pair := func(name, value string) *dto.LabelPair {
+		return &dto.LabelPair{Name: proto.String(name), Value: proto.String(value)}
+	}
+
+	t.Run("consistent", func(t *testing.T) {
+		reg := prometheus.NewPedanticRegistry()
+		reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "var-d", "var-b")
+		}))
+
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, lp := range mfs[0].GetMetric()[0].GetLabel() {
+			got = append(got, lp.GetName()+"="+lp.GetValue())
+		}
+		want := []string{"a=const-a", "b=var-b", "c=const-c", "d=var-d", "e=const-e"}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("got labels %v, want %v", got, want)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		labels []*dto.LabelPair
+	}{
+		{
+			name:   "wrong const label value",
+			labels: []*dto.LabelPair{pair("a", "const-a"), pair("b", "var-b"), pair("c", "var-c"), pair("d", "var-d"), pair("e", "const-e")},
+		},
+		{
+			name:   "variable label in place of const label",
+			labels: []*dto.LabelPair{pair("a", "const-a"), pair("b", "var-b"), pair("d", "var-d"), pair("e", "const-e"), pair("f", "var-f")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewPedanticRegistry()
+			reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+				ch <- interleavedLabelsMetric{desc: desc, labels: tc.labels}
+			}))
+
+			if _, err := reg.Gather(); err == nil {
+				t.Error("expected inconsistency error, got nil")
+			}
+		})
+	}
+}

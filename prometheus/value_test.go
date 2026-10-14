@@ -185,6 +185,36 @@ func TestMakeLabelPairs(t *testing.T) {
 			},
 		},
 		{
+			name: "interleaved sorted variable and const labels",
+			desc: NewDesc("metric-1", "", []string{"b", "d"}, map[string]string{
+				"a": "const-a",
+				"c": "const-c",
+				"e": "const-e",
+			}),
+			labelValues: []string{"var-b", "var-d"},
+			want: []*dto.LabelPair{
+				{Name: new("a"), Value: new("const-a")},
+				{Name: new("b"), Value: new("var-b")},
+				{Name: new("c"), Value: new("const-c")},
+				{Name: new("d"), Value: new("var-d")},
+				{Name: new("e"), Value: new("const-e")},
+			},
+		},
+		{
+			name: "variable labels around const labels",
+			desc: NewDesc("metric-1", "", []string{"z", "a"}, map[string]string{
+				"n": "const-n",
+				"m": "const-m",
+			}),
+			labelValues: []string{"var-z", "var-a"},
+			want: []*dto.LabelPair{
+				{Name: new("a"), Value: new("var-a")},
+				{Name: new("m"), Value: new("const-m")},
+				{Name: new("n"), Value: new("const-n")},
+				{Name: new("z"), Value: new("var-z")},
+			},
+		},
+		{
 			name: "interleaved unsorted variable and const labels",
 			desc: NewDesc("metric-1", "", []string{"d", "b"}, map[string]string{
 				"e": "const-e",
