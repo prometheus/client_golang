@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -86,5 +87,63 @@ func TestNewDescWithUnit_String(t *testing.T) {
 	)
 	if desc.String() != `Desc{fqName: "sample_metric_bytes", help: "sample metric with unit", unit: "bytes", constLabels: {}, variableLabels: {}}` {
 		t.Errorf("String: unexpected output:\ngot:  %s\nwant: %s", desc.String(), desc.String())
+	}
+}
+
+// Recommended CLI invocation:
+//
+//	export bench=newDesc && go test ./prometheus -run '^$' -bench '^BenchmarkNewDesc$' -benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem | tee ${bench}.txt
+func BenchmarkNewDesc(b *testing.B) {
+	for _, bm := range []struct {
+		labelCount int
+		sorted     bool
+		descFunc   func() *Desc
+	}{
+		{
+			labelCount: 1,
+			descFunc:   new1LabelDescFunc,
+		},
+		{
+			labelCount: 3,
+			descFunc:   new3LabelsDescFunc,
+		},
+		{
+			labelCount: 10,
+			descFunc:   new10LabelsDescFunc,
+		},
+		{
+			labelCount: 3,
+			sorted:     true,
+			descFunc:   new3SortedLabelsDescFunc,
+		},
+		{
+			labelCount: 10,
+			sorted:     true,
+			descFunc:   new10SortedLabelsDescFunc,
+		},
+	} {
+		b.Run(benchLabelsName(bm.labelCount, bm.sorted), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				bm.descFunc()
+			}
+		})
+	}
+}
+
+func TestNewDescCopiesVariableLabels(t *testing.T) {
+	names := []string{"b", "a"}
+	desc := NewDesc("sample_label", "sample label", names, nil)
+	names[0] = "zzz"
+
+	pairs := MakeLabelPairs(desc, []string{"value-b", "value-a"})
+	got := make([]string, 0, len(pairs))
+	for _, p := range pairs {
+		got = append(got, p.GetName()+"="+p.GetValue())
+	}
+	want := []string{"a=value-a", "b=value-b"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("label pairs after mutating caller slice: got %v, want %v", got, want)
 	}
 }
