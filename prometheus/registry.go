@@ -40,6 +40,12 @@ const (
 	capDescChan   = 10
 )
 
+var xxhashPool = sync.Pool{
+	New: func() any {
+		return xxhash.New()
+	},
+}
+
 // DefaultRegisterer and DefaultGatherer are the implementations of the
 // Registerer and Gatherer interface a number of convenience functions in this
 // package act on. Initially, both variables point to the same Registry, which
@@ -440,6 +446,9 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		return nil, nil
 	}
 
+	xxh := xxhashPool.Get().(*xxhash.Digest)
+	defer xxhashPool.Put(xxh)
+
 	var (
 		checkedMetricChan   = make(chan Metric, capMetricChan)
 		uncheckedMetricChan = make(chan Metric, capMetricChan)
@@ -527,6 +536,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				registeredDescIDs,
+				xxh,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -537,6 +547,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metric, metricFamiliesByName,
 				metricHashes,
 				nil,
+				xxh,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -554,6 +565,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						registeredDescIDs,
+						xxh,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -564,6 +576,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metric, metricFamiliesByName,
 						metricHashes,
 						nil,
+						xxh,
 					))
 				}
 				break
@@ -667,6 +680,7 @@ func processMetric(
 	metricFamiliesByName map[string]*dto.MetricFamily,
 	metricHashes map[uint64]struct{},
 	registeredDescIDs map[uint64]struct{},
+	xxh *xxhash.Digest,
 ) error {
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
@@ -753,7 +767,7 @@ func processMetric(
 		}
 		metricFamiliesByName[desc.fqName] = metricFamily
 	}
-	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes); err != nil {
+	if err := checkMetricConsistency(metricFamily, dtoMetric, metricHashes, xxh); err != nil {
 		return err
 	}
 	if registeredDescIDs != nil {
@@ -838,13 +852,15 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				}
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
+			xxh := xxhashPool.Get().(*xxhash.Digest)
 			for _, m := range mf.Metric {
-				if err := checkMetricConsistency(existingMF, m, metricHashes); err != nil {
+				if err := checkMetricConsistency(existingMF, m, metricHashes, xxh); err != nil {
 					errs = append(errs, err)
 					continue
 				}
 				existingMF.Metric = append(existingMF.Metric, m)
 			}
+			xxhashPool.Put(xxh)
 		}
 	}
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
@@ -918,6 +934,7 @@ func checkMetricConsistency(
 	metricFamily *dto.MetricFamily,
 	dtoMetric *dto.Metric,
 	metricHashes map[uint64]struct{},
+	xxh *xxhash.Digest,
 ) error {
 	name := metricFamily.GetName()
 
@@ -964,12 +981,12 @@ func checkMetricConsistency(
 	}
 
 	// Is the metric unique (i.e. no other metric with the same name and the same labels)?
-	h := xxhash.New()
-	h.WriteString(name)
-	h.Write(separatorByteSlice)
+	xxh.Reset()
+	xxh.WriteString(name)
+	xxh.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
-	if !sort.IsSorted(internal.LabelPairSorter(dtoMetric.Label)) {
+	if !internal.IsLabelPairsSorted(dtoMetric.Label) {
 		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
 		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
 		copy(copiedLabels, dtoMetric.Label)
@@ -977,16 +994,16 @@ func checkMetricConsistency(
 		dtoMetric.Label = copiedLabels
 	}
 	for _, lp := range dtoMetric.Label {
-		h.WriteString(lp.GetName())
-		h.Write(separatorByteSlice)
-		h.WriteString(lp.GetValue())
-		h.Write(separatorByteSlice)
+		xxh.WriteString(lp.GetName())
+		xxh.Write(separatorByteSlice)
+		xxh.WriteString(lp.GetValue())
+		xxh.Write(separatorByteSlice)
 	}
 	if dtoMetric.TimestampMs != nil {
-		h.WriteString(strconv.FormatInt(*dtoMetric.TimestampMs, 10))
-		h.Write(separatorByteSlice)
+		xxh.WriteString(strconv.FormatInt(*dtoMetric.TimestampMs, 10))
+		xxh.Write(separatorByteSlice)
 	}
-	hSum := h.Sum64()
+	hSum := xxh.Sum64()
 	if _, exists := metricHashes[hSum]; exists {
 		return fmt.Errorf(
 			"collected metric %q { %s} was collected before with the same name and label values",
