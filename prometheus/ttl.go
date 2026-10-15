@@ -43,7 +43,7 @@ type ttlMetricWrapper struct {
 
 func newTTLMetric(metric Metric) *ttlMetricWrapper {
 	tm := &ttlMetricWrapper{Metric: metric}
-	tm.lastAccessedTs.Store(time.Now().UnixMilli())
+	tm.touch()
 	return tm
 }
 
@@ -58,8 +58,7 @@ func unwrapTTLMetric(metric Metric) Metric {
 	return metric
 }
 
-// --- Counter wrapper ---
-
+// Counter wrapper that refreshes TTL on counter mutations.
 type ttlCounter struct {
 	Counter
 	lastAccessedTs atomic.Int64
@@ -67,18 +66,18 @@ type ttlCounter struct {
 
 func newTTLCounter(c Counter) *ttlCounter {
 	tc := &ttlCounter{Counter: c}
-	tc.lastAccessedTs.Store(time.Now().UnixMilli())
+	tc.touch()
 	return tc
 }
 
 func (c *ttlCounter) Inc() {
 	c.Counter.Inc()
-	c.lastAccessedTs.Store(time.Now().UnixMilli())
+	c.touch()
 }
 
 func (c *ttlCounter) Add(v float64) {
 	c.Counter.Add(v)
-	c.lastAccessedTs.Store(time.Now().UnixMilli())
+	c.touch()
 }
 
 func (c *ttlCounter) AddWithExemplar(v float64, e Labels) {
@@ -87,14 +86,13 @@ func (c *ttlCounter) AddWithExemplar(v float64, e Labels) {
 	} else {
 		c.Counter.Add(v)
 	}
-	c.lastAccessedTs.Store(time.Now().UnixMilli())
+	c.touch()
 }
 
 func (c *ttlCounter) lastAccessed() int64 { return c.lastAccessedTs.Load() }
 func (c *ttlCounter) touch()              { c.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
-// --- Gauge wrapper ---
-
+// Gauge wrapper that refreshes TTL on gauge mutations.
 type ttlGauge struct {
 	Gauge
 	lastAccessedTs atomic.Int64
@@ -102,45 +100,44 @@ type ttlGauge struct {
 
 func newTTLGauge(g Gauge) *ttlGauge {
 	tg := &ttlGauge{Gauge: g}
-	tg.lastAccessedTs.Store(time.Now().UnixMilli())
+	tg.touch()
 	return tg
 }
 
 func (g *ttlGauge) Set(v float64) {
 	g.Gauge.Set(v)
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) Inc() {
 	g.Gauge.Inc()
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) Dec() {
 	g.Gauge.Dec()
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) Add(v float64) {
 	g.Gauge.Add(v)
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) Sub(v float64) {
 	g.Gauge.Sub(v)
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) SetToCurrentTime() {
 	g.Gauge.SetToCurrentTime()
-	g.lastAccessedTs.Store(time.Now().UnixMilli())
+	g.touch()
 }
 
 func (g *ttlGauge) lastAccessed() int64 { return g.lastAccessedTs.Load() }
 func (g *ttlGauge) touch()              { g.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
-// --- Histogram wrapper ---
-
+// Histogram wrapper that refreshes TTL on histogram observations.
 type ttlHistogram struct {
 	Histogram
 	lastAccessedTs atomic.Int64
@@ -148,13 +145,13 @@ type ttlHistogram struct {
 
 func newTTLHistogram(h Histogram) *ttlHistogram {
 	th := &ttlHistogram{Histogram: h}
-	th.lastAccessedTs.Store(time.Now().UnixMilli())
+	th.touch()
 	return th
 }
 
 func (h *ttlHistogram) Observe(v float64) {
 	h.Histogram.Observe(v)
-	h.lastAccessedTs.Store(time.Now().UnixMilli())
+	h.touch()
 }
 
 func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
@@ -163,14 +160,13 @@ func (h *ttlHistogram) ObserveWithExemplar(v float64, e Labels) {
 	} else {
 		h.Histogram.Observe(v)
 	}
-	h.lastAccessedTs.Store(time.Now().UnixMilli())
+	h.touch()
 }
 
 func (h *ttlHistogram) lastAccessed() int64 { return h.lastAccessedTs.Load() }
 func (h *ttlHistogram) touch()              { h.lastAccessedTs.Store(time.Now().UnixMilli()) }
 
-// --- Summary wrapper ---
-
+// Summary wrapper that refreshes TTL on summary observations.
 type ttlSummary struct {
 	Summary
 	lastAccessedTs atomic.Int64
@@ -178,13 +174,13 @@ type ttlSummary struct {
 
 func newTTLSummary(s Summary) *ttlSummary {
 	ts := &ttlSummary{Summary: s}
-	ts.lastAccessedTs.Store(time.Now().UnixMilli())
+	ts.touch()
 	return ts
 }
 
 func (s *ttlSummary) Observe(v float64) {
 	s.Summary.Observe(v)
-	s.lastAccessedTs.Store(time.Now().UnixMilli())
+	s.touch()
 }
 
 func (s *ttlSummary) lastAccessed() int64 { return s.lastAccessedTs.Load() }

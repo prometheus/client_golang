@@ -614,36 +614,45 @@ func safeCollect(c Collector, ch chan<- Metric) (err error) {
 			ch <- NewInvalidMetric(NewInvalidDesc(err), err)
 		}
 	}()
-	cleanupExpiredCollector(c)
+	cleanupWrappedExpired(c)
 	c.Collect(ch)
 
 	return err
 }
 
-// cleanupExpiredCollector follows wrapping collectors and nested registries.
-// It runs inside safeCollect so cleanup panics are recovered there.
-func cleanupExpiredCollector(c Collector) {
+// Unwrap collectors before cleaning up expired metrics.
+// When called by safeCollect, cleanup panics are recovered there.
+func cleanupWrappedExpired(c Collector) int {
 	if wc, ok := c.(*wrappingCollector); ok {
 		c = wc.unwrapRecursively()
 	}
 	if cleaner, ok := c.(ExpiredCleaner); ok {
-		cleaner.CleanupExpired()
-		return
+		return cleaner.CleanupExpired()
 	}
-	if r, ok := c.(*Registry); ok {
-		r.mtx.RLock()
-		collectors := make([]Collector, 0, len(r.collectorsByID)+len(r.uncheckedCollectors))
-		for _, collector := range r.collectorsByID {
-			collectors = append(collectors, collector)
-		}
-		collectors = append(collectors, r.uncheckedCollectors...)
-		r.mtx.RUnlock()
+	return 0
+}
 
-		// Release the registry lock before invoking user-defined cleanup methods.
-		for _, collector := range collectors {
-			cleanupExpiredCollector(collector)
-		}
+// CleanupExpired calls CleanupExpired on registered collectors that implement
+// ExpiredCleaner, including wrapped collectors and nested registries. It returns
+// the total number of metrics removed. Gather calls this automatically on each
+// registered collector; callers can also use this method without gathering metrics.
+// It is safe to call concurrently with registration, collection, and cleanup.
+// Unlike Gather, this method does not recover panics from collectors.
+func (r *Registry) CleanupExpired() int {
+	r.mtx.RLock()
+	collectors := make([]Collector, 0, len(r.collectorsByID)+len(r.uncheckedCollectors))
+	for _, collector := range r.collectorsByID {
+		collectors = append(collectors, collector)
 	}
+	collectors = append(collectors, r.uncheckedCollectors...)
+	r.mtx.RUnlock()
+
+	// Release the registry lock before invoking user-defined cleanup methods.
+	var removed int
+	for _, collector := range collectors {
+		removed += cleanupWrappedExpired(collector)
+	}
+	return removed
 }
 
 // Collect implements Collector.

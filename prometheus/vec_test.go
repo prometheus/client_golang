@@ -1364,16 +1364,33 @@ func TestTTLWithCollisions(t *testing.T) {
 		vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
 
 		vec.WithLabelValues("old").Add(1)
-		vec.WithLabelValues("survivor").Add(2)
-		time.Sleep(60 * time.Millisecond)
+		survivor := vec.WithLabelValues("survivor")
+		survivor.Add(2)
+		time.Sleep(30 * time.Millisecond)
 
 		fresh := vec.WithLabelValues("survivor")
+		if fresh != survivor {
+			t.Fatal("lookup replaced the live surviving metric")
+		}
 		fresh.Add(3)
+		time.Sleep(30 * time.Millisecond)
+
 		if cleaned := vec.CleanupExpired(); cleaned != 1 {
 			t.Fatalf("expected one collided metric to be cleaned, got %d", cleaned)
 		}
-		if got := metricValue(t, fresh); got != 3 {
-			t.Fatalf("expected surviving metric value 3, got %v", got)
+		if got := metricValue(t, fresh); got != 5 {
+			t.Fatalf("expected surviving metric value 5, got %v", got)
+		}
+		if got := collectCount(vec); got != 1 {
+			t.Fatalf("expected one surviving collided metric, got %d", got)
+		}
+		for _, bucket := range vec.metrics {
+			if len(bucket) != 1 {
+				t.Fatalf("expected one entry after compaction, got %d", len(bucket))
+			}
+			if tail := bucket[:cap(bucket)][1]; tail.metric != nil || tail.values != nil {
+				t.Fatal("compaction retained references to an expired metric")
+			}
 		}
 	})
 }
