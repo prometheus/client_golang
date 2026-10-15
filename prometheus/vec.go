@@ -15,6 +15,7 @@ package prometheus
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -48,31 +49,25 @@ type MetricVec struct {
 type MetricVecOpts struct {
 	Desc      *Desc
 	NewMetric func(lvs ...string) Metric
-	// TTL, if greater than zero, enables per-child expiration. Children that
+	// TTL, if greater than zero, enables per-metric expiration. Metrics that
 	// have not been accessed for longer than TTL are omitted from Collect and
-	// can be removed via CleanupExpired (also invoked automatically by
-	// Registry.Gather for collectors that implement ExpiredCleaner).
+	// removed by CleanupExpired, which Registry.Gather invokes automatically.
+	// If metrics are not scraped, call CleanupExpired periodically to reclaim
+	// expired metrics. There is no background cleaner.
 	//
 	// TTL values less than or equal to zero disable expiration.
 	//
-	// Access includes GetMetricWith / GetMetricWithLabelValues and, when using
-	// the built-in CounterVec / GaugeVec / HistogramVec / SummaryVec with TTL,
-	// mutating methods on cached children (Inc, Add, Set, Observe, …). Caching
-	// a child and never calling those methods (nor looking it up again) lets
-	// the child expire. Custom metrics retain their original concrete type;
-	// only vector lookups refresh their TTL, not mutations on cached handles.
+	// GetMetricWith and GetMetricWithLabelValues refresh a metric's TTL. If the
+	// metric has already expired, these methods create a new metric instead.
+	// Mutating a cached CounterVec, GaugeVec, HistogramVec, or SummaryVec metric
+	// also refreshes its TTL until the metric is removed or replaced. Mutations
+	// on cached custom metrics do not refresh TTL; look up the metric again to
+	// keep it active.
 	//
-	// Expiration omits a child from Collect but does not immediately remove it.
-	// Before removal, a cached built-in child's mutating methods can refresh
-	// its TTL and retain its previous state. Looking up an expired child
-	// instead replaces it with a fresh child, even before CleanupExpired runs.
-	// After removal or replacement, an old cached handle remains detached:
-	// its updates are never exported again. Look up the label set and use the
-	// newly returned handle to resume exporting updates.
-	//
-	// If metrics are never scraped, call CleanupExpired periodically (or rely
-	// on Gather) so expired children can be reclaimed; there is no background
-	// goroutine.
+	// As with Delete, if a metric is removed or replaced after expiration, a
+	// previously cached reference can still be used, but its updates will no
+	// longer be exported. This remains true even if a new metric with the same
+	// label values is created later. Use the new metric to export updates.
 	TTL time.Duration
 }
 
@@ -83,6 +78,16 @@ func NewMetricVec(desc *Desc, newMetric func(lvs ...string) Metric) *MetricVec {
 
 // NewMetricVec returns an initialized MetricVec. See MetricVecOpts.
 func (v2) NewMetricVec(opts MetricVecOpts) *MetricVec {
+	if opts.TTL > 0 {
+		newMetric := opts.NewMetric
+		opts.NewMetric = func(lvs ...string) Metric {
+			metric := newMetric(lvs...)
+			if _, ok := metric.(ttlMetric); ok {
+				return metric
+			}
+			return newTTLMetric(metric)
+		}
+	}
 	return &MetricVec{
 		metricMap: &metricMap{
 			metrics:   map[uint64][]metricWithLabelValues{},
@@ -122,10 +127,9 @@ func (m *MetricVec) CleanupExpired() int {
 // with a performance overhead (for creating and processing the Labels map).
 // See also the CounterVec example.
 //
-// Callers that cache a child and keep using it after deletion (or after
-// CleanupExpired under TTL) update a detached metric that is never exported
-// again. Look up the same label set and use the newly returned handle to resume
-// exporting updates.
+// If a metric is deleted, a previously cached reference can still be used, but
+// its updates will no longer be exported. This remains true even if a new metric
+// with the same label values is created later. Use the new metric to export updates.
 func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 	lvs = constrainLabelValues(m.desc, lvs, m.curry)
 
@@ -146,7 +150,7 @@ func (m *MetricVec) DeleteLabelValues(lvs ...string) bool {
 // that case.
 //
 // This method is used for the same purpose as DeleteLabelValues(...string). See
-// there for pros and cons of the two methods.
+// there for pros and cons of the two methods and the behavior of cached metrics.
 func (m *MetricVec) Delete(labels Labels) bool {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
@@ -247,12 +251,12 @@ func (m *MetricVec) CurryWith(labels Labels) (*MetricVec, error) {
 // create the new Metric but leave it in its initial state.
 //
 // Keeping the Metric for later use is possible (and should be considered if
-// performance is critical), but keep in mind that Reset, DeleteLabelValues and
-// Delete can be used to delete the Metric from the MetricVec. In that case, if
-// you have previously kept a reference to that Metric, the Metric object still
-// exists and can be used, but it will not be exported anymore. If a Metric with
-// the same label values is created later, updates to the old Metric reference
-// will not be exported.
+// performance is critical), but Reset, DeleteLabelValues, Delete, or TTL cleanup
+// can remove it from the MetricVec. Looking up an expired metric also replaces it.
+// If a metric is removed or replaced, a previously cached reference can still be
+// used, but its updates will no longer be exported. This remains true even if a
+// new metric with the same label values is created later. Use the new metric to
+// export updates.
 //
 // An error is returned if the number of label values is not the same as the
 // number of variable labels in Desc (minus any curried labels).
@@ -404,7 +408,7 @@ func (m *metricMap) Collect(ch chan<- Metric) {
 					continue
 				}
 			}
-			snapshot = append(snapshot, metric.metric)
+			snapshot = append(snapshot, unwrapTTLMetric(metric.metric))
 		}
 	}
 	m.mtx.RUnlock()
@@ -425,30 +429,33 @@ func (m *metricMap) cleanupExpired() int {
 	var numDeleted int
 	for h, metrics := range m.metrics {
 		origLen := len(metrics)
-		remaining := metrics[:0]
-		for i := range metrics {
-			if tm, ok := metrics[i].metric.(ttlMetric); ok && tm.lastAccessed() < deadline {
-				numDeleted++
-				continue
-			}
-			remaining = append(remaining, metrics[i])
-		}
+		remaining := slices.DeleteFunc(metrics, func(metric metricWithLabelValues) bool {
+			tm, ok := metric.metric.(ttlMetric)
+			return ok && tm.lastAccessed() < deadline
+		})
+		numDeleted += origLen - len(remaining)
 		if len(remaining) == 0 {
 			delete(m.metrics, h)
-		} else {
-			for i := len(remaining); i < origLen; i++ {
-				metrics[i] = metricWithLabelValues{}
-			}
+		} else if len(remaining) < origLen {
 			m.metrics[h] = remaining
 		}
 	}
 	return numDeleted
 }
 
-func touchIfTTL(metric Metric) {
+// Refresh a live metric or return false if it has expired.
+// The caller must hold m.mtx for reading or writing.
+func (m *metricMap) keepOrTouch(metric Metric) (Metric, bool) {
+	if m.ttl <= 0 {
+		return metric, true
+	}
 	if tm, ok := metric.(ttlMetric); ok {
+		if tm.lastAccessed() < time.Now().Add(-m.ttl).UnixMilli() {
+			return nil, false
+		}
 		tm.touch()
 	}
+	return unwrapTTLMetric(metric), true
 }
 
 // Reset deletes all metrics in this vector.
@@ -611,28 +618,11 @@ func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curr
 func (m *metricMap) getOrCreateMetricWithLabelValues(
 	hash uint64, lvs []string, curry []curriedLabelValue,
 ) Metric {
-	if m.ttl > 0 {
-		m.mtx.Lock()
-		defer m.mtx.Unlock()
-		metric, ok := m.getMetricWithHashAndLabelValues(hash, lvs, curry)
-		if ok {
-			deadline := time.Now().Add(-m.ttl).UnixMilli()
-			if tm, isTTLMetric := metric.(ttlMetric); !isTTLMetric || tm.lastAccessed() >= deadline {
-				touchIfTTL(metric)
-				return unwrapTTLMetric(metric)
-			}
-			m.deleteByHashWithLabelValuesLocked(hash, lvs, curry)
-		}
-		inlinedLVs := inlineLabelValues(lvs, curry)
-		metric = m.newMetric(inlinedLVs...)
-		if _, ok := metric.(ttlMetric); !ok {
-			metric = newTTLMetric(metric)
-		}
-		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
-		return unwrapTTLMetric(metric)
-	}
 	m.mtx.RLock()
 	metric, ok := m.getMetricWithHashAndLabelValues(hash, lvs, curry)
+	if ok {
+		metric, ok = m.keepOrTouch(metric)
+	}
 	m.mtx.RUnlock()
 	if ok {
 		return metric
@@ -641,12 +631,16 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	metric, ok = m.getMetricWithHashAndLabelValues(hash, lvs, curry)
-	if !ok {
-		inlinedLVs := inlineLabelValues(lvs, curry)
-		metric = m.newMetric(inlinedLVs...)
-		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
+	if ok {
+		if metric, ok = m.keepOrTouch(metric); ok {
+			return metric
+		}
+		m.deleteByHashWithLabelValuesLocked(hash, lvs, curry)
 	}
-	return metric
+	inlinedLVs := inlineLabelValues(lvs, curry)
+	metric = m.newMetric(inlinedLVs...)
+	m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: inlinedLVs, metric: metric})
+	return unwrapTTLMetric(metric)
 }
 
 // getOrCreateMetricWithLabels retrieves the metric by hash and label value
@@ -656,28 +650,11 @@ func (m *metricMap) getOrCreateMetricWithLabelValues(
 func (m *metricMap) getOrCreateMetricWithLabels(
 	hash uint64, labels Labels, curry []curriedLabelValue,
 ) Metric {
-	if m.ttl > 0 {
-		m.mtx.Lock()
-		defer m.mtx.Unlock()
-		metric, ok := m.getMetricWithHashAndLabels(hash, labels, curry)
-		if ok {
-			deadline := time.Now().Add(-m.ttl).UnixMilli()
-			if tm, isTTLMetric := metric.(ttlMetric); !isTTLMetric || tm.lastAccessed() >= deadline {
-				touchIfTTL(metric)
-				return unwrapTTLMetric(metric)
-			}
-			m.deleteByHashWithLabelsLocked(hash, labels, curry)
-		}
-		lvs := extractLabelValues(m.desc, labels, curry)
-		metric = m.newMetric(lvs...)
-		if _, ok := metric.(ttlMetric); !ok {
-			metric = newTTLMetric(metric)
-		}
-		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
-		return unwrapTTLMetric(metric)
-	}
 	m.mtx.RLock()
 	metric, ok := m.getMetricWithHashAndLabels(hash, labels, curry)
+	if ok {
+		metric, ok = m.keepOrTouch(metric)
+	}
 	m.mtx.RUnlock()
 	if ok {
 		return metric
@@ -686,12 +663,16 @@ func (m *metricMap) getOrCreateMetricWithLabels(
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 	metric, ok = m.getMetricWithHashAndLabels(hash, labels, curry)
-	if !ok {
-		lvs := extractLabelValues(m.desc, labels, curry)
-		metric = m.newMetric(lvs...)
-		m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
+	if ok {
+		if metric, ok = m.keepOrTouch(metric); ok {
+			return metric
+		}
+		m.deleteByHashWithLabelsLocked(hash, labels, curry)
 	}
-	return metric
+	lvs := extractLabelValues(m.desc, labels, curry)
+	metric = m.newMetric(lvs...)
+	m.metrics[hash] = append(m.metrics[hash], metricWithLabelValues{values: lvs, metric: metric})
+	return unwrapTTLMetric(metric)
 }
 
 // getMetricWithHashAndLabelValues gets a metric while handling possible
