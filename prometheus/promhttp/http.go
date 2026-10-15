@@ -41,6 +41,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -394,11 +395,15 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			}
 		}
 
+		shouldTruncExemplars := isOpenMetrics1(contentType)
 		for _, mf := range mfs {
 			if metricFilter != nil {
 				if _, ok := metricFilter[mf.GetName()]; !ok {
 					continue
 				}
+			}
+			if shouldTruncExemplars {
+				truncateMetricFamilyExemplars(mf, openMetrics1ExemplarMaxRunes)
 			}
 			if handleError(enc.Encode(mf)) {
 				return
@@ -691,5 +696,106 @@ func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []strin
 	default:
 		// The content encoding was not implemented yet.
 		return nil, "", func() {}, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", selected, defaultCompressionFormats())
+	}
+}
+
+// openMetrics1ExemplarMaxRunes is the maximum combined rune length of label
+// names and values in an exemplar allowed by the OpenMetrics 1.0 specification.
+const openMetrics1ExemplarMaxRunes = 128
+
+// isOpenMetrics1 reports whether format is OpenMetrics 0.0.1 or 1.0.0.
+func isOpenMetrics1(format expfmt.Format) bool {
+	if format.FormatType() != expfmt.TypeOpenMetrics {
+		return false
+	}
+	v := format.Version()
+	return v == expfmt.OpenMetricsVersion_1_0_0 || v == expfmt.OpenMetricsVersion_0_0_1 || v == ""
+}
+
+// truncateMetricFamilyExemplars truncates exemplar label sets in mf to maxRunes in place.
+func truncateMetricFamilyExemplars(mf *dto.MetricFamily, maxRunes int) {
+	if mf == nil {
+		return
+	}
+	for _, m := range mf.Metric {
+		if m == nil {
+			continue
+		}
+		if m.Counter != nil && m.Counter.Exemplar != nil {
+			m.Counter.Exemplar = truncateExemplar(m.Counter.Exemplar, maxRunes)
+		}
+		if m.Histogram != nil {
+			for _, b := range m.Histogram.Bucket {
+				if b != nil && b.Exemplar != nil {
+					b.Exemplar = truncateExemplar(b.Exemplar, maxRunes)
+				}
+			}
+			n := 0
+			for _, e := range m.Histogram.Exemplars {
+				if truncE := truncateExemplar(e, maxRunes); truncE != nil {
+					m.Histogram.Exemplars[n] = truncE
+					n++
+				}
+			}
+			m.Histogram.Exemplars = m.Histogram.Exemplars[:n]
+		}
+	}
+}
+
+// truncateExemplar drops whole label pairs that do not fit within maxRunes,
+// prioritizing "trace_id" and "span_id" before remaining labels. It returns
+// the original exemplar if all labels already fit, or nil if no labels fit so
+// the exemplar is omitted in OpenMetrics 1.0.
+//
+// NOTE: A new *dto.Exemplar is returned when truncating because Counter.Write
+// and Histogram.Write share the *dto.Exemplar pointer stored on the metric
+// across scrapes.
+func truncateExemplar(e *dto.Exemplar, maxRunes int) *dto.Exemplar {
+	if e == nil || len(e.Label) == 0 {
+		return e
+	}
+	var runes int
+	for _, lp := range e.Label {
+		runes += utf8.RuneCountInString(lp.GetName()) + utf8.RuneCountInString(lp.GetValue())
+	}
+	if runes <= maxRunes {
+		return e
+	}
+
+	kept := make([]*dto.LabelPair, 0, len(e.Label))
+	remaining := maxRunes
+
+	for _, priorityName := range []string{"trace_id", "span_id"} {
+		for _, lp := range e.Label {
+			if lp.GetName() == priorityName {
+				r := utf8.RuneCountInString(lp.GetName()) + utf8.RuneCountInString(lp.GetValue())
+				if r <= remaining {
+					kept = append(kept, lp)
+					remaining -= r
+				}
+				break
+			}
+		}
+	}
+
+	for _, lp := range e.Label {
+		name := lp.GetName()
+		if name == "trace_id" || name == "span_id" {
+			continue
+		}
+		r := utf8.RuneCountInString(name) + utf8.RuneCountInString(lp.GetValue())
+		if r <= remaining {
+			kept = append(kept, lp)
+			remaining -= r
+		}
+	}
+
+	if len(kept) == 0 {
+		return nil
+	}
+	return &dto.Exemplar{
+		Label:     kept,
+		Value:     e.Value,
+		Timestamp: e.Timestamp,
 	}
 }
