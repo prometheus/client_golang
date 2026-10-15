@@ -79,12 +79,25 @@ func (s MetricSorter) Less(i, j int) bool {
 	return s[i].GetTimestampMs() < s[j].GetTimestampMs()
 }
 
+// IsLabelPairsSorted reports whether s is sorted by label name.
+// It avoids allocating a sort.Interface on each call.
+func IsLabelPairsSorted(s []*dto.LabelPair) bool {
+	for i := len(s) - 1; i > 0; i-- {
+		if s[i].GetName() < s[i-1].GetName() {
+			return false
+		}
+	}
+	return true
+}
+
 // NormalizeMetricFamilies returns a MetricFamily slice with empty
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func NormalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
 	for _, mf := range metricFamiliesByName {
-		sort.Sort(MetricSorter(mf.Metric))
+		if len(mf.Metric) > 1 {
+			sort.Sort(MetricSorter(mf.Metric))
+		}
 	}
 	names := make([]string, 0, len(metricFamiliesByName))
 	for name, mf := range metricFamiliesByName {
