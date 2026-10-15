@@ -337,6 +337,32 @@ func assertEqualMFs(t *testing.T, wantMF, gotMF []*dto.MetricFamily) {
 	}
 }
 
+func TestWrapRegistererWithConflictingLabels(t *testing.T) {
+	reg := NewRegistry()
+	wrappedReg := WrapRegistererWith(Labels{"foo": "bar"}, reg)
+	collector := NewGauge(GaugeOpts{
+		Name:        "test",
+		Help:        "help",
+		ConstLabels: Labels{"foo": "baz"},
+	})
+
+	err := wrappedReg.Register(collector)
+	if err == nil {
+		t.Fatal("expected registration to fail")
+	}
+	if want := `attempted wrapping with already existing label name "foo"`; !strings.Contains(err.Error(), want) {
+		t.Fatalf("unexpected registration error: %v", err)
+	}
+
+	gathered, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gathering failed after rejected registration: %v", err)
+	}
+	if len(gathered) != 0 {
+		t.Fatalf("expected no metric families after rejected registration, got %d", len(gathered))
+	}
+}
+
 func TestNil(t *testing.T) {
 	// A wrapped nil registerer should be treated as a no-op, and not panic.
 	c := NewCounter(CounterOpts{Name: "test"})
