@@ -722,10 +722,53 @@ func TestHandlerOpenMetricsNegotiation(t *testing.T) {
 		expectedBody        string
 	}{
 		{
+			name:                "OpenMetrics 2.0-rc explicit accept with EnableOpenMetrics",
+			accept:              "application/openmetrics-text;version=2.0.0-rc",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=2.0.0-rc; charset=utf-8; escaping=allow-utf-8",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 2.0-rc preferred by q-value over 1.0.0 with EnableOpenMetrics",
+			accept:              "application/openmetrics-text;version=2.0.0-rc;q=0.9, application/openmetrics-text;version=1.0.0;q=0.8",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=2.0.0-rc; charset=utf-8; escaping=allow-utf-8",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 1.0.0 preferred by q-value over 2.0.0-rc with EnableOpenMetrics",
+			accept:              "application/openmetrics-text;version=1.0.0;q=0.9, application/openmetrics-text;version=2.0.0-rc;q=0.8",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=1.0.0; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`,
+		},
+		{
+			name:                "OpenMetrics 2.0-rc requested but EnableOpenMetrics is false",
+			accept:              "application/openmetrics-text;version=2.0.0-rc",
+			enableOpenMetrics:   false,
+			expectedContentType: "text/plain; version=0.0.4; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests_total Total number of HTTP requests.
+# TYPE http_requests_total counter
+http_requests_total 10
+`,
+		},
+		{
 			name:                "OpenMetrics 2.0 explicit accept via AcceptedFormats",
 			accept:              "application/openmetrics-text;version=2.0.0",
 			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0},
-			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=allow-utf-8",
 			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
 # TYPE http_requests_total counter
 http_requests_total 10\.0 st@\d+(\.\d+)?
@@ -736,7 +779,7 @@ $`,
 			name:                "OpenMetrics 2.0 preferred by q-value over 1.0.0 via AcceptedFormats",
 			accept:              "application/openmetrics-text;version=2.0.0;q=0.9, application/openmetrics-text;version=1.0.0;q=0.8",
 			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0, expfmt.FmtOpenMetrics_1_0_0},
-			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=allow-utf-8",
 			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
 # TYPE http_requests_total counter
 http_requests_total 10\.0 st@\d+(\.\d+)?
