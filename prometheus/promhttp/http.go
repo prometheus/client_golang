@@ -324,7 +324,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		if len(acceptedFormats) == 0 {
 			acceptedFormats = expfmt.DefaultAcceptedFormats()
 			if opts.EnableOpenMetrics {
-				acceptedFormats = expfmt.DefaultOpenMetricsAcceptedFormats()
+				// OpenMetrics 2.0-rc is included ahead of stable OpenMetrics formats.
+				acceptedFormats = slices.Concat([]expfmt.Format{expfmt.FmtOpenMetrics_2_0_0_rc}, expfmt.DefaultOpenMetricsAcceptedFormats())
 			}
 		}
 		contentType = expfmt.NegotiateAccept(req.Header, acceptedFormats...)
@@ -645,8 +646,8 @@ type HandlerOpts struct {
 	// formats in AcceptedFormats specifies the server's preference order used as a
 	// tie-breaker (e.g. for wildcard "*/*" requests or equal q-values) and fallback.
 	// If empty, the default set is used (expfmt.DefaultAcceptedFormats()).
-	// If empty and EnableOpenMetrics is true, stable OpenMetrics formats are negotiated
-	// (expfmt.DefaultOpenMetricsAcceptedFormats()).
+	// If empty and EnableOpenMetrics is true, OpenMetrics 2.0-rc and stable OpenMetrics formats are negotiated
+	// (expfmt.FmtOpenMetrics_2_0_0_rc followed by expfmt.DefaultOpenMetricsAcceptedFormats()).
 	// This is useful for testing experimental formats (e.g. OpenMetrics 2.0)
 	// or restricting the formats you want to allow.
 	// Using EnableOpenMetrics with an empty AcceptedFormats is still the recommended option for the majority of cases.
