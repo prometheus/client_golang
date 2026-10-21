@@ -833,6 +833,7 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				existingMF.Name = mf.Name
 				existingMF.Help = mf.Help
 				existingMF.Type = mf.Type
+				existingMF.Unit = mf.Unit
 				if err := checkSuffixCollisions(existingMF, metricFamiliesByName); err != nil {
 					errs = append(errs, err)
 					continue

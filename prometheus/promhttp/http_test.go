@@ -615,6 +615,13 @@ http_request_duration_seconds_total 42.0
 	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
 		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
 	}
+
+	// The unit must also be kept when the registry is wrapped in Gatherers.
+	writer = httptest.NewRecorder()
+	HandlerFor(prometheus.Gatherers{reg}, HandlerOpts{EnableOpenMetrics: true}).ServeHTTP(writer, request)
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body through Gatherers:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
 }
 
 func TestHandlerWithEmptyUnit(t *testing.T) {
