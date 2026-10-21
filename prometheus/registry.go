@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -969,7 +970,7 @@ func checkMetricConsistency(
 	h.Write(separatorByteSlice)
 	// Make sure label pairs are sorted. We depend on it for the consistency
 	// check.
-	if !sort.IsSorted(internal.LabelPairSorter(dtoMetric.Label)) {
+	if !slices.IsSortedFunc(dtoMetric.Label, compareLabelPairNames) {
 		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
 		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
 		copy(copiedLabels, dtoMetric.Label)
@@ -1011,31 +1012,50 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, len(desc.constLabelPairs), len(dtoMetric.Label))
-	copy(lpsFromDesc, desc.constLabelPairs)
-	for _, l := range desc.variableLabels.names {
-		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: new(l),
-		})
-	}
-	if len(lpsFromDesc) != len(dtoMetric.Label) {
+	// Note that checkMetricConsistency has already verified dtoMetric.Label is sorted by name.
+	names := desc.variableLabels.names
+	sortedIdx := desc.variableLabels.sortedIndices
+	if len(desc.constLabelPairs)+len(names) != len(dtoMetric.Label) {
 		return fmt.Errorf(
 			"labels in collected metric %s %s are inconsistent with descriptor %s",
 			metricFamily.GetName(), dtoMetric, desc,
 		)
 	}
-	sort.Sort(internal.LabelPairSorter(lpsFromDesc))
-	for i, lpFromDesc := range lpsFromDesc {
-		lpFromMetric := dtoMetric.Label[i]
-		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
-			return fmt.Errorf(
-				"labels in collected metric %s %s are inconsistent with descriptor %s",
-				metricFamily.GetName(), dtoMetric, desc,
-			)
+	cIdx, vIdx := 0, 0
+	for _, lpFromMetric := range dtoMetric.Label {
+		name := lpFromMetric.GetName()
+		if cIdx < len(desc.constLabelPairs) && desc.constLabelPairs[cIdx].GetName() == name {
+			if desc.constLabelPairs[cIdx].GetValue() != lpFromMetric.GetValue() {
+				return fmt.Errorf(
+					"labels in collected metric %s %s are inconsistent with descriptor %s",
+					metricFamily.GetName(), dtoMetric, desc,
+				)
+			}
+			cIdx++
+			continue
 		}
+		if vIdx < len(names) {
+			vi := vIdx
+			if sortedIdx != nil {
+				vi = sortedIdx[vIdx]
+			}
+			if names[vi] == name {
+				vIdx++
+				continue
+			}
+		}
+		return fmt.Errorf(
+			"labels in collected metric %s %s are inconsistent with descriptor %s",
+			metricFamily.GetName(), dtoMetric, desc,
+		)
 	}
 	return nil
+}
+
+// compareLabelPairNames orders label pairs like internal.LabelPairSorter
+// without boxing the slice into an interface.
+func compareLabelPairNames(a, b *dto.LabelPair) int {
+	return strings.Compare(a.GetName(), b.GetName())
 }
 
 var _ TransactionalGatherer = &MultiTRegistry{}
