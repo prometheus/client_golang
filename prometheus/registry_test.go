@@ -1680,6 +1680,9 @@ func BenchmarkRegistryGather(b *testing.B) {
 			reg := prometheus.NewRegistry()
 			reg.MustRegister(newConstMetricsCollector("benchmark_gauge", n))
 
+			if _, err := reg.Gather(); err != nil {
+				b.Fatal(err)
+			}
 			b.ReportAllocs()
 			for b.Loop() {
 				if _, err := reg.Gather(); err != nil {
