@@ -812,6 +812,9 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 		errs                 MultiError // The collected errors to return in the end.
 	)
 
+	xxh := xxhashPool.Get().(*xxhash.Digest)
+	defer xxhashPool.Put(xxh)
+
 	for i, g := range gs {
 		mfs, err := g.Gather()
 		if err != nil {
@@ -852,7 +855,6 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				}
 				metricFamiliesByName[mf.GetName()] = existingMF
 			}
-			xxh := xxhashPool.Get().(*xxhash.Digest)
 			for _, m := range mf.Metric {
 				if err := checkMetricConsistency(existingMF, m, metricHashes, xxh); err != nil {
 					errs = append(errs, err)
@@ -860,7 +862,6 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				}
 				existingMF.Metric = append(existingMF.Metric, m)
 			}
-			xxhashPool.Put(xxh)
 		}
 	}
 	return internal.NormalizeMetricFamilies(metricFamiliesByName), errs.MaybeUnwrap()
