@@ -107,15 +107,7 @@ func NewConstMetric(desc *Desc, valueType ValueType, value float64, labelValues 
 		return nil, err
 	}
 
-	metric := &dto.Metric{}
-	if err := populateMetric(valueType, value, MakeLabelPairs(desc, labelValues), nil, metric, nil); err != nil {
-		return nil, err
-	}
-
-	return &constMetric{
-		desc:   desc,
-		metric: metric,
-	}, nil
+	return newConstMetric(desc, valueType, value, MakeLabelPairs(desc, labelValues), nil)
 }
 
 // MustNewConstMetric is a version of NewConstMetric that panics where
@@ -144,15 +136,7 @@ func NewConstMetricWithCreatedTimestamp(desc *Desc, valueType ValueType, value f
 		return nil, errors.New("created timestamps are only supported for counters")
 	}
 
-	metric := &dto.Metric{}
-	if err := populateMetric(valueType, value, MakeLabelPairs(desc, labelValues), nil, metric, timestamppb.New(ct)); err != nil {
-		return nil, err
-	}
-
-	return &constMetric{
-		desc:   desc,
-		metric: metric,
-	}, nil
+	return newConstMetric(desc, valueType, value, MakeLabelPairs(desc, labelValues), timestamppb.New(ct))
 }
 
 // MustNewConstMetricWithCreatedTimestamp is a version of NewConstMetricWithCreatedTimestamp that panics where
@@ -165,20 +149,77 @@ func MustNewConstMetricWithCreatedTimestamp(desc *Desc, valueType ValueType, val
 	return m
 }
 
+// newConstMetric stores the metric, its dto message and the value in a single
+// allocation. Write hands out pointers into it, which is fine as written
+// metrics are immutable by contract.
+func newConstMetric(desc *Desc, valueType ValueType, value float64, labelPairs []*dto.LabelPair, ct *timestamppb.Timestamp) (Metric, error) {
+	switch valueType {
+	case CounterValue:
+		m := &constCounter{constMetric: constMetric{desc: desc, labelPairs: labelPairs}, value: value}
+		m.counter.Value = &m.value
+		m.counter.CreatedTimestamp = ct
+		return m, nil
+	case GaugeValue:
+		m := &constGauge{constMetric: constMetric{desc: desc, labelPairs: labelPairs}, value: value}
+		m.gauge.Value = &m.value
+		return m, nil
+	case UntypedValue:
+		m := &constUntyped{constMetric: constMetric{desc: desc, labelPairs: labelPairs}, value: value}
+		m.untyped.Value = &m.value
+		return m, nil
+	default:
+		return nil, fmt.Errorf("encountered unknown type %v", valueType)
+	}
+}
+
 type constMetric struct {
-	desc   *Desc
-	metric *dto.Metric
+	desc       *Desc
+	labelPairs []*dto.LabelPair
 }
 
 func (m *constMetric) Desc() *Desc {
 	return m.desc
 }
 
-func (m *constMetric) Write(out *dto.Metric) error {
-	out.Label = m.metric.Label
-	out.Counter = m.metric.Counter
-	out.Gauge = m.metric.Gauge
-	out.Untyped = m.metric.Untyped
+type constCounter struct {
+	constMetric
+	counter dto.Counter
+	value   float64
+}
+
+func (m *constCounter) Write(out *dto.Metric) error {
+	out.Label = m.labelPairs
+	out.Counter = &m.counter
+	out.Gauge = nil
+	out.Untyped = nil
+	return nil
+}
+
+type constGauge struct {
+	constMetric
+	gauge dto.Gauge
+	value float64
+}
+
+func (m *constGauge) Write(out *dto.Metric) error {
+	out.Label = m.labelPairs
+	out.Counter = nil
+	out.Gauge = &m.gauge
+	out.Untyped = nil
+	return nil
+}
+
+type constUntyped struct {
+	constMetric
+	untyped dto.Untyped
+	value   float64
+}
+
+func (m *constUntyped) Write(out *dto.Metric) error {
+	out.Label = m.labelPairs
+	out.Counter = nil
+	out.Gauge = nil
+	out.Untyped = &m.untyped
 	return nil
 }
 
