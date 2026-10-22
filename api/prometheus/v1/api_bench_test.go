@@ -21,8 +21,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/prometheus/common/model"
 )
 
@@ -113,76 +111,34 @@ func BenchmarkSamplesJsonSerialization(b *testing.B) {
 				b.Run("dp="+strconv.Itoa(datapointCount), func(b *testing.B) {
 					floats, histograms := generateData(timeseriesCount, datapointCount)
 
-					floatBytes, err := json.Marshal(floats)
+					floatBytes, err := json.Marshal(apiResponse{Data: queryResult{Type: model.ValMatrix, Result: floats}})
 					if err != nil {
 						b.Fatalf("Error marshaling: %v", err)
 					}
-					histogramBytes, err := json.Marshal(histograms)
+					histogramBytes, err := json.Marshal(apiResponse{Data: queryResult{Type: model.ValMatrix, Result: histograms}})
 					if err != nil {
 						b.Fatalf("Error marshaling: %v", err)
 					}
 
 					b.Run("type=floats", func(b *testing.B) {
-						b.Run("decoder=json", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := json.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+						b.ReportAllocs()
+						for b.Loop() {
+							var m queryResult
+							r := apiResponse{Data: &m}
+							if err := json.Unmarshal(floatBytes, &r); err != nil {
+								b.Fatal(err)
 							}
-						})
-						if supportsJSONv2 {
-							b.Run("decoder=jsonv2", func(b *testing.B) {
-								b.ReportAllocs()
-								for b.Loop() {
-									var m model.Matrix
-									if err := jsonv2Unmarshal(floatBytes, &m); err != nil {
-										b.Fatal(err)
-									}
-								}
-							})
 						}
-						b.Run("decoder=jsoniter", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := jsoniter.Unmarshal(floatBytes, &m); err != nil {
-									b.Fatal(err)
-								}
-							}
-						})
 					})
 					b.Run("type=histograms", func(b *testing.B) {
-						b.Run("decoder=json", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := json.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
+						b.ReportAllocs()
+						for b.Loop() {
+							var m queryResult
+							r := apiResponse{Data: &m}
+							if err := json.Unmarshal(histogramBytes, &r); err != nil {
+								b.Fatal(err)
 							}
-						})
-						if supportsJSONv2 {
-							b.Run("decoder=jsonv2", func(b *testing.B) {
-								b.ReportAllocs()
-								for b.Loop() {
-									var m model.Matrix
-									if err := jsonv2Unmarshal(histogramBytes, &m); err != nil {
-										b.Fatal(err)
-									}
-								}
-							})
 						}
-						b.Run("decoder=jsoniter", func(b *testing.B) {
-							b.ReportAllocs()
-							for b.Loop() {
-								var m model.Matrix
-								if err := jsoniter.Unmarshal(histogramBytes, &m); err != nil {
-									b.Fatal(err)
-								}
-							}
-						})
 					})
 				})
 			}
@@ -268,24 +224,21 @@ func BenchmarkAPIResponse(b *testing.B) {
 		SeriesCountByLabelValuePair: []Stat{{Name: "statname", Value: 12345}},
 	})
 	addTestcase("TSDBBlocksResult", func() any { return &TSDBBlocksResult{} }, TSDBBlocksResult{
-		Status: "ok",
-		Data: TSDBBlocksData{
-			Blocks: []TSDBBlocksBlockMetadata{{
-				Ulid:    "ulid",
-				MinTime: 1,
-				MaxTime: 1000,
-				Stats: TSDBBlocksStats{
-					NumSamples: 1000,
-					NumSeries:  1000,
-					NumChunks:  1000,
-				},
-				Compaction: TSDBBlocksCompaction{
-					Level:   1234,
-					Sources: []string{"sourcea"},
-				},
-				Version: 1,
-			}},
-		},
+		Blocks: []TSDBBlockMeta{{
+			ULID:    "ulid",
+			MinTime: 1,
+			MaxTime: 1000,
+			Stats: TSDBBlockStats{
+				NumSamples: 1000,
+				NumSeries:  1000,
+				NumChunks:  1000,
+			},
+			Compaction: TSDBBlockMetaCompaction{
+				Level:   1234,
+				Sources: []string{"sourcea"},
+			},
+			Version: 1,
+		}},
 	})
 	addTestcase("WalReplayStatus", func() any { return &WalReplayStatus{} }, WalReplayStatus{Min: 1, Max: 1000, Current: 500})
 	addTestcase("[]ExemplarQueryResult", func() any { return &[]ExemplarQueryResult{} }, []ExemplarQueryResult{{

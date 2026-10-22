@@ -25,171 +25,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unsafe"
-
-	jsoniter "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
 
 	"github.com/prometheus/client_golang/api"
 )
-
-func init() {
-	jsoniter.RegisterTypeDecoderFunc("model.SamplePair", unmarshalSamplePairJSON)
-	jsoniter.RegisterTypeDecoderFunc("model.SampleHistogramPair", unmarshalSampleHistogramPairJSON)
-	jsoniter.RegisterTypeDecoderFunc("model.SampleStream", unmarshalSampleStreamJSON) // Only needed for benchmark.
-}
-
-func unmarshalSamplePairJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	p := (*model.SamplePair)(ptr)
-	if !iter.ReadArray() {
-		iter.ReportError("unmarshal model.SamplePair", "SamplePair must be [timestamp, value]")
-		return
-	}
-	t := iter.ReadNumber()
-	if err := p.Timestamp.UnmarshalJSON([]byte(t)); err != nil {
-		iter.ReportError("unmarshal model.SamplePair", err.Error())
-		return
-	}
-	if !iter.ReadArray() {
-		iter.ReportError("unmarshal model.SamplePair", "SamplePair missing value")
-		return
-	}
-
-	f, err := strconv.ParseFloat(iter.ReadString(), 64)
-	if err != nil {
-		iter.ReportError("unmarshal model.SamplePair", err.Error())
-		return
-	}
-	p.Value = model.SampleValue(f)
-
-	if iter.ReadArray() {
-		iter.ReportError("unmarshal model.SamplePair", "SamplePair has too many values, must be [timestamp, value]")
-		return
-	}
-}
-
-func unmarshalSampleHistogramPairJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	p := (*model.SampleHistogramPair)(ptr)
-	if !iter.ReadArray() {
-		iter.ReportError("unmarshal model.SampleHistogramPair", "SampleHistogramPair must be [timestamp, {histogram}]")
-		return
-	}
-	t := iter.ReadNumber()
-	if err := p.Timestamp.UnmarshalJSON([]byte(t)); err != nil {
-		iter.ReportError("unmarshal model.SampleHistogramPair", err.Error())
-		return
-	}
-	if !iter.ReadArray() {
-		iter.ReportError("unmarshal model.SampleHistogramPair", "SamplePair missing histogram")
-		return
-	}
-	h := &model.SampleHistogram{}
-	p.Histogram = h
-	for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
-		switch key {
-		case "count":
-			f, err := strconv.ParseFloat(iter.ReadString(), 64)
-			if err != nil {
-				iter.ReportError("unmarshal model.SampleHistogramPair", "count of histogram is not a float")
-				return
-			}
-			h.Count = model.FloatString(f)
-		case "sum":
-			f, err := strconv.ParseFloat(iter.ReadString(), 64)
-			if err != nil {
-				iter.ReportError("unmarshal model.SampleHistogramPair", "sum of histogram is not a float")
-				return
-			}
-			h.Sum = model.FloatString(f)
-		case "buckets":
-			for iter.ReadArray() {
-				b, err := unmarshalHistogramBucket(iter)
-				if err != nil {
-					iter.ReportError("unmarshal model.HistogramBucket", err.Error())
-					return
-				}
-				h.Buckets = append(h.Buckets, b)
-			}
-		default:
-			iter.ReportError("unmarshal model.SampleHistogramPair", fmt.Sprint("unexpected key in histogram:", key))
-			return
-		}
-	}
-	if iter.ReadArray() {
-		iter.ReportError("unmarshal model.SampleHistogramPair", "SampleHistogramPair has too many values, must be [timestamp, {histogram}]")
-		return
-	}
-}
-
-func unmarshalSampleStreamJSON(ptr unsafe.Pointer, iter *jsoniter.Iterator) {
-	ss := (*model.SampleStream)(ptr)
-	for key := iter.ReadObject(); key != ""; key = iter.ReadObject() {
-		switch key {
-		case "metric":
-			metricString := iter.ReadAny().ToString()
-			if err := jsoniter.UnmarshalFromString(metricString, &ss.Metric); err != nil {
-				iter.ReportError("unmarshal model.SampleStream", err.Error())
-				return
-			}
-		case "values":
-			for iter.ReadArray() {
-				v := model.SamplePair{}
-				unmarshalSamplePairJSON(unsafe.Pointer(&v), iter)
-				ss.Values = append(ss.Values, v)
-			}
-		case "histograms":
-			for iter.ReadArray() {
-				h := model.SampleHistogramPair{}
-				unmarshalSampleHistogramPairJSON(unsafe.Pointer(&h), iter)
-				ss.Histograms = append(ss.Histograms, h)
-			}
-		default:
-			iter.ReportError("unmarshal model.SampleStream", fmt.Sprint("unexpected key:", key))
-			return
-		}
-	}
-}
-
-func unmarshalHistogramBucket(iter *jsoniter.Iterator) (*model.HistogramBucket, error) {
-	b := model.HistogramBucket{}
-	if !iter.ReadArray() {
-		return nil, errors.New("HistogramBucket must be [boundaries, lower, upper, count]")
-	}
-	boundaries, err := iter.ReadNumber().Int64()
-	if err != nil {
-		return nil, err
-	}
-	b.Boundaries = int32(boundaries)
-	if !iter.ReadArray() {
-		return nil, errors.New("HistogramBucket must be [boundaries, lower, upper, count]")
-	}
-	f, err := strconv.ParseFloat(iter.ReadString(), 64)
-	if err != nil {
-		return nil, err
-	}
-	b.Lower = model.FloatString(f)
-	if !iter.ReadArray() {
-		return nil, errors.New("HistogramBucket must be [boundaries, lower, upper, count]")
-	}
-	f, err = strconv.ParseFloat(iter.ReadString(), 64)
-	if err != nil {
-		return nil, err
-	}
-	b.Upper = model.FloatString(f)
-	if !iter.ReadArray() {
-		return nil, errors.New("HistogramBucket must be [boundaries, lower, upper, count]")
-	}
-	f, err = strconv.ParseFloat(iter.ReadString(), 64)
-	if err != nil {
-		return nil, err
-	}
-	b.Count = model.FloatString(f)
-	if iter.ReadArray() {
-		return nil, errors.New("HistogramBucket has too many values, must be [boundaries, lower, upper, count]")
-	}
-	return &b, nil
-}
 
 const (
 	apiPrefix = "/api/v1"
@@ -536,38 +376,60 @@ type TSDBHeadStats struct {
 	MaxTime       int `json:"maxTime"`
 }
 
-// TSDBBlocksResult contains the results from querying the tsdb blocks endpoint.
+// TSDBBlocksResult contains the result from querying the tsdb blocks endpoint.
+//
+// Note: TSDB block types are defined locally rather than importing from
+// prometheus/prometheus to avoid circular dependencies and minimize the
+// dependency footprint. These types match the HTTP API wire format and use
+// string for ULID fields (since JSON serializes ULIDs as strings). See the
+// individual type comments for links to upstream Prometheus definitions.
 type TSDBBlocksResult struct {
-	Status string         `json:"status"`
-	Data   TSDBBlocksData `json:"data"`
+	Blocks []TSDBBlockMeta `json:"blocks"`
 }
 
-// TSDBBlocksData contains the metadata for the tsdb blocks.
-type TSDBBlocksData struct {
-	Blocks []TSDBBlocksBlockMetadata `json:"blocks"`
+// TSDBBlockMeta contains the metadata for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockMeta:
+// https://github.com/prometheus/prometheus/blob/v0.313.2/tsdb/block.go#L164
+type TSDBBlockMeta struct {
+	ULID       string                  `json:"ulid"`
+	MinTime    int64                   `json:"minTime"`
+	MaxTime    int64                   `json:"maxTime"`
+	Stats      TSDBBlockStats          `json:"stats,omitempty"` //nolint:modernize
+	Compaction TSDBBlockMetaCompaction `json:"compaction"`
+	Version    int                     `json:"version"`
 }
 
-// TSDBBlocksBlockMetadata contains the metadata for a single tsdb block.
-type TSDBBlocksBlockMetadata struct {
-	Ulid       string               `json:"ulid"`
-	MinTime    int64                `json:"minTime"`
-	MaxTime    int64                `json:"maxTime"`
-	Stats      TSDBBlocksStats      `json:"stats"`
-	Compaction TSDBBlocksCompaction `json:"compaction"`
-	Version    int                  `json:"version"`
+// TSDBBlockStats contains block stats for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockStats:
+// https://github.com/prometheus/prometheus/blob/v0.313.2/tsdb/block.go#L184
+type TSDBBlockStats struct {
+	NumSamples          uint64 `json:"numSamples,omitempty"`
+	NumFloatSamples     uint64 `json:"numFloatSamples,omitempty"`
+	NumHistogramSamples uint64 `json:"numHistogramSamples,omitempty"`
+	NumSeries           uint64 `json:"numSeries,omitempty"`
+	NumChunks           uint64 `json:"numChunks,omitempty"`
+	NumTombstones       uint64 `json:"numTombstones,omitempty"`
 }
 
-// TSDBBlocksStats contains block stats for a single tsdb block.
-type TSDBBlocksStats struct {
-	NumSamples int `json:"numSamples"`
-	NumSeries  int `json:"numSeries"`
-	NumChunks  int `json:"numChunks"`
+// TSDBBlockDesc describes a TSDB block reference, used in compaction parent tracking.
+// Counterpart to prometheus/prometheus tsdb.BlockDesc:
+// https://github.com/prometheus/prometheus/blob/v0.313.2/tsdb/block.go#L194
+type TSDBBlockDesc struct {
+	ULID    string `json:"ulid"`
+	MinTime int64  `json:"minTime"`
+	MaxTime int64  `json:"maxTime"`
 }
 
-// TSDBBlocksCompaction contains block compaction details for a single block.
-type TSDBBlocksCompaction struct {
-	Level   int      `json:"level"`
-	Sources []string `json:"sources"`
+// TSDBBlockMetaCompaction contains block compaction details for a single TSDB block.
+// Counterpart to prometheus/prometheus tsdb.BlockMetaCompaction:
+// https://github.com/prometheus/prometheus/blob/v0.313.2/tsdb/block.go#L201
+type TSDBBlockMetaCompaction struct {
+	Level     int             `json:"level"`
+	Sources   []string        `json:"sources,omitempty"`
+	Deletable bool            `json:"deletable,omitempty"`
+	Parents   []TSDBBlockDesc `json:"parents,omitempty"`
+	Failed    bool            `json:"failed,omitempty"`
+	Hints     []string        `json:"hints,omitempty"`
 }
 
 // WalReplayStatus represents the wal replay status.
@@ -672,39 +534,6 @@ type recordingRuleInternal RecordingRule
 // unmarshalTypeCheckedJSON unmarshals json with the type field already verified to be RuleTypeRecording
 func (r *RecordingRule) unmarshalTypeCheckedJSON(b []byte) error {
 	return gojson.Unmarshal(b, (*recordingRuleInternal)(r))
-}
-
-func (qr *queryResult) UnmarshalJSON(b []byte) error {
-	v := struct {
-		Type   model.ValueType   `json:"resultType"`
-		Result gojson.RawMessage `json:"result"`
-	}{}
-
-	err := gojson.Unmarshal(b, &v)
-	if err != nil {
-		return err
-	}
-
-	switch v.Type {
-	case model.ValScalar:
-		var sv model.Scalar
-		err = jsoniter.Unmarshal(v.Result, &sv)
-		qr.v = &sv
-
-	case model.ValVector:
-		var vv model.Vector
-		err = jsoniter.Unmarshal(v.Result, &vv)
-		qr.v = vv
-
-	case model.ValMatrix:
-		var mv model.Matrix
-		err = jsoniter.Unmarshal(v.Result, &mv)
-		qr.v = mv
-
-	default:
-		err = fmt.Errorf("unexpected value type %q", v.Type)
-	}
-	return err
 }
 
 // Exemplar is additional information associated with a time series.

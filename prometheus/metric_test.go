@@ -56,14 +56,14 @@ func TestWithExemplarsMetric(t *testing.T) {
 		)
 
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
-			{Value: proto.Float64(2000.0)}, // Unordered exemplars.
-			{Value: proto.Float64(500.0)},
-			{Value: proto.Float64(42.0)},
-			{Value: proto.Float64(157.0)},
-			{Value: proto.Float64(100.0)},
-			{Value: proto.Float64(89.0)},
-			{Value: proto.Float64(24.0)},
-			{Value: proto.Float64(25.1)},
+			{Value: new(2000.0)}, // Unordered exemplars.
+			{Value: new(500.0)},
+			{Value: new(42.0)},
+			{Value: new(157.0)},
+			{Value: new(100.0)},
+			{Value: new(89.0)},
+			{Value: new(24.0)},
+			{Value: new(25.1)},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {
@@ -105,7 +105,7 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			),
 		)
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
-			{Value: proto.Float64(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
+			{Value: new(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {
@@ -130,8 +130,8 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 			),
 		)
 		m := &withExemplarsMetric{Metric: h, exemplars: []*dto.Exemplar{
-			{Value: proto.Float64(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
-			{Value: proto.Float64(1000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 59, 3243244, time.UTC))},
+			{Value: new(2000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 58, 3243244, time.UTC))},
+			{Value: new(1000.0), Timestamp: timestamppb.New(time.Date(2009, 11, 17, 20, 34, 59, 3243244, time.UTC))},
 		}}
 		metric := dto.Metric{}
 		if err := m.Write(&metric); err != nil {
@@ -206,20 +206,20 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 				CreatedTimestamp:             now,
 				Bucket: []*dto.Bucket{
 					{
-						CumulativeCount: PointOf(uint64(6)),
-						UpperBound:      PointOf(float64(1)),
+						CumulativeCount: new(uint64(6)),
+						UpperBound:      new(float64(1)),
 					},
 					{
-						CumulativeCount: PointOf(uint64(8)),
-						UpperBound:      PointOf(float64(2)),
+						CumulativeCount: new(uint64(8)),
+						UpperBound:      new(float64(2)),
 					},
 					{
-						CumulativeCount: PointOf(uint64(11)),
-						UpperBound:      PointOf(float64(5)),
+						CumulativeCount: new(uint64(11)),
+						UpperBound:      new(float64(5)),
 					},
 					{
-						CumulativeCount: PointOf(uint64(13)),
-						UpperBound:      PointOf(float64(10)),
+						CumulativeCount: new(uint64(13)),
+						UpperBound:      new(float64(10)),
 					},
 				},
 				Exemplars: []Exemplar{
@@ -231,9 +231,9 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 				Want: &dto.Metric{
 					Histogram: &dto.Histogram{
 						SampleCount:   proto.Uint64(6),
-						SampleSum:     proto.Float64(7.4),
+						SampleSum:     new(7.4),
 						Schema:        proto.Int32(2),
-						ZeroThreshold: proto.Float64(2.938735877055719e-39),
+						ZeroThreshold: new(2.938735877055719e-39),
 						ZeroCount:     proto.Uint64(1),
 						PositiveSpan: []*dto.BucketSpan{
 							{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -241,29 +241,29 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 						PositiveDelta: []int64{1, -1, 2, -2, 2},
 						Exemplars: []*dto.Exemplar{
 							{
-								Value:     PointOf(float64(10)),
+								Value:     new(float64(10)),
 								Timestamp: timestamppb.New(now),
 							},
 						},
 						Bucket: []*dto.Bucket{
 							{
-								CumulativeCount: PointOf(uint64(6)),
-								UpperBound:      PointOf(float64(1)),
+								CumulativeCount: new(uint64(6)),
+								UpperBound:      new(float64(1)),
 							},
 							{
-								CumulativeCount: PointOf(uint64(8)),
-								UpperBound:      PointOf(float64(2)),
+								CumulativeCount: new(uint64(8)),
+								UpperBound:      new(float64(2)),
 							},
 							{
-								CumulativeCount: PointOf(uint64(11)),
-								UpperBound:      PointOf(float64(5)),
+								CumulativeCount: new(uint64(11)),
+								UpperBound:      new(float64(5)),
 							},
 							{
-								CumulativeCount: PointOf(uint64(13)),
-								UpperBound:      PointOf(float64(10)),
+								CumulativeCount: new(uint64(13)),
+								UpperBound:      new(float64(10)),
 								Exemplar: &dto.Exemplar{
 									Timestamp: timestamppb.New(now),
-									Value:     PointOf(float64(10)),
+									Value:     new(float64(10)),
 								},
 							},
 						},
@@ -296,8 +296,9 @@ func TestWithExemplarsNativeHistogramMetric(t *testing.T) {
 	})
 }
 
+//go:fix inline
 func PointOf[T any](value T) *T {
-	return &value
+	return new(value)
 }
 
 // newNativeHistogramWithClassicBuckets returns a Metric representing
@@ -346,7 +347,7 @@ func newNativeHistogramWithClassicBuckets(
 			PositiveSpan:  PositiveSpan,
 			PositiveDelta: PositiveDelta,
 
-			ZeroCount: proto.Uint64(zeroBucket),
+			ZeroCount: new(zeroBucket),
 
 			// DummyNativeHistogram also defines buckets in the metric
 			Bucket: buckets,

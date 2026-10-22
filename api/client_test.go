@@ -97,6 +97,14 @@ func TestClientURL(t *testing.T) {
 			},
 			expected: "http://localhost:9090/test/:param",
 		},
+		{
+			address:  "http://localhost:9090",
+			endpoint: "/test/:foobar",
+			args: map[string]string{
+				"foo": "content",
+			},
+			expected: "http://localhost:9090/test/:foobar",
+		},
 	}
 
 	for _, test := range tests {

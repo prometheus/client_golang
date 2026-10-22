@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"reflect"
 	"runtime"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -331,7 +332,7 @@ func TestHistogramVecConcurrency(t *testing.T) {
 func getCumulativeCounts(vars []float64) []uint64 {
 	counts := make([]uint64, len(testBuckets))
 	for _, v := range vars {
-		for i := len(testBuckets) - 1; i >= 0; i-- {
+		for i := range slices.Backward(testBuckets) {
 			if v > testBuckets[i] {
 				break
 			}
@@ -428,24 +429,24 @@ func TestHistogramExemplar(t *testing.T) {
 		nil,
 		{
 			Label: []*dto.LabelPair{
-				{Name: proto.String("id"), Value: proto.String("2")},
+				{Name: new("id"), Value: new("2")},
 			},
-			Value:     proto.Float64(1.6),
+			Value:     new(1.6),
 			Timestamp: ts,
 		},
 		nil,
 		{
 			Label: []*dto.LabelPair{
-				{Name: proto.String("id"), Value: proto.String("3")},
+				{Name: new("id"), Value: new("3")},
 			},
 			Value:     proto.Float64(4),
 			Timestamp: ts,
 		},
 		{
 			Label: []*dto.LabelPair{
-				{Name: proto.String("id"), Value: proto.String("4")},
+				{Name: new("id"), Value: new("4")},
 			},
-			Value:     proto.Float64(4.5),
+			Value:     new(4.5),
 			Timestamp: ts,
 		},
 	}
@@ -490,15 +491,15 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount: proto.Uint64(3),
 				SampleSum:   proto.Float64(6),
 				Bucket: []*dto.Bucket{
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.005)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.01)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.025)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.05)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.1)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.25)},
-					{CumulativeCount: proto.Uint64(0), UpperBound: proto.Float64(0.5)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.005)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.01)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.025)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.05)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.1)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.25)},
+					{CumulativeCount: proto.Uint64(0), UpperBound: new(0.5)},
 					{CumulativeCount: proto.Uint64(1), UpperBound: proto.Float64(1)},
-					{CumulativeCount: proto.Uint64(2), UpperBound: proto.Float64(2.5)},
+					{CumulativeCount: proto.Uint64(2), UpperBound: new(2.5)},
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(5)},
 					{CumulativeCount: proto.Uint64(3), UpperBound: proto.Float64(10)},
 				},
@@ -512,7 +513,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:      proto.Uint64(0),
 				SampleSum:        proto.Float64(0),
 				Schema:           proto.Int32(3),
-				ZeroThreshold:    proto.Float64(2.938735877055719e-39),
+				ZeroThreshold:    new(2.938735877055719e-39),
 				ZeroCount:        proto.Uint64(0),
 				CreatedTimestamp: timestamppb.New(now),
 			},
@@ -541,7 +542,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(4),
 				SampleSum:     proto.Float64(6),
 				Schema:        proto.Int32(3),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(1)},
@@ -558,9 +559,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(7.4),
+				SampleSum:     new(7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -582,9 +583,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor: 4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(14),
-				SampleSum:     proto.Float64(63.2581251),
+				SampleSum:     new(63.2581251),
 				Schema:        proto.Int32(-1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-2), Length: proto.Uint32(6)},
@@ -604,9 +605,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor: 17,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(14),
-				SampleSum:     proto.Float64(63.2581251),
+				SampleSum:     new(63.2581251),
 				Schema:        proto.Int32(-2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-1), Length: proto.Uint32(4)},
@@ -621,9 +622,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(-7.4),
+				SampleSum:     new(-7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -640,7 +641,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(11),
 				SampleSum:     proto.Float64(0),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -662,7 +663,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(11),
 				SampleSum:     proto.Float64(0),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.4),
+				ZeroThreshold: new(1.4),
 				ZeroCount:     proto.Uint64(7),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
@@ -681,9 +682,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.NaN()),
+				SampleSum:     new(math.NaN()),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -698,9 +699,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.Inf(+1)),
+				SampleSum:     new(math.Inf(+1)),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -716,9 +717,9 @@ func TestNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.Inf(-1)),
+				SampleSum:     new(math.Inf(-1)),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(4097), Length: proto.Uint32(1)},
@@ -738,9 +739,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(7.4),
+				SampleSum:     new(7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -756,9 +757,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(11.5),
+				SampleSum:     new(11.5),
 				Schema:        proto.Int32(1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -775,7 +776,7 @@ func TestNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(11.5),
+				SampleSum:     new(11.5),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(1),
 				ZeroCount:     proto.Uint64(2),
@@ -794,9 +795,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(9),
-				SampleSum:     proto.Float64(15.5),
+				SampleSum:     new(15.5),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.189207115002721),
+				ZeroThreshold: new(1.189207115002721),
 				ZeroCount:     proto.Uint64(3),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
@@ -816,7 +817,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(2),
 				SampleSum:     proto.Float64(7),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
@@ -832,9 +833,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(-7.4),
+				SampleSum:     new(-7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -850,9 +851,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(-11.5),
+				SampleSum:     new(-11.5),
 				Schema:        proto.Int32(1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -869,7 +870,7 @@ func TestNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(-11.5),
+				SampleSum:     new(-11.5),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(1),
 				ZeroCount:     proto.Uint64(2),
@@ -888,9 +889,9 @@ func TestNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(9),
-				SampleSum:     proto.Float64(-15.5),
+				SampleSum:     new(-15.5),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.189207115002721),
+				ZeroThreshold: new(1.189207115002721),
 				ZeroCount:     proto.Uint64(3),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
@@ -910,7 +911,7 @@ func TestNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(2),
 				SampleSum:     proto.Float64(-7),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
@@ -927,9 +928,9 @@ func TestNativeHistogram(t *testing.T) {
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(3),
-				SampleSum:     proto.Float64(12.1),
+				SampleSum:     new(12.1),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
@@ -947,9 +948,9 @@ func TestNativeHistogram(t *testing.T) {
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(3),
-				SampleSum:     proto.Float64(12.1),
+				SampleSum:     new(12.1),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
@@ -1591,7 +1592,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:      proto.Uint64(0),
 				SampleSum:        proto.Float64(0),
 				Schema:           proto.Int32(3),
-				ZeroThreshold:    proto.Float64(2.938735877055719e-39),
+				ZeroThreshold:    new(2.938735877055719e-39),
 				ZeroCount:        proto.Uint64(0),
 				CreatedTimestamp: timestamppb.New(now),
 			},
@@ -1620,7 +1621,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(4),
 				SampleSum:     proto.Float64(6),
 				Schema:        proto.Int32(3),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(1)},
@@ -1637,9 +1638,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(7.4),
+				SampleSum:     new(7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1661,9 +1662,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor: 4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(14),
-				SampleSum:     proto.Float64(63.2581251),
+				SampleSum:     new(63.2581251),
 				Schema:        proto.Int32(-1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-2), Length: proto.Uint32(6)},
@@ -1683,9 +1684,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor: 17,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(14),
-				SampleSum:     proto.Float64(63.2581251),
+				SampleSum:     new(63.2581251),
 				Schema:        proto.Int32(-2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(-1), Length: proto.Uint32(4)},
@@ -1700,9 +1701,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(-7.4),
+				SampleSum:     new(-7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1719,7 +1720,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(11),
 				SampleSum:     proto.Float64(0),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1741,7 +1742,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(11),
 				SampleSum:     proto.Float64(0),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.4),
+				ZeroThreshold: new(1.4),
 				ZeroCount:     proto.Uint64(7),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(4), Length: proto.Uint32(1)},
@@ -1760,9 +1761,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.NaN()),
+				SampleSum:     new(math.NaN()),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1777,9 +1778,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.Inf(+1)),
+				SampleSum:     new(math.Inf(+1)),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1795,9 +1796,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			factor:       1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(7),
-				SampleSum:     proto.Float64(math.Inf(-1)),
+				SampleSum:     new(math.Inf(-1)),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(4097), Length: proto.Uint32(1)},
@@ -1817,9 +1818,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(7.4),
+				SampleSum:     new(7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1835,9 +1836,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(11.5),
+				SampleSum:     new(11.5),
 				Schema:        proto.Int32(1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1854,7 +1855,7 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(11.5),
+				SampleSum:     new(11.5),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(1),
 				ZeroCount:     proto.Uint64(2),
@@ -1873,9 +1874,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(9),
-				SampleSum:     proto.Float64(15.5),
+				SampleSum:     new(15.5),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.189207115002721),
+				ZeroThreshold: new(1.189207115002721),
 				ZeroCount:     proto.Uint64(3),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
@@ -1895,7 +1896,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(2),
 				SampleSum:     proto.Float64(7),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
@@ -1911,9 +1912,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(6),
-				SampleSum:     proto.Float64(-7.4),
+				SampleSum:     new(-7.4),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1929,9 +1930,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxBuckets:   4,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(-11.5),
+				SampleSum:     new(-11.5),
 				Schema:        proto.Int32(1),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(1),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(0), Length: proto.Uint32(5)},
@@ -1948,7 +1949,7 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(8),
-				SampleSum:     proto.Float64(-11.5),
+				SampleSum:     new(-11.5),
 				Schema:        proto.Int32(2),
 				ZeroThreshold: proto.Float64(1),
 				ZeroCount:     proto.Uint64(2),
@@ -1967,9 +1968,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			maxZeroThreshold: 1.2,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(9),
-				SampleSum:     proto.Float64(-15.5),
+				SampleSum:     new(-15.5),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(1.189207115002721),
+				ZeroThreshold: new(1.189207115002721),
 				ZeroCount:     proto.Uint64(3),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(2), Length: proto.Uint32(7)},
@@ -1989,7 +1990,7 @@ func TestConstNativeHistogram(t *testing.T) {
 				SampleCount:   proto.Uint64(2),
 				SampleSum:     proto.Float64(-7),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				NegativeSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(2)},
@@ -2006,9 +2007,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(3),
-				SampleSum:     proto.Float64(12.1),
+				SampleSum:     new(12.1),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
@@ -2026,9 +2027,9 @@ func TestConstNativeHistogram(t *testing.T) {
 			minResetDuration: 9 * time.Minute,
 			want: &dto.Histogram{
 				SampleCount:   proto.Uint64(3),
-				SampleSum:     proto.Float64(12.1),
+				SampleSum:     new(12.1),
 				Schema:        proto.Int32(2),
-				ZeroThreshold: proto.Float64(2.938735877055719e-39),
+				ZeroThreshold: new(2.938735877055719e-39),
 				ZeroCount:     proto.Uint64(0),
 				PositiveSpan: []*dto.BucketSpan{
 					{Offset: proto.Int32(7), Length: proto.Uint32(4)},
@@ -2100,5 +2101,50 @@ func TestConstNativeHistogram(t *testing.T) {
 				t.Errorf("want histogram %q, got %q", s.want, got)
 			}
 		})
+	}
+}
+
+// TestHistogramWritePanicCausesWaitForCooldownDeadlock is a regression test for
+// https://github.com/prometheus/client_golang/issues/2147.
+func TestHistogramWritePanicCausesWaitForCooldownDeadlock(t *testing.T) {
+	h := NewHistogram(HistogramOpts{
+		Name:                        "test_request_duration_seconds",
+		Help:                        "Request duration in seconds.",
+		NativeHistogramBucketFactor: 1.1,
+	}).(*histogram)
+	h.Observe(0.5)
+
+	// Trigger a panic inside Write after flipping countAndHotIdx (e.g. out == nil,
+	// which panics at `out.Histogram = his`). Because cold counts and native
+	// buckets are merged via defer right after waitForCooldown, counts[0] is
+	// still merged into counts[1] before `defer h.mtx.Unlock()` runs.
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic from Write(nil)")
+			}
+		}()
+		_ = h.Write(nil)
+	}()
+
+	writeDone := make(chan error, 1)
+	var out dto.Metric
+	go func() {
+		writeDone <- h.Write(&out)
+	}()
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("unexpected Write error: %v", err)
+		}
+		if got := out.GetHistogram().GetSampleCount(); got != 1 {
+			t.Fatalf("expected sample count 1, got %d", got)
+		}
+		if got := out.GetHistogram().GetPositiveDelta(); len(got) != 1 || got[0] != 1 {
+			t.Fatalf("expected positive delta [1], got %v", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Write timed out spinning in waitForCooldown")
 	}
 }

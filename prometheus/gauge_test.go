@@ -180,11 +180,11 @@ func TestGaugeFunc(t *testing.T) {
 
 	expected := &dto.Metric{
 		Label: []*dto.LabelPair{
-			{Name: proto.String("a"), Value: proto.String("1")},
-			{Name: proto.String("b"), Value: proto.String("2")},
+			{Name: new("a"), Value: new("1")},
+			{Name: new("b"), Value: new("2")},
 		},
 		Gauge: &dto.Gauge{
-			Value: proto.Float64(3.1415),
+			Value: new(3.1415),
 		},
 	}
 

@@ -45,12 +45,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -237,6 +237,7 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 }
 
 // CollectAndFormat collects the metrics identified by `metricNames` and returns them in the given format.
+// If no metricNames are provided, all collected metrics are returned.
 func CollectAndFormat(c prometheus.Collector, format expfmt.FormatType, metricNames ...string) ([]byte, error) {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
@@ -257,7 +258,9 @@ func GatherAndFormat(g prometheus.Gatherer, format expfmt.FormatType, metricName
 		return nil, fmt.Errorf("gathering metrics failed: %w", err)
 	}
 
-	gotFiltered = filterMetrics(gotFiltered, metricNames)
+	if metricNames != nil {
+		gotFiltered = filterMetrics(gotFiltered, metricNames)
+	}
 
 	var gotFormatted bytes.Buffer
 	enc := expfmt.NewEncoder(&gotFormatted, expfmt.NewFormat(format))
@@ -294,7 +297,7 @@ func convertReaderToMetricFamily(reader io.Reader) ([]*dto.MetricFamily, error) 
 	// when we compare text encodings, the results are consistent.
 	for _, metric := range notNormalized {
 		if metric.Help == nil {
-			metric.Help = proto.String("")
+			metric.Help = new("")
 		}
 	}
 
@@ -339,11 +342,8 @@ func compare(got, want []*dto.MetricFamily) error {
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
 	var filtered []*dto.MetricFamily
 	for _, m := range metrics {
-		for _, name := range names {
-			if m.GetName() == name {
-				filtered = append(filtered, m)
-				break
-			}
+		if slices.Contains(names, m.GetName()) {
+			filtered = append(filtered, m)
 		}
 	}
 	return filtered

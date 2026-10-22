@@ -28,7 +28,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/proto"
 )
 
 func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry) {
@@ -107,7 +106,7 @@ func makeInstrumentedClient(opts ...Option) (*http.Client, *prometheus.Registry)
 func labelsToLabelPair(l prometheus.Labels) []*dto.LabelPair {
 	ret := make([]*dto.LabelPair, 0, len(l))
 	for k, v := range l {
-		ret = append(ret, &dto.LabelPair{Name: proto.String(k), Value: proto.String(v)})
+		ret = append(ret, &dto.LabelPair{Name: new(k), Value: new(v)})
 	}
 	sort.Slice(ret, func(i, j int) bool {
 		return *ret[i].Name < *ret[j].Name

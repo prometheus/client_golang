@@ -24,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/internal"
 
 	dto "github.com/prometheus/client_model/go"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -570,14 +569,14 @@ func (h *batchHistogram) Write(out *dto.Metric) error {
 		// by obtaining the next float64 value down, in order.
 		upperBound := math.Nextafter(h.buckets[i+1], h.buckets[i])
 		dtoBuckets = append(dtoBuckets, &dto.Bucket{
-			CumulativeCount: proto.Uint64(totalCount),
-			UpperBound:      proto.Float64(upperBound),
+			CumulativeCount: new(totalCount),
+			UpperBound:      new(upperBound),
 		})
 	}
 	out.Histogram = &dto.Histogram{
 		Bucket:      dtoBuckets,
-		SampleCount: proto.Uint64(totalCount),
-		SampleSum:   proto.Float64(sum),
+		SampleCount: new(totalCount),
+		SampleSum:   new(sum),
 	}
 	return nil
 }
