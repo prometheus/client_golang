@@ -94,6 +94,10 @@ func NewPedanticRegistry() *Registry {
 // Registerer as type for registration purposes (rather than the Registry type
 // directly). In that way, they are free to use custom Registerer implementation
 // (e.g. for testing purposes).
+//
+// A Registerer is typically shared as a global object. Therefore, all its
+// methods must be safe to call concurrently from multiple goroutines, and
+// custom implementations are expected to uphold that.
 type Registerer interface {
 	// Register registers a new Collector to be included in metrics
 	// collection. It returns an error if the descriptors provided by the
@@ -137,7 +141,8 @@ type Registerer interface {
 // Gatherer is the interface for the part of a registry in charge of gathering
 // the collected metrics into a number of MetricFamilies. The Gatherer interface
 // comes with the same general implication as described for the Registerer
-// interface.
+// interface. In particular, Gather must be safe to call concurrently from
+// multiple goroutines.
 type Gatherer interface {
 	// Gather calls the Collect method of the registered Collectors and then
 	// gathers the collected metrics into a lexicographically sorted slice
@@ -268,6 +273,8 @@ func (errs MultiError) MaybeUnwrap() error {
 // them into MetricFamilies for exposition. It implements Registerer, Gatherer,
 // and Collector. The zero value is not usable. Create instances with
 // NewRegistry or NewPedanticRegistry.
+//
+// All methods of a Registry are safe for concurrent use by multiple goroutines.
 //
 // Registry implements Collector to allow it to be used for creating groups of
 // metrics. See the Grouping example for how this can be done.
