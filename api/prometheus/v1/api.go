@@ -692,6 +692,11 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 }
 
 func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, Infos, error) {
+	if strings.Contains(label, "/") {
+		// The label name is a path segment, so a '/' would split it. The
+		// server accepts the name in the Values Escaping form instead.
+		label = model.EscapeName(label, model.ValueEncodingEscaping)
+	}
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	q := addOptionalURLParams(u.Query(), opts)
 
