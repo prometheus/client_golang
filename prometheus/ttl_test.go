@@ -14,8 +14,10 @@
 package prometheus_test
 
 import (
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -140,6 +142,180 @@ func BenchmarkTTLLookup(b *testing.B) {
 			})
 		}
 	}
+}
+
+func BenchmarkRegistryCleanupExpired(b *testing.B) {
+	for _, kind := range []string{"counter", "vector_without_ttl", "vector_with_ttl"} {
+		b.Run(kind, func(b *testing.B) {
+			inner := prometheus.NewRegistry()
+			for i := range 100 {
+				opts := prometheus.CounterOpts{Name: "cleanup_" + strconv.Itoa(i), Help: "Cleanup benchmark."}
+				if kind == "counter" {
+					inner.MustRegister(prometheus.NewCounter(opts))
+					continue
+				}
+
+				var ttl time.Duration
+				if kind == "vector_with_ttl" {
+					ttl = time.Hour
+				}
+				vec := prometheus.V2.NewCounterVec(prometheus.CounterVecOpts{
+					CounterOpts:    opts,
+					VariableLabels: prometheus.UnconstrainedLabels([]string{"code"}),
+					TTL:            ttl,
+				})
+				vec.WithLabelValues("200").Inc()
+				inner.MustRegister(vec)
+			}
+			outer := prometheus.NewRegistry()
+			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", inner))
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				outer.CleanupExpired()
+			}
+		})
+	}
+}
+
+func TestTTLRegistryCleanupAllocations(t *testing.T) {
+	for _, ttl := range []time.Duration{0, time.Hour} {
+		t.Run(ttl.String(), func(t *testing.T) {
+			inner := prometheus.NewRegistry()
+			for i := range 100 {
+				vec := prometheus.V2.NewCounterVec(prometheus.CounterVecOpts{
+					CounterOpts:    prometheus.CounterOpts{Name: "cleanup_allocations_" + strconv.Itoa(i), Help: "Cleanup allocations."},
+					VariableLabels: prometheus.UnconstrainedLabels([]string{"code"}),
+					TTL:            ttl,
+				})
+				vec.WithLabelValues("200").Inc()
+				inner.MustRegister(vec)
+			}
+			outer := prometheus.NewRegistry()
+			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", inner))
+
+			if allocs := testing.AllocsPerRun(100, func() { outer.CleanupExpired() }); allocs != 0 {
+				t.Fatalf("expected allocation-free cleanup, got %v allocations", allocs)
+			}
+		})
+	}
+}
+
+type trackingTTLCleaner struct {
+	prometheus.Counter
+	calls         atomic.Int64
+	beforeCleanup func()
+}
+
+func (c *trackingTTLCleaner) CleanupExpired() int {
+	if c.beforeCleanup != nil {
+		c.beforeCleanup()
+	}
+	c.calls.Add(1)
+	return 1
+}
+
+func TestTTLRegistryCleanupRegistration(t *testing.T) {
+	for _, mode := range []string{"direct", "wrapped", "unchecked"} {
+		t.Run(mode, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			outer := prometheus.NewRegistry()
+			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", reg))
+
+			opts := prometheus.CounterOpts{Name: "cleanup_registration", Help: "Cleanup registration."}
+			cleaner := &trackingTTLCleaner{Counter: prometheus.NewCounter(opts)}
+			var (
+				collector prometheus.Collector = cleaner
+				alias     prometheus.Collector = prometheus.NewCounter(opts)
+			)
+			switch mode {
+			case "wrapped":
+				collector = prometheus.WrapCollectorWithPrefix("wrapped_", collector)
+				alias = prometheus.WrapCollectorWithPrefix("wrapped_", alias)
+			case "unchecked":
+				collector = &uncheckedTTLCleaner{Collector: cleaner, ExpiredCleaner: cleaner}
+			}
+			reg.MustRegister(collector)
+
+			err := reg.Register(collector)
+			want := 1
+			if mode == "unchecked" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				want = 2
+			} else if err == nil {
+				t.Fatal("expected duplicate registration to fail")
+			}
+			if n := outer.CleanupExpired(); n != want {
+				t.Fatalf("expected %d cleanup calls after registration, got %d", want, n)
+			}
+
+			if mode == "unchecked" {
+				if reg.Unregister(collector) {
+					t.Fatal("unchecked collector should not be unregistered")
+				}
+				if n := outer.CleanupExpired(); n != 2 {
+					t.Fatal("failed unregistration changed the cleanup registrations")
+				}
+				return
+			}
+			if !reg.Unregister(alias) {
+				t.Fatal("could not unregister using an equivalent collector")
+			}
+			if n := outer.CleanupExpired(); n != 0 || cleaner.calls.Load() != int64(want) {
+				t.Fatal("cleanup called an unregistered collector")
+			}
+
+			reg.MustRegister(collector)
+			if n := outer.CleanupExpired(); n != 1 || cleaner.calls.Load() != int64(want+1) {
+				t.Fatal("cleanup did not track the re-registered collector")
+			}
+		})
+	}
+}
+
+func TestTTLRegistryCleanupConcurrentRegistration(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var once sync.Once
+		started := make(chan struct{})
+		resume := make(chan struct{})
+		first := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "first_cleanup", Help: "First cleaner."}),
+			beforeCleanup: func() {
+				once.Do(func() {
+					close(started)
+					<-resume
+				})
+			},
+		}
+		second := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "second_cleanup", Help: "Second cleaner."}),
+		}
+		replacement := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "replacement_cleanup", Help: "Replacement cleaner."}),
+		}
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(first, second)
+
+		done := make(chan int, 1)
+		go func() { done <- reg.CleanupExpired() }()
+		<-started
+
+		if !reg.Unregister(second) {
+			t.Fatal("could not unregister during cleanup")
+		}
+		reg.MustRegister(replacement)
+		close(resume)
+
+		if n := <-done; n != 2 || first.calls.Load() != 1 || second.calls.Load() != 1 || replacement.calls.Load() != 0 {
+			t.Fatal("registration changed the in-progress cleanup snapshot")
+		}
+		if n := reg.CleanupExpired(); n != 2 || first.calls.Load() != 2 || second.calls.Load() != 1 || replacement.calls.Load() != 1 {
+			t.Fatal("subsequent cleanup did not use the updated registrations")
+		}
+	})
 }
 
 func TestTTLExpiredLookupResetsState(t *testing.T) {
