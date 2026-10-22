@@ -16,11 +16,9 @@ package prometheus
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 	"unicode/utf8"
-
-	"github.com/prometheus/client_golang/prometheus/internal"
 
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -214,24 +212,46 @@ func populateMetric(
 // This function is only needed for custom Metric implementations. See MetricVec
 // example.
 func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
-	totalLen := len(desc.variableLabels.names) + len(desc.constLabelPairs)
+	names := desc.variableLabels.names
+	totalLen := len(names) + len(desc.constLabelPairs)
 	if totalLen == 0 {
 		// Super fast path.
 		return nil
 	}
-	if len(desc.variableLabels.names) == 0 {
+	if len(names) == 0 {
 		// Moderately fast path.
 		return desc.constLabelPairs
 	}
-	labelPairs := make([]*dto.LabelPair, 0, totalLen)
-	for i, l := range desc.variableLabels.names {
-		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  new(l),
-			Value: new(labelValues[i]),
-		})
+	// Allocate the variable label pairs and a copy of their values in one
+	// go instead of once per label. Both constant label pairs and variable
+	// label name pointers from Desc are shared as label pairs are immutable
+	// by contract.
+	sortedIdx := desc.variableLabels.sortedIndices
+	values := slices.Clone(labelValues[:len(names)])
+	variableLabelPairs := make([]dto.LabelPair, len(values))
+	labelPairs := make([]*dto.LabelPair, totalLen)
+	cIdx, vIdx := 0, 0
+	for i := range totalLen {
+		if vIdx >= len(names) {
+			labelPairs[i] = desc.constLabelPairs[cIdx]
+			cIdx++
+			continue
+		}
+		vi := vIdx
+		if sortedIdx != nil {
+			vi = sortedIdx[vIdx]
+		}
+		if cIdx < len(desc.constLabelPairs) && *desc.constLabelPairs[cIdx].Name < names[vi] {
+			labelPairs[i] = desc.constLabelPairs[cIdx]
+			cIdx++
+			continue
+		}
+		lp := &variableLabelPairs[vi]
+		lp.Name = &names[vi]
+		lp.Value = &values[vi]
+		labelPairs[i] = lp
+		vIdx++
 	}
-	labelPairs = append(labelPairs, desc.constLabelPairs...)
-	sort.Sort(internal.LabelPairSorter(labelPairs))
 	return labelPairs
 }
 

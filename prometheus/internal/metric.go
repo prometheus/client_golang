@@ -73,14 +73,6 @@ func compareMetrics(a, b *dto.Metric) int {
 	return cmp.Compare(a.GetTimestampMs(), b.GetTimestampMs())
 }
 
-// IsLabelPairsSorted reports whether s is sorted by label name.
-// It avoids allocating a sort.Interface on each call.
-func IsLabelPairsSorted(s []*dto.LabelPair) bool {
-	return slices.IsSortedFunc(s, func(a, b *dto.LabelPair) int {
-		return cmp.Compare(a.GetName(), b.GetName())
-	})
-}
-
 // NormalizeMetricFamilies returns a MetricFamily slice with empty
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
