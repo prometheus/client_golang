@@ -121,13 +121,7 @@ func (g *gauge) Dec() {
 }
 
 func (g *gauge) Add(val float64) {
-	for {
-		oldBits := atomic.LoadUint64(&g.valBits)
-		newBits := math.Float64bits(math.Float64frombits(oldBits) + val)
-		if atomic.CompareAndSwapUint64(&g.valBits, oldBits, newBits) {
-			return
-		}
-	}
+	atomicAddFloat(&g.valBits, val)
 }
 
 func (g *gauge) Sub(val float64) {
