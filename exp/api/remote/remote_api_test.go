@@ -428,6 +428,64 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal("retry callback should not be invoked on successful request")
 		}
 	})
+
+	t.Run("async 202 Accepted without written headers succeeds", func(t *testing.T) {
+		tLogger := slog.Default()
+		srv := httptest.NewServer(NewWriteHandler(&asyncResponseStore{}, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		s, err := client.Write(context.Background(), WriteV2MessageType, req)
+		if err != nil {
+			t.Fatalf("expected no error on 202 Accepted without written headers, got %v", err)
+		}
+		if !s.Async {
+			t.Fatal("expected Async to be true on 202 Accepted response")
+		}
+		if s.Confirmed() {
+			t.Fatal("expected Confirmed() to be false when written headers were omitted")
+		}
+		if !s.NoDataWritten() {
+			t.Fatalf("expected 0 written counts when headers were omitted, got %+v", s)
+		}
+	})
+
+	t.Run("204 No Content without written headers fails as unconfirmed", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPIPath("api/v1/write"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = client.Write(context.Background(), WriteV2MessageType, testV2())
+		if err == nil {
+			t.Fatal("expected error when 204 response omits PRW 2.0 written headers, got nil")
+		}
+	})
+}
+
+type asyncResponseStore struct{}
+
+func (*asyncResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+	w := NewWriteResponse()
+	w.SetStatusCode(http.StatusAccepted)
+	return w, nil
 }
 
 func TestSnappyDecodeMiddleware(t *testing.T) {
