@@ -297,7 +297,12 @@ func MakeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 }
 
 // ExemplarMaxRunes is the max total number of runes allowed in exemplar labels.
-const ExemplarMaxRunes = 128
+// While OpenMetrics 2.0 and Prometheus protobuf formats do not define a hard
+// limit, client_golang enforces this generous limit to prevent accidental
+// high-cardinality or memory issues. When OpenMetrics 1.0 (or 0.0.1) is
+// negotiated during scrape, exemplar labels exceeding 128 runes are truncated
+// as per spec. Truncation prioritizes "span_id" and "trace_id" labels.
+const ExemplarMaxRunes = 2048
 
 // newExemplar creates a new dto.Exemplar from the provided values. An error is
 // returned if any of the label names or values are invalid or if the total
@@ -329,6 +334,9 @@ func newExemplar(value float64, ts time.Time, l Labels) (*dto.Exemplar, error) {
 	if runes > ExemplarMaxRunes {
 		return nil, fmt.Errorf("exemplar labels have %d runes, exceeding the limit of %d", runes, ExemplarMaxRunes)
 	}
+	// Sort label pairs so exemplar exposition and OpenMetrics 1.0 truncation are
+	// deterministic despite Go map iteration order.
+	sort.Sort(internal.LabelPairSorter(labelPairs))
 	e.Label = labelPairs
 	return e, nil
 }
