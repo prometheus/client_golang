@@ -590,6 +590,11 @@ func ParseContentType(contentType string) (WriteMessageType, WriteMode, error) {
 		case "mode":
 			hasMode = true
 			rawMode = WriteMode(val)
+			if rawMode == WriteModeNone {
+				return "", WriteModeNone, fmt.Errorf("empty mode parameter in %v content-type", contentType)
+			}
+		default:
+			return "", WriteModeNone, fmt.Errorf("unexpected parameter %q in %v content-type", key, contentType)
 		}
 	}
 
