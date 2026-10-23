@@ -150,8 +150,9 @@ func MustNewConstMetricWithCreatedTimestamp(desc *Desc, valueType ValueType, val
 }
 
 // newConstMetric stores the metric, its dto message and the value in a single
-// allocation. Write hands out pointers into it, which is fine as written
-// metrics are immutable by contract.
+// allocation. Write hands out pointers into it, so a written message shares
+// state with the metric. NewMetricWithExemplars relies on this to set the
+// exemplar on the counter.
 func newConstMetric(desc *Desc, valueType ValueType, value float64, labelPairs []*dto.LabelPair, ct *timestamppb.Timestamp) (Metric, error) {
 	switch valueType {
 	case CounterValue:

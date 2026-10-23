@@ -452,3 +452,60 @@ func BenchmarkRegistryGatherConstMetrics(b *testing.B) {
 		})
 	}
 }
+
+func TestNewConstMetricWrite(t *testing.T) {
+	desc := NewDesc("sample_value", "sample value", []string{"label"}, Labels{"const": "c"})
+
+	for _, tc := range []struct {
+		valueType               ValueType
+		counter, gauge, untyped bool
+	}{
+		{valueType: CounterValue, counter: true},
+		{valueType: GaugeValue, gauge: true},
+		{valueType: UntypedValue, untyped: true},
+	} {
+		t.Run(tc.valueType.ToDTO().String(), func(t *testing.T) {
+			m, err := NewConstMetric(desc, tc.valueType, 42, "l")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Reuse a message with every type set to check that Write clears the others.
+			out := &dto.Metric{Counter: &dto.Counter{}, Gauge: &dto.Gauge{}, Untyped: &dto.Untyped{}}
+			if err := m.Write(out); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := out.GetLabel(); len(got) != 2 ||
+				got[0].GetName() != "const" || got[0].GetValue() != "c" ||
+				got[1].GetName() != "label" || got[1].GetValue() != "l" {
+				t.Fatalf("unexpected label pairs: %v", got)
+			}
+			if (out.Counter != nil) != tc.counter || (out.Gauge != nil) != tc.gauge || (out.Untyped != nil) != tc.untyped {
+				t.Fatalf("unexpected types set: %v", out)
+			}
+			value := out.GetCounter().GetValue() + out.GetGauge().GetValue() + out.GetUntyped().GetValue()
+			if value != 42 {
+				t.Errorf("expected value 42, got %v", value)
+			}
+		})
+	}
+
+	if _, err := NewConstMetric(desc, ValueType(99), 42, "l"); err == nil {
+		t.Error("expected error for unknown value type")
+	}
+}
+
+var constMetricSink Metric
+
+func TestNewConstMetricAllocs(t *testing.T) {
+	desc := NewDesc("sample_value", "sample value", nil, nil)
+
+	// The metric, its dto message and the value share one allocation.
+	allocs := testing.AllocsPerRun(100, func() {
+		constMetricSink = MustNewConstMetric(desc, GaugeValue, 1)
+	})
+	if allocs != 1 {
+		t.Errorf("expected 1 allocation, got %v", allocs)
+	}
+}
