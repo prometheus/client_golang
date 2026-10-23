@@ -337,7 +337,7 @@ func newExemplar(value float64, ts time.Time, l Labels) (*dto.Exemplar, error) {
 	}
 	// Sort label pairs so exemplar exposition and OpenMetrics 1.0 truncation are
 	// deterministic despite Go map iteration order.
-	sort.Sort(internal.LabelPairSorter(labelPairs))
+	slices.SortFunc(labelPairs, compareLabelPairNames)
 	e.Label = labelPairs
 	return e, nil
 }
