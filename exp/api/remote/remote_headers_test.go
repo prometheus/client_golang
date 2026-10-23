@@ -236,6 +236,18 @@ func TestParseContentType(t *testing.T) {
 			wantMode:    WriteModeStatelessST,
 		},
 		{
+			name:        "v2 case-insensitive parameter names",
+			contentType: "application/x-protobuf;PROTO=io.prometheus.write.v2.Request;MODE=stateless",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeStateless,
+		},
+		{
+			name:        "v2 quoted parameter values",
+			contentType: `application/x-protobuf;proto="io.prometheus.write.v2.Request";mode="stateless"`,
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeStateless,
+		},
+		{
 			name:        "v2 unknown mode",
 			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=unknown",
 			wantErr:     true,

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"path"
@@ -565,42 +566,28 @@ func ParseProtoMsg(contentType string) (WriteMessageType, error) {
 //
 // See https://prometheus.io/docs/specs/prw/remote_write_spec_2_0/#content-type.
 func ParseContentType(contentType string) (WriteMessageType, WriteMode, error) {
-	contentType = strings.TrimSpace(contentType)
-
-	parts := strings.Split(contentType, ";")
-	if strings.TrimSpace(parts[0]) != appProtoContentType {
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if mediaType != appProtoContentType {
 		return "", WriteModeNone, fmt.Errorf("expected %v as the first (media) part, got %v content-type", appProtoContentType, contentType)
+	}
+	if err != nil {
+		return "", WriteModeNone, fmt.Errorf("as per https://www.rfc-editor.org/rfc/rfc9110#parameter expected valid media parameters in %v content-type: %w", contentType, err)
 	}
 
 	var (
-		msgType  = WriteV1MessageType
-		hasProto bool
-		rawMode  WriteMode
-		hasMode  bool
+		msgType = WriteV1MessageType
+		rawMode WriteMode
+		hasMode bool
 	)
 	// Parse potential https://www.rfc-editor.org/rfc/rfc9110#parameter.
-	for _, p := range parts[1:] {
-		p = strings.TrimSpace(p)
-		pair := strings.Split(p, "=")
-		if len(pair) != 2 {
-			return "", WriteModeNone, fmt.Errorf("as per https://www.rfc-editor.org/rfc/rfc9110#parameter expected parameters to be key-values, got %v in %v content-type", p, contentType)
-		}
-		key := strings.TrimSpace(pair[0])
-		val := strings.TrimSpace(pair[1])
+	for key, val := range params {
 		switch key {
 		case "proto":
-			if hasProto {
-				return "", WriteModeNone, fmt.Errorf("duplicate proto parameter in %v content-type", contentType)
-			}
-			hasProto = true
 			msgType = WriteMessageType(val)
 			if err := msgType.Validate(); err != nil {
 				return "", WriteModeNone, fmt.Errorf("got %v content type; %w", contentType, err)
 			}
 		case "mode":
-			if hasMode {
-				return "", WriteModeNone, fmt.Errorf("duplicate mode parameter in %v content-type", contentType)
-			}
 			hasMode = true
 			rawMode = WriteMode(val)
 		}
