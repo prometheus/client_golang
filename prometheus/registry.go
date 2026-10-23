@@ -960,6 +960,17 @@ func checkMetricConsistency(
 		)
 	}
 
+	// Make sure label pairs are sorted. We depend on it for the consistency
+	// check below, in particular to detect duplicated label names, which are
+	// only adjacent to each other in a sorted list.
+	if !slices.IsSortedFunc(dtoMetric.Label, compareLabelPairNames) {
+		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
+		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
+		copy(copiedLabels, dtoMetric.Label)
+		sort.Sort(internal.LabelPairSorter(copiedLabels))
+		dtoMetric.Label = copiedLabels
+	}
+
 	previousLabelName := ""
 	for _, labelPair := range dtoMetric.GetLabel() {
 		labelName := labelPair.GetName()
@@ -994,15 +1005,6 @@ func checkMetricConsistency(
 	xxh.Reset()
 	xxh.WriteString(name)
 	xxh.Write(separatorByteSlice)
-	// Make sure label pairs are sorted. We depend on it for the consistency
-	// check.
-	if !slices.IsSortedFunc(dtoMetric.Label, compareLabelPairNames) {
-		// We cannot sort dtoMetric.Label in place as it is immutable by contract.
-		copiedLabels := make([]*dto.LabelPair, len(dtoMetric.Label))
-		copy(copiedLabels, dtoMetric.Label)
-		sort.Sort(internal.LabelPairSorter(copiedLabels))
-		dtoMetric.Label = copiedLabels
-	}
 	for _, lp := range dtoMetric.Label {
 		xxh.WriteString(lp.GetName())
 		xxh.Write(separatorByteSlice)

@@ -1549,6 +1549,58 @@ func TestCheckMetricConsistency(t *testing.T) {
 	reg.Unregister(invalidCollector)
 }
 
+// Duplicated label names must be rejected no matter in which order the label
+// pairs appear. Every other label check is independent of that order, and a
+// metric family with duplicated labels results in invalid exposition.
+func TestGatherRejectsDuplicateLabelNames(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		labels []*dto.LabelPair
+	}{
+		{
+			name: "duplicates are adjacent",
+			labels: []*dto.LabelPair{
+				{Name: new("foo"), Value: new("bar")},
+				{Name: new("foo"), Value: new("baz")},
+			},
+		},
+		{
+			name: "duplicates are not adjacent",
+			labels: []*dto.LabelPair{
+				{Name: new("foo"), Value: new("bar")},
+				{Name: new("interloper"), Value: new("value")},
+				{Name: new("foo"), Value: new("baz")},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gatherer := prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+				return []*dto.MetricFamily{{
+					Name: new("broken_metric"),
+					Help: new("The registry should detect the duplicate label."),
+					Type: dto.MetricType_COUNTER.Enum(),
+					Metric: []*dto.Metric{{
+						Label:   tc.labels,
+						Counter: &dto.Counter{Value: new(2.7)},
+					}},
+				}}, nil
+			})
+
+			_, err := prometheus.Gatherers{gatherer}.Gather()
+			if err == nil {
+				t.Fatal("expected an error for the duplicated label name, got none")
+			}
+			if want := `has two or more labels with the same name: foo`; !strings.Contains(err.Error(), want) {
+				t.Fatalf("unexpected error, want it to contain %q: %v", want, err)
+			}
+		})
+	}
+}
+
 func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	// Use goleak to verify that no unexpected goroutines are leaked during the test.
 	defer goleak.VerifyNone(t)
