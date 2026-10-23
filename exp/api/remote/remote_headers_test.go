@@ -170,3 +170,142 @@ func TestWriteResponse(t *testing.T) {
 		}
 	})
 }
+
+func TestParseContentType(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		contentType string
+		wantMsgType WriteMessageType
+		wantMode    WriteMode
+		wantErr     bool
+	}{
+		{
+			name:        "empty returns error",
+			contentType: "",
+			wantErr:     true,
+		},
+		{
+			name:        "v1 implicit without proto parameter",
+			contentType: "application/x-protobuf",
+			wantMsgType: WriteV1MessageType,
+			wantMode:    WriteModeNone,
+		},
+		{
+			name:        "v1 explicit",
+			contentType: "application/x-protobuf;proto=prometheus.WriteRequest",
+			wantMsgType: WriteV1MessageType,
+			wantMode:    WriteModeNone,
+		},
+		{
+			name:        "v1 rejects explicit mode=none",
+			contentType: "application/x-protobuf;proto=prometheus.WriteRequest;mode=none",
+			wantErr:     true,
+		},
+		{
+			name:        "v1 rejects stateless mode",
+			contentType: "application/x-protobuf;proto=prometheus.WriteRequest;mode=stateless",
+			wantErr:     true,
+		},
+		{
+			name:        "v1 implicit rejects stateless-st mode",
+			contentType: "application/x-protobuf;mode=stateless-st",
+			wantErr:     true,
+		},
+		{
+			name:        "v2 default mode",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeNone,
+		},
+		{
+			name:        "v2 explicit mode=none normalized to empty",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=none",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeNone,
+		},
+		{
+			name:        "v2 stateless mode",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeStateless,
+		},
+		{
+			name:        "v2 stateless-st mode",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless-st",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeStatelessST,
+		},
+		{
+			name:        "v2 unknown mode",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=unknown",
+			wantErr:     true,
+		},
+		{
+			name:        "unsupported media type",
+			contentType: "application/json",
+			wantErr:     true,
+		},
+		{
+			name:        "unknown proto parameter",
+			contentType: "application/x-protobuf;proto=unknown",
+			wantErr:     true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gotMsgType, gotMode, err := ParseContentType(tc.contentType)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q, got nil (msgType=%q, mode=%q)", tc.contentType, gotMsgType, gotMode)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error for %q: %v", tc.contentType, err)
+			}
+			if gotMsgType != tc.wantMsgType {
+				t.Errorf("msgType mismatch: want %q, got %q", tc.wantMsgType, gotMsgType)
+			}
+			if gotMode != tc.wantMode {
+				t.Errorf("mode mismatch: want %q, got %q", tc.wantMode, gotMode)
+			}
+		})
+	}
+}
+
+func TestContentTypeHeader(t *testing.T) {
+	for _, tc := range []struct {
+		msgType WriteMessageType
+		mode    WriteMode
+		want    string
+	}{
+		{
+			msgType: WriteV1MessageType,
+			mode:    WriteModeNone,
+			want:    "application/x-protobuf",
+		},
+		{
+			msgType: WriteV2MessageType,
+			mode:    WriteModeNone,
+			want:    "application/x-protobuf;proto=io.prometheus.write.v2.Request",
+		},
+		{
+			msgType: WriteV2MessageType,
+			mode:    WriteMode("none"),
+			want:    "application/x-protobuf;proto=io.prometheus.write.v2.Request",
+		},
+		{
+			msgType: WriteV2MessageType,
+			mode:    WriteModeStateless,
+			want:    "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless",
+		},
+		{
+			msgType: WriteV2MessageType,
+			mode:    WriteModeStatelessST,
+			want:    "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless-st",
+		},
+	} {
+		if got := contentTypeHeader(tc.msgType, tc.mode); got != tc.want {
+			t.Errorf("contentTypeHeader(%q, %q) = %q, want %q", tc.msgType, tc.mode, got, tc.want)
+		}
+	}
+}

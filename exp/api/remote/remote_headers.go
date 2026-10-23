@@ -82,15 +82,99 @@ func (m MessageTypes) Contains(mType WriteMessageType) bool {
 	return slices.Contains(m, mType)
 }
 
+// WriteMode represents the Remote-Write 2.0 mode (`;mode=<mode>` parameter in Content-Type).
+// See https://prometheus.io/docs/specs/prw/remote_write_spec_2_0/#modes.
+type WriteMode string
+
+const (
+	// WriteModeNone is the default baseline Remote-Write 2.0 mode (omitting `;mode=` or `;mode=none`).
+	WriteModeNone WriteMode = ""
+	// WriteModeStateless is the `stateless` Remote-Write 2.0 mode (`;mode=stateless`).
+	WriteModeStateless WriteMode = "stateless"
+	// WriteModeStatelessST is the `stateless-st` Remote-Write 2.0 mode (`;mode=stateless-st`).
+	WriteModeStatelessST WriteMode = "stateless-st"
+
+	writeModeNoneParam = "none"
+)
+
+// AllWriteModes lists all supported Remote-Write 2.0 modes.
+var AllWriteModes = WriteModes{WriteModeNone, WriteModeStateless, WriteModeStatelessST}
+
+// Validate checks that the WriteMode is valid for the given WriteMessageType.
+func (m WriteMode) Validate(msgType WriteMessageType) error {
+	switch m {
+	case WriteModeNone:
+		return nil
+	case writeModeNoneParam, WriteModeStateless, WriteModeStatelessST:
+		if msgType != WriteV2MessageType {
+			return fmt.Errorf("mode %q is only supported with protobuf message %q, got %q", m, WriteV2MessageType, msgType)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown remote write mode %q, supported: %v", m, AllWriteModes.String())
+	}
+}
+
+// String returns the human-readable name of the mode (`"none"` for WriteModeNone).
+func (m WriteMode) String() string {
+	if m == WriteModeNone {
+		return writeModeNoneParam
+	}
+	return string(m)
+}
+
+// normalize returns the canonical WriteMode representation (mapping `"none"` to WriteModeNone).
+func (m WriteMode) normalize() WriteMode {
+	if m == writeModeNoneParam {
+		return WriteModeNone
+	}
+	return m
+}
+
+// WriteModes represents a set of supported WriteMode values.
+type WriteModes []WriteMode
+
+// Strings returns the string representations of the modes.
+func (m WriteModes) Strings() []string {
+	ret := make([]string, 0, len(m))
+	for _, mode := range m {
+		ret = append(ret, mode.String())
+	}
+	return ret
+}
+
+// String returns a comma-separated list of the modes.
+func (m WriteModes) String() string {
+	return strings.Join(m.Strings(), ", ")
+}
+
+// Contains reports whether m contains mode (treating `""` and `"none"` as equivalent).
+func (m WriteModes) Contains(mode WriteMode) bool {
+	target := mode.normalize()
+	for _, candidate := range m {
+		if candidate.normalize() == target {
+			return true
+		}
+	}
+	return false
+}
+
 var contentTypeHeaders = map[WriteMessageType]string{
 	WriteV1MessageType: appProtoContentType, // Also application/x-protobuf;proto=prometheus.WriteRequest but simplified for compatibility with 1.x spec.
 	WriteV2MessageType: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
 }
 
-// ContentTypeHeader returns content type header value for the given proto message
-// or empty string for unknown proto message.
-func contentTypeHeader(m WriteMessageType) string {
-	return contentTypeHeaders[m]
+// contentTypeHeader returns the Content-Type header value for the given proto message and mode,
+// or an empty string for an unknown proto message.
+func contentTypeHeader(m WriteMessageType, mode WriteMode) string {
+	base := contentTypeHeaders[m]
+	if base == "" {
+		return ""
+	}
+	if m == WriteV2MessageType && mode.normalize() != WriteModeNone {
+		return base + ";mode=" + string(mode.normalize())
+	}
+	return base
 }
 
 const (

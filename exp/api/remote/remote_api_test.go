@@ -69,7 +69,7 @@ func TestRetryAfterDuration(t *testing.T) {
 
 type defaultResponseStore struct{}
 
-func (m *defaultResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+func (m *defaultResponseStore) Store(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
 	return NewWriteResponse(), nil
 }
 
@@ -105,10 +105,10 @@ func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
 	}
 }
 
-type storeFunc func(*http.Request, WriteMessageType) (*WriteResponse, error)
+type storeFunc func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error)
 
-func (f storeFunc) Store(r *http.Request, msgType WriteMessageType) (*WriteResponse, error) {
-	return f(r, msgType)
+func (f storeFunc) Store(r *http.Request, msgType WriteMessageType, mode WriteMode) (*WriteResponse, error) {
+	return f(r, msgType, mode)
 }
 
 func TestWriteHandler_StatusCode(t *testing.T) {
@@ -137,12 +137,12 @@ func TestWriteHandler_StatusCode(t *testing.T) {
 		{name: "error with explicit 5xx status", resp: withCode(http.StatusServiceUnavailable), err: storeErr, expected: http.StatusServiceUnavailable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewWriteHandler(storeFunc(func(*http.Request, WriteMessageType) (*WriteResponse, error) {
+			h := NewWriteHandler(storeFunc(func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
 				return tc.resp, tc.err
 			}), MessageTypes{WriteV2MessageType})
 
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(snappy.Encode(nil, nil)))
-			req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType))
+			req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType, WriteModeNone))
 			rec := httptest.NewRecorder()
 
 			h.ServeHTTP(rec, req)
@@ -160,12 +160,13 @@ func TestWriteHandler_StatusCode(t *testing.T) {
 type mockStorage struct {
 	v2Reqs []*writev2.Request
 	protos []WriteMessageType
+	modes  []WriteMode
 
 	mockCode *int
 	mockErr  error
 }
 
-func (m *mockStorage) Store(req *http.Request, msgType WriteMessageType) (*WriteResponse, error) {
+func (m *mockStorage) Store(req *http.Request, msgType WriteMessageType, mode WriteMode) (*WriteResponse, error) {
 	w := NewWriteResponse()
 	if m.mockErr != nil {
 		if m.mockCode != nil {
@@ -174,14 +175,14 @@ func (m *mockStorage) Store(req *http.Request, msgType WriteMessageType) (*Write
 		return w, m.mockErr
 	}
 
-	// Read the request body
+	// Read the request body.
 	serializedRequest, err := io.ReadAll(req.Body)
 	if err != nil {
 		w.SetStatusCode(http.StatusBadRequest)
 		return w, err
 	}
 
-	// This test expects v2 only
+	// This test expects v2 only.
 	r := &writev2.Request{}
 	if err := proto.Unmarshal(serializedRequest, r); err != nil {
 		w.SetStatusCode(http.StatusInternalServerError)
@@ -189,8 +190,9 @@ func (m *mockStorage) Store(req *http.Request, msgType WriteMessageType) (*Write
 	}
 	m.v2Reqs = append(m.v2Reqs, r)
 	m.protos = append(m.protos, msgType)
+	m.modes = append(m.modes, mode)
 
-	// Set stats in response headers
+	// Set stats in response headers.
 	w.Add(stats(r))
 	w.SetStatusCode(http.StatusNoContent)
 
@@ -268,7 +270,7 @@ func TestRemoteAPI_Write_GenericProtoResetsPooledBuffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.Write(context.Background(), WriteV1MessageType, msg); err != nil {
+	if _, err := client.Write(context.Background(), WriteV1MessageType, WriteModeNone, msg); err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got, want) {
@@ -293,7 +295,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		s, err := client.Write(context.Background(), WriteV2MessageType, req)
+		s, err := client.Write(context.Background(), WriteV2MessageType, WriteModeNone, req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -305,6 +307,70 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 		if diff := cmp.Diff(req, mStore.v2Reqs[0], protocmp.Transform()); diff != "" {
 			t.Fatal("unexpected request received", diff)
+		}
+		if mStore.modes[0] != WriteModeNone {
+			t.Fatalf("expected mode %q, got %q", WriteModeNone, mStore.modes[0])
+		}
+	})
+
+	t.Run("success with modes", func(t *testing.T) {
+		for _, mode := range []WriteMode{WriteModeNone, WriteModeStateless, WriteModeStatelessST} {
+			t.Run("mode="+string(mode), func(t *testing.T) {
+				tLogger := slog.Default()
+				mStore := &mockStorage{}
+				srv := httptest.NewServer(NewWriteHandler(mStore, MessageTypes{WriteV2MessageType},
+					WithWriteHandlerLogger(tLogger),
+					WithWriteHandlerAcceptedModes(WriteModes{mode}),
+				))
+				t.Cleanup(srv.Close)
+
+				client, err := NewAPI(srv.URL,
+					WithAPIHTTPClient(srv.Client()),
+					WithAPILogger(tLogger),
+					WithAPIPath("api/v1/write"),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				req := testV2()
+				s, err := client.Write(context.Background(), WriteV2MessageType, mode, req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if diff := cmp.Diff(stats(req), s, cmpopts.IgnoreUnexported(WriteResponseStats{})); diff != "" {
+					t.Fatal("unexpected stats", diff)
+				}
+				if len(mStore.modes) != 1 || mStore.modes[0] != mode {
+					t.Fatalf("expected stored mode %q, got %v", mode, mStore.modes)
+				}
+			})
+		}
+	})
+
+	t.Run("unsupported mode returns 415 with RFC 7694 headers", func(t *testing.T) {
+		tLogger := slog.Default()
+		mStore := &mockStorage{}
+		h := NewWriteHandler(mStore, MessageTypes{WriteV2MessageType, WriteV1MessageType},
+			WithWriteHandlerLogger(tLogger),
+			WithWriteHandlerAcceptedModes(WriteModes{WriteModeNone, WriteModeStatelessST}),
+		)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader(snappy.Encode(nil, nil)))
+		req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType, WriteModeStateless))
+		rec := httptest.NewRecorder()
+
+		h.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("expected status 415, got %d: %s", rec.Code, rec.Body.String())
+		}
+		wantAccept := "application/x-protobuf, application/x-protobuf;proto=prometheus.WriteRequest, application/x-protobuf;proto=io.prometheus.write.v2.Request, application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=none, application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless-st"
+		if got := rec.Header().Get("Accept"); got != wantAccept {
+			t.Errorf("Accept header mismatch: want %q, got %q", wantAccept, got)
+		}
+		if got := rec.Header().Get("Accept-Encoding"); got != string(SnappyBlockCompression) {
+			t.Errorf("Accept-Encoding header mismatch: want %q, got %q", SnappyBlockCompression, got)
 		}
 	})
 
@@ -333,7 +399,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2MessageType, req)
+		_, err = client.Write(context.Background(), WriteV2MessageType, WriteModeNone, req)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -370,7 +436,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2MessageType, req,
+		_, err = client.Write(context.Background(), WriteV2MessageType, WriteModeNone, req,
 			WithWriteRetryCallback(func(err error) {
 				retryCount++
 				retryErrors = append(retryErrors, err)
@@ -414,8 +480,8 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		_, err = client.Write(context.Background(), WriteV2MessageType, req,
-			WithWriteRetryCallback(func(err error) {
+		_, err = client.Write(context.Background(), WriteV2MessageType, WriteModeNone, req,
+			WithWriteRetryCallback(func(_ error) {
 				callbackInvoked = true
 			}),
 		)
@@ -444,7 +510,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 
 		req := testV2()
-		s, err := client.Write(context.Background(), WriteV2MessageType, req)
+		s, err := client.Write(context.Background(), WriteV2MessageType, WriteModeNone, req)
 		if err != nil {
 			t.Fatalf("expected no error on 202 Accepted without written headers, got %v", err)
 		}
@@ -473,7 +539,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, err = client.Write(context.Background(), WriteV2MessageType, testV2())
+		_, err = client.Write(context.Background(), WriteV2MessageType, WriteModeNone, testV2())
 		if err == nil {
 			t.Fatal("expected error when 204 response omits PRW 2.0 written headers, got nil")
 		}
@@ -482,7 +548,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 
 type asyncResponseStore struct{}
 
-func (*asyncResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+func (*asyncResponseStore) Store(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error) {
 	w := NewWriteResponse()
 	w.SetStatusCode(http.StatusAccepted)
 	return w, nil
@@ -508,7 +574,7 @@ func TestSnappyDecodeMiddleware(t *testing.T) {
 	mw := SnappyDecodeMiddleware(tLogger)(successHandler)
 
 	t.Run("success", func(t *testing.T) {
-		// populated by successHandler handler
+		// Populated by successHandler handler.
 		gotRequest = nil
 		expReq := testV2()
 
@@ -518,8 +584,8 @@ func TestSnappyDecodeMiddleware(t *testing.T) {
 		}
 		compressedExpReq := snappy.Encode(nil, serializedExpReq)
 
-		// Create HTTP request
-		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(compressedExpReq))
+		// Create HTTP request.
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader(compressedExpReq))
 		r.Header.Set("Content-Encoding", "snappy")
 		rw := httptest.NewRecorder()
 
@@ -533,6 +599,21 @@ func TestSnappyDecodeMiddleware(t *testing.T) {
 		}
 	})
 
+	t.Run("unsupported encoding returns 415 with Accept-Encoding", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader([]byte("test")))
+		r.Header.Set("Content-Encoding", "gzip")
+		rw := httptest.NewRecorder()
+
+		mw.ServeHTTP(rw, r)
+
+		if rw.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("expected status 415, got %d", rw.Code)
+		}
+		if got := rw.Header().Get("Accept-Encoding"); got != string(SnappyBlockCompression) {
+			t.Errorf("Accept-Encoding header mismatch: want %q, got %q", SnappyBlockCompression, got)
+		}
+	})
+
 	t.Run("crafted_decode_len", func(t *testing.T) {
 		// Snappy format: varint(decoded_len) + compressed_data
 		// For a claimed size of 33MB (exceeds 32MB limit), we need varint encoding
@@ -541,7 +622,7 @@ func TestSnappyDecodeMiddleware(t *testing.T) {
 		// Add some dummy compressed data. Doesn't need to be valid.
 		dst = append(dst, []byte{0x00, 0x01, 0x02}...)
 
-		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(dst))
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader(dst))
 		r.Header.Set("Content-Encoding", "snappy")
 		rw := httptest.NewRecorder()
 
@@ -561,7 +642,7 @@ func TestSnappyDecodeMiddleware(t *testing.T) {
 		// Completely invalid snappy data
 		invalidData := []byte{0xff, 0xff, 0xff, 0xff}
 
-		r := httptest.NewRequest("POST", "/api/v1/write", bytes.NewReader(invalidData))
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader(invalidData))
 		r.Header.Set("Content-Encoding", "snappy")
 		rw := httptest.NewRecorder()
 
