@@ -248,8 +248,44 @@ func TestParseContentType(t *testing.T) {
 			wantMode:    WriteModeStateless,
 		},
 		{
+			name:        "v2 mode parameter before proto parameter",
+			contentType: "application/x-protobuf;mode=stateless;proto=io.prometheus.write.v2.Request",
+			wantMsgType: WriteV2MessageType,
+			wantMode:    WriteModeStateless,
+		},
+		{
 			name:        "v2 unknown mode",
 			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=unknown",
+			wantErr:     true,
+		},
+		{
+			name:        "v2 empty mode parameter",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=",
+			wantErr:     true,
+		},
+		{
+			name:        "v2 empty quoted mode parameter",
+			contentType: `application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=""`,
+			wantErr:     true,
+		},
+		{
+			name:        "malformed parameter without value",
+			contentType: "application/x-protobuf;proto",
+			wantErr:     true,
+		},
+		{
+			name:        "duplicate proto parameter",
+			contentType: "application/x-protobuf;proto=prometheus.WriteRequest;proto=io.prometheus.write.v2.Request",
+			wantErr:     true,
+		},
+		{
+			name:        "duplicate mode parameter",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=none;mode=stateless",
+			wantErr:     true,
+		},
+		{
+			name:        "unknown parameter",
+			contentType: "application/x-protobuf;proto=io.prometheus.write.v2.Request;modes=stateless",
 			wantErr:     true,
 		},
 		{
