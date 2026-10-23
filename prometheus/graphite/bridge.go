@@ -58,7 +58,8 @@ const (
 type Config struct {
 	// Whether to use Graphite tags or not. Defaults to false. Whitespace,
 	// control characters, and characters reserved by the Graphite tag syntax
-	// in tag names and values are replaced with "_".
+	// in tag names and values are replaced with "_". Empty tag values are
+	// written as "_" because Graphite does not permit them.
 	UseTags bool
 
 	// The url to push data to. Required.
@@ -259,7 +260,9 @@ func writeTags(buf *bufio.Writer, m model.Metric) error {
 			}
 			buf.WriteRune('=')
 			v := sanitizeTag(string(value), ";")
-			if strings.HasPrefix(v, "~") {
+			if v == "" {
+				v = "_"
+			} else if strings.HasPrefix(v, "~") {
 				v = "_" + v[1:]
 			}
 			if _, err := buf.WriteString(v); err != nil {
