@@ -1460,6 +1460,14 @@ func TestAPIs(t *testing.T) {
 			inRes:     "foo / bar",
 			res:       "\"foo / bar\"",
 		},
+		{
+			// FormatQuery returns the JSON-encoded string, so inner quotes are escaped.
+			do:        doFormatQuery(`up{job="prometheus"}`),
+			reqMethod: "POST",
+			reqPath:   "/api/v1/format_query",
+			inRes:     `up{job="prometheus"}`,
+			res:       `"up{job=\"prometheus\"}"`,
+		},
 	}
 
 	var tests []apiTest
