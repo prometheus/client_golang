@@ -348,7 +348,7 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType Write
 	}
 
 	req.Header.Add("Content-Encoding", string(compr))
-	req.Header.Set("Content-Type", contentTypeHeader(msgType, mode))
+	req.Header.Set("Content-Type", ContentTypeHeader(msgType, mode))
 	if msgType == WriteV1MessageType {
 		// Compatibility mode for 1.0.
 		req.Header.Set(versionHeader, version1HeaderValue)
@@ -603,7 +603,7 @@ func ParseContentType(contentType string) (WriteMessageType, WriteMode, error) {
 			return "", WriteModeNone, fmt.Errorf("got %v content type; %w", contentType, err)
 		}
 	}
-	return msgType, rawMode.normalize(), nil
+	return msgType, rawMode.Normalize(), nil
 }
 
 // acceptHeaderValue returns the RFC 7694 Accept response header value listing all supported Content-Type values.
@@ -614,12 +614,12 @@ func (h *writeHandler) acceptHeaderValue() string {
 	}
 	if h.acceptedMessageTypes.Contains(WriteV2MessageType) {
 		for _, mode := range h.opts.acceptedModes {
-			switch mode.normalize() {
+			switch mode.Normalize() {
 			case WriteModeNone:
-				base := contentTypeHeader(WriteV2MessageType, WriteModeNone)
+				base := ContentTypeHeader(WriteV2MessageType, WriteModeNone)
 				accepted = append(accepted, base, base+";mode="+writeModeNoneParam)
 			case WriteModeStateless, WriteModeStatelessST:
-				accepted = append(accepted, contentTypeHeader(WriteV2MessageType, mode.normalize()))
+				accepted = append(accepted, ContentTypeHeader(WriteV2MessageType, mode.Normalize()))
 			}
 		}
 	}

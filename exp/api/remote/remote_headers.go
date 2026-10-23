@@ -123,8 +123,8 @@ func (m WriteMode) String() string {
 	return string(m)
 }
 
-// normalize returns the canonical WriteMode representation (mapping `"none"` to WriteModeNone).
-func (m WriteMode) normalize() WriteMode {
+// Normalize returns the canonical WriteMode representation (mapping `"none"` to WriteModeNone).
+func (m WriteMode) Normalize() WriteMode {
 	if m == writeModeNoneParam {
 		return WriteModeNone
 	}
@@ -150,9 +150,9 @@ func (m WriteModes) String() string {
 
 // Contains reports whether m contains mode (treating `""` and `"none"` as equivalent).
 func (m WriteModes) Contains(mode WriteMode) bool {
-	target := mode.normalize()
+	target := mode.Normalize()
 	for _, candidate := range m {
-		if candidate.normalize() == target {
+		if candidate.Normalize() == target {
 			return true
 		}
 	}
@@ -164,15 +164,15 @@ var contentTypeHeaders = map[WriteMessageType]string{
 	WriteV2MessageType: appProtoContentType + ";proto=io.prometheus.write.v2.Request",
 }
 
-// contentTypeHeader returns the Content-Type header value for the given proto message and mode,
+// ContentTypeHeader returns the Content-Type header value for the given proto message and mode,
 // or an empty string for an unknown proto message.
-func contentTypeHeader(m WriteMessageType, mode WriteMode) string {
+func ContentTypeHeader(m WriteMessageType, mode WriteMode) string {
 	base := contentTypeHeaders[m]
 	if base == "" {
 		return ""
 	}
-	if m == WriteV2MessageType && mode.normalize() != WriteModeNone {
-		return base + ";mode=" + string(mode.normalize())
+	if m == WriteV2MessageType && mode.Normalize() != WriteModeNone {
+		return base + ";mode=" + string(mode.Normalize())
 	}
 	return base
 }

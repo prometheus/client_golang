@@ -142,7 +142,7 @@ func TestWriteHandler_StatusCode(t *testing.T) {
 			}), MessageTypes{WriteV2MessageType})
 
 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(snappy.Encode(nil, nil)))
-			req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType, WriteModeNone))
+			req.Header.Set("Content-Type", ContentTypeHeader(WriteV2MessageType, WriteModeNone))
 			rec := httptest.NewRecorder()
 
 			h.ServeHTTP(rec, req)
@@ -357,7 +357,7 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/write", bytes.NewReader(snappy.Encode(nil, nil)))
-		req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType, WriteModeStateless))
+		req.Header.Set("Content-Type", ContentTypeHeader(WriteV2MessageType, WriteModeStateless))
 		rec := httptest.NewRecorder()
 
 		h.ServeHTTP(rec, req)

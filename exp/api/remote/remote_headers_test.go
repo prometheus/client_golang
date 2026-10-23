@@ -316,8 +316,8 @@ func TestContentTypeHeader(t *testing.T) {
 			want:    "application/x-protobuf;proto=io.prometheus.write.v2.Request;mode=stateless-st",
 		},
 	} {
-		if got := contentTypeHeader(tc.msgType, tc.mode); got != tc.want {
-			t.Errorf("contentTypeHeader(%q, %q) = %q, want %q", tc.msgType, tc.mode, got, tc.want)
+		if got := ContentTypeHeader(tc.msgType, tc.mode); got != tc.want {
+			t.Errorf("ContentTypeHeader(%q, %q) = %q, want %q", tc.msgType, tc.mode, got, tc.want)
 		}
 	}
 }
