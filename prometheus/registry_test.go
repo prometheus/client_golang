@@ -1763,3 +1763,84 @@ func BenchmarkGatherersGather(b *testing.B) {
 		})
 	}
 }
+
+// TestGatherReturnsDistinctMetrics checks that Gather hands out a separate
+// dto.Metric per metric, so changing one doesn't change another or a later
+// Gather.
+func TestGatherReturnsDistinctMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	gauges := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_gauge", Help: "help"}, []string{"i"})
+	reg.MustRegister(gauges)
+	for i := range 300 {
+		gauges.WithLabelValues(strconv.Itoa(i)).Set(float64(i))
+	}
+
+	for range 2 {
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		metrics := mfs[0].GetMetric()
+		if len(metrics) != 300 {
+			t.Fatalf("got %d metrics, want 300", len(metrics))
+		}
+		seen := make(map[*dto.Metric]struct{}, len(metrics))
+		for _, m := range metrics {
+			if _, ok := seen[m]; ok {
+				t.Fatal("Gather returned the same dto.Metric twice")
+			}
+			seen[m] = struct{}{}
+			i, err := strconv.Atoi(m.GetLabel()[0].GetValue())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := m.GetGauge().GetValue(); got != float64(i) {
+				t.Fatalf("metric %d has value %v", i, got)
+			}
+		}
+		// Changing the returned metrics must not affect the next Gather.
+		for _, m := range metrics {
+			m.Gauge.Value = proto.Float64(-1)
+		}
+	}
+}
+
+// TestGatherAlternatingRegistries checks that the duplicate check of one
+// Gather doesn't see the metrics of an earlier Gather of another registry with
+// the same metrics.
+func TestGatherAlternatingRegistries(t *testing.T) {
+	newReg := func(n int) *prometheus.Registry {
+		reg := prometheus.NewRegistry()
+		gauges := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "test_gauge", Help: "help"}, []string{"i"})
+		reg.MustRegister(gauges)
+		for i := range n {
+			gauges.WithLabelValues(strconv.Itoa(i)).Set(1)
+		}
+		return reg
+	}
+	big, small := newReg(1000), newReg(10)
+
+	for range 5 {
+		for _, tc := range []struct {
+			g    prometheus.Gatherer
+			want int
+		}{
+			{big, 1000},
+			{small, 10},
+			{prometheus.Gatherers{small}, 10},
+			{prometheus.Gatherers{big}, 1000},
+		} {
+			mfs, err := tc.g.Gather()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := 0
+			for _, mf := range mfs {
+				got += len(mf.GetMetric())
+			}
+			if got != tc.want {
+				t.Fatalf("got %d metrics, want %d", got, tc.want)
+			}
+		}
+	}
+}
