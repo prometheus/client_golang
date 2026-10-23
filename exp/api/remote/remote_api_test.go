@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
@@ -100,6 +102,58 @@ func Test_WriteHandler_V1HandlingDoesNotAddV2Headers(t *testing.T) {
 	}
 	if histogramHeader != "" {
 		t.Fatal("expected no written histograms header, got", histogramHeader)
+	}
+}
+
+type storeFunc func(*http.Request, WriteMessageType) (*WriteResponse, error)
+
+func (f storeFunc) Store(r *http.Request, msgType WriteMessageType) (*WriteResponse, error) {
+	return f(r, msgType)
+}
+
+func TestWriteHandler_StatusCode(t *testing.T) {
+	withCode := func(code int) *WriteResponse {
+		w := NewWriteResponse()
+		w.SetStatusCode(code)
+		return w
+	}
+	storeErr := errors.New("storage error")
+
+	for _, tc := range []struct {
+		name     string
+		resp     *WriteResponse
+		err      error
+		expected int
+	}{
+		{name: "success with default response", resp: NewWriteResponse(), expected: http.StatusNoContent},
+		{name: "success with nil response", resp: nil, expected: http.StatusNoContent},
+		{name: "success with zero value response", resp: &WriteResponse{}, expected: http.StatusNoContent},
+		{name: "success with explicit status", resp: withCode(http.StatusOK), expected: http.StatusOK},
+		{name: "error with default response", resp: NewWriteResponse(), err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with nil response", resp: nil, err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with zero value response", resp: &WriteResponse{}, err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with explicit 2xx status", resp: withCode(http.StatusOK), err: storeErr, expected: http.StatusInternalServerError},
+		{name: "error with explicit 4xx status", resp: withCode(http.StatusBadRequest), err: storeErr, expected: http.StatusBadRequest},
+		{name: "error with explicit 5xx status", resp: withCode(http.StatusServiceUnavailable), err: storeErr, expected: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewWriteHandler(storeFunc(func(*http.Request, WriteMessageType) (*WriteResponse, error) {
+				return tc.resp, tc.err
+			}), MessageTypes{WriteV2MessageType})
+
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(snappy.Encode(nil, nil)))
+			req.Header.Set("Content-Type", contentTypeHeader(WriteV2MessageType))
+			rec := httptest.NewRecorder()
+
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != tc.expected {
+				t.Fatalf("expected status code %d, got %d with body %q", tc.expected, rec.Code, rec.Body.String())
+			}
+			if tc.err != nil && !strings.Contains(rec.Body.String(), tc.err.Error()) {
+				t.Fatalf("expected body to contain %q, got %q", tc.err.Error(), rec.Body.String())
+			}
+		})
 	}
 }
 
@@ -181,6 +235,45 @@ func stats(req *writev2.Request) (s WriteResponseStats) {
 		s.Exemplars += len(ts.Exemplars)
 	}
 	return s
+}
+
+func TestRemoteAPI_Write_GenericProtoResetsPooledBuffer(t *testing.T) {
+	var got []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		compressed, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		got, err = snappy.Decode(nil, compressed)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := NewAPI(srv.URL, WithAPIHTTPClient(srv.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.bufPool = sync.Pool{New: func() any {
+		b := []byte("stale")
+		return &b
+	}}
+
+	msg := timestamppb.New(time.Unix(123, 456))
+	want, err := proto.Marshal(msg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Write(context.Background(), WriteV1MessageType, msg); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("unexpected payload: got %x, want %x", got, want)
+	}
 }
 
 func TestRemoteAPI_Write_WithHandler(t *testing.T) {
@@ -335,6 +428,64 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Fatal("retry callback should not be invoked on successful request")
 		}
 	})
+
+	t.Run("async 202 Accepted without written headers succeeds", func(t *testing.T) {
+		tLogger := slog.Default()
+		srv := httptest.NewServer(NewWriteHandler(&asyncResponseStore{}, MessageTypes{WriteV2MessageType}, WithWriteHandlerLogger(tLogger)))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPILogger(tLogger),
+			WithAPIPath("api/v1/write"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req := testV2()
+		s, err := client.Write(context.Background(), WriteV2MessageType, req)
+		if err != nil {
+			t.Fatalf("expected no error on 202 Accepted without written headers, got %v", err)
+		}
+		if !s.Async {
+			t.Fatal("expected Async to be true on 202 Accepted response")
+		}
+		if s.Confirmed() {
+			t.Fatal("expected Confirmed() to be false when written headers were omitted")
+		}
+		if !s.NoDataWritten() {
+			t.Fatalf("expected 0 written counts when headers were omitted, got %+v", s)
+		}
+	})
+
+	t.Run("204 No Content without written headers fails as unconfirmed", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPIPath("api/v1/write"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = client.Write(context.Background(), WriteV2MessageType, testV2())
+		if err == nil {
+			t.Fatal("expected error when 204 response omits PRW 2.0 written headers, got nil")
+		}
+	})
+}
+
+type asyncResponseStore struct{}
+
+func (*asyncResponseStore) Store(*http.Request, WriteMessageType) (*WriteResponse, error) {
+	w := NewWriteResponse()
+	w.SetStatusCode(http.StatusAccepted)
+	return w, nil
 }
 
 func TestSnappyDecodeMiddleware(t *testing.T) {

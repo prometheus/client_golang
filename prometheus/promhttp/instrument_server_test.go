@@ -417,7 +417,7 @@ func makeInstrumentedHandler(handler http.HandlerFunc, opts ...Option) (http.Han
 }
 
 func TestMiddlewareAPI(t *testing.T) {
-	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	})
 
@@ -431,7 +431,7 @@ func TestMiddlewareAPI(t *testing.T) {
 func TestMiddlewareAPI_WithExemplars(t *testing.T) {
 	exemplar := prometheus.Labels{"traceID": "example situation observed by this metric"}
 
-	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, r *http.Request) {
+	chain, reg := makeInstrumentedHandler(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("OK"))
 	}, WithExemplarFromContext(func(_ context.Context) prometheus.Labels { return exemplar }))
 
@@ -618,7 +618,7 @@ func TestInterfaceUpgrade(t *testing.T) {
 }
 
 // Regression test against https://github.com/prometheus/client_golang/pull/1318
-func TestInstrumentHandlerLabelFromCtxConcurrent(t *testing.T) {
+func TestInstrumentHandlerLabelFromCtxConcurrent(_ *testing.T) {
 	const (
 		workers           = 32
 		requestsPerWorker = 200
@@ -658,10 +658,10 @@ func TestInstrumentHandlerLabelFromCtxConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < requestsPerWorker; j++ {
+			for range requestsPerWorker {
 				req := httptest.NewRequest(http.MethodGet, "http://example.com/", nil)
 				rec := httptest.NewRecorder()
 				chain.ServeHTTP(rec, req)
@@ -708,10 +708,10 @@ func ExampleInstrumentHandlerDuration() {
 	)
 
 	// Create the handlers that will be wrapped by the middleware.
-	pushHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	pushHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Push"))
 	})
-	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	pullHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte("Pull"))
 	})
 

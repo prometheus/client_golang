@@ -65,11 +65,11 @@ func TestCounterAdd(t *testing.T) {
 
 	expected := &dto.Metric{
 		Label: []*dto.LabelPair{
-			{Name: proto.String("a"), Value: proto.String("1")},
-			{Name: proto.String("b"), Value: proto.String("2")},
+			{Name: new("a"), Value: new("1")},
+			{Name: new("b"), Value: new("2")},
 		},
 		Counter: &dto.Counter{
-			Value:            proto.Float64(67.42),
+			Value:            new(67.42),
 			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
@@ -181,7 +181,7 @@ func TestCounterAddInf(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value:            proto.Float64(math.Inf(1)),
+			Value:            new(math.Inf(1)),
 			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
@@ -215,7 +215,7 @@ func TestCounterAddLarge(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value:            proto.Float64(large),
+			Value:            new(large),
 			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
@@ -248,7 +248,7 @@ func TestCounterAddSmall(t *testing.T) {
 
 	expected := &dto.Metric{
 		Counter: &dto.Counter{
-			Value:            proto.Float64(small),
+			Value:            new(small),
 			CreatedTimestamp: timestamppb.New(now),
 		},
 	}
@@ -273,7 +273,7 @@ func TestCounterExemplar(t *testing.T) {
 	}
 	expectedExemplar := &dto.Exemplar{
 		Label: []*dto.LabelPair{
-			{Name: proto.String("foo"), Value: proto.String("bar")},
+			{Name: new("foo"), Value: new("bar")},
 		},
 		Value:     proto.Float64(42),
 		Timestamp: ts,
@@ -298,17 +298,25 @@ func TestCounterExemplar(t *testing.T) {
 		t.Error("adding exemplar with invalid label succeeded")
 	}
 
+	// Adding an exemplar with 129 runes (above the old 128-rune OM 1.0 limit,
+	// within ExemplarMaxRunes) should succeed.
+	counter.AddWithExemplar(42, Labels{
+		"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
+		"x1234567":                   "8+15 characters",
+		"z":                          strings.Repeat("x", 63),
+	})
+
 	addExemplarWithOversizedLabels := func() (err error) {
 		defer func() {
 			if e := recover(); e != nil {
 				err = e.(error)
 			}
 		}()
-		// Should panic because of 129 runes.
+		// Should panic because of 2049 runes (exceeding ExemplarMaxRunes = 2048).
 		counter.AddWithExemplar(42, Labels{
 			"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
 			"x1234567":                   "8+15 characters",
-			"z":                          strings.Repeat("x", 63),
+			"z":                          strings.Repeat("x", 1983),
 		})
 		return nil
 	}

@@ -216,8 +216,9 @@ func (p *Pusher) Client(c HTTPDoer) *Pusher {
 	return p
 }
 
-// Header sets a custom HTTP header for the Pusher's client. For convenience, this method
-// returns a pointer to the Pusher itself.
+// Header sets a custom HTTP header for the Pusher's client. The header is
+// copied into each request and is not modified by the Pusher. For convenience,
+// this method returns a pointer to the Pusher itself.
 func (p *Pusher) Header(header http.Header) *Pusher {
 	p.header = header
 	return p
@@ -259,7 +260,7 @@ func (p *Pusher) Delete() error {
 		return err
 	}
 	if p.header != nil {
-		req.Header = p.header
+		req.Header = p.header.Clone()
 	}
 	if p.useBasicAuth {
 		req.SetBasicAuth(p.username, p.password)
@@ -304,7 +305,8 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 		if err := enc.Encode(mf); err != nil {
 			return fmt.Errorf(
 				"failed to encode metric family %s, error is %w",
-				mf.GetName(), err)
+				mf.GetName(), err,
+			)
 		}
 	}
 	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
@@ -312,7 +314,7 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 		return err
 	}
 	if p.header != nil {
-		req.Header = p.header
+		req.Header = p.header.Clone()
 	}
 	if p.useBasicAuth {
 		req.SetBasicAuth(p.username, p.password)

@@ -29,11 +29,11 @@ func (rw *responseWriter) Header() http.Header {
 	return nil
 }
 
-func (rw *responseWriter) Write(p []byte) (int, error) {
+func (rw *responseWriter) Write(_ []byte) (int, error) {
 	return 0, nil
 }
 
-func (rw *responseWriter) WriteHeader(statusCode int) {
+func (rw *responseWriter) WriteHeader(_ int) {
 }
 
 func (rw *responseWriter) FlushError() error {

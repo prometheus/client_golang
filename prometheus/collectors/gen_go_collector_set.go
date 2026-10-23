@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build ignore
-// +build ignore
 
 package main
 
@@ -204,7 +203,6 @@ var testFile = template.Must(template.New("testFile").Funcs(map[string]any{
 // limitations under the License.
 
 //go:build {{.GoVersion}} && !{{nextVersion .GoVersion}}
-// +build {{.GoVersion}},!{{nextVersion .GoVersion}}
 
 package collectors
 

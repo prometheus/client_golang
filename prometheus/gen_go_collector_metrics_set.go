@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build ignore
-// +build ignore
 
 package main
 
@@ -176,7 +175,6 @@ var testFile = template.Must(template.New("testFile").Funcs(map[string]any{
 //go:generate go run gen_go_collector_metrics_set.go {{.GoVersion}}
 
 //go:build {{.GoVersion}} && !{{nextVersion .GoVersion}}
-// +build {{.GoVersion}},!{{nextVersion .GoVersion}}
 
 package prometheus
 

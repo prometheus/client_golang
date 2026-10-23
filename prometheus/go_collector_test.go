@@ -158,13 +158,13 @@ func TestGoCollectorGC(t *testing.T) {
 func BenchmarkGoCollector(b *testing.B) {
 	c := NewGoCollector().(*goCollector)
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ch := make(chan Metric, 8)
 		go func() {
 			// Drain all metrics received until the
 			// channel is closed.
 			for range ch {
+				continue
 			}
 		}()
 		c.Collect(ch)

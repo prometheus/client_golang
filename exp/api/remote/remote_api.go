@@ -247,7 +247,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 		}
 	case proto.Message:
 		// Generic proto.
-		*buf, err = (proto.MarshalOptions{}).MarshalAppend(*buf, m)
+		*buf, err = (proto.MarshalOptions{}).MarshalAppend((*buf)[:0], m)
 		if err != nil {
 			return WriteResponseStats{}, fmt.Errorf("encoding request %w", err)
 		}
@@ -278,7 +278,8 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.
 			// https://prometheus.io/docs/specs/remote_write_spec_2_0/#required-written-response-headers.
-			if msgType == WriteV2MessageType && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
+			// Asynchronous receivers returning 202 Accepted may omit written response headers.
+			if msgType == WriteV2MessageType && !accumulatedStats.Async && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
 				// TODO(bwplotka): Allow users to disable this check or provide their stats for us to know if it's empty.
 				return accumulatedStats, fmt.Errorf("sent v2 request; "+
 					"got 2xx, but PRW 2.0 response header statistics indicate %v samples, %v histograms "+
@@ -602,7 +603,10 @@ func (h *writeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeResponse.writeHeaders(msgType, w)
 
 	if storeErr != nil {
-		if writeResponse.statusCode == 0 {
+		// A storage error must never be reported as success, otherwise the
+		// sender drops the data. NewWriteResponse defaults to 204, so any
+		// non-error status is replaced.
+		if writeResponse.statusCode < 400 {
 			writeResponse.SetStatusCode(http.StatusInternalServerError)
 		}
 		if writeResponse.statusCode/100 == 5 { // 5xx
@@ -610,6 +614,9 @@ func (h *writeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, storeErr.Error(), writeResponse.statusCode)
 		return
+	}
+	if writeResponse.statusCode == 0 {
+		writeResponse.SetStatusCode(http.StatusNoContent)
 	}
 	w.WriteHeader(writeResponse.statusCode)
 }

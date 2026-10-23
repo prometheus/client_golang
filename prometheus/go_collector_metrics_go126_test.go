@@ -2,7 +2,6 @@
 //go:generate go run gen_go_collector_metrics_set.go go1.26
 
 //go:build go1.26 && !go1.27
-// +build go1.26,!go1.27
 
 package prometheus
 
@@ -52,6 +51,7 @@ var (
 		"/godebug/non-default-behavior/cryptocustomrand:events":            "go_godebug_non_default_behavior_cryptocustomrand_events_total",
 		"/godebug/non-default-behavior/embedfollowsymlinks:events":         "go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"/godebug/non-default-behavior/execerrdot:events":                  "go_godebug_non_default_behavior_execerrdot_events_total",
+		"/godebug/non-default-behavior/fips140ems:events":                  "go_godebug_non_default_behavior_fips140ems_events_total",
 		"/godebug/non-default-behavior/gocachehash:events":                 "go_godebug_non_default_behavior_gocachehash_events_total",
 		"/godebug/non-default-behavior/gocachetest:events":                 "go_godebug_non_default_behavior_gocachetest_events_total",
 		"/godebug/non-default-behavior/gocacheverify:events":               "go_godebug_non_default_behavior_gocacheverify_events_total",
@@ -64,6 +64,7 @@ var (
 		"/godebug/non-default-behavior/httplaxcontentlength:events":        "go_godebug_non_default_behavior_httplaxcontentlength_events_total",
 		"/godebug/non-default-behavior/httpmuxgo121:events":                "go_godebug_non_default_behavior_httpmuxgo121_events_total",
 		"/godebug/non-default-behavior/httpservecontentkeepheaders:events": "go_godebug_non_default_behavior_httpservecontentkeepheaders_events_total",
+		"/godebug/non-default-behavior/httpservecontentmaxranges:events":   "go_godebug_non_default_behavior_httpservecontentmaxranges_events_total",
 		"/godebug/non-default-behavior/installgoroot:events":               "go_godebug_non_default_behavior_installgoroot_events_total",
 		"/godebug/non-default-behavior/multipartmaxheaders:events":         "go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"/godebug/non-default-behavior/multipartmaxparts:events":           "go_godebug_non_default_behavior_multipartmaxparts_events_total",
@@ -129,4 +130,4 @@ var (
 	}
 )
 
-const expectedRuntimeMetricsCardinality = 192
+const expectedRuntimeMetricsCardinality = 194

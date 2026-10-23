@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build go1.26 && !go1.27
-// +build go1.26,!go1.27
 
 package collectors
 
@@ -62,6 +61,7 @@ func withAllMetrics() []string {
 		"go_godebug_non_default_behavior_cryptocustomrand_events_total",
 		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
+		"go_godebug_non_default_behavior_fips140ems_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
 		"go_godebug_non_default_behavior_gocacheverify_events_total",
@@ -74,6 +74,7 @@ func withAllMetrics() []string {
 		"go_godebug_non_default_behavior_httplaxcontentlength_events_total",
 		"go_godebug_non_default_behavior_httpmuxgo121_events_total",
 		"go_godebug_non_default_behavior_httpservecontentkeepheaders_events_total",
+		"go_godebug_non_default_behavior_httpservecontentmaxranges_events_total",
 		"go_godebug_non_default_behavior_installgoroot_events_total",
 		"go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"go_godebug_non_default_behavior_multipartmaxparts_events_total",
@@ -209,6 +210,7 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_cryptocustomrand_events_total",
 		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
+		"go_godebug_non_default_behavior_fips140ems_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
 		"go_godebug_non_default_behavior_gocacheverify_events_total",
@@ -221,6 +223,7 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_httplaxcontentlength_events_total",
 		"go_godebug_non_default_behavior_httpmuxgo121_events_total",
 		"go_godebug_non_default_behavior_httpservecontentkeepheaders_events_total",
+		"go_godebug_non_default_behavior_httpservecontentmaxranges_events_total",
 		"go_godebug_non_default_behavior_installgoroot_events_total",
 		"go_godebug_non_default_behavior_multipartmaxheaders_events_total",
 		"go_godebug_non_default_behavior_multipartmaxparts_events_total",

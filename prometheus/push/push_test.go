@@ -60,7 +60,7 @@ func TestPush(t *testing.T) {
 
 	// Fake a Pushgateway that always responds with 500.
 	pgwErr := httptest.NewServer(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "fake error", http.StatusInternalServerError)
 		}),
 	)
@@ -284,6 +284,27 @@ func TestPush(t *testing.T) {
 	}
 	if lastPath != "/metrics/job/testjob/a/x/b/y" && lastPath != "/metrics/job/testjob/b/y/a/x" {
 		t.Error("unexpected path:", lastPath)
+	}
+
+	// Push and Delete with a custom header and basic auth. The header must be
+	// sent but not modified.
+	customHeader := make(http.Header)
+	customHeader.Set("X-Custom", "value")
+	pusher := New(pgwOK.URL, "testjob").
+		Collector(metric1).
+		Header(customHeader).
+		BasicAuth("user", "secret")
+	if err := pusher.Push(); err != nil {
+		t.Fatal(err)
+	}
+	if err := pusher.Delete(); err != nil {
+		t.Fatal(err)
+	}
+	if lastHeader.Get("X-Custom") != "value" || lastHeader.Get("Authorization") == "" {
+		t.Errorf("custom header or Authorization header not sent, got %v", lastHeader)
+	}
+	if len(customHeader) != 1 || customHeader.Get("X-Custom") != "value" {
+		t.Errorf("custom header was modified, got %v", customHeader)
 	}
 
 	// Push some Collectors with custom header, all good.

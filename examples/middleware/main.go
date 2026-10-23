@@ -39,11 +39,14 @@ func main() {
 	http.Handle(
 		"/metrics",
 		httpmiddleware.New(
-			registry, nil).
+			registry, nil,
+		).
 			WrapHandler("/metrics", promhttp.HandlerFor(
 				registry,
-				promhttp.HandlerOpts{}),
-			))
+				promhttp.HandlerOpts{},
+			),
+			),
+	)
 
 	log.Fatalln(http.ListenAndServe(":8080", nil))
 }

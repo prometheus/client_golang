@@ -73,19 +73,19 @@ func testHandler(t testing.TB) {
 	metricVec.WithLabelValues("val2").Inc()
 
 	externalMetricFamily := &dto.MetricFamily{
-		Name: proto.String("externalname"),
-		Help: proto.String("externaldocstring"),
+		Name: new("externalname"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("externalconstname"),
-						Value: proto.String("externalconstvalue"),
+						Name:  new("externalconstname"),
+						Value: new("externalconstvalue"),
 					},
 					{
-						Name:  proto.String("externallabelname"),
-						Value: proto.String("externalval1"),
+						Name:  new("externallabelname"),
+						Value: new("externalval1"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -126,19 +126,19 @@ metric: <
 	externalMetricFamilyAsProtoCompactText = append(externalMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	expectedMetricFamily := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val1"),
+						Name:  new("labelname"),
+						Value: new("val1"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -149,12 +149,12 @@ metric: <
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("val2"),
+						Name:  new("labelname"),
+						Value: new("val2"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -210,19 +210,19 @@ metric: <
 	expectedMetricFamilyAsProtoCompactText = append(expectedMetricFamilyAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithSameName := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("constvalue"),
+						Name:  new("constname"),
+						Value: new("constvalue"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("different_val"),
+						Name:  new("labelname"),
+						Value: new("different_val"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -236,19 +236,19 @@ metric: <
 	expectedMetricFamilyMergedWithExternalAsProtoCompactText = append(expectedMetricFamilyMergedWithExternalAsProtoCompactText, []byte(" \n")...)
 
 	externalMetricFamilyWithInvalidLabelValue := &dto.MetricFamily{
-		Name: proto.String("name"),
-		Help: proto.String("docstring"),
+		Name: new("name"),
+		Help: new("docstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("constname"),
-						Value: proto.String("\xFF"),
+						Name:  new("constname"),
+						Value: new("\xFF"),
 					},
 					{
-						Name:  proto.String("labelname"),
-						Value: proto.String("different_val"),
+						Name:  new("labelname"),
+						Value: new("different_val"),
 					},
 				},
 				Counter: &dto.Counter{
@@ -281,8 +281,8 @@ complex_count 0
 		Help: "A metric to check collisions with _sun, _count, and _bucket.",
 	})
 	externalMetricFamilyWithBucketSuffix := &dto.MetricFamily{
-		Name: proto.String("complex_bucket"),
-		Help: proto.String("externaldocstring"),
+		Name: new("complex_bucket"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
@@ -297,8 +297,8 @@ complex_count 0
 complex_bucket 1
 `)
 	externalMetricFamilyWithCountSuffix := &dto.MetricFamily{
-		Name: proto.String("complex_count"),
-		Help: proto.String("externaldocstring"),
+		Name: new("complex_count"),
+		Help: new("externaldocstring"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
@@ -321,23 +321,23 @@ collected metric named "complex_count" collides with previously collected summar
 collected metric named "complex_count" collides with previously collected histogram named "complex"
 `)
 	externalMetricFamilyWithDuplicateLabel := &dto.MetricFamily{
-		Name: proto.String("broken_metric"),
-		Help: proto.String("The registry should detect the duplicate label."),
+		Name: new("broken_metric"),
+		Help: new("The registry should detect the duplicate label."),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
 			{
 				Label: []*dto.LabelPair{
 					{
-						Name:  proto.String("foo"),
-						Value: proto.String("bar"),
+						Name:  new("foo"),
+						Value: new("bar"),
 					},
 					{
-						Name:  proto.String("foo"),
-						Value: proto.String("baz"),
+						Name:  new("foo"),
+						Value: new("baz"),
 					},
 				},
 				Counter: &dto.Counter{
-					Value: proto.Float64(2.7),
+					Value: new(2.7),
 				},
 			},
 		},
@@ -749,8 +749,62 @@ func TestHandler(t *testing.T) {
 }
 
 func BenchmarkHandler(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		testHandler(b)
+	}
+}
+
+// BenchmarkGatherMetricVec measures Registry.Gather on a registry with one MetricVec of the given size.
+//
+// https://github.com/prometheus/client_golang/issues/2147.
+func BenchmarkGatherMetricVec(b *testing.B) {
+	// Gauge is the worst case for Collect, its Write is almost free.
+	cases := []struct {
+		kind     string
+		children int
+	}{
+		{"gauge", 10},
+		{"gauge", 900},
+		{"gauge", 2000},
+		{"gauge", 5000},
+		{"histogram", 10},
+		{"histogram", 900},
+		{"histogram", 2000},
+		{"histogram", 5000},
+	}
+	for _, c := range cases {
+		b.Run(fmt.Sprintf("%s/children=%d", c.kind, c.children), func(b *testing.B) {
+			var vec prometheus.Collector
+			switch c.kind {
+			case "gauge":
+				gv := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+					Name: "test_gauge",
+					Help: "A test gauge.",
+				}, []string{"id"})
+				for i := range c.children {
+					gv.WithLabelValues(strconv.Itoa(i)).Set(1)
+				}
+				vec = gv
+			case "histogram":
+				hv := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+					Name: "test_histogram",
+					Help: "A test histogram.",
+				}, []string{"id"})
+				for i := range c.children {
+					hv.WithLabelValues(strconv.Itoa(i)).Observe(0.1)
+				}
+				vec = hv
+			}
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(vec)
+
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := reg.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }
 
@@ -894,6 +948,105 @@ func TestRegisterUnregisterCollector(t *testing.T) {
 // concurrently calls Observe on random elements of a HistogramVec while the
 // same HistogramVec is registered concurrently and the Gather method of the
 // registry is called concurrently.
+
+type blockingWriteMetric struct {
+	desc       *prometheus.Desc
+	labelPairs []*dto.LabelPair
+	entered    chan struct{} // Closed by the first Write of any such metric.
+	enterOnce  *sync.Once    // Shared by all metrics that close entered.
+	release    chan struct{}
+}
+
+func (m *blockingWriteMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m *blockingWriteMetric) Write(out *dto.Metric) error {
+	m.enterOnce.Do(func() { close(m.entered) })
+	<-m.release
+	out.Label = m.labelPairs
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	return nil
+}
+
+// TestMetricVecCollectWithBlockedGather verifies that a MetricVec stays usable while Registry.Gather is stuck in one of its Metric.Write calls.
+//
+// See https://github.com/prometheus/client_golang/issues/2147.
+func TestMetricVecCollectWithBlockedGather(t *testing.T) {
+	// More children than Registry.Gather buffers, so Collect cannot finish before the stuck Write returns.
+	const children = 2000
+
+	var (
+		desc        = prometheus.NewDesc("test_blocking_write", "A test metric.", []string{"id"}, nil)
+		entered     = make(chan struct{})
+		release     = make(chan struct{})
+		enterOnce   sync.Once
+		releaseOnce sync.Once
+	)
+	releaseWrites := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseWrites)
+
+	vec := prometheus.NewMetricVec(desc, func(lvs ...string) prometheus.Metric {
+		return &blockingWriteMetric{
+			desc:       desc,
+			labelPairs: prometheus.MakeLabelPairs(desc, lvs),
+			entered:    entered,
+			enterOnce:  &enterOnce,
+			release:    release,
+		}
+	})
+	for i := range children {
+		if _, err := vec.GetMetricWithLabelValues(strconv.Itoa(i)); err != nil {
+			t.Fatal("creating metric failed:", err)
+		}
+	}
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(vec)
+
+	type gatherResult struct {
+		mfs []*dto.MetricFamily
+		err error
+	}
+	gathered := make(chan gatherResult, 1)
+	go func() {
+		mfs, err := reg.Gather()
+		gathered <- gatherResult{mfs, err}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Gather did not reach Metric.Write")
+	}
+
+	for _, lv := range []string{"new", "0"} {
+		done := make(chan error, 1)
+		go func() {
+			_, err := vec.GetMetricWithLabelValues(lv)
+			done <- err
+		}()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("GetMetricWithLabelValues(%q) failed: %v", lv, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("GetMetricWithLabelValues(%q) blocked while Gather was stuck in Metric.Write", lv)
+		}
+	}
+
+	releaseWrites()
+	select {
+	case res := <-gathered:
+		if res.err != nil {
+			t.Fatal("gathering failed:", res.err)
+		}
+		// The child created above is not part of the snapshot of this Gather, all children that existed before it must be.
+		if len(res.mfs) != 1 || len(res.mfs[0].GetMetric()) != children {
+			t.Fatalf("expected one metric family with %d metrics, got %v", children, res.mfs)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Gather did not finish after releasing Metric.Write")
+	}
+}
+
 func TestHistogramVecRegisterGatherConcurrency(t *testing.T) {
 	labelNames := make([]string, 16) // Need at least 13 to expose #512.
 	for i := range labelNames {
@@ -1133,7 +1286,7 @@ func (m *collidingCollector) Collect(metric chan<- prometheus.Metric) {
 func TestAlreadyRegisteredCollision(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		// A collector should be considered unique if its name and const
 		// label values are unique.
 
@@ -1275,7 +1428,7 @@ func ExampleRegistry_grouping() {
 	globalReg := prometheus.NewRegistry()
 
 	// Spawn 10 workers, each of which will have their own group of metrics.
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		// Create a new registry for each worker, which acts as a group of
 		// worker-specific metrics.
 		workerReg := prometheus.NewRegistry()
@@ -1396,6 +1549,58 @@ func TestCheckMetricConsistency(t *testing.T) {
 	reg.Unregister(invalidCollector)
 }
 
+// Duplicated label names must be rejected no matter in which order the label
+// pairs appear. Every other label check is independent of that order, and a
+// metric family with duplicated labels results in invalid exposition.
+func TestGatherRejectsDuplicateLabelNames(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		labels []*dto.LabelPair
+	}{
+		{
+			name: "duplicates are adjacent",
+			labels: []*dto.LabelPair{
+				{Name: new("foo"), Value: new("bar")},
+				{Name: new("foo"), Value: new("baz")},
+			},
+		},
+		{
+			name: "duplicates are not adjacent",
+			labels: []*dto.LabelPair{
+				{Name: new("foo"), Value: new("bar")},
+				{Name: new("interloper"), Value: new("value")},
+				{Name: new("foo"), Value: new("baz")},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gatherer := prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+				return []*dto.MetricFamily{{
+					Name: new("broken_metric"),
+					Help: new("The registry should detect the duplicate label."),
+					Type: dto.MetricType_COUNTER.Enum(),
+					Metric: []*dto.Metric{{
+						Label:   tc.labels,
+						Counter: &dto.Counter{Value: new(2.7)},
+					}},
+				}}, nil
+			})
+
+			_, err := prometheus.Gatherers{gatherer}.Gather()
+			if err == nil {
+				t.Fatal("expected an error for the duplicated label name, got none")
+			}
+			if want := `has two or more labels with the same name: foo`; !strings.Contains(err.Error(), want) {
+				t.Fatalf("unexpected error, want it to contain %q: %v", want, err)
+			}
+		})
+	}
+}
+
 func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	// Use goleak to verify that no unexpected goroutines are leaked during the test.
 	defer goleak.VerifyNone(t)
@@ -1404,7 +1609,7 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	reg := prometheus.NewRegistry()
 
 	// Register 100 simple Gauge metrics with distinct names and constant labels.
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		reg.MustRegister(prometheus.NewGauge(prometheus.GaugeOpts{
 			Name:        "test_metric_" + string(rune(i)),
 			Help:        "Test metric",
@@ -1413,10 +1618,148 @@ func TestGatherDoesNotLeakGoroutines(t *testing.T) {
 	}
 
 	// Call Gather repeatedly to simulate stress and check for potential goroutine leaks.
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		_, err := reg.Gather()
 		if err != nil {
 			t.Fatalf("unexpected error from Gather: %v", err)
 		}
+	}
+}
+
+type interleavedLabelsMetric struct {
+	desc   *prometheus.Desc
+	labels []*dto.LabelPair
+}
+
+func (m interleavedLabelsMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m interleavedLabelsMetric) Write(out *dto.Metric) error {
+	out.Label = m.labels
+	out.Gauge = &dto.Gauge{Value: proto.Float64(1)}
+	return nil
+}
+
+func TestGatherInterleavedConstAndVariableLabels(t *testing.T) {
+	desc := prometheus.NewDesc("interleaved", "help", []string{"d", "b"}, prometheus.Labels{
+		"e": "const-e",
+		"c": "const-c",
+		"a": "const-a",
+	})
+	pair := func(name, value string) *dto.LabelPair {
+		return &dto.LabelPair{Name: new(name), Value: new(value)}
+	}
+
+	t.Run("consistent", func(t *testing.T) {
+		reg := prometheus.NewPedanticRegistry()
+		reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+			ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "var-d", "var-b")
+		}))
+
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, lp := range mfs[0].GetMetric()[0].GetLabel() {
+			got = append(got, lp.GetName()+"="+lp.GetValue())
+		}
+		want := []string{"a=const-a", "b=var-b", "c=const-c", "d=var-d", "e=const-e"}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("got labels %v, want %v", got, want)
+		}
+	})
+
+	for _, tc := range []struct {
+		name   string
+		labels []*dto.LabelPair
+	}{
+		{
+			name:   "wrong const label value",
+			labels: []*dto.LabelPair{pair("a", "const-a"), pair("b", "var-b"), pair("c", "var-c"), pair("d", "var-d"), pair("e", "const-e")},
+		},
+		{
+			name:   "variable label in place of const label",
+			labels: []*dto.LabelPair{pair("a", "const-a"), pair("b", "var-b"), pair("d", "var-d"), pair("e", "const-e"), pair("f", "var-f")},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewPedanticRegistry()
+			reg.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+				ch <- interleavedLabelsMetric{desc: desc, labels: tc.labels}
+			}))
+
+			if _, err := reg.Gather(); err == nil {
+				t.Error("expected inconsistency error, got nil")
+			}
+		})
+	}
+}
+
+// constMetricsCollector emits n const gauges with two variable labels on every
+// Collect, similar to exporters that build their metrics during collection.
+type constMetricsCollector struct {
+	desc   *prometheus.Desc
+	values []string
+}
+
+func newConstMetricsCollector(name string, n int) *constMetricsCollector {
+	c := &constMetricsCollector{
+		desc: prometheus.NewDesc(
+			name, "A const gauge to benchmark Gather.",
+			[]string{"instance", "mode"}, nil,
+		),
+		values: make([]string, n),
+	}
+	for i := range c.values {
+		c.values[i] = strconv.Itoa(i)
+	}
+	return c
+}
+
+func (c *constMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c *constMetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, v := range c.values {
+		ch <- prometheus.MustNewConstMetric(c.desc, prometheus.GaugeValue, 1, v, "idle")
+	}
+}
+
+func BenchmarkRegistryGather(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
+			reg := prometheus.NewRegistry()
+			reg.MustRegister(newConstMetricsCollector("benchmark_gauge", n))
+
+			if _, err := reg.Gather(); err != nil {
+				b.Fatal(err)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := reg.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkGatherersGather(b *testing.B) {
+	for _, n := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("metrics=%d", n), func(b *testing.B) {
+			reg1 := prometheus.NewRegistry()
+			reg1.MustRegister(newConstMetricsCollector("benchmark_gauge_one", n/2))
+			reg2 := prometheus.NewRegistry()
+			reg2.MustRegister(newConstMetricsCollector("benchmark_gauge_two", n/2))
+			gatherers := prometheus.Gatherers{reg1, reg2}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := gatherers.Gather(); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }

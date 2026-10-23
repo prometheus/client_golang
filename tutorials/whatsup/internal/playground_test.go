@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build interactive
-// +build interactive
 
 package internal
 

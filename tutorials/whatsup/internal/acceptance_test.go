@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build interactive
-// +build interactive
 
 package internal
 
@@ -78,5 +77,4 @@ func TestAcceptance(t *testing.T) {
 	if gotErr {
 		fmt.Println("Got this response from ", fmt.Sprintf("http://localhost:%v", WhatsupPort), ":", metrics)
 	}
-
 }

@@ -12,7 +12,6 @@
 // limitations under the License.
 
 //go:build go1.25 && !go1.26
-// +build go1.25,!go1.26
 
 package collectors
 
@@ -57,6 +56,7 @@ func withAllMetrics() []string {
 		"go_godebug_non_default_behavior_containermaxprocs_events_total",
 		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
+		"go_godebug_non_default_behavior_fips140ems_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
 		"go_godebug_non_default_behavior_gocacheverify_events_total",
@@ -186,6 +186,7 @@ func withDebugMetrics() []string {
 		"go_godebug_non_default_behavior_containermaxprocs_events_total",
 		"go_godebug_non_default_behavior_embedfollowsymlinks_events_total",
 		"go_godebug_non_default_behavior_execerrdot_events_total",
+		"go_godebug_non_default_behavior_fips140ems_events_total",
 		"go_godebug_non_default_behavior_gocachehash_events_total",
 		"go_godebug_non_default_behavior_gocachetest_events_total",
 		"go_godebug_non_default_behavior_gocacheverify_events_total",

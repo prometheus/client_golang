@@ -15,6 +15,7 @@ package v1
 
 import (
 	"context"
+	gojson "encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -27,7 +28,7 @@ import (
 	"testing"
 	"time"
 
-	json "github.com/json-iterator/go"
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/prometheus/common/model"
 )
@@ -63,7 +64,7 @@ func (c *apiTestClient) URL(ep string, args map[string]string) *url.URL {
 	return u
 }
 
-func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response, []byte, Warnings, Infos, error) {
+func (c *apiTestClient) Do(_ context.Context, req *http.Request, into any) (*http.Response, Warnings, Infos, error) {
 	test := c.curTest
 
 	if req.URL.Path != test.reqPath {
@@ -73,7 +74,7 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		c.Errorf("unexpected request method: want %s, got %s", test.reqMethod, req.Method)
 	}
 
-	b, err := json.Marshal(test.inRes)
+	b, err := gojson.Marshal(test.inRes)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -87,15 +88,38 @@ func (c *apiTestClient) Do(_ context.Context, req *http.Request) (*http.Response
 		resp.StatusCode = http.StatusOK
 	}
 
-	return resp, b, test.inWarnings, test.inInfos, test.inErr
+	if test.inErr == nil {
+		// In non-error cases, unmarshal into the target object.
+		if into == nil {
+			into = &gojson.RawMessage{}
+		}
+		if err := gojson.Unmarshal(b, into); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+
+	return resp, test.inWarnings, test.inInfos, test.inErr
 }
 
-func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values) (*http.Response, []byte, Warnings, Infos, error) {
-	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(args.Encode()))
+func (c *apiTestClient) DoGetFallback(ctx context.Context, u *url.URL, args url.Values, into any) (*http.Response, Warnings, Infos, error) {
+	encodedArgs := args.Encode()
+	req, err := http.NewRequest(http.MethodPost, u.String(), strings.NewReader(encodedArgs))
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
-	return c.Do(ctx, req)
+
+	resp, w, i, err := c.Do(ctx, req, into)
+	// Match GET fallback implementation.
+	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented) {
+		u.RawQuery = encodedArgs
+		req, err = http.NewRequest(http.MethodGet, u.String(), nil)
+		if err != nil {
+			return nil, w, i, err
+		}
+		return c.Do(ctx, req, into)
+	}
+
+	return resp, w, i, err
 }
 
 func TestAPIs(t *testing.T) {
@@ -227,7 +251,7 @@ func TestAPIs(t *testing.T) {
 		}
 	}
 
-	doTSDBBlocks := func(opts ...Option) func() (any, Warnings, Infos, error) {
+	doTSDBBlocks := func(_ ...Option) func() (any, Warnings, Infos, error) {
 		return func() (any, Warnings, Infos, error) {
 			v, err := promAPI.TSDBBlocks(context.Background())
 			return v, nil, nil, err
@@ -1202,52 +1226,146 @@ func TestAPIs(t *testing.T) {
 			err:       errors.New("some error"),
 		},
 
+		// Empty blocks list.
 		{
 			do:        doTSDBBlocks(),
 			reqMethod: "GET",
 			reqPath:   "/api/v1/status/tsdb/blocks",
 			inRes: map[string]any{
-				"status": "success",
-				"data": map[string]any{
-					"blocks": []any{
-						map[string]any{
-							"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
-							"minTime": 1750860620060,
-							"maxTime": 1750867200000,
-							"stats": map[string]any{
-								"numSamples": 13701,
-								"numSeries":  716,
-								"numChunks":  716,
+				"blocks": []any{},
+			},
+			res: TSDBBlocksResult{
+				Blocks: []TSDBBlockMeta{},
+			},
+		},
+
+		// A single success case covers the decode quirks in one round
+		// trip: a fully populated block exercising every optional
+		// stats and compaction field (including the compaction hint
+		// Prometheus's OOO feature emits, CompactionHintFromOutOfOrder
+		// upstream), plus a minimal uncompacted block with no stats
+		// field at all.
+		// The fully populated block's stats deliberately exceed 2^32:
+		// narrowing any of the uint64 stats fields (which real blocks
+		// do overflow past 32 bits) makes the expected literal below a
+		// compile error and the decode a truncation failure. The
+		// unknown fields must be ignored by the decoder: upstream grows
+		// the block metadata over time (that history is why this
+		// endpoint's types needed fixing), so older clients must
+		// tolerate fields they don't know yet.
+		{
+			do:        doTSDBBlocks(),
+			reqMethod: "GET",
+			reqPath:   "/api/v1/status/tsdb/blocks",
+			inRes: map[string]any{
+				"blocks": []any{
+					map[string]any{
+						"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA00",
+						"minTime": 1750860000000,
+						"maxTime": 1750867200000,
+						"stats": map[string]any{
+							"numSamples":                        9000000000,
+							"numFloatSamples":                   5000000000,
+							"numHistogramSamples":               4000000000,
+							"numSeries":                         4400000000,
+							"numChunks":                         4500000000,
+							"numTombstones":                     4300000000,
+							"someFutureStatUnknownToThisClient": 42,
+						},
+						"compaction": map[string]any{
+							"level": 3,
+							"sources": []any{
+								"01AAAAAAAAAAAAAAAAAAAAAA01",
+								"01AAAAAAAAAAAAAAAAAAAAAA02",
+								"01AAAAAAAAAAAAAAAAAAAAAA03",
 							},
-							"compaction": map[string]any{
-								"level": 1,
-								"sources": []any{
-									"01JZ8JKZY6XSK3PTDP9ZKRWT60",
+							"deletable": true,
+							"parents": []any{
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA01",
+									"minTime": 1750853000000,
+									"maxTime": 1750860000000,
+								},
+								map[string]any{
+									"ulid":    "01AAAAAAAAAAAAAAAAAAAAAA02",
+									"minTime": 1750860000000,
+									"maxTime": 1750867200000,
 								},
 							},
-							"version": 1,
+							"failed": true,
+							"hints": []any{
+								"from-out-of-order",
+								"deduplication",
+								"downsampling",
+							},
 						},
+						"version":                            1,
+						"someFutureFieldUnknownToThisClient": "ignored",
+					},
+					map[string]any{
+						"ulid":    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+						"minTime": 1750860620060,
+						"maxTime": 1750867200000,
+						"compaction": map[string]any{
+							"level": 1,
+							"sources": []any{
+								"01JZ8JKZY6XSK3PTDP9ZKRWT60",
+							},
+						},
+						"version": 1,
 					},
 				},
 			},
 			res: TSDBBlocksResult{
-				Status: "success",
-				Data: TSDBBlocksData{
-					Blocks: []TSDBBlocksBlockMetadata{{
-						Ulid:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
+				Blocks: []TSDBBlockMeta{
+					{
+						ULID:    "01AAAAAAAAAAAAAAAAAAAAAA00",
+						MinTime: 1750860000000,
+						MaxTime: 1750867200000,
+						Version: 1,
+						Stats: TSDBBlockStats{
+							NumSamples:          9000000000,
+							NumFloatSamples:     5000000000,
+							NumHistogramSamples: 4000000000,
+							NumSeries:           4400000000,
+							NumChunks:           4500000000,
+							NumTombstones:       4300000000,
+						},
+						Compaction: TSDBBlockMetaCompaction{
+							Level: 3,
+							Sources: []string{
+								"01AAAAAAAAAAAAAAAAAAAAAA01",
+								"01AAAAAAAAAAAAAAAAAAAAAA02",
+								"01AAAAAAAAAAAAAAAAAAAAAA03",
+							},
+							Deletable: true,
+							Parents: []TSDBBlockDesc{
+								{
+									ULID:    "01AAAAAAAAAAAAAAAAAAAAAA01",
+									MinTime: 1750853000000,
+									MaxTime: 1750860000000,
+								},
+								{
+									ULID:    "01AAAAAAAAAAAAAAAAAAAAAA02",
+									MinTime: 1750860000000,
+									MaxTime: 1750867200000,
+								},
+							},
+							Failed: true,
+							Hints:  []string{"from-out-of-order", "deduplication", "downsampling"},
+						},
+					},
+					{
+						ULID:    "01JZ8JKZY6XSK3PTDP9ZKRWT60",
 						MinTime: 1750860620060,
 						MaxTime: 1750867200000,
 						Version: 1,
-						Stats: TSDBBlocksStats{
-							NumSamples: 13701,
-							NumSeries:  716,
-							NumChunks:  716,
-						},
-						Compaction: TSDBBlocksCompaction{
+						Stats:   TSDBBlockStats{}, // zero values
+						Compaction: TSDBBlockMetaCompaction{
 							Level:   1,
 							Sources: []string{"01JZ8JKZY6XSK3PTDP9ZKRWT60"},
 						},
-					}},
+					},
 				},
 			},
 		},
@@ -1404,7 +1522,7 @@ type apiClientTest struct {
 	expectedInfos    Infos
 }
 
-func (c *testClient) URL(ep string, args map[string]string) *url.URL {
+func (c *testClient) URL(_ string, _ map[string]string) *url.URL {
 	return nil
 }
 
@@ -1425,7 +1543,7 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	case string:
 		b = []byte(v)
 	default:
-		b, err = json.Marshal(v)
+		b, err = gojson.Marshal(v)
 		if err != nil {
 			c.Fatal(err)
 		}
@@ -1444,7 +1562,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`null`),
+				Data:      gojson.RawMessage(`null`),
 				ErrorType: ErrBadData,
 				Error:     "failed",
 			},
@@ -1458,7 +1576,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1490,7 +1608,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusBadRequest,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`null`),
+				Data:      gojson.RawMessage(`null`),
 				ErrorType: ErrBadData,
 				Error:     "end timestamp must not be before start time",
 			},
@@ -1503,15 +1621,16 @@ func TestAPIClientDo(t *testing.T) {
 			code:     http.StatusUnprocessableEntity,
 			response: "bad json",
 			expectedErr: &Error{
-				Type: ErrBadResponse,
-				Msg:  "readObjectStart: expect { or n, but found b, error found in #1 byte of ...|bad json|..., bigger context ...|bad json|...",
+				Type:   ErrClient,
+				Msg:    "client error: 422",
+				Detail: "bad json",
 			},
 		},
 		{
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status: "success",
-				Data:   json.RawMessage(`"test"`),
+				Data:   gojson.RawMessage(`"test"`),
 			},
 			expectedErr: &Error{
 				Type: ErrBadResponse,
@@ -1522,7 +1641,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusUnprocessableEntity,
 			response: &apiResponse{
 				Status:    "success",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1535,7 +1654,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 			},
@@ -1548,7 +1667,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Warnings:  []string{"a"},
@@ -1563,7 +1682,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Infos:     []string{"b"},
@@ -1578,7 +1697,7 @@ func TestAPIClientDo(t *testing.T) {
 			code: http.StatusOK,
 			response: &apiResponse{
 				Status:    "error",
-				Data:      json.RawMessage(`"test"`),
+				Data:      gojson.RawMessage(`"test"`),
 				ErrorType: ErrTimeout,
 				Error:     "timed out",
 				Warnings:  []string{"a"},
@@ -1606,7 +1725,9 @@ func TestAPIClientDo(t *testing.T) {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			tc.ch <- test
 
-			_, body, warnings, infos, err := client.Do(context.Background(), tc.req)
+			into := gojson.RawMessage{}
+			_, warnings, infos, err := client.Do(context.Background(), tc.req, &into)
+			body := []byte(into)
 
 			if test.expectedWarnings != nil {
 				if !reflect.DeepEqual(test.expectedWarnings, warnings) {
@@ -1676,11 +1797,11 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 10, Value: 20},
-			expected: `[0.010,"20"]`,
+			expected: `[0.01,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 100, Value: 20},
-			expected: `[0.100,"20"]`,
+			expected: `[0.1,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1001, Value: 20},
@@ -1688,15 +1809,15 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1010, Value: 20},
-			expected: `[1.010,"20"]`,
+			expected: `[1.01,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 1100, Value: 20},
-			expected: `[1.100,"20"]`,
+			expected: `[1.1,"20"]`,
 		},
 		{
 			point:    model.SamplePair{Timestamp: 12345678123456555, Value: 20},
-			expected: `[12345678123456.555,"20"]`,
+			expected: `[12345678123456.557,"20"]`, // stdlib json encoding loses float precision
 		},
 		{
 			point:    model.SamplePair{Timestamp: -1, Value: 20},
@@ -1724,13 +1845,13 @@ func TestSamplesJSONSerialization(t *testing.T) {
 		},
 		{
 			point:    model.SamplePair{Timestamp: 0, Value: 1.2345678e-67},
-			expected: `[0,"1.2345678e-67"]`,
+			expected: `[0,"0.00000000000000000000000000000000000000000000000000000000000000000012345678"]`, // stdlib json encoding does not write in exponent form
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.expected, func(t *testing.T) {
-			b, err := json.Marshal(test.point)
+			b, err := gojson.Marshal(test.point)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1742,11 +1863,11 @@ func TestSamplesJSONSerialization(t *testing.T) {
 			// can do a string compare, otherwise Nan values don't show equivalence
 			// properly.
 			var sp model.SamplePair
-			if err = json.Unmarshal(b, &sp); err != nil {
+			if err = jsoniter.Unmarshal(b, &sp); err != nil {
 				t.Fatal(err)
 			}
 
-			b, err = json.Marshal(sp)
+			b, err = gojson.Marshal(sp)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1769,7 +1890,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 				Timestamp: 0,
 				Histogram: &model.SampleHistogram{},
 			},
-			expected: `[0,{"count":"0","sum":"0"}]`,
+			expected: `[0,{"count":"0","sum":"0","buckets":null}]`, // buckets is not omitempty
 		},
 		{
 			name: "histogram with NaN/Inf and no buckets",
@@ -1780,7 +1901,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 					Sum:   model.FloatString(math.Inf(1)),
 				},
 			},
-			expected: `[0,{"count":"NaN","sum":"+Inf"}]`,
+			expected: `[0,{"count":"NaN","sum":"+Inf","buckets":null}]`, // buckets is not omitempty
 		},
 		{
 			name: "six-bucket histogram",
@@ -1835,7 +1956,7 @@ func TestHistogramJSONSerialization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := json.Marshal(test.point)
+			b, err := gojson.Marshal(test.point)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1847,11 +1968,11 @@ func TestHistogramJSONSerialization(t *testing.T) {
 			// can do a string compare, otherwise NaN values don't show equivalence
 			// properly.
 			var sp model.SampleHistogramPair
-			if err = json.Unmarshal(b, &sp); err != nil {
+			if err = jsoniter.Unmarshal(b, &sp); err != nil {
 				t.Fatal(err)
 			}
 
-			b, err = json.Marshal(sp)
+			b, err = gojson.Marshal(sp)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1893,7 +2014,7 @@ func TestSampleStreamJSONSerialization(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			b, err := json.Marshal(test.stream)
+			b, err := jsoniter.Marshal(test.stream)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1902,7 +2023,7 @@ func TestSampleStreamJSONSerialization(t *testing.T) {
 			}
 
 			var stream model.SampleStream
-			if err = json.Unmarshal(b, &stream); err != nil {
+			if err = jsoniter.Unmarshal(b, &stream); err != nil {
 				t.Fatal(err)
 			}
 
@@ -1917,7 +2038,7 @@ type httpTestClient struct {
 	client http.Client
 }
 
-func (c *httpTestClient) URL(ep string, args map[string]string) *url.URL {
+func (c *httpTestClient) URL(_ string, _ map[string]string) *url.URL {
 	return nil
 }
 
@@ -1958,16 +2079,16 @@ func TestDoGetFallback(t *testing.T) {
 	// Start a local HTTP server.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		req.ParseForm()
-		testResp, _ := json.Marshal(&testResponse{
+		testResp, _ := gojson.Marshal(&testResponse{
 			Values: req.Form.Encode(),
 			Method: req.Method,
 		})
 
 		apiResp := &apiResponse{
-			Data: testResp,
+			Data: gojson.RawMessage(testResp),
 		}
 
-		body, _ := json.Marshal(apiResp)
+		body, _ := gojson.Marshal(apiResp)
 
 		if req.Method == http.MethodPost {
 			if req.URL.Path == "/blockPost403" {
@@ -1999,22 +2120,19 @@ func TestDoGetFallback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	client := &httpTestClient{client: *(server.Client())}
+	client := &httpTestClient{client: *server.Client()}
 	api := &apiClientImpl{
 		client: client,
 	}
 
 	// Do a post, and ensure that the post succeeds.
-	_, b, _, _, err := api.DoGetFallback(context.TODO(), u, v)
+	resp := &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
 	}
-	resp := &testResponse{}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
-	}
 	if resp.Method != http.MethodPost {
-		t.Fatalf("Mismatch method")
+		t.Fatalf("Mismatch method: %#v", resp)
 	}
 	if resp.Values != v.Encode() {
 		t.Fatalf("Mismatch in values")
@@ -2022,12 +2140,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 403.
 	u.Path = "/blockPost403"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
@@ -2038,12 +2154,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 405.
 	u.Path = "/blockPost405"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")
@@ -2054,12 +2168,10 @@ func TestDoGetFallback(t *testing.T) {
 
 	// Do a fallback to a get on 501.
 	u.Path = "/blockPost501"
-	_, b, _, _, err = api.DoGetFallback(context.TODO(), u, v)
+	resp = &testResponse{}
+	_, _, _, err = api.DoGetFallback(context.TODO(), u, v, resp)
 	if err != nil {
 		t.Fatalf("Error doing local request: %v", err)
-	}
-	if err := json.Unmarshal(b, resp); err != nil {
-		t.Fatal(err)
 	}
 	if resp.Method != http.MethodGet {
 		t.Fatalf("Mismatch method")

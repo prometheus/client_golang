@@ -120,12 +120,20 @@ func (w *WriteResponse) Stats() WriteResponseStats {
 	return w.WriteResponseStats
 }
 
-// SetStatusCode sets the HTTP status code for the response. http.StatusNoContent is the default unless 5xx is set.
-func (w *WriteResponse) SetStatusCode(code int) {
-	w.statusCode = code
+// Add adds the given WriteResponseStats to this WriteResponse and marks the statistics as confirmed.
+func (w *WriteResponse) Add(rs WriteResponseStats) {
+	w.WriteResponseStats.Add(rs)
+	w.confirmed = true
 }
 
-// SetExtraHeader adds additional headers to be set in the response (apart from stats headers)
+// SetStatusCode sets the HTTP status code for the response. http.StatusNoContent is the default.
+// If Store returns an error, a status code below 400 is replaced with http.StatusInternalServerError.
+func (w *WriteResponse) SetStatusCode(code int) {
+	w.statusCode = code
+	w.Async = code == http.StatusAccepted
+}
+
+// SetExtraHeader adds additional headers to be set in the response (apart from stats headers).
 func (w *WriteResponse) SetExtraHeader(key, value string) {
 	w.extraHeaders.Set(key, value)
 }
@@ -135,10 +143,9 @@ func (w *WriteResponse) SetExtraHeader(key, value string) {
 func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseWriter) {
 	h := rw.Header()
 
-	// TODO make it easier to indicate if the stats are valid before adding the headers. WriteResponseStats.confirmed
-	//  could be used if there was a reliable way for it to be set without parsing headers. For now ensure we don't
-	//  add stats headers for v1 messages which can cause confusion/false positive errors logs.
-	if msgType != WriteV1MessageType {
+	// Asynchronous receivers returning 202 Accepted may omit written headers when counts are not
+	// calculated synchronously (i.e. when Add was not called to confirm stats).
+	if msgType != WriteV1MessageType && (w.statusCode != http.StatusAccepted || w.confirmed) {
 		h.Set(writtenSamplesHeader, strconv.Itoa(w.Samples))
 		h.Set(writtenHistogramsHeader, strconv.Itoa(w.Histograms))
 		h.Set(writtenExemplarsHeader, strconv.Itoa(w.Exemplars))
@@ -153,18 +160,27 @@ func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseW
 
 // WriteResponseStats represents the response, remote write statistics.
 type WriteResponseStats struct {
-	// Samples represents X-Prometheus-Remote-Write-Written-Samples
+	// Samples represents X-Prometheus-Remote-Write-Samples-Written.
 	Samples int
-	// Histograms represents X-Prometheus-Remote-Write-Written-Histograms
+	// Histograms represents X-Prometheus-Remote-Write-Histograms-Written.
 	Histograms int
-	// Exemplars represents X-Prometheus-Remote-Write-Written-Exemplars
+	// Exemplars represents X-Prometheus-Remote-Write-Exemplars-Written.
 	Exemplars int
+	// Async is true when the Receiver responded with 202 HTTP Accepted, indicating asynchronous
+	// processing where written headers may be omitted because validation is deferred.
+	Async bool
 
-	// Confirmed means we can trust those statistics from the point of view
+	// confirmed means we can trust those statistics from the point of view
 	// of the PRW 2.0 spec. When parsed from headers, it means we got at least one
 	// response header from the Receiver to confirm those numbers, meaning it must
-	// be at least 2.0 Receiver. See ParseWriteResponseStats for details.
+	// be at least a 2.0 Receiver. See parseWriteResponseStats for details.
 	confirmed bool
+}
+
+// Confirmed returns true if at least one X-Prometheus-Remote-Write-*-Written response header was
+// received or statistics were explicitly set on a WriteResponse.
+func (s WriteResponseStats) Confirmed() bool {
+	return s.confirmed
 }
 
 // NoDataWritten returns true if statistics indicate no data was written.
@@ -180,7 +196,8 @@ func (s WriteResponseStats) AllSamples() int {
 // Add adds the given WriteResponseStats to this WriteResponseStats.
 // If this WriteResponseStats is empty, it will be replaced by the given WriteResponseStats.
 func (s *WriteResponseStats) Add(rs WriteResponseStats) {
-	s.confirmed = rs.confirmed
+	s.confirmed = s.confirmed || rs.confirmed
+	s.Async = s.Async || rs.Async
 	s.Samples += rs.Samples
 	s.Histograms += rs.Histograms
 	s.Exemplars += rs.Exemplars
@@ -188,17 +205,18 @@ func (s *WriteResponseStats) Add(rs WriteResponseStats) {
 
 // parseWriteResponseStats returns WriteResponseStats parsed from the response headers.
 //
-// As per 2.0 spec, missing header means 0. However, abrupt HTTP errors, 1.0 Receivers
-// or buggy 2.0 Receivers might result in no response headers specified and that
+// As per 2.0 spec, missing header means 0. However, abrupt HTTP errors, 202 Accepted responses,
+// 1.0 Receivers, or buggy 2.0 Receivers might result in no response headers specified and that
 // might NOT necessarily mean nothing was written. To represent that we set
-// s.Confirmed = true only when see at least on response header.
+// s.confirmed = true only when we see at least one response header.
 //
-// Error is returned when any of the header fails to parse as int64.
+// Error is returned when any of the headers fails to parse as int.
 func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error) {
 	var (
 		errs []error
 		h    = r.Header
 	)
+	s.Async = r.StatusCode == http.StatusAccepted
 	if v := h.Get(writtenSamplesHeader); v != "" { // Empty means zero.
 		s.confirmed = true
 		if s.Samples, err = strconv.Atoi(v); err != nil {

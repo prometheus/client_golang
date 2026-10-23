@@ -115,7 +115,7 @@ func benchmarkSummaryObserve(w int, b *testing.B) {
 
 	s := NewSummary(SummaryOpts{})
 
-	for i := 0; i < w; i++ {
+	for range w {
 		go func() {
 			g.Wait()
 
@@ -159,11 +159,11 @@ func benchmarkSummaryWrite(w int, b *testing.B) {
 
 	s := NewSummary(SummaryOpts{})
 
-	for i := 0; i < 1000000; i++ {
+	for i := range 1000000 {
 		s.Observe(float64(i))
 	}
 
-	for j := 0; j < w; j++ {
+	for range w {
 		outs := make([]dto.Metric, b.N)
 
 		go func(o []dto.Metric) {
@@ -223,9 +223,9 @@ func TestSummaryConcurrency(t *testing.T) {
 
 		allVars := make([]float64, total)
 		var sampleSum float64
-		for i := 0; i < concLevel; i++ {
+		for i := range concLevel {
 			vals := make([]float64, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				allVars[i*mutations+j] = v
@@ -313,10 +313,10 @@ func TestSummaryVecConcurrency(t *testing.T) {
 
 		allVars := make([][]float64, vecLength)
 		sampleSums := make([]float64, vecLength)
-		for i := 0; i < concLevel; i++ {
+		for range concLevel {
 			vals := make([]float64, mutations)
 			picks := make([]int, mutations)
-			for j := 0; j < mutations; j++ {
+			for j := range mutations {
 				v := rand.NormFloat64()
 				vals[j] = v
 				pick := rand.Intn(vecLength)
@@ -339,7 +339,7 @@ func TestSummaryVecConcurrency(t *testing.T) {
 		start.Done()
 		end.Wait()
 
-		for i := 0; i < vecLength; i++ {
+		for i := range vecLength {
 			m := &dto.Metric{}
 			s := sum.WithLabelValues(string('A' + rune(i)))
 			s.(Summary).Write(m)
@@ -494,5 +494,46 @@ func TestNewConstSummaryWithCreatedTimestamp(t *testing.T) {
 
 	if metric.Summary.CreatedTimestamp.AsTime().UnixMicro() != createdTs.UnixMicro() {
 		t.Errorf("Expected created timestamp %v, got %v", createdTs, &metric.Summary.CreatedTimestamp)
+	}
+}
+
+// TestSummaryWritePanicCausesCooldownDeadlock is a regression test for
+// https://github.com/prometheus/client_golang/issues/2147.
+func TestSummaryWritePanicCausesCooldownDeadlock(t *testing.T) {
+	s := NewSummary(SummaryOpts{
+		Name: "test_request_duration_seconds",
+		Help: "Request duration in seconds.",
+	}).(*noObjectivesSummary)
+	s.Observe(0.5)
+
+	// Trigger a panic inside Write after flipping countAndHotIdx (e.g. out == nil,
+	// which panics at `out.Summary = sum`). Because coldCounts is merged into
+	// hotCounts right after cooldown, counts[0] is still merged into counts[1]
+	// before `defer s.writeMtx.Unlock()` runs.
+	func() {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected panic from Write(nil)")
+			}
+		}()
+		_ = s.Write(nil)
+	}()
+
+	writeDone := make(chan error, 1)
+	var out dto.Metric
+	go func() {
+		writeDone <- s.Write(&out)
+	}()
+
+	select {
+	case err := <-writeDone:
+		if err != nil {
+			t.Fatalf("unexpected Write error: %v", err)
+		}
+		if got := out.GetSummary().GetSampleCount(); got != 1 {
+			t.Fatalf("expected sample count 1, got %d", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Write timed out spinning in cooldown")
 	}
 }

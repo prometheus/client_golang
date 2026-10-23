@@ -337,7 +337,7 @@ func TestScrapeAndCompare(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, expected)
 	}))
 	defer ts.Close()
@@ -362,7 +362,7 @@ func TestScrapeAndCompareWithMultipleExpected(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintln(w, expected)
 	}))
 	defer ts.Close()
@@ -392,7 +392,7 @@ func TestScrapeAndCompareBadStatusCode(t *testing.T) {
 
 	expectedReader := strings.NewReader(expected)
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 		fmt.Fprintln(w, expected)
 	}))
@@ -435,9 +435,14 @@ func TestCollectAndCount(t *testing.T) {
 }
 
 func TestCollectAndFormat(t *testing.T) {
-	const expected = `# HELP foo_bar A value that represents the number of bars in foo.
+	const text = `# HELP foo_bar A value that represents the number of bars in foo.
 # TYPE foo_bar counter
 foo_bar{fizz="bang"} 1
+`
+	const openMetrics = `# HELP foo_bar A value that represents the number of bars in foo.
+# TYPE foo_bar unknown
+foo_bar{fizz="bang"} 1.0
+# EOF
 `
 	c := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -448,17 +453,87 @@ foo_bar{fizz="bang"} 1
 	)
 	c.WithLabelValues("bang").Inc()
 
-	got, err := CollectAndFormat(c, expfmt.TypeTextPlain, "foo_bar")
-	if err != nil {
-		t.Errorf("unexpected error: %s", err.Error())
+	for _, test := range []struct {
+		name       string
+		format     expfmt.FormatType
+		metricName string
+		expected   string
+	}{
+		{"Text", expfmt.TypeTextPlain, "foo_bar", text},
+		{"OpenMetrics", expfmt.TypeOpenMetrics, "foo_bar", openMetrics},
+		{"TextNoMatch", expfmt.TypeTextPlain, "missing", ""},
+		{"OpenMetricsNoMatch", expfmt.TypeOpenMetrics, "missing", "# EOF\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := CollectAndFormat(c, test.format, test.metricName)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if string(got) != test.expected {
+				t.Errorf("unexpected metric output, got %q, expected %q", got, test.expected)
+			}
+		})
 	}
+}
 
-	gotS := string(got)
-	if err != nil {
-		t.Errorf("unexpected error: %s", err.Error())
+func TestGatherAndFormat(t *testing.T) {
+	const text = `# HELP foo_bar A value that represents the number of bars in foo.
+# TYPE foo_bar counter
+foo_bar{fizz="bang"} 1
+`
+	const openMetrics = `# HELP foo_bar A value that represents the number of bars in foo.
+# TYPE foo_bar unknown
+foo_bar{fizz="bang"} 1.0
+`
+	const otherOpenMetrics = `# HELP other A metric that should be filtered out.
+# TYPE other counter
+other_total 1.0
+`
+	reg := prometheus.NewPedanticRegistry()
+	want := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "foo_bar",
+			Help: "A value that represents the number of bars in foo.",
+		},
+		[]string{"fizz"},
+	)
+	other := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "other_total",
+		Help: "A metric that should be filtered out.",
+	})
+	if err := reg.Register(want); err != nil {
+		t.Fatal(err)
 	}
+	if err := reg.Register(other); err != nil {
+		t.Fatal(err)
+	}
+	want.WithLabelValues("bang").Inc()
+	other.Inc()
 
-	if gotS != expected {
-		t.Errorf("unexpected metric output, got %q, expected %q", gotS, expected)
+	for _, test := range []struct {
+		name        string
+		gatherer    prometheus.Gatherer
+		format      expfmt.FormatType
+		metricNames []string
+		expected    string
+	}{
+		{"Text", reg, expfmt.TypeTextPlain, []string{"foo_bar"}, text},
+		{"OpenMetrics", reg, expfmt.TypeOpenMetrics, []string{"foo_bar"}, openMetrics + "# EOF\n"},
+		{"OpenMetricsMultipleFamilies", reg, expfmt.TypeOpenMetrics, []string{"foo_bar", "other_total"}, openMetrics + otherOpenMetrics + "# EOF\n"},
+		{"OpenMetricsNoNames", reg, expfmt.TypeOpenMetrics, nil, openMetrics + otherOpenMetrics + "# EOF\n"},
+		{"TextNoMatch", reg, expfmt.TypeTextPlain, []string{"missing"}, ""},
+		{"OpenMetricsNoMatch", reg, expfmt.TypeOpenMetrics, []string{"missing"}, "# EOF\n"},
+		{"TextEmptyRegistry", prometheus.NewPedanticRegistry(), expfmt.TypeTextPlain, []string{"foo_bar"}, ""},
+		{"OpenMetricsEmptyRegistry", prometheus.NewPedanticRegistry(), expfmt.TypeOpenMetrics, []string{"foo_bar"}, "# EOF\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := GatherAndFormat(test.gatherer, test.format, test.metricNames...)
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if string(got) != test.expected {
+				t.Errorf("unexpected metric output, got %q, expected %q", got, test.expected)
+			}
+		})
 	}
 }

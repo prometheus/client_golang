@@ -7,7 +7,9 @@ linters:
     - depguard
     - durationcheck
     - errorlint
+    - govet
     - misspell
+    - modernize
     - nolintlint
     - perfsprint
     - predeclared
@@ -24,13 +26,9 @@ linters:
     rules:
       - linters:
           - errcheck
-          - govet
           - nolintlint
           - structcheck
         path: _test.go
-      - linters:
-          - govet
-        text: "buildtag: \\+build line is no longer needed"
     paths:
       - ^.*\.(pb|y)\.go$
     warn-unused: true
@@ -51,6 +49,11 @@ linters:
         - (*github.com/cespare/xxhash/v2.Digest).Write
         - (*github.com/cespare/xxhash/v2.Digest).WriteString
         - (*bufio.Writer).WriteRune
+    govet:
+      disable:
+        - shadow
+        - fieldalignment
+      enable-all: true
     perfsprint:
       # Optimizes even if it requires an int or uint type cast.
       int-conversion: true
@@ -62,11 +65,6 @@ linters:
       sprintf1: true
       # Optimizes into strings concatenation.
       strconcat: true
-    revive:
-      rules:
-        - name: unused-parameter
-          severity: warning
-          disabled: true
 formatters:
   enable:
     - gofmt
@@ -74,7 +72,8 @@ formatters:
     - goimports
   settings:
     gofumpt:
-      extra-rules: true
+      extra:
+        group-params: true
     goimports:
       local-prefixes:
         - github.com/prometheus/client_golang

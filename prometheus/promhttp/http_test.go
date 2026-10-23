@@ -22,6 +22,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"go.uber.org/goleak"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,10 +40,7 @@ import (
 
 type errorCollector struct{}
 
-const (
-	acceptHeader    = "Accept"
-	acceptTextPlain = "text/plain"
-)
+const acceptTextPlain = "text/plain"
 
 func (e errorCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("invalid_metric", "not helpful", nil, nil)
@@ -62,7 +61,7 @@ func (b blockingCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- prometheus.NewDesc("dummy_desc", "not helpful", nil, nil)
 }
 
-func (b blockingCollector) Collect(ch chan<- prometheus.Metric) {
+func (b blockingCollector) Collect(_ chan<- prometheus.Metric) {
 	select {
 	case b.CollectStarted <- struct{}{}:
 	default:
@@ -284,7 +283,7 @@ func TestInstrumentMetricHandler(t *testing.T) {
 		t.Errorf("got body %q, does not contain %q", got, want)
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		writer.Body.Reset()
 		handler.ServeHTTP(writer, request)
 
@@ -407,7 +406,7 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 		t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		writer.Body.Reset()
 		handler.ServeHTTP(writer, request)
 
@@ -482,6 +481,38 @@ func TestInstrumentMetricHandlerWithCompression(t *testing.T) {
 		if got := body; !strings.Contains(got, want) {
 			t.Errorf("got body %q, does not contain %q, err: %v", got, want, err)
 		}
+	}
+}
+
+func TestHandlerSetsVaryHeader(t *testing.T) {
+	testCases := []struct {
+		name               string
+		disableCompression bool
+		want               string
+	}{
+		{
+			name: "compression enabled",
+			want: "Accept, Accept-Encoding",
+		},
+		{
+			name:               "compression disabled",
+			disableCompression: true,
+			want:               "Accept",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := HandlerFor(prometheus.NewRegistry(), HandlerOpts{DisableCompression: tc.disableCompression})
+			writer := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/", nil)
+
+			handler.ServeHTTP(writer, request)
+
+			if got := strings.Join(writer.Header().Values(varyHeader), ", "); got != tc.want {
+				t.Errorf("got Vary header %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 
@@ -584,6 +615,13 @@ http_request_duration_seconds_total 42.0
 	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
 		t.Errorf("expected body:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
 	}
+
+	// The unit must also be kept when the registry is wrapped in Gatherers.
+	writer = httptest.NewRecorder()
+	HandlerFor(prometheus.Gatherers{reg}, HandlerOpts{EnableOpenMetrics: true}).ServeHTTP(writer, request)
+	if got := writer.Body.String(); got != expectedOpenMetricsOutput {
+		t.Errorf("expected body through Gatherers:\n%s\ngot:\n%s", expectedOpenMetricsOutput, got)
+	}
 }
 
 func TestHandlerWithEmptyUnit(t *testing.T) {
@@ -680,6 +718,435 @@ rocket_launches_total 3.0
 	}
 }
 
+func TestHandlerOpenMetricsNegotiation(t *testing.T) {
+	for _, tc := range []struct {
+		name                string
+		accept              string
+		enableOpenMetrics   bool
+		acceptedFormats     []expfmt.Format
+		expectedContentType string
+		expectedBodyPattern string
+		expectedBody        string
+	}{
+		{
+			name:                "OpenMetrics 2.0 explicit accept via AcceptedFormats",
+			accept:              "application/openmetrics-text;version=2.0.0",
+			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0},
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 2.0 preferred by q-value over 1.0.0 via AcceptedFormats",
+			accept:              "application/openmetrics-text;version=2.0.0;q=0.9, application/openmetrics-text;version=1.0.0;q=0.8",
+			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0, expfmt.FmtOpenMetrics_1_0_0},
+			expectedContentType: "application/openmetrics-text; version=2.0.0; charset=utf-8; escaping=underscores",
+			expectedBodyPattern: `^# HELP http_requests_total Total number of HTTP requests\.
+# TYPE http_requests_total counter
+http_requests_total 10\.0 st@\d+(\.\d+)?
+# EOF
+$`,
+		},
+		{
+			name:                "OpenMetrics 1.0.0 preferred by q-value over 2.0.0 via AcceptedFormats",
+			accept:              "application/openmetrics-text;version=1.0.0;q=0.9, application/openmetrics-text;version=2.0.0;q=0.8",
+			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0, expfmt.FmtOpenMetrics_1_0_0},
+			expectedContentType: "application/openmetrics-text; version=1.0.0; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`,
+		},
+		{
+			name:                "OpenMetrics 1.0.0 explicit accept with EnableOpenMetrics",
+			accept:              "application/openmetrics-text;version=1.0.0",
+			enableOpenMetrics:   true,
+			expectedContentType: "application/openmetrics-text; version=1.0.0; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests Total number of HTTP requests.
+# TYPE http_requests counter
+http_requests_total 10.0
+# EOF
+`,
+		},
+		{
+			name:                "OpenMetrics 2.0 requested falls back to text when AcceptedFormats is unset",
+			accept:              "application/openmetrics-text;version=2.0.0",
+			enableOpenMetrics:   true,
+			expectedContentType: "text/plain; version=0.0.4; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests_total Total number of HTTP requests.
+# TYPE http_requests_total counter
+http_requests_total 10
+`,
+		},
+		{
+			name:                "OpenMetrics 2.0 requested but EnableOpenMetrics is false",
+			accept:              "application/openmetrics-text;version=2.0.0",
+			enableOpenMetrics:   false,
+			expectedContentType: "text/plain; version=0.0.4; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests_total Total number of HTTP requests.
+# TYPE http_requests_total counter
+http_requests_total 10
+`,
+		},
+		{
+			name:                "OpenMetrics 2.0 via AcceptedFormats with fallback to text",
+			accept:              "text/plain",
+			acceptedFormats:     []expfmt.Format{expfmt.FmtOpenMetrics_2_0_0, expfmt.FmtText},
+			expectedContentType: "text/plain; version=0.0.4; charset=utf-8; escaping=underscores",
+			expectedBody: `# HELP http_requests_total Total number of HTTP requests.
+# TYPE http_requests_total counter
+http_requests_total 10
+`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests.",
+			})
+			reg.MustRegister(counter)
+			counter.Add(10)
+
+			handler := HandlerFor(reg, HandlerOpts{
+				EnableOpenMetrics: tc.enableOpenMetrics,
+				AcceptedFormats:   tc.acceptedFormats,
+			})
+			writer := httptest.NewRecorder()
+			request, err := http.NewRequest(http.MethodGet, "/", nil)
+			if err != nil {
+				t.Fatalf("unexpected error creating request: %v", err)
+			}
+			request.Header.Add(acceptHeader, tc.accept)
+
+			handler.ServeHTTP(writer, request)
+
+			if got := writer.Header().Get(contentTypeHeader); got != tc.expectedContentType {
+				t.Errorf("expected Content-Type %q, got %q", tc.expectedContentType, got)
+			}
+
+			if tc.expectedBodyPattern != "" {
+				matched, err := regexp.MatchString(tc.expectedBodyPattern, writer.Body.String())
+				if err != nil {
+					t.Fatalf("invalid regexp pattern %q: %v", tc.expectedBodyPattern, err)
+				}
+				if !matched {
+					t.Errorf("expected body matching pattern:\n%s\ngot:\n%s", tc.expectedBodyPattern, writer.Body.String())
+				}
+			} else if got := writer.Body.String(); got != tc.expectedBody {
+				t.Errorf("expected body:\n%s\ngot:\n%s", tc.expectedBody, got)
+			}
+		})
+	}
+}
+
+func TestHandlerExemplarTruncation(t *testing.T) {
+	bigVal := strings.Repeat("a", 80)
+	oversizedLabels := prometheus.Labels{
+		"trace_id":   "4bf92f3577b34da6a3ce929d0e0e4736", // 8 + 32 = 40 runes.
+		"span_id":    "00f067aa0ba902b7",                 // 7 + 16 = 23 runes.
+		"attr_big":   bigVal,                             // 8 + 80 = 88 runes (exceeds remaining 65 runes).
+		"attr_small": "ok",                               // 10 + 2 = 12 runes (fits in remaining 65 runes).
+	}
+
+	for _, tc := range []struct {
+		name              string
+		accept            string
+		exemplarLabels    prometheus.Labels
+		wantSubstrings    []string
+		wantNotSubstrings []string
+	}{
+		{
+			name:           "OM 1.0 truncates oversized exemplar prioritizing trace_id and span_id",
+			accept:         "application/openmetrics-text;version=1.0.0",
+			exemplarLabels: oversizedLabels,
+			wantSubstrings: []string{
+				`# {trace_id="4bf92f3577b34da6a3ce929d0e0e4736",span_id="00f067aa0ba902b7",attr_small="ok"} 1.0`,
+				`# {trace_id="4bf92f3577b34da6a3ce929d0e0e4736",span_id="00f067aa0ba902b7",attr_small="ok"} 0.5`,
+			},
+			wantNotSubstrings: []string{
+				"attr_big",
+			},
+		},
+		{
+			name:           "OM 0.0.1 truncates oversized exemplar prioritizing trace_id and span_id",
+			accept:         "application/openmetrics-text;version=0.0.1",
+			exemplarLabels: oversizedLabels,
+			wantSubstrings: []string{
+				`# {trace_id="4bf92f3577b34da6a3ce929d0e0e4736",span_id="00f067aa0ba902b7",attr_small="ok"} 1.0`,
+			},
+			wantNotSubstrings: []string{
+				"attr_big",
+			},
+		},
+		{
+			name:   "OM 1.0 omits exemplar when single label exceeds 128 runes",
+			accept: "application/openmetrics-text;version=1.0.0",
+			exemplarLabels: prometheus.Labels{
+				"huge": strings.Repeat("x", 130),
+			},
+			wantSubstrings: []string{
+				"http_requests_total 1.0\n",
+			},
+			wantNotSubstrings: []string{
+				"huge",
+				"# {",
+			},
+		},
+		{
+			name:           "OM 2.0 preserves full exemplar above 128 runes",
+			accept:         "application/openmetrics-text;version=2.0.0",
+			exemplarLabels: oversizedLabels,
+			wantSubstrings: []string{
+				`attr_big="` + bigVal + `"`,
+				`attr_small="ok"`,
+				`span_id="00f067aa0ba902b7"`,
+				`trace_id="4bf92f3577b34da6a3ce929d0e0e4736"`,
+			},
+		},
+		{
+			name:           "Protobuf text preserves full exemplar above 128 runes",
+			accept:         "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=text",
+			exemplarLabels: oversizedLabels,
+			wantSubstrings: []string{
+				bigVal,
+				"4bf92f3577b34da6a3ce929d0e0e4736",
+				"00f067aa0ba902b7",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests.",
+			})
+			hist := prometheus.NewHistogram(prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds",
+				Help:    "HTTP request duration.",
+				Buckets: []float64{1.0},
+			})
+			reg.MustRegister(counter, hist)
+
+			counter.(prometheus.ExemplarAdder).AddWithExemplar(1, tc.exemplarLabels)
+			hist.(prometheus.ExemplarObserver).ObserveWithExemplar(0.5, tc.exemplarLabels)
+
+			handler := HandlerFor(reg, HandlerOpts{
+				AcceptedFormats: []expfmt.Format{
+					expfmt.FmtOpenMetrics_2_0_0,
+					expfmt.FmtOpenMetrics_1_0_0,
+					expfmt.FmtOpenMetrics_0_0_1,
+					expfmt.FmtProtoText,
+					expfmt.FmtText,
+				},
+			})
+
+			writer := httptest.NewRecorder()
+			req, err := http.NewRequest(http.MethodGet, "/", nil)
+			if err != nil {
+				t.Fatalf("unexpected error creating request: %v", err)
+			}
+			req.Header.Set(acceptHeader, tc.accept)
+			handler.ServeHTTP(writer, req)
+
+			body := writer.Body.String()
+			for _, sub := range tc.wantSubstrings {
+				if !strings.Contains(body, sub) {
+					t.Errorf("expected body to contain %q, got:\n%s", sub, body)
+				}
+			}
+			for _, sub := range tc.wantNotSubstrings {
+				if strings.Contains(body, sub) {
+					t.Errorf("expected body not to contain %q, got:\n%s", sub, body)
+				}
+			}
+		})
+	}
+
+	t.Run("OM 1.0 truncation does not mutate stored exemplar for subsequent OM 2.0 scrape", func(t *testing.T) {
+		reg := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests.",
+		})
+		reg.MustRegister(counter)
+		counter.(prometheus.ExemplarAdder).AddWithExemplar(1, oversizedLabels)
+
+		handler := HandlerFor(reg, HandlerOpts{
+			AcceptedFormats: []expfmt.Format{
+				expfmt.FmtOpenMetrics_2_0_0,
+				expfmt.FmtOpenMetrics_1_0_0,
+			},
+		})
+
+		// First scrape with OM 1.0 (truncates exemplar).
+		w1 := httptest.NewRecorder()
+		req1, _ := http.NewRequest(http.MethodGet, "/", nil)
+		req1.Header.Set(acceptHeader, "application/openmetrics-text;version=1.0.0")
+		handler.ServeHTTP(w1, req1)
+		if strings.Contains(w1.Body.String(), "attr_big") {
+			t.Fatalf("expected OM 1.0 response to drop attr_big, got:\n%s", w1.Body.String())
+		}
+
+		// Second scrape with OM 2.0 must still see attr_big.
+		w2 := httptest.NewRecorder()
+		req2, _ := http.NewRequest(http.MethodGet, "/", nil)
+		req2.Header.Set(acceptHeader, "application/openmetrics-text;version=2.0.0")
+		handler.ServeHTTP(w2, req2)
+		if !strings.Contains(w2.Body.String(), `attr_big="`+bigVal+`"`) {
+			t.Fatalf("expected OM 2.0 response after OM 1.0 scrape to retain attr_big, got:\n%s", w2.Body.String())
+		}
+	})
+
+	t.Run("coalesced OM 1.0 and OM 2.0 scrapes do not race or leak truncated exemplars", func(t *testing.T) {
+		defer goleak.VerifyNone(t)
+
+		reg := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests.",
+		})
+		hist := prometheus.NewHistogram(prometheus.HistogramOpts{
+			Name:                        "http_request_duration_seconds",
+			Help:                        "HTTP request duration.",
+			Buckets:                     []float64{1.0},
+			NativeHistogramBucketFactor: 1.1,
+		})
+		block := make(chan struct{})
+		started := make(chan struct{}, 1)
+		reg.MustRegister(counter, hist, blockingCollector{CollectStarted: started, Block: block})
+
+		counter.(prometheus.ExemplarAdder).AddWithExemplar(1, oversizedLabels)
+		hist.(prometheus.ExemplarObserver).ObserveWithExemplar(0.5, oversizedLabels)
+
+		cg := &coalescingGatherer{g: &syncGatherCounter{g: reg}}
+		handler := HandlerForTransactional(cg, HandlerOpts{
+			AcceptedFormats: []expfmt.Format{
+				expfmt.FmtOpenMetrics_2_0_0,
+				expfmt.FmtOpenMetrics_1_0_0,
+				expfmt.FmtProtoText,
+			},
+		})
+
+		w1 := httptest.NewRecorder()
+		req1, _ := http.NewRequest(http.MethodGet, "/", nil)
+		req1.Header.Set(acceptHeader, "application/openmetrics-text;version=1.0.0")
+
+		w2 := httptest.NewRecorder()
+		req2, _ := http.NewRequest(http.MethodGet, "/", nil)
+		req2.Header.Set(acceptHeader, "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=text")
+
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			handler.ServeHTTP(w1, req1)
+		})
+		<-started
+		wg.Go(func() {
+			handler.ServeHTTP(w2, req2)
+		})
+		waitForRefs(t, cg, 2)
+		close(block)
+		wg.Wait()
+
+		if strings.Contains(w1.Body.String(), "attr_big") {
+			t.Fatalf("expected coalesced OM 1.0 response to drop attr_big, got:\n%s", w1.Body.String())
+		}
+		if !strings.Contains(w2.Body.String(), bigVal) {
+			t.Fatalf("expected coalesced Protobuf response to retain attr_big, got:\n%s", w2.Body.String())
+		}
+	})
+}
+
+// Recommended CLI invocation:
+//
+//	export bench=trunc && go test ./prometheus/promhttp/... \
+//		-run '^$' -bench '^BenchmarkTruncateMetricFamilyExemplars' \
+//		-benchtime 1s -count 6 -cpu 2 -timeout 999m -benchmem \
+//		| tee ${bench}.txt
+func BenchmarkTruncateMetricFamilyExemplars(b *testing.B) {
+	const metricCount = 100
+	withinLimitLabels := prometheus.Labels{
+		"trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+		"span_id":  "00f067aa0ba902b7",
+	}
+	oversizedLabels := prometheus.Labels{
+		"trace_id":   "4bf92f3577b34da6a3ce929d0e0e4736",
+		"span_id":    "00f067aa0ba902b7",
+		"attr_big":   strings.Repeat("a", 80),
+		"attr_small": "ok",
+	}
+	singleOversizedLabels := prometheus.Labels{
+		"huge": strings.Repeat("x", 130),
+	}
+
+	buildMetricFamily := func(tb testing.TB, labelsForIdx func(i int) prometheus.Labels) *dto.MetricFamily {
+		tb.Helper()
+		reg := prometheus.NewRegistry()
+		cv := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests.",
+		}, []string{"series"})
+		reg.MustRegister(cv)
+		for i := range metricCount {
+			c := cv.WithLabelValues(fmt.Sprintf("s_%d", i))
+			if l := labelsForIdx(i); l != nil {
+				c.(prometheus.ExemplarAdder).AddWithExemplar(1, l)
+			} else {
+				c.Inc()
+			}
+		}
+		mfs, err := reg.Gather()
+		if err != nil || len(mfs) != 1 {
+			tb.Fatalf("unexpected gather result: len=%d, err=%v", len(mfs), err)
+		}
+		return mfs[0]
+	}
+
+	for _, tc := range []struct {
+		name         string
+		labelsForIdx func(i int) prometheus.Labels
+	}{
+		{
+			name:         "exemplar=none",
+			labelsForIdx: func(int) prometheus.Labels { return nil },
+		},
+		{
+			name:         "exemplar=within_limit",
+			labelsForIdx: func(int) prometheus.Labels { return withinLimitLabels },
+		},
+		{
+			name: "exemplar=1_of_100_oversized",
+			labelsForIdx: func(i int) prometheus.Labels {
+				if i == metricCount-1 {
+					return oversizedLabels
+				}
+				return withinLimitLabels
+			},
+		},
+		{
+			name:         "exemplar=all_oversized",
+			labelsForIdx: func(int) prometheus.Labels { return oversizedLabels },
+		},
+		{
+			name:         "exemplar=all_single_oversized_dropped",
+			labelsForIdx: func(int) prometheus.Labels { return singleOversizedLabels },
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			mf := buildMetricFamily(b, tc.labelsForIdx)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = truncateMetricFamilyExemplars(mf, openMetrics1ExemplarMaxRunes)
+			}
+		})
+	}
+}
+
 func BenchmarkCompression(b *testing.B) {
 	benchmarks := []struct {
 		name            string
@@ -760,8 +1227,8 @@ func BenchmarkCompression(b *testing.B) {
 		}
 
 		for _, benchmark := range benchmarks {
-			b.Run(benchmark.name+"_"+size.name, func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
+			b.Run("op="+benchmark.name+",size="+size.name, func(b *testing.B) {
+				for b.Loop() {
 					writer := httptest.NewRecorder()
 					request, _ := http.NewRequest(http.MethodGet, "/", nil)
 					request.Header.Add(acceptEncodingHeader, benchmark.compressionType)

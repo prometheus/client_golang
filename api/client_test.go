@@ -97,6 +97,14 @@ func TestClientURL(t *testing.T) {
 			},
 			expected: "http://localhost:9090/test/:param",
 		},
+		{
+			address:  "http://localhost:9090",
+			endpoint: "/test/:foobar",
+			args: map[string]string{
+				"foo": "content",
+			},
+			expected: "http://localhost:9090/test/:foobar",
+		},
 	}
 
 	for _, test := range tests {
@@ -166,7 +174,7 @@ func TestDoContextCancellation(t *testing.T) {
 
 func TestDoContextCancellationSlowServer(t *testing.T) {
 	serverDone := make(chan struct{})
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
@@ -217,7 +225,7 @@ type serveSpaces struct {
 	sizeKB int
 }
 
-func (t serveSpaces) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (t serveSpaces) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	kb := bytes.Repeat([]byte{' '}, 1024)
 	for i := 0; i < t.sizeKB; i++ {
 		w.Write(kb)
@@ -229,7 +237,7 @@ func BenchmarkClient(b *testing.B) {
 	ctx := context.Background()
 
 	for _, sizeKB := range []int{4, 50, 1000, 2000} {
-		b.Run(fmt.Sprintf("%dKB", sizeKB), func(b *testing.B) {
+		b.Run(fmt.Sprintf("size=%dKB", sizeKB), func(b *testing.B) {
 			testServer := httptest.NewServer(serveSpaces{sizeKB})
 			defer testServer.Close()
 
@@ -246,14 +254,12 @@ func BenchmarkClient(b *testing.B) {
 			req := &http.Request{
 				URL: url,
 			}
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				_, _, err := client.Do(ctx, req)
 				if err != nil {
 					b.Fatalf("Query failed: %v", err)
 				}
 			}
-			b.StopTimer()
 		})
 	}
 }

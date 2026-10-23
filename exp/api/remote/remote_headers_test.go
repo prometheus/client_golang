@@ -115,4 +115,58 @@ func TestWriteResponse(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("writeHeaders v2 202 Accepted without confirmed stats omits written headers", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStatusCode(http.StatusAccepted)
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV2MessageType, w)
+
+		if got := w.Header().Get("Custom-Header"); got != "custom-value" {
+			t.Errorf("header %q: want %q, got %q", "Custom-Header", "custom-value", got)
+		}
+		for _, h := range []string{writtenSamplesHeader, writtenHistogramsHeader, writtenExemplarsHeader} {
+			if got := w.Header().Get(h); got != "" {
+				t.Errorf("expected header %q to be omitted on unconfirmed 202 Accepted, got %q", h, got)
+			}
+		}
+		if !resp.Stats().Async {
+			t.Errorf("expected Async to be true on 202 Accepted")
+		}
+		if resp.Stats().Confirmed() {
+			t.Errorf("expected Confirmed() to be false when Add was not called")
+		}
+	})
+
+	t.Run("writeHeaders v2 202 Accepted with confirmed stats sets written headers", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStatusCode(http.StatusAccepted)
+		resp.Add(WriteResponseStats{
+			Samples:    3,
+			Histograms: 1,
+			Exemplars:  2,
+		})
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV2MessageType, w)
+
+		expectedHeaders := map[string]string{
+			writtenSamplesHeader:    "3",
+			writtenHistogramsHeader: "1",
+			writtenExemplarsHeader:  "2",
+		}
+		for k, want := range expectedHeaders {
+			if got := w.Header().Get(k); got != want {
+				t.Errorf("header %q: want %q, got %q", k, want, got)
+			}
+		}
+		if !resp.Stats().Async {
+			t.Errorf("expected Async to be true on 202 Accepted")
+		}
+		if !resp.Stats().Confirmed() {
+			t.Errorf("expected Confirmed() to be true after Add")
+		}
+	})
 }
