@@ -278,7 +278,8 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, msg any, opts
 		if err == nil {
 			// Check the case mentioned in PRW 2.0.
 			// https://prometheus.io/docs/specs/remote_write_spec_2_0/#required-written-response-headers.
-			if msgType == WriteV2MessageType && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
+			// Asynchronous receivers returning 202 Accepted may omit written response headers.
+			if msgType == WriteV2MessageType && !accumulatedStats.Async && !accumulatedStats.confirmed && accumulatedStats.NoDataWritten() {
 				// TODO(bwplotka): Allow users to disable this check or provide their stats for us to know if it's empty.
 				return accumulatedStats, fmt.Errorf("sent v2 request; "+
 					"got 2xx, but PRW 2.0 response header statistics indicate %v samples, %v histograms "+
