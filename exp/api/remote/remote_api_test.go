@@ -369,8 +369,8 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		if got := rec.Header().Get("Accept"); got != wantAccept {
 			t.Errorf("Accept header mismatch: want %q, got %q", wantAccept, got)
 		}
-		if got := rec.Header().Get("Accept-Encoding"); got != string(SnappyBlockCompression) {
-			t.Errorf("Accept-Encoding header mismatch: want %q, got %q", SnappyBlockCompression, got)
+		if got := rec.Header().Get("Accept-Encoding"); got != "" {
+			t.Errorf("expected no Accept-Encoding header on mode rejection, got %q", got)
 		}
 	})
 

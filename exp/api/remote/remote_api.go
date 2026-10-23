@@ -625,7 +625,6 @@ func (h *writeHandler) writeUnsupportedMediaType(w http.ResponseWriter, err erro
 	if accept := h.acceptHeaderValue(); accept != "" {
 		w.Header().Set("Accept", accept)
 	}
-	w.Header().Set("Accept-Encoding", string(SnappyBlockCompression))
 	http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 }
 
