@@ -22,6 +22,7 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/proto"
 )
 
 var separatorByteSlice = []byte{model.SeparatorByte} // For convenient use with xxhash.
@@ -186,8 +187,18 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 
 	switch {
 	case pb.Counter != nil:
+		// The wrapped Metric may return a *dto.Counter it owns (const metrics
+		// do), so copy it before setting the exemplar. Mutating it in place
+		// would race with concurrent Gather calls and would let a later Write
+		// change MetricFamilies returned by an earlier Gather.
+		pb.Counter = proto.Clone(pb.Counter).(*dto.Counter)
 		pb.Counter.Exemplar = m.exemplars[len(m.exemplars)-1]
 	case pb.Histogram != nil:
+		// Same as above: the wrapped Metric may return a *dto.Histogram it
+		// owns (const native histograms do), so copy it before appending
+		// exemplars. Otherwise every Write appends to the Metric's own
+		// exemplar slice, growing it with every scrape.
+		pb.Histogram = proto.Clone(pb.Histogram).(*dto.Histogram)
 		h := pb.Histogram
 		for _, e := range m.exemplars {
 			if (h.GetZeroThreshold() != 0 || h.GetZeroCount() != 0 ||
