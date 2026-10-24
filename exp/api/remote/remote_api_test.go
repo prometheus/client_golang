@@ -213,7 +213,6 @@ func TestWriteHandler_StatusCode(t *testing.T) {
 	}
 }
 
-
 type mockStorage struct {
 	v2Reqs []*writev2.Request
 	protos []WriteMessageType
