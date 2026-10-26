@@ -100,8 +100,8 @@ func (v2) NewMetricVec(opts MetricVecOpts) *MetricVec {
 	}
 }
 
-// CleanupExpired removes all children that have not been accessed within the
-// configured TTL. It returns the number of children removed. If TTL is less than
+// CleanupExpired removes all metrics that have not been accessed within the
+// configured TTL. It returns the number of metrics removed. If TTL is less than
 // or equal to zero, this is a no-op and returns 0.
 //
 // Registry.Gather invokes CleanupExpired for collectors implementing
@@ -109,6 +109,10 @@ func (v2) NewMetricVec(opts MetricVecOpts) *MetricVec {
 // yourself; client_golang does not start a background cleaner.
 func (m *MetricVec) CleanupExpired() int {
 	return m.cleanupExpired()
+}
+
+func (m *MetricVec) ttlEnabled() bool {
+	return m.ttl > 0
 }
 
 // DeleteLabelValues removes the metric where the variable labels are the same

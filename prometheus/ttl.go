@@ -19,14 +19,15 @@ import (
 )
 
 // ExpiredCleaner is implemented by collectors that support TTL-based cleanup of
-// unused children (for example MetricVec with a positive MetricVecOpts.TTL).
+// unused metrics (for example MetricVec with a positive MetricVecOpts.TTL).
 //
-// Registry.Gather invokes CleanupExpired on registered collectors. Vectors with
-// TTL <= 0 make CleanupExpired a no-op.
-// CleanupExpired returns the number of children removed and must be safe to
+// Registry.Gather invokes CleanupExpired on registered collectors when TTL is
+// enabled. Vectors with TTL <= 0 make CleanupExpired a no-op.
+// CleanupExpired returns the number of metrics removed and must be safe to
 // call concurrently with Collect and other CleanupExpired calls.
 type ExpiredCleaner interface {
 	CleanupExpired() int
+	ttlEnabled() bool
 }
 
 // ttlMetric is implemented by decorator wrappers that track last access time.
