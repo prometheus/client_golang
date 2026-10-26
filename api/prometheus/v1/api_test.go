@@ -473,6 +473,20 @@ func TestAPIs(t *testing.T) {
 			reqPath:   "/api/v1/label/U__app_2e_kubernetes_2e_io_2f_name/values",
 			res:       model.LabelValues{"val1", "val2"},
 		},
+		{
+			do:        doLabelValues(nil, ".", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/U___2e_/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
+		{
+			do:        doLabelValues(nil, "..", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/U___2e__2e_/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
 
 		{
 			do: doSeries("up", testTime.Add(-time.Minute), testTime),
