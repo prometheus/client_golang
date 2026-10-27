@@ -210,6 +210,7 @@ func (w *WriteResponse) SetStats(stats WriteResponseStats) {
 		return
 	}
 	w.WriteResponseStats = stats
+	w.Async = stats.Async || w.statusCode == http.StatusAccepted
 	w.confirmed = true
 }
 
@@ -340,7 +341,7 @@ func (s *WriteResponseStats) Add(rs WriteResponseStats) {
 // might NOT necessarily mean nothing was written. To represent that we set
 // s.confirmed = true only when seeing at least one valid response header.
 //
-// Error is returned when any of the headers fails to parse as int.
+// Error is returned when any of the headers fails to parse as int or has a negative count.
 func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error) {
 	var (
 		errs []error
@@ -351,6 +352,9 @@ func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error)
 		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Samples = 0
 			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Samples = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
 		} else {
 			s.Samples = val
 			s.confirmed = true
@@ -360,6 +364,9 @@ func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error)
 		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Histograms = 0
 			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Histograms = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
 		} else {
 			s.Histograms = val
 			s.confirmed = true
@@ -369,6 +376,9 @@ func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error)
 		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Exemplars = 0
 			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Exemplars = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
 		} else {
 			s.Exemplars = val
 			s.confirmed = true

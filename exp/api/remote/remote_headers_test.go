@@ -96,6 +96,40 @@ func TestWriteResponse(t *testing.T) {
 		}
 	})
 
+	t.Run("SetStats preserves Async when statusCode is StatusAccepted", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStatusCode(http.StatusAccepted)
+		if !resp.Stats().Async {
+			t.Fatal("expected Async to be true after SetStatusCode(StatusAccepted)")
+		}
+
+		resp.SetStats(WriteResponseStats{
+			Samples:    3,
+			Histograms: 4,
+			Exemplars:  5,
+		})
+		if !resp.Confirmed() {
+			t.Error("expected response to be confirmed after SetStats")
+		}
+		if !resp.Stats().Async {
+			t.Error("expected Async to be preserved after SetStats")
+		}
+	})
+
+	t.Run("SetStats preserves Async from stats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStats(WriteResponseStats{
+			Samples: 3,
+			Async:   true,
+		})
+		if !resp.Confirmed() {
+			t.Error("expected response to be confirmed after SetStats")
+		}
+		if !resp.Stats().Async {
+			t.Error("expected Async to be true when set via stats")
+		}
+	})
+
 	t.Run("writeHeaders v1", func(t *testing.T) {
 		resp := NewWriteResponse()
 		resp.SetExtraHeader("Custom-Header", "custom-value")
@@ -676,6 +710,80 @@ func TestParseWriteResponseStats(t *testing.T) {
 		stats, err := parseWriteResponseStats(resp)
 		if err == nil {
 			t.Fatal("expected error for non-integer header value, got nil")
+		}
+		if !stats.Confirmed() {
+			t.Error("expected confirmed to be true when at least one valid stats header is parsed")
+		}
+		if stats.Samples != 0 {
+			t.Errorf("expected Samples 0 on parse failure, got %d", stats.Samples)
+		}
+		if stats.Histograms != 13 {
+			t.Errorf("expected Histograms 13, got %d", stats.Histograms)
+		}
+	})
+
+	t.Run("negative header value returns error and unconfirmed stats", func(t *testing.T) {
+		testCases := []struct {
+			name   string
+			header http.Header
+		}{
+			{
+				name: "negative samples",
+				header: http.Header{
+					writtenSamplesHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "negative histograms",
+				header: http.Header{
+					writtenHistogramsHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "negative exemplars",
+				header: http.Header{
+					writtenExemplarsHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "all headers negative",
+				header: http.Header{
+					writtenSamplesHeader:    []string{"-1"},
+					writtenHistogramsHeader: []string{"-5"},
+					writtenExemplarsHeader:  []string{"-10"},
+				},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				resp := &http.Response{
+					Header: tc.header,
+				}
+				stats, err := parseWriteResponseStats(resp)
+				if err == nil {
+					t.Fatal("expected error for negative header value, got nil")
+				}
+				if stats.Confirmed() {
+					t.Error("expected confirmed to be false when header parsing fails and no other valid stats header exists")
+				}
+				if stats.Samples != 0 || stats.Histograms != 0 || stats.Exemplars != 0 {
+					t.Errorf("expected all stats counts to be 0 on parse failure, got %+v", stats)
+				}
+			})
+		}
+	})
+
+	t.Run("partial negative header value with some valid headers retains confirmation", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader:    []string{"-1"},
+				writtenHistogramsHeader: []string{"13"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err == nil {
+			t.Fatal("expected error for negative header value, got nil")
 		}
 		if !stats.Confirmed() {
 			t.Error("expected confirmed to be true when at least one valid stats header is parsed")
