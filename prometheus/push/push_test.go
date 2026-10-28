@@ -329,7 +329,7 @@ func TestPush(t *testing.T) {
 	}
 }
 
-func TestPushDotSegments(t *testing.T) {
+func TestPushPathSegments(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		job      string
@@ -341,6 +341,8 @@ func TestPushDotSegments(t *testing.T) {
 		{"dot grouping", "testjob", ".", "/metrics/job/testjob/instance@base64/Lg"},
 		{"dot-dot grouping", "testjob", "..", "/metrics/job/testjob/instance@base64/Li4"},
 		{"embedded dot", "test.job", "", "/metrics/job/test.job"},
+		{"space job", "test job", "", "/metrics/job/test job"},
+		{"space grouping", "testjob", "a b+c", "/metrics/job/testjob/instance/a b+c"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			mux := http.NewServeMux()

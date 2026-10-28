@@ -332,7 +332,7 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 // to '.' or '..' will trigger a base64 encoding of the affected component and
 // proper suffixing of the preceding component. Similarly, an empty grouping
 // label value will be encoded as base64 just with a single `=` padding character
-// (to avoid an empty path component). Other special characters use url.QueryEscape for
+// (to avoid an empty path component). Other special characters use url.PathEscape for
 // compatibility with older versions of the Pushgateway and better readability.
 func (p *Pusher) fullURL() string {
 	urlComponents := []string{}
@@ -353,7 +353,7 @@ func (p *Pusher) fullURL() string {
 
 // encodeComponent encodes the provided string with base64.RawURLEncoding in
 // case it contains '/' or equals '.' or '..', and as "=" in case it is empty.
-// Otherwise, it uses url.QueryEscape. It returns true when base64 encoding is used.
+// Otherwise, it uses url.PathEscape. It returns true when base64 encoding is used.
 func encodeComponent(s string) (string, bool) {
 	if s == "" {
 		return "=", true
@@ -361,5 +361,5 @@ func encodeComponent(s string) (string, bool) {
 	if strings.Contains(s, "/") || s == "." || s == ".." {
 		return base64.RawURLEncoding.EncodeToString([]byte(s)), true
 	}
-	return url.QueryEscape(s), false
+	return url.PathEscape(s), false
 }
