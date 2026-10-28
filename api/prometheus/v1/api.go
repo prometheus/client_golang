@@ -184,6 +184,12 @@ type API interface {
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
 	// FormatQuery formats a PromQL expression in a prettified way.
+	//
+	// The returned string is the raw JSON encoding of the formatted expression.
+	// It is wrapped in double quotes and its inner characters are escaped, e.g.
+	// `"up{job=\"prometheus\"}"`. To get the expression itself, decode the
+	// result with json.Unmarshal into a string, or use strconv.Unquote. This
+	// behavior is kept for backwards compatibility.
 	FormatQuery(ctx context.Context, query string) (string, error)
 }
 
