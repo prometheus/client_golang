@@ -687,7 +687,15 @@ func unwrapExpiredCleaner(c Collector) ExpiredCleaner {
 func (r *Registry) ttlEnabled() bool {
 	r.mtx.RLock()
 	defer r.mtx.RUnlock()
-	return len(r.expiredCleanersByID) > 0
+	if len(r.expiredCleanersByID) > 0 {
+		return true
+	}
+	for _, c := range r.uncheckedCollectors {
+		if unwrapExpiredCleaner(c) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // CleanupExpired calls CleanupExpired on registered collectors that implement
@@ -702,7 +710,7 @@ func (r *Registry) CleanupExpired() int {
 	var pooled *[]ExpiredCleaner
 
 	r.mtx.RLock()
-	if total := len(r.expiredCleanersByID); total > len(stackCleaners) {
+	if total := len(r.expiredCleanersByID) + len(r.uncheckedCollectors); total > len(stackCleaners) {
 		pooled = expiredCleanersPool.Get().(*[]ExpiredCleaner)
 		if cap(*pooled) < total {
 			*pooled = make([]ExpiredCleaner, 0, total)
@@ -711,6 +719,11 @@ func (r *Registry) CleanupExpired() int {
 	}
 	for _, cleaner := range r.expiredCleanersByID {
 		cleaners = append(cleaners, cleaner)
+	}
+	for _, c := range r.uncheckedCollectors {
+		if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
+			cleaners = append(cleaners, cleaner)
+		}
 	}
 	r.mtx.RUnlock()
 

@@ -217,7 +217,7 @@ func (c *trackingTTLCleaner) CleanupExpired() int {
 }
 
 func TestTTLRegistryCleanupRegistration(t *testing.T) {
-	for _, mode := range []string{"direct", "wrapped"} {
+	for _, mode := range []string{"direct", "wrapped", "unchecked"} {
 		t.Run(mode, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
@@ -227,31 +227,50 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 				collector prometheus.Collector = cleaner
 				alias     prometheus.Collector = prometheus.NewCounter(opts)
 			)
-			if mode == "wrapped" {
+			switch mode {
+			case "wrapped":
 				collector = prometheus.WrapCollectorWithPrefix("wrapped_", collector)
 				alias = prometheus.WrapCollectorWithPrefix("wrapped_", alias)
+			case "unchecked":
+				collector = &uncheckedTTLCleaner{Collector: cleaner, ExpiredCleaner: cleaner}
 			}
 			reg.MustRegister(collector)
 
 			outer := prometheus.NewRegistry()
 			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", reg))
 
-			if err := reg.Register(collector); err == nil {
+			err := reg.Register(collector)
+			want := 1
+			if mode == "unchecked" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				want = 2
+			} else if err == nil {
 				t.Fatal("expected duplicate registration to fail")
 			}
-			if n := outer.CleanupExpired(); n != 1 {
-				t.Fatalf("expected 1 cleanup call after registration, got %d", n)
+			if n := outer.CleanupExpired(); n != want {
+				t.Fatalf("expected %d cleanup calls after registration, got %d", want, n)
 			}
 
+			if mode == "unchecked" {
+				if reg.Unregister(collector) {
+					t.Fatal("unchecked collector should not be unregistered")
+				}
+				if n := outer.CleanupExpired(); n != 2 {
+					t.Fatal("failed unregistration changed the cleanup registrations")
+				}
+				return
+			}
 			if !reg.Unregister(alias) {
 				t.Fatal("could not unregister using an equivalent collector")
 			}
-			if n := outer.CleanupExpired(); n != 0 || cleaner.calls.Load() != 1 {
+			if n := outer.CleanupExpired(); n != 0 || cleaner.calls.Load() != int64(want) {
 				t.Fatal("cleanup called an unregistered collector")
 			}
 
 			reg.MustRegister(collector)
-			if n := outer.CleanupExpired(); n != 1 || cleaner.calls.Load() != 2 {
+			if n := outer.CleanupExpired(); n != 1 || cleaner.calls.Load() != int64(want+1) {
 				t.Fatal("cleanup did not track the re-registered collector")
 			}
 		})
@@ -440,9 +459,16 @@ func TestTTLConcurrentLookupAndCleanup(t *testing.T) {
 	}
 }
 
+type uncheckedTTLCleaner struct {
+	prometheus.Collector
+	prometheus.ExpiredCleaner
+}
+
+func (*uncheckedTTLCleaner) Describe(chan<- *prometheus.Desc) {}
+
 func TestTTLWrappedRegistryCleanup(t *testing.T) {
 	for _, cleanup := range []string{"gather", "manual"} {
-		for _, mode := range []string{"direct", "registerer", "collector", "nested_registry"} {
+		for _, mode := range []string{"direct", "registerer", "collector", "nested_registry", "unchecked", "nested_unchecked"} {
 			t.Run(cleanup+"/"+mode, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					const ttl = 100 * time.Millisecond
@@ -455,12 +481,16 @@ func TestTTLWrappedRegistryCleanup(t *testing.T) {
 					reg := prometheus.NewRegistry()
 
 					var collector prometheus.Collector = vec
+					if mode == "unchecked" || mode == "nested_unchecked" {
+						collector = &uncheckedTTLCleaner{Collector: vec, ExpiredCleaner: vec}
+					}
+
 					switch mode {
 					case "registerer":
 						prometheus.WrapRegistererWithPrefix("wrapped_", prometheus.WrapRegistererWith(prometheus.Labels{"scope": "test"}, reg)).MustRegister(collector)
 					case "collector":
 						reg.MustRegister(prometheus.WrapCollectorWithPrefix("wrapped_", prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, collector)))
-					case "nested_registry":
+					case "nested_registry", "nested_unchecked":
 						inner := prometheus.NewRegistry()
 						inner.MustRegister(collector)
 
