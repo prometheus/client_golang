@@ -48,6 +48,53 @@ var xxhashPool = sync.Pool{
 	},
 }
 
+// metricHashesPool holds the maps of metric hashes used for the duplicate
+// check. The map never leaves a Gather call, so it can be cleared and reused.
+var metricHashesPool sync.Pool
+
+// getMetricHashes returns an empty map of metric hashes, which the caller
+// returns with putMetricHashes. sizeHint is used if the pool is empty.
+func getMetricHashes(sizeHint int) map[uint64]struct{} {
+	if m, ok := metricHashesPool.Get().(map[uint64]struct{}); ok {
+		return m
+	}
+	return make(map[uint64]struct{}, sizeHint)
+}
+
+func putMetricHashes(m map[uint64]struct{}) {
+	clear(m)
+	metricHashesPool.Put(m)
+}
+
+// Registry.Gather returns its dto.Metric to the caller, so they can't be
+// reused, but allocating them in chunks saves one allocation per metric. A
+// caller that keeps a single metric keeps its whole chunk alive, so chunks
+// hold at most maxMetricChunk metrics. They are sized by the number of
+// metrics the previous Gather returned, so a small registry doesn't allocate
+// more than it needs.
+const (
+	minMetricChunk = 8
+	maxMetricChunk = 128
+)
+
+// metricAllocator hands out the dto.Metric of one Gather call.
+type metricAllocator struct {
+	chunk []dto.Metric
+	// expected is the number of metrics the Gather call is expected to
+	// return; it counts down as metrics are handed out.
+	expected int
+}
+
+func (a *metricAllocator) next() *dto.Metric {
+	if len(a.chunk) == 0 {
+		a.chunk = make([]dto.Metric, min(max(a.expected, minMetricChunk), maxMetricChunk))
+	}
+	a.expected--
+	m := &a.chunk[0]
+	a.chunk = a.chunk[1:]
+	return m
+}
+
 // DefaultRegisterer and DefaultGatherer are the implementations of the
 // Registerer and Gatherer interface a number of convenience functions in this
 // package act on. Initially, both variables point to the same Registry, which
@@ -464,7 +511,9 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	var (
 		checkedMetricChan   = make(chan Metric, capMetricChan)
 		uncheckedMetricChan = make(chan Metric, capMetricChan)
-		metricHashes        = make(map[uint64]struct{}, r.lastMetricCount.Load())
+		lastMetricCount     = int(r.lastMetricCount.Load())
+		metricHashes        = getMetricHashes(lastMetricCount)
+		metrics             = metricAllocator{expected: lastMetricCount}
 		wg                  sync.WaitGroup
 		safeErrs            = &SafeMultiError{} // To collect errors in a threadsafe way
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
@@ -489,6 +538,8 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		}
 	}
 	r.mtx.RUnlock()
+
+	defer putMetricHashes(metricHashes)
 
 	wg.Add(goroutineBudget)
 
@@ -549,6 +600,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metricHashes,
 				registeredDescIDs,
 				xxh,
+				&metrics,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -560,6 +612,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				metricHashes,
 				nil,
 				xxh,
+				&metrics,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -578,6 +631,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metricHashes,
 						registeredDescIDs,
 						xxh,
+						&metrics,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -589,6 +643,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						metricHashes,
 						nil,
 						xxh,
+						&metrics,
 					))
 				}
 				break
@@ -694,6 +749,7 @@ func processMetric(
 	metricHashes map[uint64]struct{},
 	registeredDescIDs map[uint64]struct{},
 	xxh *xxhash.Digest,
+	metrics *metricAllocator,
 ) error {
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
@@ -701,7 +757,7 @@ func processMetric(
 	if desc.err != nil {
 		return desc.err
 	}
-	dtoMetric := &dto.Metric{}
+	dtoMetric := metrics.next()
 	if err := metric.Write(dtoMetric); err != nil {
 		return fmt.Errorf("error collecting metric %v: %w", desc, err)
 	}
@@ -838,7 +894,8 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 			metricCount += len(mf.Metric)
 		}
 	}
-	metricHashes := make(map[uint64]struct{}, metricCount)
+	metricHashes := getMetricHashes(metricCount)
+	defer putMetricHashes(metricHashes)
 
 	for i, mfs := range mfsByGatherer {
 		if err := errsByGatherer[i]; err != nil {
