@@ -1505,8 +1505,6 @@ func (s *cleanupCallSpy) CleanupExpired() int {
 	return 0
 }
 
-func (s *cleanupCallSpy) ttlEnabled() bool { return true }
-
 func TestRegistryGatherCallsCleanup(t *testing.T) {
 	reg := NewRegistry()
 

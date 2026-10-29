@@ -27,6 +27,11 @@ import (
 // call concurrently with Collect and other CleanupExpired calls.
 type ExpiredCleaner interface {
 	CleanupExpired() int
+}
+
+// ttlChecker is implemented by built-in collectors that report whether TTL
+// cleanup is enabled.
+type ttlChecker interface {
 	ttlEnabled() bool
 }
 

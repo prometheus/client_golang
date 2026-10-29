@@ -202,16 +202,8 @@ func TestTTLRegistryCleanupAllocations(t *testing.T) {
 	}
 }
 
-func newTestTTLVec(name, help string) *prometheus.CounterVec {
-	return prometheus.V2.NewCounterVec(prometheus.CounterVecOpts{
-		CounterOpts:    prometheus.CounterOpts{Name: name, Help: help},
-		VariableLabels: prometheus.UnconstrainedLabels([]string{"code"}),
-		TTL:            time.Hour,
-	})
-}
-
 type trackingTTLCleaner struct {
-	*prometheus.CounterVec
+	prometheus.Counter
 	calls atomic.Int64
 }
 
@@ -225,10 +217,11 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
 
-			cleaner := &trackingTTLCleaner{CounterVec: newTestTTLVec("cleanup_registration", "Cleanup registration.")}
+			opts := prometheus.CounterOpts{Name: "cleanup_registration", Help: "Cleanup registration."}
+			cleaner := &trackingTTLCleaner{Counter: prometheus.NewCounter(opts)}
 			var (
 				collector prometheus.Collector = cleaner
-				alias     prometheus.Collector = newTestTTLVec("cleanup_registration", "Cleanup registration.")
+				alias     prometheus.Collector = prometheus.NewCounter(opts)
 			)
 			if mode == "wrapped" {
 				collector = prometheus.WrapCollectorWithPrefix("wrapped_", collector)
@@ -263,8 +256,8 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 
 func TestTTLRegistryCleanupConcurrentRegistration(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	first := &trackingTTLCleaner{CounterVec: newTestTTLVec("first_cleanup", "First cleaner.")}
-	second := &trackingTTLCleaner{CounterVec: newTestTTLVec("second_cleanup", "Second cleaner.")}
+	first := &trackingTTLCleaner{Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "first_cleanup", Help: "First cleaner."})}
+	second := &trackingTTLCleaner{Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "second_cleanup", Help: "Second cleaner."})}
 	reg.MustRegister(first)
 
 	var wg sync.WaitGroup
@@ -497,7 +490,7 @@ func TestTTLWrappedRegistryCleanup(t *testing.T) {
 }
 
 type panicTTLCleaner struct {
-	*prometheus.CounterVec
+	prometheus.Counter
 	unchecked bool
 }
 
@@ -539,7 +532,7 @@ func TestTTLRegistryCleanupCount(t *testing.T) {
 
 func (c *panicTTLCleaner) Describe(ch chan<- *prometheus.Desc) {
 	if !c.unchecked {
-		c.CounterVec.Describe(ch)
+		c.Counter.Describe(ch)
 	}
 }
 
@@ -550,8 +543,8 @@ func TestTTLCleanupPanicDoesNotHangGather(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				cleaner := &panicTTLCleaner{
-					CounterVec: newTestTTLVec("ttl_panic", "Panicking TTL cleaner."),
-					unchecked:  mode == "unchecked",
+					Counter:   prometheus.NewCounter(prometheus.CounterOpts{Name: "ttl_panic", Help: "Panicking TTL cleaner."}),
+					unchecked: mode == "unchecked",
 				}
 				reg := prometheus.NewRegistry()
 

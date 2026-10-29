@@ -667,10 +667,14 @@ func unwrapExpiredCleaner(c Collector) ExpiredCleaner {
 	if wc, ok := c.(*wrappingCollector); ok {
 		c = wc.unwrapRecursively()
 	}
-	if cleaner, ok := c.(ExpiredCleaner); ok && cleaner.ttlEnabled() {
-		return cleaner
+	cleaner, ok := c.(ExpiredCleaner)
+	if !ok {
+		return nil
 	}
-	return nil
+	if tc, ok := cleaner.(ttlChecker); ok && !tc.ttlEnabled() {
+		return nil
+	}
+	return cleaner
 }
 
 func (r *Registry) ttlEnabled() bool {
