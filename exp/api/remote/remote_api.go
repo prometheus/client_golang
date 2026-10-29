@@ -308,10 +308,8 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 			return accumulatedStats, err
 		}
 
-		// b.NumRetries() counts the retries made so far, so the attempt that just
-		// failed is attempt number b.NumRetries()+1 (the initial request is attempt 1).
-		// Capture it before NextDelay() below advances the counter.
-		failedAttempt := b.NumRetries() + 1
+		// NextDelay() increments the retry counter, so b.NumRetries() below is the
+		// number of the attempt that just failed (the initial request is attempt 1).
 		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
 
 		// Invoke retry callback if provided.
@@ -320,7 +318,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 		}
 
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff",
-			"err", err, "backoff", backoffDelay, "attempt", failedAttempt, "max_retries", r.opts.backoffConfig.MaxRetries)
+			"err", err, "backoff", backoffDelay, "attempt", b.NumRetries(), "max_retries", r.opts.backoffConfig.MaxRetries)
 		select {
 		case <-ctx.Done():
 			return WriteResponseStats{}, ctx.Err()
