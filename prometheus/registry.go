@@ -74,9 +74,10 @@ func init() {
 // pre-registered.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectorsByID:  map[uint64]Collector{},
-		descIDs:         map[uint64]struct{}{},
-		dimHashesByName: map[string]uint64{},
+		collectorsByID:      map[uint64]Collector{},
+		expiredCleanersByID: map[uint64]ExpiredCleaner{},
+		descIDs:             map[uint64]struct{}{},
+		dimHashesByName:     map[string]uint64{},
 	}
 }
 
@@ -287,11 +288,14 @@ func (errs MultiError) MaybeUnwrap() error {
 // metrics. See the Grouping example for how this can be done.
 type Registry struct {
 	mtx                   sync.RWMutex
-	collectorsByID        map[uint64]Collector // ID is a hash of the descIDs.
+	collectorsByID        map[uint64]Collector      // ID is a hash of the descIDs.
+	expiredCleanersByID   map[uint64]ExpiredCleaner // ID is a hash of the descIDs.
+	expiredCleaners       []ExpiredCleaner          // Immutable snapshot of expiredCleanersByID and uncheckedCollectors.
 	descIDs               map[uint64]struct{}
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+
 	// lastMetricCount is the number of metrics gathered by the previous
 	// Gather call. It is used to presize the map of metric hashes.
 	lastMetricCount atomic.Int64
@@ -361,6 +365,9 @@ func (r *Registry) Register(c Collector) error {
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
 		r.uncheckedCollectors = append(r.uncheckedCollectors, c)
+		if unwrapExpiredCleaner(c) != nil {
+			r.updateExpiredCleaners()
+		}
 		return nil
 	}
 	if existing, exists := r.collectorsByID[collectorID]; exists {
@@ -389,6 +396,10 @@ func (r *Registry) Register(c Collector) error {
 		r.descIDs[hash] = struct{}{}
 	}
 	maps.Copy(r.dimHashesByName, newDimHashesByName)
+	if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
+		r.expiredCleanersByID[collectorID] = cleaner
+		r.updateExpiredCleaners()
+	}
 	return nil
 }
 
@@ -421,12 +432,32 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
+	if _, exists := r.expiredCleanersByID[collectorID]; exists {
+		delete(r.expiredCleanersByID, collectorID)
+		r.updateExpiredCleaners()
+	}
 	for id := range descIDs {
 		delete(r.descIDs, id)
 	}
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.
 	return true
+}
+
+// updateExpiredCleaners rebuilds the immutable cleaner snapshot while holding
+// the registry lock. CleanupExpired reads this snapshot before releasing the
+// lock and invoking cleaner callbacks.
+func (r *Registry) updateExpiredCleaners() {
+	cleaners := make([]ExpiredCleaner, 0, len(r.expiredCleanersByID)+len(r.uncheckedCollectors))
+	for _, cleaner := range r.expiredCleanersByID {
+		cleaners = append(cleaners, cleaner)
+	}
+	for _, c := range r.uncheckedCollectors {
+		if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
+			cleaners = append(cleaners, cleaner)
+		}
+	}
+	r.expiredCleaners = cleaners
 }
 
 // MustRegister implements Registerer.
@@ -449,6 +480,11 @@ func (r *Registry) MustGather() []*dto.MetricFamily {
 }
 
 // Gather implements Gatherer.
+//
+// Before Collect, Gather calls CleanupExpired on registered collectors that
+// implement ExpiredCleaner, so expired Vec metrics can be reclaimed on scrape.
+// This includes collectors registered through wrapping collectors and nested
+// registries. Cleanup panics are recovered and reported as collection errors.
 func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 	r.mtx.RLock()
 
@@ -635,9 +671,53 @@ func safeCollect(c Collector, ch chan<- Metric) (err error) {
 			ch <- NewInvalidMetric(NewInvalidDesc(err), err)
 		}
 	}()
+	cleanupWrappedExpired(c)
 	c.Collect(ch)
 
 	return err
+}
+
+// Unwrap collectors before cleaning up expired metrics.
+// When called by safeCollect, cleanup panics are recovered there.
+func cleanupWrappedExpired(c Collector) int {
+	if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
+		return cleaner.CleanupExpired()
+	}
+	return 0
+}
+
+// Unwrap collectors before checking for ExpiredCleaner.
+func unwrapExpiredCleaner(c Collector) ExpiredCleaner {
+	if wc, ok := c.(*wrappingCollector); ok {
+		c = wc.unwrapRecursively()
+	}
+	cleaner, ok := c.(ExpiredCleaner)
+	if !ok {
+		return nil
+	}
+	if tc, ok := cleaner.(ttlChecker); ok && !tc.ttlEnabled() {
+		return nil
+	}
+	return cleaner
+}
+
+// CleanupExpired calls CleanupExpired on registered collectors that implement
+// ExpiredCleaner, including wrapped collectors and nested registries. It returns
+// the total number of metrics removed. Gather calls this automatically on each
+// registered collector; callers can also use this method without gathering metrics.
+// It is safe to call concurrently with registration, collection, and cleanup.
+// Unlike Gather, this method does not recover panics from collectors.
+func (r *Registry) CleanupExpired() int {
+	r.mtx.RLock()
+	cleaners := r.expiredCleaners
+	r.mtx.RUnlock()
+
+	// Release the registry lock before invoking user-defined cleanup methods.
+	var removed int
+	for _, cleaner := range cleaners {
+		removed += cleaner.CleanupExpired()
+	}
+	return removed
 }
 
 // Collect implements Collector.
@@ -668,12 +748,12 @@ func WriteToTextfile(filename string, g Gatherer) error {
 
 	mfs, err := g.Gather()
 	if err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	for _, mf := range mfs {
 		if _, err := expfmt.MetricFamilyToText(tmp, mf); err != nil {
-			tmp.Close()
+			_ = tmp.Close()
 			return err
 		}
 	}

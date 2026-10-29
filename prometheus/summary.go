@@ -163,6 +163,10 @@ type SummaryVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics.
+	TTL time.Duration
 }
 
 // Problem with the sliding-window decay algorithm... The Merge method of
@@ -588,8 +592,16 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 		WithUnit(opts.Unit),
 	)
 	return &SummaryVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			return newSummary(desc, opts.SummaryOpts, lvs...)
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc: desc,
+			NewMetric: func(lvs ...string) Metric {
+				s := newSummary(desc, opts.SummaryOpts, lvs...)
+				if opts.TTL <= 0 {
+					return s
+				}
+				return newTTLSummary(s)
+			},
+			TTL: opts.TTL,
 		}),
 	}
 }
@@ -608,6 +620,9 @@ func (v2) NewSummaryVec(opts SummaryVecOpts) *SummaryVec {
 // the Summary will still exist, but it will not be exported anymore, even if a
 // Summary with the same label values is created later. See also the CounterVec
 // example.
+//
+// TTL cleanup and looking up an expired metric can also remove or replace it.
+// The same rules for cached references apply. See MetricVecOpts.TTL for details.
 //
 // An error is returned if the number of label values is not the same as the
 // number of variable labels in Desc (minus any curried labels).
