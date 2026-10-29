@@ -204,10 +204,14 @@ func TestTTLRegistryCleanupAllocations(t *testing.T) {
 
 type trackingTTLCleaner struct {
 	prometheus.Counter
-	calls atomic.Int64
+	calls         atomic.Int64
+	beforeCleanup func()
 }
 
 func (c *trackingTTLCleaner) CleanupExpired() int {
+	if c.beforeCleanup != nil {
+		c.beforeCleanup()
+	}
 	c.calls.Add(1)
 	return 1
 }
@@ -255,34 +259,45 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 }
 
 func TestTTLRegistryCleanupConcurrentRegistration(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	first := &trackingTTLCleaner{Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "first_cleanup", Help: "First cleaner."})}
-	second := &trackingTTLCleaner{Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "second_cleanup", Help: "Second cleaner."})}
-	reg.MustRegister(first)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		for range 100 {
-			reg.CleanupExpired()
+	synctest.Test(t, func(t *testing.T) {
+		var once sync.Once
+		started := make(chan struct{})
+		resume := make(chan struct{})
+		first := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "first_cleanup", Help: "First cleaner."}),
+			beforeCleanup: func() {
+				once.Do(func() {
+					close(started)
+					<-resume
+				})
+			},
 		}
-	}()
-	go func() {
-		defer wg.Done()
-		for range 100 {
-			reg.MustRegister(second)
-			if !reg.Unregister(second) {
-				t.Error("could not unregister second cleaner")
-				return
-			}
+		second := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "second_cleanup", Help: "Second cleaner."}),
 		}
-	}()
-	wg.Wait()
+		replacement := &trackingTTLCleaner{
+			Counter: prometheus.NewCounter(prometheus.CounterOpts{Name: "replacement_cleanup", Help: "Replacement cleaner."}),
+		}
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(first, second)
 
-	if n := reg.CleanupExpired(); n != 1 {
-		t.Fatalf("expected 1 active cleaner after concurrent registration, got %d", n)
-	}
+		done := make(chan int, 1)
+		go func() { done <- reg.CleanupExpired() }()
+		<-started
+
+		if !reg.Unregister(second) {
+			t.Fatal("could not unregister during cleanup")
+		}
+		reg.MustRegister(replacement)
+		close(resume)
+
+		if n := <-done; n != 2 || first.calls.Load() != 1 || second.calls.Load() != 1 || replacement.calls.Load() != 0 {
+			t.Fatal("registration changed the in-progress cleanup snapshot")
+		}
+		if n := reg.CleanupExpired(); n != 2 || first.calls.Load() != 2 || second.calls.Load() != 1 || replacement.calls.Load() != 1 {
+			t.Fatal("subsequent cleanup did not use the updated registrations")
+		}
+	})
 }
 
 func TestTTLExpiredLookupResetsState(t *testing.T) {
@@ -528,6 +543,59 @@ func TestTTLRegistryCleanupCount(t *testing.T) {
 			t.Fatalf("cleanup changed the non-TTL metric, got %v", got)
 		}
 	})
+}
+
+type unregisteringTTLCleaner struct {
+	prometheus.Counter
+	registry *prometheus.Registry
+}
+
+func (c *unregisteringTTLCleaner) CleanupExpired() int {
+	c.registry.Unregister(c)
+
+	return 0
+}
+
+func TestTTLCleanupReleasesNestedRegistryLock(t *testing.T) {
+	for _, cleanup := range []string{"gather", "manual"} {
+		t.Run(cleanup, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				inner := prometheus.NewRegistry()
+				cleaner := &unregisteringTTLCleaner{
+					Counter:  prometheus.NewCounter(prometheus.CounterOpts{Name: "ttl_unregister", Help: "Self-unregistering cleaner."}),
+					registry: inner,
+				}
+				inner.MustRegister(cleaner)
+
+				outer := prometheus.NewRegistry()
+				outer.MustRegister(prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, inner))
+
+				done := make(chan error, 1)
+				go func() {
+					if cleanup == "manual" {
+						outer.CleanupExpired()
+						done <- nil
+						return
+					}
+					_, err := outer.Gather()
+					done <- err
+				}()
+
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-time.After(time.Second):
+					t.Fatal("cleanup could not unregister from the nested registry")
+				}
+
+				if inner.Unregister(cleaner) {
+					t.Fatal("cleanup did not unregister its collector")
+				}
+			})
+		})
+	}
 }
 
 func (c *panicTTLCleaner) Describe(ch chan<- *prometheus.Desc) {

@@ -48,6 +48,13 @@ var xxhashPool = sync.Pool{
 	},
 }
 
+var expiredCleanersPool = sync.Pool{
+	New: func() any {
+		s := make([]ExpiredCleaner, 0, 64)
+		return &s
+	},
+}
+
 // DefaultRegisterer and DefaultGatherer are the implementations of the
 // Registerer and Gatherer interface a number of convenience functions in this
 // package act on. Initially, both variables point to the same Registry, which
@@ -690,12 +697,32 @@ func (r *Registry) ttlEnabled() bool {
 // It is safe to call concurrently with registration, collection, and cleanup.
 // Unlike Gather, this method does not recover panics from collectors.
 func (r *Registry) CleanupExpired() int {
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
+	var stackCleaners [8]ExpiredCleaner
+	cleaners := stackCleaners[:0]
+	var pooled *[]ExpiredCleaner
 
-	var removed int
+	r.mtx.RLock()
+	if total := len(r.expiredCleanersByID); total > len(stackCleaners) {
+		pooled = expiredCleanersPool.Get().(*[]ExpiredCleaner)
+		if cap(*pooled) < total {
+			*pooled = make([]ExpiredCleaner, 0, total)
+		}
+		cleaners = (*pooled)[:0]
+	}
 	for _, cleaner := range r.expiredCleanersByID {
+		cleaners = append(cleaners, cleaner)
+	}
+	r.mtx.RUnlock()
+
+	// Release the registry lock before invoking user-defined cleanup methods.
+	var removed int
+	for _, cleaner := range cleaners {
 		removed += cleaner.CleanupExpired()
+	}
+	if pooled != nil {
+		clear((*pooled)[:len(cleaners)])
+		*pooled = (*pooled)[:0]
+		expiredCleanersPool.Put(pooled)
 	}
 	return removed
 }
