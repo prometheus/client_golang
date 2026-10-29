@@ -48,13 +48,6 @@ var xxhashPool = sync.Pool{
 	},
 }
 
-var expiredCleanersPool = sync.Pool{
-	New: func() any {
-		s := make([]ExpiredCleaner, 0, 64)
-		return &s
-	},
-}
-
 // DefaultRegisterer and DefaultGatherer are the implementations of the
 // Registerer and Gatherer interface a number of convenience functions in this
 // package act on. Initially, both variables point to the same Registry, which
@@ -297,6 +290,7 @@ type Registry struct {
 	mtx                   sync.RWMutex
 	collectorsByID        map[uint64]Collector      // ID is a hash of the descIDs.
 	expiredCleanersByID   map[uint64]ExpiredCleaner // ID is a hash of the descIDs.
+	expiredCleaners       []ExpiredCleaner          // Immutable snapshot of expiredCleanersByID and uncheckedCollectors.
 	descIDs               map[uint64]struct{}
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
@@ -371,6 +365,9 @@ func (r *Registry) Register(c Collector) error {
 	// A Collector yielding no Desc at all is considered unchecked.
 	if len(newDescIDs) == 0 {
 		r.uncheckedCollectors = append(r.uncheckedCollectors, c)
+		if unwrapExpiredCleaner(c) != nil {
+			r.updateExpiredCleaners()
+		}
 		return nil
 	}
 	if existing, exists := r.collectorsByID[collectorID]; exists {
@@ -401,6 +398,7 @@ func (r *Registry) Register(c Collector) error {
 	maps.Copy(r.dimHashesByName, newDimHashesByName)
 	if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
 		r.expiredCleanersByID[collectorID] = cleaner
+		r.updateExpiredCleaners()
 	}
 	return nil
 }
@@ -434,13 +432,32 @@ func (r *Registry) Unregister(c Collector) bool {
 	defer r.mtx.Unlock()
 
 	delete(r.collectorsByID, collectorID)
-	delete(r.expiredCleanersByID, collectorID)
+	if _, exists := r.expiredCleanersByID[collectorID]; exists {
+		delete(r.expiredCleanersByID, collectorID)
+		r.updateExpiredCleaners()
+	}
 	for id := range descIDs {
 		delete(r.descIDs, id)
 	}
 	// dimHashesByName is left untouched as those must be consistent
 	// throughout the lifetime of a program.
 	return true
+}
+
+// updateExpiredCleaners rebuilds the immutable cleaner snapshot while holding
+// the registry lock. CleanupExpired reads this snapshot before releasing the
+// lock and invoking cleaner callbacks.
+func (r *Registry) updateExpiredCleaners() {
+	cleaners := make([]ExpiredCleaner, 0, len(r.expiredCleanersByID)+len(r.uncheckedCollectors))
+	for _, cleaner := range r.expiredCleanersByID {
+		cleaners = append(cleaners, cleaner)
+	}
+	for _, c := range r.uncheckedCollectors {
+		if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
+			cleaners = append(cleaners, cleaner)
+		}
+	}
+	r.expiredCleaners = cleaners
 }
 
 // MustRegister implements Registerer.
@@ -691,37 +708,14 @@ func unwrapExpiredCleaner(c Collector) ExpiredCleaner {
 // It is safe to call concurrently with registration, collection, and cleanup.
 // Unlike Gather, this method does not recover panics from collectors.
 func (r *Registry) CleanupExpired() int {
-	var stackCleaners [8]ExpiredCleaner
-	cleaners := stackCleaners[:0]
-	var pooled *[]ExpiredCleaner
-
 	r.mtx.RLock()
-	if total := len(r.expiredCleanersByID) + len(r.uncheckedCollectors); total > len(stackCleaners) {
-		pooled = expiredCleanersPool.Get().(*[]ExpiredCleaner)
-		if cap(*pooled) < total {
-			*pooled = make([]ExpiredCleaner, 0, total)
-		}
-		cleaners = (*pooled)[:0]
-	}
-	for _, cleaner := range r.expiredCleanersByID {
-		cleaners = append(cleaners, cleaner)
-	}
-	for _, c := range r.uncheckedCollectors {
-		if cleaner := unwrapExpiredCleaner(c); cleaner != nil {
-			cleaners = append(cleaners, cleaner)
-		}
-	}
+	cleaners := r.expiredCleaners
 	r.mtx.RUnlock()
 
 	// Release the registry lock before invoking user-defined cleanup methods.
 	var removed int
 	for _, cleaner := range cleaners {
 		removed += cleaner.CleanupExpired()
-	}
-	if pooled != nil {
-		clear((*pooled)[:len(cleaners)])
-		*pooled = (*pooled)[:0]
-		expiredCleanersPool.Put(pooled)
 	}
 	return removed
 }
