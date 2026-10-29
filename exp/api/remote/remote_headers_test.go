@@ -71,6 +71,65 @@ func TestWriteResponse(t *testing.T) {
 		}
 	})
 
+	t.Run("SetStats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		if resp.Confirmed() {
+			t.Error("expected newly created response to be unconfirmed")
+		}
+
+		stats := WriteResponseStats{
+			Samples:    3,
+			Histograms: 4,
+			Exemplars:  5,
+		}
+		resp.SetStats(stats)
+		if !resp.Confirmed() {
+			t.Error("expected response to be confirmed after SetStats")
+		}
+		if diff := cmp.Diff(WriteResponseStats{
+			Samples:    3,
+			Histograms: 4,
+			Exemplars:  5,
+			confirmed:  true,
+		}, resp.Stats(), cmpopts.IgnoreUnexported(WriteResponseStats{})); diff != "" {
+			t.Errorf("stats mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("SetStats preserves Async when statusCode is StatusAccepted", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStatusCode(http.StatusAccepted)
+		if !resp.Stats().Async {
+			t.Fatal("expected Async to be true after SetStatusCode(StatusAccepted)")
+		}
+
+		resp.SetStats(WriteResponseStats{
+			Samples:    3,
+			Histograms: 4,
+			Exemplars:  5,
+		})
+		if !resp.Confirmed() {
+			t.Error("expected response to be confirmed after SetStats")
+		}
+		if !resp.Stats().Async {
+			t.Error("expected Async to be preserved after SetStats")
+		}
+	})
+
+	t.Run("SetStats preserves Async from stats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetStats(WriteResponseStats{
+			Samples: 3,
+			Async:   true,
+		})
+		if !resp.Confirmed() {
+			t.Error("expected response to be confirmed after SetStats")
+		}
+		if !resp.Stats().Async {
+			t.Error("expected Async to be true when set via stats")
+		}
+	})
+
 	t.Run("writeHeaders v1", func(t *testing.T) {
 		resp := NewWriteResponse()
 		resp.SetExtraHeader("Custom-Header", "custom-value")
@@ -89,13 +148,59 @@ func TestWriteResponse(t *testing.T) {
 		}
 	})
 
-	t.Run("writeHeaders v2", func(t *testing.T) {
+	t.Run("writeHeaders v1 with confirmed stats", func(t *testing.T) {
 		resp := NewWriteResponse()
 		resp.Add(WriteResponseStats{
 			Samples:    10,
 			Histograms: 5,
 			Exemplars:  2,
-			confirmed:  true,
+		})
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV1MessageType, w)
+
+		if got := w.Header().Get("Custom-Header"); got != "custom-value" {
+			t.Errorf("expected Custom-Header to be custom-value, got %q", got)
+		}
+		if got := w.Header().Get(writtenSamplesHeader); got != "10" {
+			t.Errorf("expected samples header 10, got %q", got)
+		}
+		if got := w.Header().Get(writtenHistogramsHeader); got != "5" {
+			t.Errorf("expected histograms header 5, got %q", got)
+		}
+		if got := w.Header().Get(writtenExemplarsHeader); got != "2" {
+			t.Errorf("expected exemplars header 2, got %q", got)
+		}
+	})
+
+	t.Run("writeHeaders v2 unconfirmed stats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV2MessageType, w)
+
+		if got := w.Header().Get("Custom-Header"); got != "custom-value" {
+			t.Errorf("expected Custom-Header to be custom-value, got %q", got)
+		}
+		if got := w.Header().Get(writtenSamplesHeader); got != "0" {
+			t.Errorf("expected samples header 0 for unconfirmed v2 stats, got %q", got)
+		}
+		if got := w.Header().Get(writtenHistogramsHeader); got != "0" {
+			t.Errorf("expected histograms header 0 for unconfirmed v2 stats, got %q", got)
+		}
+		if got := w.Header().Get(writtenExemplarsHeader); got != "0" {
+			t.Errorf("expected exemplars header 0 for unconfirmed v2 stats, got %q", got)
+		}
+	})
+
+	t.Run("writeHeaders v2 confirmed stats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.Add(WriteResponseStats{
+			Samples:    10,
+			Histograms: 5,
+			Exemplars:  2,
 		})
 		resp.SetExtraHeader("Custom-Header", "custom-value")
 
@@ -113,6 +218,26 @@ func TestWriteResponse(t *testing.T) {
 			if got := w.Header().Get(k); got != want {
 				t.Errorf("header %q: want %q, got %q", k, want, got)
 			}
+		}
+	})
+
+	t.Run("writeHeaders v2 confirmed but negative stats", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.Add(WriteResponseStats{
+			Samples:    -1,
+			Histograms: 5,
+			Exemplars:  2,
+		})
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV2MessageType, w)
+
+		if got := w.Header().Get("Custom-Header"); got != "custom-value" {
+			t.Errorf("expected Custom-Header to be custom-value, got %q", got)
+		}
+		if got := w.Header().Get(writtenSamplesHeader); got != "" {
+			t.Errorf("expected no samples header for invalid stats, got %q", got)
 		}
 	})
 
@@ -167,6 +292,35 @@ func TestWriteResponse(t *testing.T) {
 		}
 		if !resp.Stats().Confirmed() {
 			t.Errorf("expected Confirmed() to be true after Add")
+		}
+	})
+
+	t.Run("writeHeaders invalid message type", func(t *testing.T) {
+		resp := NewWriteResponse()
+		resp.Add(WriteResponseStats{
+			Samples:    10,
+			Histograms: 5,
+			Exemplars:  2,
+		})
+		resp.SetExtraHeader("Custom-Header", "custom-value")
+
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteMessageType("invalid.message.type"), w)
+
+		if got := w.Header().Get("Custom-Header"); got != "custom-value" {
+			t.Errorf("expected Custom-Header to be custom-value, got %q", got)
+		}
+		if got := w.Header().Get(writtenSamplesHeader); got != "" {
+			t.Errorf("expected no samples header for invalid message type, got %q", got)
+		}
+	})
+
+	t.Run("writeHeaders nil receiver", func(t *testing.T) {
+		var resp *WriteResponse
+		w := httptest.NewRecorder()
+		resp.writeHeaders(WriteV2MessageType, w)
+		if len(w.Header()) != 0 {
+			t.Errorf("expected empty header map for nil receiver, got %v", w.Header())
 		}
 	})
 }
@@ -356,4 +510,289 @@ func TestContentTypeHeader(t *testing.T) {
 			t.Errorf("ContentTypeHeader(%q, %q) = %q, want %q", tc.msgType, tc.mode, got, tc.want)
 		}
 	}
+}
+
+func TestWriteResponseStats(t *testing.T) {
+	t.Run("confirmed getter", func(t *testing.T) {
+		s1 := WriteResponseStats{Samples: 1, Histograms: 2, Exemplars: 3}
+		if s1.Confirmed() {
+			t.Error("expected confirmed to be false")
+		}
+		if s1.Samples != 1 || s1.Histograms != 2 || s1.Exemplars != 3 {
+			t.Errorf("unexpected counts in s1: %+v", s1)
+		}
+
+		s2 := WriteResponseStats{Samples: 4, Histograms: 5, Exemplars: 6, confirmed: true}
+		if !s2.Confirmed() {
+			t.Error("expected confirmed to be true")
+		}
+		if s2.Samples != 4 || s2.Histograms != 5 || s2.Exemplars != 6 {
+			t.Errorf("unexpected counts in s2: %+v", s2)
+		}
+	})
+
+	t.Run("Validate", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			stats   WriteResponseStats
+			wantErr bool
+		}{
+			{
+				name:    "all zeros",
+				stats:   WriteResponseStats{},
+				wantErr: false,
+			},
+			{
+				name:    "positive counts",
+				stats:   WriteResponseStats{Samples: 10, Histograms: 5, Exemplars: 1},
+				wantErr: false,
+			},
+			{
+				name:    "negative samples",
+				stats:   WriteResponseStats{Samples: -1, Histograms: 5, Exemplars: 1},
+				wantErr: true,
+			},
+			{
+				name:    "negative histograms",
+				stats:   WriteResponseStats{Samples: 10, Histograms: -1, Exemplars: 1},
+				wantErr: true,
+			},
+			{
+				name:    "negative exemplars",
+				stats:   WriteResponseStats{Samples: 10, Histograms: 5, Exemplars: -1},
+				wantErr: true,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := tt.stats.Validate()
+				if (err != nil) != tt.wantErr {
+					t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				}
+			})
+		}
+	})
+
+	t.Run("NoDataWritten and AllSamples", func(t *testing.T) {
+		empty := WriteResponseStats{}
+		if !empty.NoDataWritten() {
+			t.Error("expected NoDataWritten to be true for empty stats")
+		}
+		if got := empty.AllSamples(); got != 0 {
+			t.Errorf("expected AllSamples 0, got %d", got)
+		}
+
+		populated := WriteResponseStats{Samples: 7, Histograms: 3, Exemplars: 2, confirmed: true}
+		if populated.NoDataWritten() {
+			t.Error("expected NoDataWritten to be false for populated stats")
+		}
+		if got := populated.AllSamples(); got != 10 {
+			t.Errorf("expected AllSamples 10, got %d", got)
+		}
+	})
+
+	t.Run("Add confirmation propagation", func(t *testing.T) {
+		// unconfirmed + unconfirmed -> unconfirmed
+		unconf1 := WriteResponseStats{Samples: 1}
+		unconf2 := WriteResponseStats{Samples: 2}
+		unconf1.Add(unconf2)
+		if unconf1.Confirmed() {
+			t.Error("expected confirmed to remain false")
+		}
+		if unconf1.Samples != 3 {
+			t.Errorf("expected Samples 3, got %d", unconf1.Samples)
+		}
+
+		// unconfirmed + confirmed -> confirmed
+		s := WriteResponseStats{Samples: 1}
+		s.Add(WriteResponseStats{Samples: 2, confirmed: true})
+		if !s.Confirmed() {
+			t.Error("expected confirmed to become true after adding confirmed stats")
+		}
+		if s.Samples != 3 {
+			t.Errorf("expected Samples 3, got %d", s.Samples)
+		}
+
+		// confirmed + unconfirmed -> unconfirmed (s.confirmed = rs.confirmed per PRW retry semantics)
+		s.Add(WriteResponseStats{Samples: 5})
+		if s.Confirmed() {
+			t.Error("expected confirmed to become false after adding unconfirmed stats")
+		}
+		if s.Samples != 8 {
+			t.Errorf("expected Samples 8, got %d", s.Samples)
+		}
+	})
+}
+
+func TestParseWriteResponseStats(t *testing.T) {
+	t.Run("all headers present and valid", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader:    []string{"42"},
+				writtenHistogramsHeader: []string{"13"},
+				writtenExemplarsHeader:  []string{"7"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stats.Confirmed() {
+			t.Error("expected stats to be confirmed")
+		}
+		if stats.Samples != 42 || stats.Histograms != 13 || stats.Exemplars != 7 {
+			t.Errorf("unexpected stats: %+v", stats)
+		}
+	})
+
+	t.Run("subset of headers present", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader: []string{"20"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !stats.Confirmed() {
+			t.Error("expected stats to be confirmed when at least one header is present")
+		}
+		if stats.Samples != 20 || stats.Histograms != 0 || stats.Exemplars != 0 {
+			t.Errorf("unexpected stats: %+v", stats)
+		}
+	})
+
+	t.Run("no stats headers present", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if stats.Confirmed() {
+			t.Error("expected stats to be unconfirmed when no stats headers are present")
+		}
+		if stats.Samples != 0 || stats.Histograms != 0 || stats.Exemplars != 0 {
+			t.Errorf("unexpected stats: %+v", stats)
+		}
+	})
+
+	t.Run("invalid header value returns error and unconfirmed stats", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader: []string{"not-a-number"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err == nil {
+			t.Fatal("expected error for non-integer header value, got nil")
+		}
+		if stats.Confirmed() {
+			t.Error("expected confirmed to be false when header parsing fails and no other valid stats header exists")
+		}
+		if stats.Samples != 0 {
+			t.Errorf("expected Samples 0 on parse failure, got %d", stats.Samples)
+		}
+	})
+
+	t.Run("partial invalid header value with some valid headers retains confirmation", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader:    []string{"not-a-number"},
+				writtenHistogramsHeader: []string{"13"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err == nil {
+			t.Fatal("expected error for non-integer header value, got nil")
+		}
+		if !stats.Confirmed() {
+			t.Error("expected confirmed to be true when at least one valid stats header is parsed")
+		}
+		if stats.Samples != 0 {
+			t.Errorf("expected Samples 0 on parse failure, got %d", stats.Samples)
+		}
+		if stats.Histograms != 13 {
+			t.Errorf("expected Histograms 13, got %d", stats.Histograms)
+		}
+	})
+
+	t.Run("negative header value returns error and unconfirmed stats", func(t *testing.T) {
+		testCases := []struct {
+			name   string
+			header http.Header
+		}{
+			{
+				name: "negative samples",
+				header: http.Header{
+					writtenSamplesHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "negative histograms",
+				header: http.Header{
+					writtenHistogramsHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "negative exemplars",
+				header: http.Header{
+					writtenExemplarsHeader: []string{"-1"},
+				},
+			},
+			{
+				name: "all headers negative",
+				header: http.Header{
+					writtenSamplesHeader:    []string{"-1"},
+					writtenHistogramsHeader: []string{"-5"},
+					writtenExemplarsHeader:  []string{"-10"},
+				},
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				resp := &http.Response{
+					Header: tc.header,
+				}
+				stats, err := parseWriteResponseStats(resp)
+				if err == nil {
+					t.Fatal("expected error for negative header value, got nil")
+				}
+				if stats.Confirmed() {
+					t.Error("expected confirmed to be false when header parsing fails and no other valid stats header exists")
+				}
+				if stats.Samples != 0 || stats.Histograms != 0 || stats.Exemplars != 0 {
+					t.Errorf("expected all stats counts to be 0 on parse failure, got %+v", stats)
+				}
+			})
+		}
+	})
+
+	t.Run("partial negative header value with some valid headers retains confirmation", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{
+				writtenSamplesHeader:    []string{"-1"},
+				writtenHistogramsHeader: []string{"13"},
+			},
+		}
+		stats, err := parseWriteResponseStats(resp)
+		if err == nil {
+			t.Fatal("expected error for negative header value, got nil")
+		}
+		if !stats.Confirmed() {
+			t.Error("expected confirmed to be true when at least one valid stats header is parsed")
+		}
+		if stats.Samples != 0 {
+			t.Errorf("expected Samples 0 on parse failure, got %d", stats.Samples)
+		}
+		if stats.Histograms != 13 {
+			t.Errorf("expected Histograms 13, got %d", stats.Histograms)
+		}
+	})
 }

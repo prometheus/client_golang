@@ -204,8 +204,21 @@ func (w *WriteResponse) Stats() WriteResponseStats {
 	return w.WriteResponseStats
 }
 
+// SetStats sets the statistics for the write response and marks the response as confirmed.
+func (w *WriteResponse) SetStats(stats WriteResponseStats) {
+	if w == nil {
+		return
+	}
+	w.WriteResponseStats = stats
+	w.Async = stats.Async || w.statusCode == http.StatusAccepted
+	w.confirmed = true
+}
+
 // Add adds the given WriteResponseStats to this WriteResponse and marks the statistics as confirmed.
 func (w *WriteResponse) Add(rs WriteResponseStats) {
+	if w == nil {
+		return
+	}
 	w.WriteResponseStats.Add(rs)
 	w.confirmed = true
 }
@@ -225,11 +238,12 @@ func (w *WriteResponse) SetExtraHeader(key, value string) {
 // writeHeaders sets response headers in a given response writer.
 // Make sure to use it before http.ResponseWriter.WriteHeader and .Write.
 func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseWriter) {
+	if w == nil {
+		return
+	}
 	h := rw.Header()
 
-	// Asynchronous receivers returning 202 Accepted may omit written headers when counts are not
-	// calculated synchronously (i.e. when Add was not called to confirm stats).
-	if msgType != WriteV1MessageType && (w.statusCode != http.StatusAccepted || w.confirmed) {
+	if w.shouldWriteStatsHeaders(msgType) {
 		h.Set(writtenSamplesHeader, strconv.Itoa(w.Samples))
 		h.Set(writtenHistogramsHeader, strconv.Itoa(w.Histograms))
 		h.Set(writtenExemplarsHeader, strconv.Itoa(w.Exemplars))
@@ -240,6 +254,25 @@ func (w *WriteResponse) writeHeaders(msgType WriteMessageType, rw http.ResponseW
 			h.Add(k, vv)
 		}
 	}
+}
+
+func (w *WriteResponse) shouldWriteStatsHeaders(msgType WriteMessageType) bool {
+	if w == nil {
+		return false
+	}
+	if err := msgType.Validate(); err != nil {
+		return false
+	}
+	if err := w.Validate(); err != nil {
+		return false
+	}
+	if msgType == WriteV2MessageType {
+		return w.statusCode != http.StatusAccepted || w.confirmed
+	}
+	if msgType == WriteV1MessageType {
+		return w.confirmed
+	}
+	return false
 }
 
 // WriteResponseStats represents the response, remote write statistics.
@@ -267,6 +300,20 @@ func (s WriteResponseStats) Confirmed() bool {
 	return s.confirmed
 }
 
+// Validate returns an error if any statistics count is negative.
+func (s WriteResponseStats) Validate() error {
+	if s.Samples < 0 {
+		return errors.New("samples count cannot be negative")
+	}
+	if s.Histograms < 0 {
+		return errors.New("histograms count cannot be negative")
+	}
+	if s.Exemplars < 0 {
+		return errors.New("exemplars count cannot be negative")
+	}
+	return nil
+}
+
 // NoDataWritten returns true if statistics indicate no data was written.
 func (s WriteResponseStats) NoDataWritten() bool {
 	return (s.Samples + s.Histograms + s.Exemplars) == 0
@@ -280,7 +327,7 @@ func (s WriteResponseStats) AllSamples() int {
 // Add adds the given WriteResponseStats to this WriteResponseStats.
 // If this WriteResponseStats is empty, it will be replaced by the given WriteResponseStats.
 func (s *WriteResponseStats) Add(rs WriteResponseStats) {
-	s.confirmed = s.confirmed || rs.confirmed
+	s.confirmed = rs.confirmed
 	s.Async = s.Async || rs.Async
 	s.Samples += rs.Samples
 	s.Histograms += rs.Histograms
@@ -292,9 +339,9 @@ func (s *WriteResponseStats) Add(rs WriteResponseStats) {
 // As per 2.0 spec, missing header means 0. However, abrupt HTTP errors, 202 Accepted responses,
 // 1.0 Receivers, or buggy 2.0 Receivers might result in no response headers specified and that
 // might NOT necessarily mean nothing was written. To represent that we set
-// s.confirmed = true only when we see at least one response header.
+// s.confirmed = true only when seeing at least one valid response header.
 //
-// Error is returned when any of the headers fails to parse as int.
+// Error is returned when any of the headers fails to parse as int or has a negative count.
 func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error) {
 	var (
 		errs []error
@@ -302,24 +349,39 @@ func parseWriteResponseStats(r *http.Response) (s WriteResponseStats, err error)
 	)
 	s.Async = r.StatusCode == http.StatusAccepted
 	if v := h.Get(writtenSamplesHeader); v != "" { // Empty means zero.
-		s.confirmed = true
-		if s.Samples, err = strconv.Atoi(v); err != nil {
+		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Samples = 0
-			errs = append(errs, err)
+			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Samples = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
+		} else {
+			s.Samples = val
+			s.confirmed = true
 		}
 	}
 	if v := h.Get(writtenHistogramsHeader); v != "" { // Empty means zero.
-		s.confirmed = true
-		if s.Histograms, err = strconv.Atoi(v); err != nil {
+		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Histograms = 0
-			errs = append(errs, err)
+			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Histograms = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
+		} else {
+			s.Histograms = val
+			s.confirmed = true
 		}
 	}
 	if v := h.Get(writtenExemplarsHeader); v != "" { // Empty means zero.
-		s.confirmed = true
-		if s.Exemplars, err = strconv.Atoi(v); err != nil {
+		if val, parseErr := strconv.Atoi(v); parseErr != nil {
 			s.Exemplars = 0
-			errs = append(errs, err)
+			errs = append(errs, parseErr)
+		} else if val < 0 {
+			s.Exemplars = 0
+			errs = append(errs, fmt.Errorf("negative count: %d", val))
+		} else {
+			s.Exemplars = val
+			s.confirmed = true
 		}
 	}
 	return s, errors.Join(errs...)
