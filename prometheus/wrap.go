@@ -220,6 +220,12 @@ func (m *wrappingMetric) Write(out *dto.Metric) error {
 }
 
 func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
+	if desc.err != nil {
+		// An invalid Desc (e.g. created by NewInvalidDesc) might lack
+		// the fields NewDesc needs. Desc is immutable, so return it as
+		// is to propagate its error.
+		return desc
+	}
 	constLabels := Labels{}
 	for _, lp := range desc.constLabelPairs {
 		constLabels[*lp.Name] = *lp.Value
@@ -238,11 +244,5 @@ func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 		constLabels[ln] = lv
 	}
 	// NewDesc will do remaining validations.
-	newDesc := V2.NewDesc(prefix+desc.fqName, desc.help, desc.variableLabels, constLabels, WithUnit(desc.unit))
-	// Propagate errors if there was any. This will override any error
-	// created by NewDesc above, i.e. earlier errors get precedence.
-	if desc.err != nil {
-		newDesc.err = desc.err
-	}
-	return newDesc
+	return V2.NewDesc(prefix+desc.fqName, desc.help, desc.variableLabels, constLabels, WithUnit(desc.unit))
 }
