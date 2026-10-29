@@ -684,20 +684,6 @@ func unwrapExpiredCleaner(c Collector) ExpiredCleaner {
 	return cleaner
 }
 
-func (r *Registry) ttlEnabled() bool {
-	r.mtx.RLock()
-	defer r.mtx.RUnlock()
-	if len(r.expiredCleanersByID) > 0 {
-		return true
-	}
-	for _, c := range r.uncheckedCollectors {
-		if unwrapExpiredCleaner(c) != nil {
-			return true
-		}
-	}
-	return false
-}
-
 // CleanupExpired calls CleanupExpired on registered collectors that implement
 // ExpiredCleaner, including wrapped collectors and nested registries. It returns
 // the total number of metrics removed. Gather calls this automatically on each

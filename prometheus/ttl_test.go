@@ -220,6 +220,8 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 	for _, mode := range []string{"direct", "wrapped", "unchecked"} {
 		t.Run(mode, func(t *testing.T) {
 			reg := prometheus.NewRegistry()
+			outer := prometheus.NewRegistry()
+			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", reg))
 
 			opts := prometheus.CounterOpts{Name: "cleanup_registration", Help: "Cleanup registration."}
 			cleaner := &trackingTTLCleaner{Counter: prometheus.NewCounter(opts)}
@@ -235,9 +237,6 @@ func TestTTLRegistryCleanupRegistration(t *testing.T) {
 				collector = &uncheckedTTLCleaner{Collector: cleaner, ExpiredCleaner: cleaner}
 			}
 			reg.MustRegister(collector)
-
-			outer := prometheus.NewRegistry()
-			outer.MustRegister(prometheus.WrapCollectorWithPrefix("nested_", reg))
 
 			err := reg.Register(collector)
 			want := 1
@@ -492,11 +491,12 @@ func TestTTLWrappedRegistryCleanup(t *testing.T) {
 						reg.MustRegister(prometheus.WrapCollectorWithPrefix("wrapped_", prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, collector)))
 					case "nested_registry", "nested_unchecked":
 						inner := prometheus.NewRegistry()
-						inner.MustRegister(collector)
+						inner.MustRegister(prometheus.NewCounterVec(prometheus.CounterOpts{Name: "non_ttl", Help: "Non-TTL vector."}, []string{"code"}))
 
 						middle := prometheus.NewRegistry()
 						middle.MustRegister(prometheus.WrapCollectorWithPrefix("inner_", inner))
 						reg.MustRegister(prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, middle))
+						inner.MustRegister(collector)
 					default:
 						reg.MustRegister(collector)
 					}
