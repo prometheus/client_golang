@@ -491,11 +491,12 @@ func TestTTLWrappedRegistryCleanup(t *testing.T) {
 						reg.MustRegister(prometheus.WrapCollectorWithPrefix("wrapped_", prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, collector)))
 					case "nested_registry", "nested_unchecked":
 						inner := prometheus.NewRegistry()
-						inner.MustRegister(collector)
+						inner.MustRegister(prometheus.NewCounterVec(prometheus.CounterOpts{Name: "non_ttl", Help: "Non-TTL vector."}, []string{"code"}))
 
 						middle := prometheus.NewRegistry()
 						middle.MustRegister(prometheus.WrapCollectorWithPrefix("inner_", inner))
 						reg.MustRegister(prometheus.WrapCollectorWith(prometheus.Labels{"scope": "test"}, middle))
+						inner.MustRegister(collector)
 					default:
 						reg.MustRegister(collector)
 					}
@@ -728,4 +729,63 @@ func TestTTLCachedHandleLifetime(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestTTLWrapperMutatorsAndCurriedVec(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const ttl = 100 * time.Millisecond
+
+		cvec := prometheus.V2.NewCounterVec(prometheus.CounterVecOpts{
+			CounterOpts:    prometheus.CounterOpts{Name: "ttl_mutators_counter", Help: "Counter mutators."},
+			VariableLabels: prometheus.UnconstrainedLabels([]string{"role", "code"}),
+			TTL:            ttl,
+		})
+		curried := cvec.MustCurryWith(prometheus.Labels{"role": "api"})
+		c := curried.WithLabelValues("200")
+		time.Sleep(60 * time.Millisecond)
+		c.Inc()
+		time.Sleep(60 * time.Millisecond)
+		c.(prometheus.ExemplarAdder).AddWithExemplar(2, prometheus.Labels{"trace": "1"})
+		if n := cvec.CleanupExpired(); n != 0 {
+			t.Fatalf("expected counter mutators to refresh TTL, cleaned %d", n)
+		}
+		if got := writeTTLMetric(t, c).GetCounter(); got.GetValue() != 3 || got.GetExemplar().GetValue() != 2 {
+			t.Fatalf("unexpected counter state: %v", got)
+		}
+
+		gvec := prometheus.V2.NewGaugeVec(prometheus.GaugeVecOpts{
+			GaugeOpts:      prometheus.GaugeOpts{Name: "ttl_mutators_gauge", Help: "Gauge mutators."},
+			VariableLabels: prometheus.UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+		g := gvec.WithLabelValues("200")
+		for _, op := range []func(){
+			g.Inc,
+			g.Dec,
+			func() { g.Add(5) },
+			func() { g.Sub(2) },
+			g.SetToCurrentTime,
+		} {
+			time.Sleep(60 * time.Millisecond)
+			op()
+			if n := gvec.CleanupExpired(); n != 0 {
+				t.Fatalf("expected gauge mutator to refresh TTL, cleaned %d", n)
+			}
+		}
+
+		hvec := prometheus.V2.NewHistogramVec(prometheus.HistogramVecOpts{
+			HistogramOpts:  prometheus.HistogramOpts{Name: "ttl_mutators_histogram", Help: "Histogram mutators."},
+			VariableLabels: prometheus.UnconstrainedLabels([]string{"code"}),
+			TTL:            ttl,
+		})
+		h := hvec.WithLabelValues("200")
+		time.Sleep(60 * time.Millisecond)
+		h.(prometheus.ExemplarObserver).ObserveWithExemplar(0.5, prometheus.Labels{"trace": "2"})
+		if n := hvec.CleanupExpired(); n != 0 {
+			t.Fatalf("expected ObserveWithExemplar to refresh TTL, cleaned %d", n)
+		}
+		if got := writeTTLMetric(t, h.(prometheus.Metric)).GetHistogram(); got.GetSampleCount() != 1 {
+			t.Fatalf("unexpected histogram count: %v", got.GetSampleCount())
+		}
+	})
 }

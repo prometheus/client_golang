@@ -1064,7 +1064,7 @@ func TestTTLGaugeVec(t *testing.T) {
 		}
 
 		time.Sleep(ttl + 50*time.Millisecond)
-		// Touch only one
+		// Touch only one.
 		vec.WithLabelValues("GET").Set(30)
 
 		if n := collectCount(vec); n != 1 {
@@ -1167,6 +1167,29 @@ func TestMetricVecOptsTTLZeroAndNegative(t *testing.T) {
 	mvNegative := V2.NewMetricVec(MetricVecOpts{Desc: desc, NewMetric: newMetric, TTL: -time.Second})
 	if cleaned := mvNegative.CleanupExpired(); cleaned != 0 {
 		t.Fatalf("expected negative TTL to disable cleanup, got %d", cleaned)
+	}
+
+	reg := NewRegistry()
+	reg.MustRegister(
+		mv0,
+		WrapCollectorWithPrefix("neg_", mvNegative),
+		NewCounterVec(CounterOpts{Name: "no_ttl_counter", Help: "help"}, []string{"l"}),
+	)
+	if len(reg.expiredCleanersByID) != 0 {
+		t.Fatalf("expected 0 expiredCleanersByID for vectors with TTL <= 0, got %d", len(reg.expiredCleanersByID))
+	}
+
+	withTTL := V2.NewCounterVec(CounterVecOpts{
+		CounterOpts:    CounterOpts{Name: "with_ttl_counter", Help: "help"},
+		VariableLabels: UnconstrainedLabels([]string{"l"}),
+		TTL:            time.Minute,
+	})
+	reg.MustRegister(withTTL)
+	if len(reg.expiredCleanersByID) != 1 {
+		t.Fatalf("expected 1 expiredCleaner after registering TTL vector, got %d", len(reg.expiredCleanersByID))
+	}
+	if !reg.Unregister(withTTL) || len(reg.expiredCleanersByID) != 0 {
+		t.Fatalf("expected 0 expiredCleanersByID after unregistering TTL vector, got %d", len(reg.expiredCleanersByID))
 	}
 }
 
@@ -1391,6 +1414,36 @@ func TestTTLWithCollisions(t *testing.T) {
 			if tail := bucket[:cap(bucket)][1]; tail.metric != nil || tail.values != nil {
 				t.Fatal("compaction retained references to an expired metric")
 			}
+		}
+
+		// Verify expired lookup replacement (WithLabelValues and With) in a bucket with collisions.
+		expLV := vec.WithLabelValues("exp_lv")
+		expLV.Add(10)
+		expMap := vec.With(Labels{"code": "exp_map"})
+		expMap.Add(20)
+		time.Sleep(30 * time.Millisecond)
+
+		fresh.Add(1)
+		time.Sleep(30 * time.Millisecond)
+
+		replacedLV := vec.WithLabelValues("exp_lv")
+		if replacedLV == expLV || metricValue(t, replacedLV) != 0 {
+			t.Fatal("expected expired collided metric to be replaced by WithLabelValues")
+		}
+		replacedMap := vec.With(Labels{"code": "exp_map"})
+		if replacedMap == expMap || metricValue(t, replacedMap) != 0 {
+			t.Fatal("expected expired collided metric to be replaced by With")
+		}
+		if got := metricValue(t, fresh); got != 6 {
+			t.Fatalf("expected surviving collided metric value 6, got %v", got)
+		}
+
+		time.Sleep(60 * time.Millisecond)
+		if cleaned := vec.CleanupExpired(); cleaned != 3 {
+			t.Fatalf("expected all 3 collided metrics cleaned, got %d", cleaned)
+		}
+		if len(vec.metrics) != 0 {
+			t.Fatalf("expected empty metrics map after cleaning all collided entries, got %d buckets", len(vec.metrics))
 		}
 	})
 }
