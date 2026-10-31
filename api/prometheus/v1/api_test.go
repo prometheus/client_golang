@@ -1592,6 +1592,42 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	return resp, b, nil
 }
 
+func TestAddOptionalURLParamsDurations(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []Option
+		want url.Values
+	}{
+		{
+			name: "whole seconds",
+			opts: []Option{WithTimeout(5 * time.Second), WithLookbackDelta(2 * time.Minute)},
+			want: url.Values{"timeout": {"5"}, "lookback_delta": {"120"}},
+		},
+		{
+			name: "fractional seconds",
+			opts: []Option{WithTimeout(1500 * time.Millisecond), WithLookbackDelta(2500 * time.Millisecond)},
+			want: url.Values{"timeout": {"1.5"}, "lookback_delta": {"2.5"}},
+		},
+		{
+			name: "microseconds",
+			opts: []Option{WithTimeout(time.Microsecond)},
+			want: url.Values{"timeout": {"0.000001"}},
+		},
+		{
+			name: "unset",
+			want: url.Values{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := addOptionalURLParams(url.Values{}, tc.opts)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("addOptionalURLParams() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAPIClientDo(t *testing.T) {
 	tests := []apiClientTest{
 		{
