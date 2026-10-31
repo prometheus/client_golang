@@ -599,6 +599,12 @@ func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []
 
 // matchPartialLabels searches the current metric and returns whether all of the target label:value pairs are present.
 func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
+	// A curried vector only sees the metrics that carry its curried values.
+	for _, cv := range curry {
+		if values[cv.index] != cv.value {
+			return false
+		}
+	}
 	for l, v := range labels {
 		// Check if the target label exists in our metrics and get the index.
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels.names)
