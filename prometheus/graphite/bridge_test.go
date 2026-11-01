@@ -503,6 +503,31 @@ func ExampleBridge() {
 	b.Run(ctx)
 }
 
+func TestPushEmptyRegistry(t *testing.T) {
+	for _, handling := range []HandlerErrorHandling{ContinueOnError, AbortOnError} {
+		var logBuf bytes.Buffer
+		logger := log.New(&logBuf, "", 0)
+
+		b, err := NewBridge(&Config{
+			URL:           "127.0.0.1:1", // closed port makes an accidental dial fail
+			Gatherer:      prometheus.NewRegistry(),
+			ErrorHandling: handling,
+			Logger:        logger,
+		})
+		if err != nil {
+			t.Fatalf("error creating bridge: %v", err)
+		}
+
+		if err := b.Push(); err != nil {
+			t.Fatalf("handling %d: unexpected Push error on empty registry: %v", handling, err)
+		}
+
+		if logBuf.Len() > 0 {
+			t.Fatalf("handling %d: unexpected log output on empty registry: %s", handling, logBuf.String())
+		}
+	}
+}
+
 func TestReplaceInvalidRune(t *testing.T) {
 	tests := []struct {
 		in   rune
