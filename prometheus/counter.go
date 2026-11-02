@@ -70,6 +70,11 @@ type CounterVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics, orphaned-handle behavior, and
+	// cleanup via Registry.Gather / CleanupExpired.
+	TTL time.Duration
 }
 
 // NewCounter creates a new Counter based on the provided CounterOpts.
@@ -212,14 +217,21 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 		opts.now = time.Now
 	}
 	return &CounterVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			if len(lvs) != len(desc.variableLabels.names) {
-				panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
-			}
-			result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
-			result.init(result) // Init self-collection.
-			result.createdTs = timestamppb.New(opts.now())
-			return result
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc: desc,
+			NewMetric: func(lvs ...string) Metric {
+				if len(lvs) != len(desc.variableLabels.names) {
+					panic(makeInconsistentCardinalityError(desc.fqName, desc.variableLabels.names, lvs))
+				}
+				result := &counter{desc: desc, labelPairs: MakeLabelPairs(desc, lvs), now: opts.now}
+				result.init(result) // Init self-collection.
+				result.createdTs = timestamppb.New(opts.now())
+				if opts.TTL <= 0 {
+					return result
+				}
+				return newTTLCounter(result)
+			},
+			TTL: opts.TTL,
 		}),
 	}
 }
@@ -237,6 +249,9 @@ func (v2) NewCounterVec(opts CounterVecOpts) *CounterVec {
 // Delete can be used to delete the Counter from the CounterVec. In that case,
 // the Counter will still exist, but it will not be exported anymore, even if a
 // Counter with the same label values is created later.
+//
+// TTL cleanup and looking up an expired metric can also remove or replace it.
+// The same rules for cached references apply. See MetricVecOpts.TTL for details.
 //
 // An error is returned if the number of label values is not the same as the
 // number of variable labels in Desc (minus any curried labels).

@@ -184,6 +184,12 @@ type API interface {
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
 	// FormatQuery formats a PromQL expression in a prettified way.
+	//
+	// The returned string is the raw JSON encoding of the formatted expression.
+	// It is wrapped in double quotes and its inner characters are escaped, e.g.
+	// `"up{job=\"prometheus\"}"`. To get the expression itself, decode the
+	// result with json.Unmarshal into a string, or use strconv.Unquote. This
+	// behavior is kept for backwards compatibility.
 	FormatQuery(ctx context.Context, query string) (string, error)
 }
 
@@ -692,6 +698,12 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 }
 
 func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, Infos, error) {
+	if strings.Contains(label, "/") || label == "." || label == ".." {
+		// The label name is a path segment, so a '/' would split it and a
+		// "." or ".." segment is removed when the server cleans the path. The
+		// server accepts the name in the Values Escaping form instead.
+		label = model.EscapeName(label, model.ValueEncodingEscaping)
+	}
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	q := addOptionalURLParams(u.Query(), opts)
 
