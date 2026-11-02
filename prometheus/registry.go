@@ -775,6 +775,9 @@ func processMetric(
 	registeredDescIDs map[uint64]struct{},
 	xxh *xxhash.Digest,
 ) error {
+	if metric == nil {
+		return errors.New("collected nil metric")
+	}
 	desc := metric.Desc()
 	// Wrapped metrics collected by an unchecked Collector can have an
 	// invalid Desc.

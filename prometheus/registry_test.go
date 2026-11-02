@@ -1695,6 +1695,32 @@ func TestGatherInterleavedConstAndVariableLabels(t *testing.T) {
 	}
 }
 
+type nilMetricCollector struct {
+	desc *prometheus.Desc
+}
+
+func (c nilMetricCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c nilMetricCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- nil
+}
+
+func TestGatherHandlesNilMetric(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	desc := prometheus.NewDesc("dummy_metric", "help", nil, nil)
+	reg.MustRegister(nilMetricCollector{desc: desc})
+
+	_, err := reg.Gather()
+	if err == nil {
+		t.Fatal("expected error from Gather when collector emits nil metric, got nil")
+	}
+	if !strings.Contains(err.Error(), "collected nil metric") {
+		t.Fatalf("expected 'collected nil metric' error, got %v", err)
+	}
+}
+
 // constMetricsCollector emits n const gauges with two variable labels on every
 // Collect, similar to exporters that build their metrics during collection.
 type constMetricsCollector struct {
