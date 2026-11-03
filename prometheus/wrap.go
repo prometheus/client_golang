@@ -163,6 +163,10 @@ func (c *wrappingCollector) Collect(ch chan<- Metric) {
 		close(wrappedCh)
 	}()
 	for m := range wrappedCh {
+		if m == nil {
+			ch <- nil
+			continue
+		}
 		ch <- &wrappingMetric{
 			wrappedMetric: m,
 			prefix:        c.prefix,
