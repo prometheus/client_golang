@@ -204,6 +204,14 @@ func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 	curriedVec.WithLabelValues("curriedValue1", "curriedValue3").Inc()
 	curriedVec.WithLabelValues("curriedValue1", "differentCurriedValue3").Inc()
 	curriedVec.WithLabelValues("differentCurriedValue1", "differentCurriedValue3").Inc()
+	// Shares l1 with the curried vector but not the curried l2, so the curried
+	// vector must not see it.
+	baseVec.With(Labels{"l1": "curriedValue1", "l2": "otherValue2", "l3": "curriedValue3"}).Inc()
+
+	chainedVec := baseVec.MustCurryWith(Labels{"l2": "chainedValue2"}).MustCurryWith(Labels{"l3": "chainedValue3"})
+	chainedVec.WithLabelValues("chainedValue1").Inc()
+	baseVec.With(Labels{"l1": "chainedValue1", "l2": "chainedValue2", "l3": "otherValue3"}).Inc()
+	baseVec.With(Labels{"l1": "chainedValue1", "l2": "otherValue2", "l3": "chainedValue3"}).Inc()
 
 	// Try to delete nonexistent label with existent value from curried vector.
 	if got, want := curriedVec.DeletePartialMatch(Labels{"lx": "curriedValue1"}), 0; got != want {
@@ -229,6 +237,19 @@ func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 
 	// Delete multiple matching metrics from a curried vector based on partial values.
 	if got, want := curriedVec.DeletePartialMatch(Labels{"l1": "curriedValue1"}), 2; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// A vector curried twice only deletes metrics carrying both curried values.
+	if got, want := chainedVec.DeletePartialMatch(Labels{"l1": "chainedValue1"}), 1; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+
+	// The metrics outside of the curried vectors are still in the base vector.
+	if got, want := baseVec.DeletePartialMatch(Labels{"l2": "otherValue2"}), 2; got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if got, want := baseVec.DeletePartialMatch(Labels{"l1": "chainedValue1"}), 1; got != want {
 		t.Errorf("got %v, want %v", got, want)
 	}
 
@@ -260,28 +281,6 @@ func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 
 	// All metrics should have been deleted now.
 	assertNoMetric(t)
-}
-
-func TestDeletePartialMatchCurriedKeepsOtherMetrics(t *testing.T) {
-	baseVec := NewGaugeVec(
-		GaugeOpts{
-			Name: "test",
-			Help: "helpless",
-		},
-		[]string{"l1", "l2"},
-	)
-	baseVec.WithLabelValues("v1", "curriedValue2").Inc()
-	baseVec.WithLabelValues("v1", "otherValue2").Inc()
-
-	// The curried vector only sees metrics with l2="curriedValue2", so it must
-	// not delete the metric with l2="otherValue2".
-	curriedVec := baseVec.MustCurryWith(Labels{"l2": "curriedValue2"})
-	if got, want := curriedVec.DeletePartialMatch(Labels{"l1": "v1"}), 1; got != want {
-		t.Errorf("got %v, want %v", got, want)
-	}
-	if !baseVec.DeleteLabelValues("v1", "otherValue2") {
-		t.Error("metric outside of the curried vector was deleted")
-	}
 }
 
 func TestMetricVec(t *testing.T) {
