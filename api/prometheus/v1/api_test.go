@@ -281,6 +281,23 @@ func TestAPIs(t *testing.T) {
 
 	queryTests := []apiTest{
 		{
+			do: doQuery(`"foo"`, testTime),
+			inRes: &queryResult{
+				Type: model.ValString,
+				Result: &model.String{
+					Value:     "foo",
+					Timestamp: model.TimeFromUnix(testTime.Unix()),
+				},
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			res: &model.String{
+				Value:     "foo",
+				Timestamp: model.TimeFromUnix(testTime.Unix()),
+			},
+		},
+		{
 			do: doQuery("2", testTime, WithTimeout(5*time.Second)),
 			inRes: &queryResult{
 				Type: model.ValScalar,
