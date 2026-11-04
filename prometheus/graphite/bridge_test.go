@@ -32,6 +32,8 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -504,27 +506,76 @@ func ExampleBridge() {
 }
 
 func TestPushEmptyRegistry(t *testing.T) {
-	for _, handling := range []HandlerErrorHandling{ContinueOnError, AbortOnError} {
-		var logBuf bytes.Buffer
-		logger := log.New(&logBuf, "", 0)
+	errGather := errors.New("gather failed")
 
-		b, err := NewBridge(&Config{
-			URL:           "127.0.0.1:1", // closed port makes an accidental dial fail
-			Gatherer:      prometheus.NewRegistry(),
-			ErrorHandling: handling,
-			Logger:        logger,
+	tests := []struct {
+		name          string
+		gatherer      prometheus.Gatherer
+		errorHandling HandlerErrorHandling
+		wantErr       error
+		wantLogSubstr string
+	}{
+		{
+			name:          "empty registry continue on error",
+			gatherer:      prometheus.NewRegistry(),
+			errorHandling: ContinueOnError,
+		},
+		{
+			name:          "empty registry abort on error",
+			gatherer:      prometheus.NewRegistry(),
+			errorHandling: AbortOnError,
+		},
+		{
+			name: "gather error continue on error",
+			gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+				return nil, errGather
+			}),
+			errorHandling: ContinueOnError,
+			wantLogSubstr: "continue on error: gather failed",
+		},
+		{
+			name: "gather error abort on error",
+			gatherer: prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+				return nil, errGather
+			}),
+			errorHandling: AbortOnError,
+			wantErr:       errGather,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logBuf bytes.Buffer
+			logger := log.New(&logBuf, "", 0)
+
+			// Closed port makes an accidental dial fail.
+			b, err := NewBridge(&Config{
+				URL:           "127.0.0.1:1",
+				Gatherer:      tt.gatherer,
+				ErrorHandling: tt.errorHandling,
+				Logger:        logger,
+			})
+			if err != nil {
+				t.Fatalf("error creating bridge: %v", err)
+			}
+
+			err = b.Push()
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("expected error %v, got %v", tt.wantErr, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected Push error: %v", err)
+			}
+
+			if tt.wantLogSubstr != "" {
+				if !strings.Contains(logBuf.String(), tt.wantLogSubstr) {
+					t.Fatalf("expected log output to contain %q, got %q", tt.wantLogSubstr, logBuf.String())
+				}
+			} else if logBuf.Len() > 0 {
+				t.Fatalf("unexpected log output: %s", logBuf.String())
+			}
 		})
-		if err != nil {
-			t.Fatalf("error creating bridge: %v", err)
-		}
-
-		if err := b.Push(); err != nil {
-			t.Fatalf("handling %d: unexpected Push error on empty registry: %v", handling, err)
-		}
-
-		if logBuf.Len() > 0 {
-			t.Fatalf("handling %d: unexpected log output on empty registry: %s", handling, logBuf.String())
-		}
 	}
 }
 
