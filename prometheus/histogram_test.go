@@ -364,6 +364,26 @@ func TestBuckets(t *testing.T) {
 	if !internal.AlmostEqualFloat64s(got, want, epsilon) {
 		t.Errorf("exponential buckets range: got %v, want %v (epsilon %f)", got, want, epsilon)
 	}
+
+	// The lowest and highest buckets must be exactly 'min' and 'max'. Otherwise
+	// an observation of exactly 'max' is only counted in the +Inf bucket.
+	for _, tc := range []struct {
+		minBucket, maxBucket float64
+		count                int
+	}{
+		{1, 100, 10},
+		{0.01, 10, 5},
+		{0.001, 2, 15},
+		{0.05, 120, 18},
+	} {
+		buckets := ExponentialBucketsRange(tc.minBucket, tc.maxBucket, tc.count)
+		if buckets[0] != tc.minBucket || buckets[len(buckets)-1] != tc.maxBucket {
+			t.Errorf(
+				"exponential buckets range(%v, %v, %d): got lowest %v and highest %v, want %v and %v",
+				tc.minBucket, tc.maxBucket, tc.count, buckets[0], buckets[len(buckets)-1], tc.minBucket, tc.maxBucket,
+			)
+		}
+	}
 }
 
 func TestHistogramAtomicObserve(t *testing.T) {
