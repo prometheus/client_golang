@@ -1695,6 +1695,88 @@ func TestGatherInterleavedConstAndVariableLabels(t *testing.T) {
 	}
 }
 
+type nilMetricCollector struct {
+	desc  *prometheus.Desc
+	valid prometheus.Metric
+}
+
+func (c nilMetricCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c nilMetricCollector) Collect(ch chan<- prometheus.Metric) {
+	if c.valid != nil {
+		ch <- c.valid
+	}
+	ch <- nil
+}
+
+func TestGatherHandlesNilMetric(t *testing.T) {
+	desc := prometheus.NewDesc("valid_metric", "help", nil, nil)
+	validMetric := prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1)
+
+	cases := []struct {
+		name      string
+		collector prometheus.Collector
+	}{
+		{
+			name: "checked collector",
+			collector: nilMetricCollector{
+				desc:  desc,
+				valid: validMetric,
+			},
+		},
+		{
+			name: "unchecked collector",
+			collector: &customCollector{
+				collectFunc: func(ch chan<- prometheus.Metric) {
+					ch <- validMetric
+					ch <- nil
+				},
+			},
+		},
+		{
+			name: "wrapped collector",
+			collector: prometheus.WrapCollectorWith(
+				prometheus.Labels{"env": "test"},
+				nilMetricCollector{
+					desc:  desc,
+					valid: validMetric,
+				},
+			),
+		},
+		{
+			name: "metric with timestamp",
+			collector: &customCollector{
+				collectFunc: func(ch chan<- prometheus.Metric) {
+					ch <- prometheus.NewMetricWithTimestamp(time.Now(), validMetric)
+					ch <- prometheus.NewMetricWithTimestamp(time.Now(), nil)
+				},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			if err := reg.Register(tc.collector); err != nil {
+				t.Fatalf("failed to register collector: %v", err)
+			}
+
+			mfs, err := reg.Gather()
+			if err == nil {
+				t.Fatal("expected error from Gather when collector emits nil metric, got nil")
+			}
+			if !strings.Contains(err.Error(), "collected nil metric") {
+				t.Fatalf("expected 'collected nil metric' error, got %v", err)
+			}
+			if len(mfs) != 1 || mfs[0].GetName() != "valid_metric" {
+				t.Fatalf("expected valid_metric to still be gathered alongside nil metric, got %v", mfs)
+			}
+		})
+	}
+}
+
 // constMetricsCollector emits n const gauges with two variable labels on every
 // Collect, similar to exporters that build their metrics during collection.
 type constMetricsCollector struct {

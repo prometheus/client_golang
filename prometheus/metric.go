@@ -169,7 +169,12 @@ func (m timestampedMetric) Write(pb *dto.Metric) error {
 // Currently, the exposition formats used by Prometheus are limited to
 // millisecond resolution. Thus, the provided time will be rounded down to the
 // next full millisecond value.
+//
+// If m is nil, NewMetricWithTimestamp returns nil.
 func NewMetricWithTimestamp(t time.Time, m Metric) Metric {
+	if m == nil {
+		return nil
+	}
 	return timestampedMetric{Metric: m, t: t}
 }
 
