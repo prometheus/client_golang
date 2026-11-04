@@ -786,11 +786,11 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	}
 
 	if opt.timeout > 0 {
-		q.Set("timeout", opt.timeout.String())
+		q.Set("timeout", formatDuration(opt.timeout))
 	}
 
 	if opt.lookbackDelta > 0 {
-		q.Set("lookback_delta", opt.lookbackDelta.String())
+		q.Set("lookback_delta", formatDuration(opt.lookbackDelta))
 	}
 
 	if opt.stats != "" {
@@ -825,7 +825,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 	q.Set("query", query)
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
-	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
+	q.Set("step", formatDuration(r.Step))
 
 	var qres queryResult
 	_, warnings, infos, err := h.client.DoGetFallback(ctx, u, q, &qres)
@@ -1171,6 +1171,12 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 		return h.Do(ctx, req, into)
 	}
 	return resp, warnings, infos, err
+}
+
+// formatDuration formats a duration as a number of seconds, which is the form
+// the Prometheus HTTP API accepts for any duration, including sub-second ones.
+func formatDuration(d time.Duration) string {
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64)
 }
 
 func formatTime(t time.Time) string {
