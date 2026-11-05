@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 	"testing"
 	"time"
 
@@ -361,4 +362,108 @@ func newNativeHistogramWithClassicBuckets(
 		}}
 	}
 	return ret, nil
+}
+
+// TestWithExemplarsMetricConstCounterIsolation verifies that writing a
+// withExemplarsMetric wrapper does not mutate the wrapped Metric. Const
+// metrics hand out pointers to their own dto messages, so writing the exemplar
+// in place changes MetricFamilies returned by an earlier Gather.
+func TestWithExemplarsMetricConstCounterIsolation(t *testing.T) {
+	desc := NewDesc("const_counter_exemplar_isolation", "A const counter.", nil, nil)
+	base := MustNewConstMetric(desc, CounterValue, 1)
+	first := MustNewMetricWithExemplars(base, Exemplar{Value: 1, Labels: Labels{"trace_id": "first"}})
+	second := MustNewMetricWithExemplars(base, Exemplar{Value: 1, Labels: Labels{"trace_id": "second"}})
+
+	reg1 := NewRegistry()
+	reg1.MustRegister(CollectorFunc(func(ch chan<- Metric) { ch <- first }))
+	reg2 := NewRegistry()
+	reg2.MustRegister(CollectorFunc(func(ch chan<- Metric) { ch <- second }))
+
+	mfs, err := reg1.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reg2.Gather(); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, lp := range mfs[0].GetMetric()[0].GetCounter().GetExemplar().GetLabel() {
+		if lp.GetName() == "trace_id" {
+			if got, want := lp.GetValue(), "first"; got != want {
+				t.Fatalf("first Gather result changed after a second Gather: got trace_id %q, want %q", got, want)
+			}
+			return
+		}
+	}
+	t.Fatalf("first Gather result has no trace_id label: %v", mfs[0])
+}
+
+func constNativeHistogramWithExemplars(desc *Desc) Metric {
+	return MustNewMetricWithExemplars(
+		MustNewConstNativeHistogram(
+			desc,
+			10, 12.1,
+			map[int]int64{1: 7, 2: 1, 3: 2},
+			map[int]int64{},
+			0, 2, 0.2,
+			time.Date(2009, 11, 17, 20, 34, 58, 651387237, time.UTC),
+		),
+		Exemplar{Value: 1000, Labels: Labels{"trace_id": "abc"}, Timestamp: time.Now()},
+	)
+}
+
+// TestWithExemplarsMetricConstNativeHistogramDoesNotAccumulate verifies that
+// repeated Writes/Gathers of a constant native histogram wrapped with
+// exemplars do not append the exemplars to the Metric itself. Otherwise every
+// scrape adds another copy of the same exemplars to the Metric's own
+// dto.Histogram and to the exposition.
+func TestWithExemplarsMetricConstNativeHistogramDoesNotAccumulate(t *testing.T) {
+	desc := NewDesc("const_native_histogram_exemplar_isolation", "A const native histogram.", nil, nil)
+	m := constNativeHistogramWithExemplars(desc)
+	reg := NewRegistry()
+	reg.MustRegister(CollectorFunc(func(ch chan<- Metric) {
+		ch <- m
+	}))
+
+	for i := 1; i <= 3; i++ {
+		mfs, err := reg.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := len(mfs[0].GetMetric()[0].GetHistogram().GetExemplars()), 1; got != want {
+			t.Fatalf("Gather #%d returned %d exemplars, want %d (exemplars accumulate in the Metric)", i, got, want)
+		}
+	}
+}
+
+// TestWithExemplarsMetricConstMetricsConcurrentGather verifies that concurrent
+// Gather calls (which Gather is documented to allow) do not race on state that
+// withExemplarsMetric shares with the wrapped const metrics.
+func TestWithExemplarsMetricConstMetricsConcurrentGather(t *testing.T) {
+	counterDesc := NewDesc("const_counter_exemplar_concurrent", "A const counter.", nil, nil)
+	histDesc := NewDesc("const_native_histogram_exemplar_concurrent", "A const native histogram.", nil, nil)
+	counter := MustNewMetricWithExemplars(
+		MustNewConstMetric(counterDesc, CounterValue, 1),
+		Exemplar{Value: 1, Labels: Labels{"trace_id": "abc"}},
+	)
+	histogram := constNativeHistogramWithExemplars(histDesc)
+
+	reg := NewRegistry()
+	reg.MustRegister(CollectorFunc(func(ch chan<- Metric) {
+		ch <- counter
+		ch <- histogram
+	}))
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for range 100 {
+				if _, err := reg.Gather(); err != nil {
+					t.Error(err)
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
 }
