@@ -572,7 +572,7 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, "/", nil)
 		request.Header.Add(acceptEncodingHeader, test.acceptEncoding)
 		rr := httptest.NewRecorder()
-		_, encodingHeader, _, err := negotiateEncodingWriter(request, rr, test.offeredCompressions)
+		w, encodingHeader, closeWriter, err := negotiateEncodingWriter(request, rr, test.offeredCompressions)
 
 		if !errors.Is(err, test.err) {
 			t.Errorf("got error: %v, expected: %v", err, test.err)
@@ -580,6 +580,15 @@ func TestNegotiateEncodingWriter(t *testing.T) {
 
 		if encodingHeader != test.expectedCompression {
 			t.Errorf("got different compression type: %v, expected: %v", encodingHeader, test.expectedCompression)
+		}
+
+		if encodingHeader == string(Gzip) {
+			w.Write([]byte("test"))
+			closeWriter()
+			// Per RFC 1952, XFL 4 in the gzip header means the fastest level.
+			if got := rr.Body.Bytes()[8]; got != 4 {
+				t.Errorf("got gzip XFL byte %d, expected 4 (gzip.BestSpeed)", got)
+			}
 		}
 	}
 }
