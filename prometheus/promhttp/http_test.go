@@ -1565,6 +1565,40 @@ func TestCoalesceGatherNewCycleAfterCompletion(t *testing.T) {
 	}
 }
 
+// TestCoalesceGatherNewCycleAfterGather verifies that a request arriving after
+// the in-flight Gather has finished starts a new Gather, even while a handler of
+// the finished cycle has not released it yet, e.g. because it is still writing
+// the response to a slow client.
+func TestCoalesceGatherNewCycleAfterGather(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	cnt := prometheus.NewCounter(prometheus.CounterOpts{Name: "c_total", Help: "help"})
+	reg.MustRegister(cnt)
+	counter := &syncGatherCounter{g: reg}
+	cg := &coalescingGatherer{g: counter}
+
+	_, done1, err := cg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cnt.Inc()
+	mfs, done2, err := cg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	done2()
+	done1()
+
+	if got, want := counter.gatherCalled.Load(), int64(2); got != want {
+		t.Errorf("Gather called %d times, want %d", got, want)
+	}
+	if got, want := counter.doneCalled.Load(), int64(2); got != want {
+		t.Errorf("done called %d times, want %d", got, want)
+	}
+	if got, want := mfs[0].GetMetric()[0].GetCounter().GetValue(), 1.0; got != want {
+		t.Errorf("second caller got counter value %v, want %v", got, want)
+	}
+}
+
 // inflightRefs reports how many callers currently share the in-flight cycle.
 // It lives in the test file so production code carries no test-only hooks; tests
 // use it to wait deterministically until a joiner has entered the cycle.

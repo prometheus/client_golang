@@ -115,7 +115,7 @@ var errGatherPanicked = errors.New("coalesced gather panicked")
 func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	c.mu.Lock()
 	if cy := c.cycle; cy != nil {
-		// c.cycle is non-nil while Gather runs or handlers are still consuming its results.
+		// c.cycle is only non-nil while its Gather runs.
 		cy.refs++
 		c.mu.Unlock()
 		<-cy.ready
@@ -162,6 +162,14 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	}()
 	cy.mfs, cy.done, cy.err = c.g.Gather()
 	panicked = false
+	// Detach the finished cycle, so that requests arriving from now on start a
+	// new Gather instead of getting this result, which handlers of this cycle
+	// might still be writing out to slow clients.
+	c.mu.Lock()
+	if c.cycle == cy {
+		c.cycle = nil
+	}
+	c.mu.Unlock()
 	close(cy.ready) // happens-before joiners' reads of cy.mfs/err/done
 
 	// Clone here too so cy.mfs stays the write-once canonical slice: joiners
@@ -171,8 +179,7 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 }
 
 // releaseFunc returns the done callback for one caller sharing cy.
-// When the last caller releases, the underlying done is invoked and the
-// cycle is cleared so the next Gather starts fresh.
+// When the last caller releases, the underlying done is invoked.
 func (c *coalescingGatherer) releaseFunc(cy *gatherCycle) func() {
 	return func() {
 		c.mu.Lock()
@@ -180,10 +187,6 @@ func (c *coalescingGatherer) releaseFunc(cy *gatherCycle) func() {
 		if cy.refs > 0 {
 			c.mu.Unlock()
 			return
-		}
-		// Last caller.
-		if c.cycle == cy {
-			c.cycle = nil
 		}
 		c.mu.Unlock()
 		cy.done() // called outside the lock to avoid holding it during done
