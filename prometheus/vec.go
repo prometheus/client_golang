@@ -583,36 +583,33 @@ func indexOf(target string, items []string) (int, bool) {
 	return len(items), false
 }
 
-// valueMatchesVariableOrCurriedValue determines if a value was previously curried,
-// and returns whether it matches either the "base" value or the curried value accordingly.
-// It also indicates whether the match is against a curried or uncurried value.
-func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []string, curry []curriedLabelValue) (bool, bool) {
-	for _, curriedValue := range curry {
-		if curriedValue.index == index {
-			// This label was curried. See if the curried value matches our target.
-			return curriedValue.value == targetValue, true
-		}
-	}
-	// This label was not curried. See if the current value matches our target label.
-	return values[index] == targetValue, false
-}
-
 // matchPartialLabels searches the current metric and returns whether all of the target label:value pairs are present.
 func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
+	// A curried vector only sees the metrics that carry its curried values.
+	for _, cv := range curry {
+		if values[cv.index] != cv.value {
+			return false
+		}
+	}
 	for l, v := range labels {
 		// Check if the target label exists in our metrics and get the index.
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels.names)
-		if validLabel {
-			// Check the value of that label against the target value.
-			// We don't consider curried values in partial matches.
-			matches, curried := valueMatchesVariableOrCurriedValue(v, varLabelIndex, values, curry)
-			if matches && !curried {
-				continue
-			}
+		// We don't consider curried values in partial matches.
+		if !validLabel || isCurried(varLabelIndex, curry) || values[varLabelIndex] != v {
+			return false
 		}
-		return false
 	}
 	return true
+}
+
+// isCurried reports whether the label at index was curried.
+func isCurried(index int, curry []curriedLabelValue) bool {
+	for _, cv := range curry {
+		if cv.index == index {
+			return true
+		}
+	}
+	return false
 }
 
 // getOrCreateMetricWithLabelValues retrieves the metric by hash and label value
