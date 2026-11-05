@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1267,16 +1268,21 @@ func BenchmarkCompression(b *testing.B) {
 			}, append([]string{"series_id", "cycle_id"}, labelKeys...))
 			reg.MustRegister(gauge)
 			metrics[idx] = gauge
+			// Families without series are not exposed, so give each one a series.
+			gauge.WithLabelValues(append([]string{strconv.Itoa(idx), "0"}, labelValues...)...).Set(float64(idx))
 		}
 
 		for _, benchmark := range benchmarks {
 			b.Run("op="+benchmark.name+",size="+size.name, func(b *testing.B) {
+				var bodyBytes int
 				for b.Loop() {
 					writer := httptest.NewRecorder()
 					request, _ := http.NewRequest(http.MethodGet, "/", nil)
 					request.Header.Add(acceptEncodingHeader, benchmark.compressionType)
 					handler.ServeHTTP(writer, request)
+					bodyBytes = writer.Body.Len()
 				}
+				b.ReportMetric(float64(bodyBytes), "body-bytes")
 			})
 		}
 	}
