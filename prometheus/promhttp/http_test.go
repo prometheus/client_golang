@@ -104,6 +104,37 @@ func readCompressedBody(r io.Reader, comp Compression) (string, error) {
 	return "", errors.New("Unsupported compression")
 }
 
+func BenchmarkGzipPool(b *testing.B) {
+	payload := []byte("# HELP requests_total Total requests.\n# TYPE requests_total counter\nrequests_total 42\n")
+	b.ReportAllocs()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			gz := gzipPool.Get()
+			gz.Reset(io.Discard)
+			if _, err := gz.Write(payload); err != nil {
+				b.Fatal(err)
+			}
+			if err := gz.Close(); err != nil {
+				b.Fatal(err)
+			}
+			gzipPool.Put(gz)
+		}
+	})
+}
+
+func TestBoundedGzipPool(t *testing.T) {
+	pool := newBoundedGzipPool(1)
+	first := pool.Get()
+	second := pool.Get()
+
+	pool.Put(first)
+	pool.Put(second)
+
+	if got := len(pool.writers); got != 1 {
+		t.Fatalf("unexpected number of retained writers, want 1, got %d", got)
+	}
+}
+
 func TestHandlerErrorHandling(t *testing.T) {
 	// Create a registry that collects a MetricFamily with two elements,
 	// another with one, and reports an error. Further down, we'll use the
