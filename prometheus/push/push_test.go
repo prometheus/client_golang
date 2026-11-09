@@ -331,18 +331,23 @@ func TestPush(t *testing.T) {
 
 func TestPushPathSegments(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		job      string
-		grouping string
-		wantPath string
+		name         string
+		job          string
+		groupingName string
+		grouping     string
+		wantPath     string
 	}{
-		{"dot job", ".", "", "/metrics/job@base64/Lg"},
-		{"dot-dot job", "..", "", "/metrics/job@base64/Li4"},
-		{"dot grouping", "testjob", ".", "/metrics/job/testjob/instance@base64/Lg"},
-		{"dot-dot grouping", "testjob", "..", "/metrics/job/testjob/instance@base64/Li4"},
-		{"embedded dot", "test.job", "", "/metrics/job/test.job"},
-		{"space job", "test job", "", "/metrics/job/test job"},
-		{"space grouping", "testjob", "a b+c", "/metrics/job/testjob/instance/a b+c"},
+		{"dot job", ".", "", "", "/metrics/job@base64/Lg"},
+		{"dot-dot job", "..", "", "", "/metrics/job@base64/Li4"},
+		{"dot grouping", "testjob", "", ".", "/metrics/job/testjob/instance@base64/Lg"},
+		{"dot-dot grouping", "testjob", "", "..", "/metrics/job/testjob/instance@base64/Li4"},
+		{"embedded dot", "test.job", "", "", "/metrics/job/test.job"},
+		{"space job", "test job", "", "", "/metrics/job/test job"},
+		{"space grouping", "testjob", "", "a b+c", "/metrics/job/testjob/instance/a b+c"},
+		{"dotted grouping name", "testjob", "service.name", "x", "/metrics/job/testjob/U__service_2e_name/x"},
+		{"slash in grouping name", "testjob", "http/route", "x", "/metrics/job/testjob/U__http_2f_route/x"},
+		{"question mark in grouping name", "testjob", "a?b", "x", "/metrics/job/testjob/U__a_3f_b/x"},
+		{"utf-8 grouping name with base64 value", "testjob", "foo.bar", "", "/metrics/job/testjob/U__foo_2e_bar@base64/="},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			mux := http.NewServeMux()
@@ -358,7 +363,9 @@ func TestPushPathSegments(t *testing.T) {
 			server := httptest.NewServer(mux)
 			defer server.Close()
 			pusher := New(server.URL, test.job)
-			if test.grouping != "" {
+			if test.groupingName != "" {
+				pusher.Grouping(test.groupingName, test.grouping)
+			} else if test.grouping != "" {
 				pusher.Grouping("instance", test.grouping)
 			}
 			if err := pusher.Push(); err != nil {
