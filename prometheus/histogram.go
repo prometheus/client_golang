@@ -825,13 +825,27 @@ func (h *histogram) Write(out *dto.Metric) error {
 	out.Histogram = his
 	out.Label = h.labelPairs
 
+	// Allocate the buckets and the values they point to in one go instead
+	// of three times per bucket. A histogram without classic buckets does
+	// not allocate.
+	type bucketWithValues struct {
+		bucket          dto.Bucket
+		cumulativeCount uint64
+		upperBound      float64
+	}
+	var bucketData []bucketWithValues
+	if len(h.upperBounds) > 0 {
+		bucketData = make([]bucketWithValues, len(h.upperBounds))
+	}
 	var cumCount uint64
 	for i, upperBound := range h.upperBounds {
 		cumCount += atomic.LoadUint64(&coldCounts.buckets[i])
-		his.Bucket[i] = &dto.Bucket{
-			CumulativeCount: new(cumCount),
-			UpperBound:      new(upperBound),
-		}
+		bd := &bucketData[i]
+		bd.cumulativeCount = cumCount
+		bd.upperBound = upperBound
+		bd.bucket.CumulativeCount = &bd.cumulativeCount
+		bd.bucket.UpperBound = &bd.upperBound
+		his.Bucket[i] = &bd.bucket
 		if e := h.exemplars[i].Load(); e != nil {
 			his.Bucket[i].Exemplar = e.(*dto.Exemplar)
 		}
