@@ -384,6 +384,27 @@ func TestBuckets(t *testing.T) {
 			)
 		}
 	}
+
+	// Ranges too narrow to fit 'count' distinct buckets must still return
+	// buckets in increasing order. Otherwise NewHistogram panics.
+	for _, tc := range []struct {
+		minBucket, maxBucket float64
+		count                int
+	}{
+		{1, 1.000000000001, 5000},
+		{1, 1.0000000000000007, 5},
+	} {
+		buckets := ExponentialBucketsRange(tc.minBucket, tc.maxBucket, tc.count)
+		for i := 1; i < len(buckets); i++ {
+			if buckets[i] <= buckets[i-1] {
+				t.Errorf(
+					"exponential buckets range(%v, %v, %d): bucket %d (%v) is not greater than bucket %d (%v)",
+					tc.minBucket, tc.maxBucket, tc.count, i, buckets[i], i-1, buckets[i-1],
+				)
+				break
+			}
+		}
+	}
 }
 
 func TestHistogramAtomicObserve(t *testing.T) {
