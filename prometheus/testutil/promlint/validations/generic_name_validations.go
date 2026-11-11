@@ -28,7 +28,7 @@ var camelCase = regexp.MustCompile(`[a-z][A-Z]`)
 func LintMetricUnits(mf *dto.MetricFamily) []error {
 	var problems []error
 
-	unit, base, ok := metricUnits(*mf.Name)
+	unit, base, ok := metricUnits(mf.GetName())
 	if !ok {
 		// No known units detected.
 		return nil
