@@ -355,6 +355,14 @@ func ExponentialBucketsRange(minBucket, maxBucket float64, count int) []float64 
 	for i := 1; i <= count; i++ {
 		buckets[i-1] = minBucket * math.Pow(growthFactor, float64(i-1))
 	}
+	// Rounding errors can leave the last bucket slightly off 'max', which
+	// would count an observation of exactly 'max' only in the +Inf bucket.
+	// Skip this if the bucket before the last one already reaches 'max', which
+	// happens for very narrow ranges, so that the buckets stay in increasing
+	// order.
+	if count > 1 && buckets[count-2] < maxBucket {
+		buckets[count-1] = maxBucket
+	}
 	return buckets
 }
 
