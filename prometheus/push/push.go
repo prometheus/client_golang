@@ -339,6 +339,8 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 // label value will be encoded as base64 just with a single `=` padding character
 // (to avoid an empty path component). Other special characters use url.PathEscape for
 // compatibility with older versions of the Pushgateway and better readability.
+// Grouping label names that are not valid legacy label names are escaped with
+// the U__ value encoding understood by the Pushgateway.
 func (p *Pusher) fullURL() string {
 	urlComponents := []string{}
 	if encodedJob, base64 := encodeComponent(p.job); base64 {
@@ -347,6 +349,10 @@ func (p *Pusher) fullURL() string {
 		urlComponents = append(urlComponents, "job", encodedJob)
 	}
 	for ln, lv := range p.grouping {
+		// Label names that are not valid legacy names use the Pushgateway's
+		// U__ escaping so that characters like '/' or '?' stay in their path
+		// component.
+		ln = model.EscapeName(ln, model.ValueEncodingEscaping)
 		if encodedLV, base64 := encodeComponent(lv); base64 {
 			urlComponents = append(urlComponents, ln+base64Suffix, encodedLV)
 		} else {
