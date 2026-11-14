@@ -34,7 +34,7 @@ jobs:
         with:
           go-version: stable
           check-latest: true
-          cache-dependency-path: go.sum
+          cache: false
 
       - name: Check license
         run: make check_license
