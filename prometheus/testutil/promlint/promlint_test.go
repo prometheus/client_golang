@@ -876,3 +876,26 @@ not_unique_total{bar="abc", spam="xyz"} 2
 
 	runTests(t, tests)
 }
+
+// A MetricFamily without a name is a legal protobuf message. The linter's
+// public NewWithMetricFamilies API must report problems, not panic. Every
+// default validation except LintMetricUnits reads the name via GetName(),
+// which is nil-safe.
+func TestLintMetricFamilyWithoutNameDoesNotPanic(t *testing.T) {
+	mfs := []*dto.MetricFamily{
+		{}, // Name == nil
+	}
+
+	l := promlint.NewWithMetricFamilies(mfs)
+	problems, err := l.Lint()
+	if err != nil {
+		t.Fatalf("Lint returned an unexpected error: %v", err)
+	}
+	want := []promlint.Problem{
+		{Metric: "", Text: "counter metrics should have \"_total\" suffix"},
+		{Metric: "", Text: "no help text"},
+	}
+	if !reflect.DeepEqual(want, problems) {
+		t.Fatalf("unexpected problems:\n- want: %v\n-  got: %v", want, problems)
+	}
+}
