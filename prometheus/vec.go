@@ -171,8 +171,9 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // passed in as labels. The order of the labels does not matter.
 // It returns the number of metrics deleted.
 //
-// Note that curried labels will never be matched if deleting from the curried vector.
-// To match curried labels with DeletePartialMatch, it must be called on the base vector.
+// On a curried vector, only metrics that carry the curried label values are
+// deleted. Curried labels cannot be used for matching there. To match on a
+// curried label, call DeletePartialMatch on the base vector.
 func (m *MetricVec) DeletePartialMatch(labels Labels) int {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
