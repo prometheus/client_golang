@@ -51,6 +51,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -190,17 +191,64 @@ func ScrapeAndCompare(url string, expected io.Reader, metricNames ...string) err
 	return compareMetricFamilies(scraped, wanted, metricNames...)
 }
 
+// CompareOption allows configuring metric comparison behavior.
+type CompareOption func(*compareOptions)
+
+type compareOptions struct {
+	metricNames              []string
+	format                   expfmt.Format
+	ignoreExemplarTimestamps bool
+}
+
+// WithMetricNames configures comparison to only consider metrics with the given names.
+func WithMetricNames(metricNames ...string) CompareOption {
+	return func(o *compareOptions) {
+		o.metricNames = append(o.metricNames, metricNames...)
+	}
+}
+
+// WithFormat configures the exposition format used to parse the expected output
+// and format the compared metric families (e.g. OpenMetrics for exemplar testing).
+func WithFormat(format expfmt.Format) CompareOption {
+	return func(o *compareOptions) {
+		o.format = format
+	}
+}
+
+// WithIgnoreExemplarTimestamps configures comparison to ignore timestamps on exemplars.
+func WithIgnoreExemplarTimestamps() CompareOption {
+	return func(o *compareOptions) {
+		o.ignoreExemplarTimestamps = true
+	}
+}
+
+// CollectAndCompareWithOptions collects all metrics from the provided Collector and compares
+// it to an expected output read from the provided Reader, configured with CompareOption(s).
+func CollectAndCompareWithOptions(c prometheus.Collector, expected io.Reader, opts ...CompareOption) error {
+	reg := prometheus.NewPedanticRegistry()
+	if err := reg.Register(c); err != nil {
+		return fmt.Errorf("registering collector failed: %w", err)
+	}
+	return GatherAndCompareWithOptions(reg, expected, opts...)
+}
+
 // CollectAndCompare collects the metrics identified by `metricNames` and compares them in the Prometheus text
 // exposition format to the data read from expected.
 //
 // NOTE: Be mindful of accidental discrepancies between expected and metricNames; metricNames filter
 // both expected and collected metrics. See https://github.com/prometheus/client_golang/issues/1351.
 func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames ...string) error {
-	reg := prometheus.NewPedanticRegistry()
-	if err := reg.Register(c); err != nil {
-		return fmt.Errorf("registering collector failed: %w", err)
+	var opts []CompareOption
+	if len(metricNames) > 0 {
+		opts = append(opts, WithMetricNames(metricNames...))
 	}
-	return GatherAndCompare(reg, expected, metricNames...)
+	return CollectAndCompareWithOptions(c, expected, opts...)
+}
+
+// GatherAndCompareWithOptions gathers all metrics from the provided Gatherer and compares
+// it to an expected output read from the provided Reader, configured with CompareOption(s).
+func GatherAndCompareWithOptions(g prometheus.Gatherer, expected io.Reader, opts ...CompareOption) error {
+	return TransactionalGatherAndCompareWithOptions(prometheus.ToTransactionalGatherer(g), expected, opts...)
 }
 
 // GatherAndCompare gathers all metrics from the provided Gatherer and compares
@@ -211,7 +259,33 @@ func CollectAndCompare(c prometheus.Collector, expected io.Reader, metricNames .
 // NOTE: Be mindful of accidental discrepancies between expected and metricNames; metricNames filter
 // both expected and gathered metrics. See https://github.com/prometheus/client_golang/issues/1351.
 func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
-	return TransactionalGatherAndCompare(prometheus.ToTransactionalGatherer(g), expected, metricNames...)
+	var opts []CompareOption
+	if len(metricNames) > 0 {
+		opts = append(opts, WithMetricNames(metricNames...))
+	}
+	return GatherAndCompareWithOptions(g, expected, opts...)
+}
+
+// TransactionalGatherAndCompareWithOptions gathers all metrics from the provided TransactionalGatherer
+// and compares it to an expected output read from the provided Reader, configured with CompareOption(s).
+func TransactionalGatherAndCompareWithOptions(g prometheus.TransactionalGatherer, expected io.Reader, opts ...CompareOption) error {
+	var options compareOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	got, done, err := g.Gather()
+	defer done()
+	if err != nil {
+		return fmt.Errorf("gathering metrics failed: %w", err)
+	}
+
+	wanted, err := convertReaderToMetricFamilyWithOptions(expected, options.format)
+	if err != nil {
+		return err
+	}
+
+	return compareMetricFamiliesWithOptions(got, wanted, options)
 }
 
 // TransactionalGatherAndCompare gathers all metrics from the provided Gatherer and compares
@@ -222,18 +296,11 @@ func GatherAndCompare(g prometheus.Gatherer, expected io.Reader, metricNames ...
 // NOTE: Be mindful of accidental discrepancies between expected and metricNames; metricNames filter
 // both expected and gathered metrics. See https://github.com/prometheus/client_golang/issues/1351.
 func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected io.Reader, metricNames ...string) error {
-	got, done, err := g.Gather()
-	defer done()
-	if err != nil {
-		return fmt.Errorf("gathering metrics failed: %w", err)
+	var opts []CompareOption
+	if len(metricNames) > 0 {
+		opts = append(opts, WithMetricNames(metricNames...))
 	}
-
-	wanted, err := convertReaderToMetricFamily(expected)
-	if err != nil {
-		return err
-	}
-
-	return compareMetricFamilies(got, wanted, metricNames...)
+	return TransactionalGatherAndCompareWithOptions(g, expected, opts...)
 }
 
 // CollectAndFormat collects the metrics identified by `metricNames` and returns them in the given format.
@@ -281,62 +348,148 @@ func GatherAndFormat(g prometheus.Gatherer, format expfmt.FormatType, metricName
 // convertReaderToMetricFamily would read from a io.Reader object and convert it to a slice of
 // dto.MetricFamily.
 func convertReaderToMetricFamily(reader io.Reader) ([]*dto.MetricFamily, error) {
-	tp := expfmt.NewTextParser(model.UTF8Validation)
-	notNormalized, err := tp.TextToMetricFamilies(reader)
-	if err != nil {
-		return nil, fmt.Errorf("converting reader to metric families failed: %w", err)
+	return convertReaderToMetricFamilyWithOptions(reader, "")
+}
+
+func convertReaderToMetricFamilyWithOptions(reader io.Reader, format expfmt.Format) ([]*dto.MetricFamily, error) {
+	if format == "" || format.FormatType() == expfmt.TypeTextPlain {
+		tp := expfmt.NewTextParser(model.UTF8Validation)
+		notNormalized, err := tp.TextToMetricFamilies(reader)
+		if err != nil {
+			return nil, fmt.Errorf("converting reader to metric families failed: %w", err)
+		}
+
+		// The text protocol handles empty help fields inconsistently. When
+		// encoding, any non-nil value, include the empty string, produces a
+		// "# HELP" line. But when decoding, the help field is only set to a
+		// non-nil value if the "# HELP" line contains a non-empty value.
+		//
+		// Because metrics in a registry always have non-nil help fields, populate
+		// any nil help fields in the parsed metrics with the empty string so that
+		// when we compare text encodings, the results are consistent.
+		for _, metric := range notNormalized {
+			if metric.Help == nil {
+				metric.Help = new("")
+			}
+		}
+
+		return internal.NormalizeMetricFamilies(notNormalized), nil
 	}
 
-	// The text protocol handles empty help fields inconsistently. When
-	// encoding, any non-nil value, include the empty string, produces a
-	// "# HELP" line. But when decoding, the help field is only set to a
-	// non-nil value if the "# HELP" line contains a non-empty value.
-	//
-	// Because metrics in a registry always have non-nil help fields, populate
-	// any nil help fields in the parsed metrics with the empty string so that
-	// when we compare text encodings, the results are consistent.
-	for _, metric := range notNormalized {
-		if metric.Help == nil {
-			metric.Help = new("")
+	decoder := expfmt.NewDecoder(reader, format)
+	byName := make(map[string]*dto.MetricFamily)
+	for {
+		var mf dto.MetricFamily
+		err := decoder.Decode(&mf)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("converting reader to metric families failed: %w", err)
+		}
+		if mf.Help == nil {
+			mf.Help = new("")
+		}
+		if existing, ok := byName[mf.GetName()]; ok {
+			existing.Metric = append(existing.Metric, mf.Metric...)
+		} else {
+			byName[mf.GetName()] = &mf
 		}
 	}
 
-	return internal.NormalizeMetricFamilies(notNormalized), nil
+	return internal.NormalizeMetricFamilies(byName), nil
 }
 
 // compareMetricFamilies would compare 2 slices of metric families, and optionally filters both of
 // them to the `metricNames` provided.
 func compareMetricFamilies(got, expected []*dto.MetricFamily, metricNames ...string) error {
-	if metricNames != nil {
-		got = filterMetrics(got, metricNames)
-		expected = filterMetrics(expected, metricNames)
+	var opts compareOptions
+	if len(metricNames) > 0 {
+		opts.metricNames = metricNames
 	}
-
-	return compare(got, expected)
+	return compareMetricFamiliesWithOptions(got, expected, opts)
 }
 
-// compare encodes both provided slices of metric families into the text format,
+func compareMetricFamiliesWithOptions(got, expected []*dto.MetricFamily, options compareOptions) error {
+	if len(options.metricNames) > 0 {
+		got = filterMetrics(got, options.metricNames)
+		expected = filterMetrics(expected, options.metricNames)
+	}
+
+	return compareWithOptions(got, expected, options)
+}
+
+// compareWithOptions encodes both provided slices of metric families into the configured format,
 // compares their string message, and returns an error if they do not match.
-// The error contains the encoded text of both the desired and the actual
-// result.
-func compare(got, want []*dto.MetricFamily) error {
+// The error contains the encoded text of both the desired and the actual result.
+func compareWithOptions(got, want []*dto.MetricFamily, options compareOptions) error {
+	format := options.format
+	if format == "" {
+		format = expfmt.NewFormat(expfmt.TypeTextPlain).WithEscapingScheme(model.NoEscaping)
+	}
+
+	if options.ignoreExemplarTimestamps {
+		stripExemplarTimestamps(got)
+		stripExemplarTimestamps(want)
+	}
+
 	var gotBuf, wantBuf bytes.Buffer
-	enc := expfmt.NewEncoder(&gotBuf, expfmt.NewFormat(expfmt.TypeTextPlain).WithEscapingScheme(model.NoEscaping))
+	enc := expfmt.NewEncoder(&gotBuf, format)
 	for _, mf := range got {
 		if err := enc.Encode(mf); err != nil {
 			return fmt.Errorf("encoding gathered metrics failed: %w", err)
 		}
 	}
-	enc = expfmt.NewEncoder(&wantBuf, expfmt.NewFormat(expfmt.TypeTextPlain).WithEscapingScheme(model.NoEscaping))
+	if closer, ok := enc.(expfmt.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("finalizing gathered metrics failed: %w", err)
+		}
+	}
+
+	enc = expfmt.NewEncoder(&wantBuf, format)
 	for _, mf := range want {
 		if err := enc.Encode(mf); err != nil {
 			return fmt.Errorf("encoding expected metrics failed: %w", err)
 		}
 	}
+	if closer, ok := enc.(expfmt.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("finalizing expected metrics failed: %w", err)
+		}
+	}
+
 	if diffErr := diff.Diff(gotBuf.String(), wantBuf.String()); diffErr != "" {
 		return errors.New(diffErr)
 	}
 	return nil
+}
+
+func stripExemplarTimestamps(mfs []*dto.MetricFamily) {
+	for _, mf := range mfs {
+		for _, m := range mf.Metric {
+			if m.Counter != nil && m.Counter.Exemplar != nil {
+				ex := proto.Clone(m.Counter.Exemplar).(*dto.Exemplar)
+				ex.Timestamp = nil
+				m.Counter.Exemplar = ex
+			}
+			if m.Histogram != nil {
+				for _, b := range m.Histogram.Bucket {
+					if b.Exemplar != nil {
+						ex := proto.Clone(b.Exemplar).(*dto.Exemplar)
+						ex.Timestamp = nil
+						b.Exemplar = ex
+					}
+				}
+				for i, e := range m.Histogram.Exemplars {
+					if e != nil {
+						ex := proto.Clone(e).(*dto.Exemplar)
+						ex.Timestamp = nil
+						m.Histogram.Exemplars[i] = ex
+					}
+				}
+			}
+		}
+	}
 }
 
 func filterMetrics(metrics []*dto.MetricFamily, names []string) []*dto.MetricFamily {
