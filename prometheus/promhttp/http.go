@@ -79,7 +79,8 @@ func defaultCompressionFormats() []Compression {
 
 var gzipPool = sync.Pool{
 	New: func() any {
-		return gzip.NewWriter(nil)
+		gz, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+		return gz
 	},
 }
 

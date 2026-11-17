@@ -16,11 +16,13 @@ package push
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -326,6 +328,57 @@ func TestPush(t *testing.T) {
 	}
 	if lastHeader == nil || lastHeader.Get("Authorization") == "" {
 		t.Error("empty Authorization header")
+	}
+}
+
+func TestPushOpenMetrics(t *testing.T) {
+	for _, format := range []expfmt.Format{expfmt.FmtOpenMetrics_0_0_1, expfmt.FmtOpenMetrics_1_0_0} {
+		for _, count := range []int{0, 1} {
+			for _, method := range []string{http.MethodPut, http.MethodPost} {
+				t.Run(fmt.Sprintf("%s/metrics=%d/%s", format, count, method), func(t *testing.T) {
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if r.Method != method || r.Header.Get("Content-Type") != string(format) {
+							http.Error(w, "unexpected method or content type", http.StatusBadRequest)
+							return
+						}
+						decoder := expfmt.NewDecoder(r.Body, format)
+						decoded := 0
+						for {
+							var family dto.MetricFamily
+							err := decoder.Decode(&family)
+							if errors.Is(err, io.EOF) {
+								break
+							}
+							if err != nil {
+								http.Error(w, err.Error(), http.StatusBadRequest)
+								return
+							}
+							decoded++
+						}
+						if decoded != count {
+							http.Error(w, "unexpected metric family count", http.StatusBadRequest)
+						}
+					}))
+					t.Cleanup(server.Close)
+					pusher := New(server.URL, "testjob").Format(format)
+					if count > 0 {
+						pusher.Collector(prometheus.NewGauge(prometheus.GaugeOpts{
+							Name: "test_gauge",
+							Help: "A test gauge.",
+						}))
+					}
+					if method == http.MethodPut {
+						if err := pusher.Push(); err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						if err := pusher.Add(); err != nil {
+							t.Fatal(err)
+						}
+					}
+				})
+			}
+		}
 	}
 }
 

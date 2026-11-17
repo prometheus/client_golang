@@ -303,6 +303,11 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 			)
 		}
 	}
+	if closer, ok := enc.(expfmt.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("failed to finalize metrics, error is %w", err)
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
 	if err != nil {
 		return err
