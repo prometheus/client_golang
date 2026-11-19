@@ -61,6 +61,16 @@ func main() {
 	// A native histogram tracking response sizes in bytes. Using a higher
 	// bucket factor (1.5) produces fewer buckets, which reduces cost at
 	// the expense of some precision.
+	//
+	// Fine-tuning knobs:
+	// - NativeHistogramZeroThreshold: observations with absolute value <= threshold
+	//   are pooled into the zero bucket. This avoids allocating sparse exponential
+	//   buckets for values near zero.
+	// - NativeHistogramMaxBucketNumber: caps the number of populated buckets to prevent
+	//   unbounded memory growth when observations span many orders of magnitude.
+	// - NativeHistogramMinResetDuration: minimum cooldown duration before resetting
+	//   bucket schema after bucket limits are exceeded, allowing eventual memory recovery
+	//   without high-frequency reset oscillations during load spikes.
 	responseSize := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:                            "http_response_size_bytes",
 		Help:                            "HTTP response size distribution.",
