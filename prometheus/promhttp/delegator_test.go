@@ -54,6 +54,67 @@ func (rw *responseWriter) SetReadDeadline(deadline time.Time) error {
 	return nil
 }
 
+// trackingResponseWriter records every WriteHeader call so tests can assert
+// which status codes were forwarded to the underlying ResponseWriter.
+type trackingResponseWriter struct {
+	responseWriter
+	codes []int
+}
+
+func (rw *trackingResponseWriter) WriteHeader(code int) {
+	rw.codes = append(rw.codes, code)
+}
+
+func TestResponseWriterDelegatorIgnores1xxStatus(t *testing.T) {
+	t.Run("100 Continue does not become the final status", func(t *testing.T) {
+		observed := 0
+		w := &trackingResponseWriter{}
+		rwd := &responseWriterDelegator{
+			ResponseWriter: w,
+			observeWriteHeader: func(code int) {
+				observed = code
+			},
+		}
+
+		// Simulate a handler that sends 100 Continue then writes a body
+		// (which implicitly triggers a 200 OK).
+		rwd.WriteHeader(http.StatusContinue)
+		rwd.Write([]byte("hello"))
+
+		if rwd.Status() != http.StatusOK {
+			t.Errorf("expected status 200, got %d", rwd.Status())
+		}
+		if observed != http.StatusOK {
+			t.Errorf("expected observeWriteHeader called with 200, got %d", observed)
+		}
+		// 100 must still have been forwarded to the underlying ResponseWriter.
+		if len(w.codes) < 1 || w.codes[0] != http.StatusContinue {
+			t.Errorf("expected 100 forwarded to underlying writer, got %v", w.codes)
+		}
+	})
+
+	t.Run("explicit 200 after 100 Continue is recorded correctly", func(t *testing.T) {
+		observed := 0
+		w := &trackingResponseWriter{}
+		rwd := &responseWriterDelegator{
+			ResponseWriter: w,
+			observeWriteHeader: func(code int) {
+				observed = code
+			},
+		}
+
+		rwd.WriteHeader(http.StatusContinue)
+		rwd.WriteHeader(http.StatusOK)
+
+		if rwd.Status() != http.StatusOK {
+			t.Errorf("expected status 200, got %d", rwd.Status())
+		}
+		if observed != http.StatusOK {
+			t.Errorf("expected observeWriteHeader called with 200, got %d", observed)
+		}
+	})
+}
+
 func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 	w := &responseWriter{}
 	rwd := &responseWriterDelegator{ResponseWriter: w}
