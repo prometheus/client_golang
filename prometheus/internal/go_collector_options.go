@@ -29,6 +29,9 @@ type GoCollectorOptions struct {
 	DisableMemStatsLikeMetrics bool
 	RuntimeMetricSumForHist    map[string]string
 	RuntimeMetricRules         []GoCollectorRule
+	// IntegerByteBucketBounds makes histograms of byte-valued runtime/metrics
+	// use integer bucket upper bounds (e.g. 24 instead of 24.999999999999996).
+	IntegerByteBucketBounds bool
 }
 
 var GoCollectorDefaultRuntimeMetrics = regexp.MustCompile(`/gc/gogc:percent|/gc/gomemlimit:bytes|/sched/gomaxprocs:threads`)
