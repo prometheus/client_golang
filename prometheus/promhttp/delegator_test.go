@@ -14,7 +14,11 @@
 package promhttp
 
 import (
+	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -74,5 +78,77 @@ func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 
 	if err := controller.SetReadDeadline(timeNow); err != nil || w.setReadDeadlineCalled != timeNow {
 		t.Error("SetReadDeadline must be propagated to the original responsewriter")
+	}
+}
+
+// failingReader always fails without producing any bytes.
+type failingReader struct{}
+
+func (f *failingReader) Read(_ []byte) (int, error) {
+	return 0, errors.New("upstream failed")
+}
+
+// TestReaderFromZeroByteFailDoesNotLockStatus200 verifies that when
+// ReadFrom fails with zero bytes transferred, the HTTP status code is
+// not locked to 200. The handler should be able to write an alternative
+// status code (e.g. 502) via http.Error.
+// This is a regression test for https://github.com/prometheus/client_golang/issues/2155.
+func TestReaderFromZeroByteFailDoesNotLockStatus200(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := io.Copy(w, &failingReader{}); err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+		}
+	})
+
+	// Use httptest.NewServer to get a full http.ResponseWriter including io.ReaderFrom.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Wrap with our delegator to test the ReadFrom behavior.
+		delegated := newDelegator(w, nil)
+		h.ServeHTTP(delegated, r)
+	}))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("expected status 502 Bad Gateway, got %d", resp.StatusCode)
+	}
+}
+
+// TestReaderFromSuccessWrites200 verifies that when ReadFrom succeeds
+// and writes bytes, the HTTP status code is correctly set to 200.
+func TestReaderFromSuccessWrites200(t *testing.T) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := io.Copy(w, strings.NewReader("hello world")); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		delegated := newDelegator(w, nil)
+		h.ServeHTTP(delegated, r)
+	}))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 OK, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "hello world" {
+		t.Errorf("expected body %q, got %q", "hello world", string(body))
 	}
 }

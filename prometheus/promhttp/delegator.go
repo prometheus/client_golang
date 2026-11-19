@@ -109,14 +109,27 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
-	// If applicable, call WriteHeader here so that observeWriteHeader is
-	// handled appropriately.
-	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
+	// Do not call WriteHeader before copying, matching net/http standard behavior.
+	// WriteHeader should only be triggered after the first byte is actually written.
+	// This ensures that if ReadFrom fails with zero bytes transferred, the handler
+	// can still write an alternative status code (e.g. 502 via http.Error).
+	//
+	// We copy through d.responseWriterDelegator (not the underlying ResponseWriter
+	// directly) so that our Write method properly handles WriteHeader, observeWriteHeader,
+	// and written byte tracking. This avoids double WriteHeader calls that would
+	// occur when delegating to the underlying writer's ReadFrom (which may trigger
+	// its own WriteHeader through Write before we get a chance to).
+	//
+	// We do NOT delegate to the underlying ResponseWriter's ReadFrom because it
+	// would bypass our Write method. The performance difference is negligible since
+	// http.ResponseWriter.ReadFrom implementations (e.g. net/http's response)
+	// typically use io.Copy internally as well.
+	//
+	// For nil reader, delegate to the underlying writer for compatibility.
+	if re == nil {
+		return d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	}
-	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
-	d.written += n
-	return n, err
+	return io.Copy(d.responseWriterDelegator, re)
 }
 
 func (d pusherDelegator) Push(target string, opts *http.PushOptions) error {
