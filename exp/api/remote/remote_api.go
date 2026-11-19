@@ -393,18 +393,20 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType Write
 }
 
 // retryAfterDuration returns the duration for the Retry-After header. In case of any errors, it
-// returns 0 as if the header was never supplied.
+// returns 0 as if the header was never supplied. A date in the past and a negative
+// number of seconds also give 0, so the value never shortens the backoff.
 func retryAfterDuration(t string) time.Duration {
 	parsedDuration, err := time.Parse(http.TimeFormat, t)
 	if err == nil {
-		return time.Until(parsedDuration)
+		// A date in the past means there is nothing to wait for.
+		return max(time.Until(parsedDuration), 0)
 	}
 	// The duration can be in seconds.
 	d, err := strconv.Atoi(t)
 	if err != nil {
 		return 0
 	}
-	return time.Duration(d) * time.Second
+	return max(time.Duration(d)*time.Second, 0)
 }
 
 // writeStorage represents the storage for RemoteWriteHandler.

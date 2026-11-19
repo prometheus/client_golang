@@ -50,6 +50,16 @@ func TestRetryAfterDuration(t *testing.T) {
 			expected: model.Duration(time.Second * 120),
 		},
 		{
+			name:     "negative seconds",
+			tInput:   "-30",
+			expected: 0,
+		},
+		{
+			name:     "date in the past",
+			tInput:   time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat),
+			expected: 0,
+		},
+		{
 			name:     "date-time default",
 			tInput:   time.RFC1123, // Expected layout is http.TimeFormat, hence an error.
 			expected: 0,
