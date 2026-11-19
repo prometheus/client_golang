@@ -832,22 +832,21 @@ func constrainLabelValues(desc *Desc, lvs []string, curry []curriedLabelValue) [
 		return lvs
 	}
 
+	if len(lvs)+len(curry) != len(desc.variableLabels.names) {
+		// Constraining would index lvs out of range on a curried vector. The
+		// wrong number of values is reported by the caller's validation.
+		return lvs
+	}
+
 	constrainedValues := make([]string, len(lvs))
 	var iCurry, iLVs int
-	for i := 0; i < len(lvs)+len(curry); i++ {
+	for i, name := range desc.variableLabels.names {
 		if iCurry < len(curry) && curry[iCurry].index == i {
 			iCurry++
 			continue
 		}
 
-		if i < len(desc.variableLabels.names) {
-			constrainedValues[iLVs] = desc.variableLabels.constrain(
-				desc.variableLabels.names[i],
-				lvs[iLVs],
-			)
-		} else {
-			constrainedValues[iLVs] = lvs[iLVs]
-		}
+		constrainedValues[iLVs] = desc.variableLabels.constrain(name, lvs[iLVs])
 		iLVs++
 	}
 	return constrainedValues
