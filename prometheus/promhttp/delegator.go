@@ -108,15 +108,26 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
 
+// readFromProbeLen is the sniffLen of net/http, whose ReadFrom takes the same
+// step: http.DetectContentType considers at most that many bytes.
+const readFromProbeLen = 512
+
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
-	// If applicable, call WriteHeader here so that observeWriteHeader is
-	// handled appropriately.
+	var probed int64
 	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
+		// Like net/http, probe the source: pass its first bytes to Write,
+		// so that the implicit 200 is set only once the source yields
+		// data. The embedded delegator has no ReadFrom, so io.Copy calls
+		// its Write.
+		n, err := io.Copy(d.responseWriterDelegator, io.LimitReader(re, readFromProbeLen))
+		if err != nil || n < readFromProbeLen {
+			return n, err
+		}
+		probed = n
 	}
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
-	return n, err
+	return probed + n, err
 }
 
 func (d pusherDelegator) Push(target string, opts *http.PushOptions) error {
