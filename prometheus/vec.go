@@ -171,8 +171,9 @@ func (m *MetricVec) Delete(labels Labels) bool {
 // passed in as labels. The order of the labels does not matter.
 // It returns the number of metrics deleted.
 //
-// Note that curried labels will never be matched if deleting from the curried vector.
-// To match curried labels with DeletePartialMatch, it must be called on the base vector.
+// On a curried vector, only metrics that carry the curried label values are
+// deleted. Curried labels cannot be used for matching there. To match on a
+// curried label, call DeletePartialMatch on the base vector.
 func (m *MetricVec) DeletePartialMatch(labels Labels) int {
 	labels, closer := constrainLabels(m.desc, labels)
 	defer closer()
@@ -583,36 +584,33 @@ func indexOf(target string, items []string) (int, bool) {
 	return len(items), false
 }
 
-// valueMatchesVariableOrCurriedValue determines if a value was previously curried,
-// and returns whether it matches either the "base" value or the curried value accordingly.
-// It also indicates whether the match is against a curried or uncurried value.
-func valueMatchesVariableOrCurriedValue(targetValue string, index int, values []string, curry []curriedLabelValue) (bool, bool) {
-	for _, curriedValue := range curry {
-		if curriedValue.index == index {
-			// This label was curried. See if the curried value matches our target.
-			return curriedValue.value == targetValue, true
-		}
-	}
-	// This label was not curried. See if the current value matches our target label.
-	return values[index] == targetValue, false
-}
-
 // matchPartialLabels searches the current metric and returns whether all of the target label:value pairs are present.
 func matchPartialLabels(desc *Desc, values []string, labels Labels, curry []curriedLabelValue) bool {
+	// A curried vector only sees the metrics that carry its curried values.
+	for _, cv := range curry {
+		if values[cv.index] != cv.value {
+			return false
+		}
+	}
 	for l, v := range labels {
 		// Check if the target label exists in our metrics and get the index.
 		varLabelIndex, validLabel := indexOf(l, desc.variableLabels.names)
-		if validLabel {
-			// Check the value of that label against the target value.
-			// We don't consider curried values in partial matches.
-			matches, curried := valueMatchesVariableOrCurriedValue(v, varLabelIndex, values, curry)
-			if matches && !curried {
-				continue
-			}
+		// We don't consider curried values in partial matches.
+		if !validLabel || isCurried(varLabelIndex, curry) || values[varLabelIndex] != v {
+			return false
 		}
-		return false
 	}
 	return true
+}
+
+// isCurried reports whether the label at index was curried.
+func isCurried(index int, curry []curriedLabelValue) bool {
+	for _, cv := range curry {
+		if cv.index == index {
+			return true
+		}
+	}
+	return false
 }
 
 // getOrCreateMetricWithLabelValues retrieves the metric by hash and label value
