@@ -1580,6 +1580,106 @@ func TestCoalesceGatherNewCycleAfterCompletion(t *testing.T) {
 	}
 }
 
+// TestCoalesceGatherNewCycleAfterGather verifies that a request arriving after
+// the in-flight Gather has finished starts a new Gather, even while a handler of
+// the finished cycle has not released it yet, e.g. because it is still writing
+// the response to a slow client.
+func TestCoalesceGatherNewCycleAfterGather(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	cnt := prometheus.NewCounter(prometheus.CounterOpts{Name: "c_total", Help: "help"})
+	reg.MustRegister(cnt)
+	counter := &syncGatherCounter{g: reg}
+	cg := &coalescingGatherer{g: counter}
+
+	_, done1, err := cg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cnt.Inc()
+	mfs, done2, err := cg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := counter.gatherCalled.Load(), int64(2); got != want {
+		t.Errorf("Gather called %d times, want %d", got, want)
+	}
+	if got, want := mfs[0].GetMetric()[0].GetCounter().GetValue(), 1.0; got != want {
+		t.Errorf("second caller got counter value %v, want %v", got, want)
+	}
+
+	// Each cycle calls its done once, when its own caller releases it.
+	if got, want := counter.doneCalled.Load(), int64(0); got != want {
+		t.Fatalf("before any release: done called %d times, want %d", got, want)
+	}
+	done2()
+	if got, want := counter.doneCalled.Load(), int64(1); got != want {
+		t.Fatalf("after releasing cycle 2: done called %d times, want %d", got, want)
+	}
+	done1()
+	if got, want := counter.doneCalled.Load(), int64(2); got != want {
+		t.Errorf("after releasing cycle 1: done called %d times, want %d", got, want)
+	}
+}
+
+// TestCoalesceGatherReleaseDuringNextGather verifies that releasing a finished
+// cycle while the next Gather is still running calls only the finished cycle's
+// done and leaves the running cycle in place for new requests to join.
+func TestCoalesceGatherReleaseDuringNextGather(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	reg := prometheus.NewRegistry()
+	counter := &syncGatherCounter{g: reg}
+	cg := &coalescingGatherer{g: counter}
+
+	_, done1, err := cg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block := make(chan struct{})
+	started := make(chan struct{}, 1)
+	reg.MustRegister(blockingCollector{CollectStarted: started, Block: block})
+
+	type result struct {
+		done func()
+		err  error
+	}
+	results := make(chan result, 2)
+	gather := func() {
+		_, done, err := cg.Gather()
+		results <- result{done, err}
+	}
+	go gather()
+	<-started // Cycle 2 is now in flight and blocked in Collect.
+
+	done1()
+	if got, want := counter.doneCalled.Load(), int64(1); got != want {
+		t.Fatalf("after releasing cycle 1: done called %d times, want %d", got, want)
+	}
+	if got, want := cg.inflightRefs(), 1; got != want {
+		t.Fatalf("after releasing cycle 1: cycle 2 has %d refs, want %d", got, want)
+	}
+
+	// A request arriving now must still join cycle 2.
+	go gather()
+	waitForRefs(t, cg, 2)
+	close(block)
+
+	for range 2 {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		r.done()
+	}
+	if got, want := counter.gatherCalled.Load(), int64(2); got != want {
+		t.Errorf("Gather called %d times, want %d", got, want)
+	}
+	if got, want := counter.doneCalled.Load(), int64(2); got != want {
+		t.Errorf("done called %d times, want %d", got, want)
+	}
+}
+
 // inflightRefs reports how many callers currently share the in-flight cycle.
 // It lives in the test file so production code carries no test-only hooks; tests
 // use it to wait deterministically until a joiner has entered the cycle.
