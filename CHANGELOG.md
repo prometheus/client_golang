@@ -5,6 +5,7 @@
 * [BUGFIX] **breaking** api/prometheus/v1: Fix `TSDBBlocks` so it can decode real server responses; fixes issues with data enveloping and aligns the TSDB Blocks struct types to match the upstream Prometheus counterpart. #1928
 * [BUGFIX] prometheus: `DeletePartialMatch` on a curried vector now deletes only metrics that carry the curried label values. Before, it could also delete matching metrics with other values for the curried labels. #2202
 * [BUGFIX] prometheus: `MetricVec` no longer holds its lock while `Collect` sends metrics to `Gather`, so a slow or blocked `Metric.Write` during a scrape no longer blocks `WithLabelValues` and other calls on the vector. #2157
+* [BUGFIX] promlint: The duplicate metric check now also reports metrics whose labels are equal but listed in a different order. #2233
 
 ## 1.24.1 / 2026-07-23
 

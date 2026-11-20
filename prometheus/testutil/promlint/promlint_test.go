@@ -872,6 +872,30 @@ not_unique_total{bar="abc", spam="xyz"} 2
 				},
 			},
 		},
+		{
+			name: "metric not unique with different label order",
+			in: `
+# HELP not_unique_total the helptext
+# TYPE not_unique_total counter
+not_unique_total{bar="abc", spam="xyz"} 1
+not_unique_total{spam="xyz", bar="abc"} 2
+`,
+			problems: []promlint.Problem{
+				{
+					Metric: "not_unique_total",
+					Text:   msg,
+				},
+			},
+		},
+		{
+			name: "same label values on different labels",
+			in: `
+# HELP unique_total the helptext
+# TYPE unique_total counter
+unique_total{bar="abc", spam="xyz"} 1
+unique_total{bar="xyz", spam="abc"} 2
+`,
+		},
 	}
 
 	runTests(t, tests)
