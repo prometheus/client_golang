@@ -524,6 +524,40 @@ func TestCurryVecWithConstraints(t *testing.T) {
 		})
 		testConstrainedCurryVec(t, vec, constraint)
 	})
+	t.Run("wrong number of label values", func(t *testing.T) {
+		vec := V2.NewCounterVec(CounterVecOpts{
+			CounterOpts: CounterOpts{
+				Name: "test",
+				Help: "helpless",
+			},
+			VariableLabels: ConstrainedLabels{
+				{Name: "one"},
+				{Name: "two"},
+				{Name: "three", Constraint: constraint},
+			},
+		})
+		for _, tc := range []struct {
+			name    string
+			curried string
+			lvs     []string
+		}{
+			{name: "first label curried, too few values", curried: "one", lvs: []string{"2"}},
+			{name: "middle label curried, too few values", curried: "two", lvs: []string{"1"}},
+			{name: "last label curried, too few values", curried: "three", lvs: []string{"1"}},
+			{name: "last label curried, no values", curried: "three"},
+			{name: "first label curried, too many values", curried: "one", lvs: []string{"2", "3", "4"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				curried := vec.MustCurryWith(Labels{tc.curried: "c"})
+				if _, err := curried.GetMetricWithLabelValues(tc.lvs...); err == nil {
+					t.Error("GetMetricWithLabelValues() succeeded, want an error")
+				}
+				if curried.DeleteLabelValues(tc.lvs...) {
+					t.Error("DeleteLabelValues() = true, want false")
+				}
+			})
+		}
+	})
 }
 
 func testCurryVec(t *testing.T, vec *CounterVec) {
