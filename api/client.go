@@ -137,6 +137,8 @@ func (c *httpClient) CloseIdleConnections() {
 func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if ctx != nil {
 		req = req.WithContext(ctx)
+	} else {
+		ctx = req.Context()
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {

@@ -220,6 +220,91 @@ func TestDoContextCancellationSlowServer(t *testing.T) {
 	}
 }
 
+func TestDoNilContext(t *testing.T) {
+	tests := []struct {
+		name          string
+		cancelRequest bool
+		wantBody      string
+		wantErr       error
+	}{
+		{
+			name:     "returns response without panic",
+			wantBody: "ok",
+		},
+		{
+			name:          "honors request context cancellation",
+			cancelRequest: true,
+			wantErr:       context.Canceled,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			headersSent := make(chan struct{})
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tc.cancelRequest {
+					_, _ = w.Write([]byte("partial"))
+					if f, ok := w.(http.Flusher); ok {
+						f.Flush()
+					}
+					close(headersSent)
+					<-r.Context().Done()
+					return
+				}
+				_, _ = w.Write([]byte("ok"))
+			}))
+			defer ts.Close()
+
+			client, err := NewClient(Config{Address: ts.URL})
+			if err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
+
+			var (
+				req  *http.Request
+				done = func() {}
+			)
+			if tc.cancelRequest {
+				reqCtx, cancel := context.WithCancel(context.Background())
+				done = cancel
+				go func() {
+					select {
+					case <-headersSent:
+						cancel()
+					case <-reqCtx.Done():
+					}
+				}()
+				req, err = http.NewRequestWithContext(reqCtx, http.MethodGet, ts.URL, nil)
+			} else {
+				req, err = http.NewRequest(http.MethodGet, ts.URL, nil)
+			}
+			defer done()
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+
+			var nilCtx context.Context
+			resp, body, err := client.Do(nilCtx, req)
+			if resp != nil && resp.Body != nil {
+				defer resp.Body.Close()
+			}
+
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if string(body) != tc.wantBody {
+				t.Fatalf("expected body %q, got %q", tc.wantBody, string(body))
+			}
+		})
+	}
+}
+
 // Serve any http request with a response of N KB of spaces.
 type serveSpaces struct {
 	sizeKB int
