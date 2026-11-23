@@ -31,6 +31,10 @@ func LintDuplicateMetric(mf *dto.MetricFamily) []error {
 		// The order of the labels is irrelevant for the identity of a metric.
 		pairs := make([]string, 0, len(m.Label))
 		for _, l := range m.Label {
+			// An empty label value is equivalent to the label being absent.
+			if l.GetValue() == "" {
+				continue
+			}
 			pairs = append(pairs, strconv.Quote(l.GetName())+"="+strconv.Quote(l.GetValue()))
 		}
 		slices.Sort(pairs)
