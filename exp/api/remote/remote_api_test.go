@@ -25,12 +25,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/klauspost/compress/snappy"
-	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,42 +39,66 @@ import (
 )
 
 func TestRetryAfterDuration(t *testing.T) {
-	tc := []struct {
-		name     string
-		tInput   string
-		expected model.Duration
-	}{
-		{
-			name:     "seconds",
-			tInput:   "120",
-			expected: model.Duration(time.Second * 120),
-		},
-		{
-			name:     "negative seconds",
-			tInput:   "-30",
-			expected: 0,
-		},
-		{
-			name:     "date in the past",
-			tInput:   time.Now().Add(-time.Hour).UTC().Format(http.TimeFormat),
-			expected: 0,
-		},
-		{
-			name:     "date-time default",
-			tInput:   time.RFC1123, // Expected layout is http.TimeFormat, hence an error.
-			expected: 0,
-		},
-		{
-			name:     "retry-after not provided",
-			tInput:   "", // Expected layout is http.TimeFormat, hence an error.
-			expected: 0,
-		},
-	}
-	for _, c := range tc {
-		if got := retryAfterDuration(c.tInput); got != time.Duration(c.expected) {
-			t.Fatal("expected", c.expected, "got", got)
+	// The bubble clock starts at a fixed time, so a date can be an exact distance away.
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		tc := []struct {
+			name     string
+			tInput   string
+			expected time.Duration
+		}{
+			{
+				name:     "seconds",
+				tInput:   "120",
+				expected: 120 * time.Second,
+			},
+			{
+				name:     "negative seconds",
+				tInput:   "-30",
+				expected: 0,
+			},
+			{
+				name:     "negative seconds that would overflow",
+				tInput:   "-10000000000",
+				expected: 0,
+			},
+			{
+				name:     "seconds that would overflow",
+				tInput:   "10000000000",
+				expected: 0,
+			},
+			{
+				name:     "largest seconds that fit",
+				tInput:   "9223372036",
+				expected: 9223372036 * time.Second,
+			},
+			{
+				name:     "date in the future",
+				tInput:   now.Add(90 * time.Second).UTC().Format(http.TimeFormat),
+				expected: 90 * time.Second,
+			},
+			{
+				name:     "date in the past",
+				tInput:   now.Add(-time.Hour).UTC().Format(http.TimeFormat),
+				expected: 0,
+			},
+			{
+				name:     "date-time default",
+				tInput:   time.RFC1123, // Expected layout is http.TimeFormat, hence an error.
+				expected: 0,
+			},
+			{
+				name:     "retry-after not provided",
+				tInput:   "", // Expected layout is http.TimeFormat, hence an error.
+				expected: 0,
+			},
 		}
-	}
+		for _, c := range tc {
+			if got := retryAfterDuration(c.tInput); got != c.expected {
+				t.Fatalf("%s: expected %v, got %v", c.name, c.expected, got)
+			}
+		}
+	})
 }
 
 type storeFunc func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error)
