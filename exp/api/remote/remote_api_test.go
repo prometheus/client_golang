@@ -20,6 +20,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,6 +38,26 @@ import (
 
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
+
+func TestAddDurations(t *testing.T) {
+	tc := []struct {
+		name     string
+		a, b     time.Duration
+		expected time.Duration
+	}{
+		{name: "small values", a: time.Second, b: 2 * time.Second, expected: 3 * time.Second},
+		{name: "zero Retry-After", a: time.Second, expected: time.Second},
+		{name: "one second and the largest Retry-After that is parsed would overflow", a: time.Second, b: 9223372036 * time.Second, expected: math.MaxInt64},
+		{name: "Retry-After that leaves room for the backoff", a: time.Second, b: 9223372035 * time.Second, expected: 9223372036 * time.Second},
+		{name: "sum would overflow", a: 10 * time.Second, b: math.MaxInt64 - time.Second, expected: math.MaxInt64},
+		{name: "largest duration", a: time.Second, b: math.MaxInt64, expected: math.MaxInt64},
+	}
+	for _, c := range tc {
+		if got := addDurations(c.a, c.b); got != c.expected {
+			t.Fatalf("%s: expected %v, got %v", c.name, c.expected, got)
+		}
+	}
+}
 
 func TestRetryAfterDuration(t *testing.T) {
 	// The bubble clock starts at a fixed time, so a date can be an exact distance away.
