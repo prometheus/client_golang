@@ -39,7 +39,7 @@ func NegotiateContentEncoding(r *http.Request, offers []string) string {
 			bestOffer = offer
 		}
 	}
-	if bestOffer != "" {
+	if bestQ > 0 {
 		return bestOffer
 	}
 	if encodingQuality(specs, "identity", wildcardQ) == 0 {

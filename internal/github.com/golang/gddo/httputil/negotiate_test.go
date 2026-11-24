@@ -39,6 +39,8 @@ var negotiateContentEncodingTests = []struct {
 	{"identity;q=0, gzip;q=0.5", []string{"identity", "gzip"}, "gzip"},
 	{"GZIP", []string{"identity", "gzip"}, "gzip"},
 	{"Zstd", []string{"identity", "gzip", "zstd"}, "zstd"},
+	{"*", []string{""}, ""},
+	{"*, gzip;q=0.5", []string{"", "gzip"}, ""},
 }
 
 func TestNegotiateContentEncoding(t *testing.T) {
