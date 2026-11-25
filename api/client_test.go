@@ -18,9 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 )
@@ -217,6 +219,149 @@ func TestDoContextCancellationSlowServer(t *testing.T) {
 
 	if resp != nil && resp.Body != nil {
 		resp.Body.Close()
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+type blockingReadCloser struct {
+	readStarted chan struct{}
+	closed      chan struct{}
+	startOnce   sync.Once
+	closeOnce   sync.Once
+}
+
+func (b *blockingReadCloser) Read(_ []byte) (int, error) {
+	b.startOnce.Do(func() {
+		close(b.readStarted)
+	})
+	<-b.closed
+	return 0, io.EOF
+}
+
+func (b *blockingReadCloser) Close() error {
+	b.closeOnce.Do(func() {
+		close(b.closed)
+	})
+	return nil
+}
+
+func TestDoNilContext(t *testing.T) {
+	tests := []struct {
+		name          string
+		cancelRequest bool
+		wantBody      string
+		wantErr       error
+	}{
+		{
+			name:     "returns response without panic",
+			wantBody: "ok",
+		},
+		{
+			name:          "honors request context cancellation",
+			cancelRequest: true,
+			wantErr:       context.Canceled,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Config{}
+			targetURL := "http://example.com"
+			var bodyReader *blockingReadCloser
+			if tc.cancelRequest {
+				// Use a blocking RoundTripper that ignores req.Context() so cancellation
+				// is deterministically handled by client.Do after body reading starts.
+				bodyReader = &blockingReadCloser{
+					readStarted: make(chan struct{}),
+					closed:      make(chan struct{}),
+				}
+				defer bodyReader.Close()
+				cfg.RoundTripper = roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Body:       bodyReader,
+					}, nil
+				})
+			} else {
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("ok"))
+				}))
+				defer ts.Close()
+				targetURL = ts.URL
+			}
+			cfg.Address = targetURL
+
+			client, err := NewClient(cfg)
+			if err != nil {
+				t.Fatalf("failed to create client: %v", err)
+			}
+
+			var (
+				req  *http.Request
+				done = func() {}
+			)
+			if tc.cancelRequest {
+				reqCtx, cancel := context.WithCancel(context.Background())
+				done = cancel
+				go func() {
+					select {
+					case <-bodyReader.readStarted:
+						cancel()
+					case <-reqCtx.Done():
+					}
+				}()
+				req, err = http.NewRequestWithContext(reqCtx, http.MethodGet, targetURL, nil)
+			} else {
+				req, err = http.NewRequest(http.MethodGet, targetURL, nil)
+			}
+			defer done()
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+
+			type doResult struct {
+				resp *http.Response
+				body []byte
+				err  error
+			}
+			resCh := make(chan doResult, 1)
+			go func() {
+				var nilCtx context.Context
+				resp, body, err := client.Do(nilCtx, req)
+				resCh <- doResult{resp: resp, body: body, err: err}
+			}()
+
+			var res doResult
+			select {
+			case res = <-resCh:
+			case <-time.After(2 * time.Second):
+				t.Fatalf("client.Do did not return within 2s after context cancellation")
+			}
+			if res.resp != nil && res.resp.Body != nil {
+				defer res.resp.Body.Close()
+			}
+
+			if tc.wantErr != nil {
+				if !errors.Is(res.err, tc.wantErr) {
+					t.Fatalf("expected error %v, got %v", tc.wantErr, res.err)
+				}
+				if res.body != nil {
+					t.Fatalf("expected nil body on error, got %q", string(res.body))
+				}
+				return
+			}
+			if res.err != nil {
+				t.Fatalf("unexpected error: %v", res.err)
+			}
+			if string(res.body) != tc.wantBody {
+				t.Fatalf("expected body %q, got %q", tc.wantBody, string(res.body))
+			}
+		})
 	}
 }
 
