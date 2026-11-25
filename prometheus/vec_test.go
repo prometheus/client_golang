@@ -183,6 +183,47 @@ func TestDeletePartialMatchWithConstraints(t *testing.T) {
 	testDeletePartialMatch(t, vec)
 }
 
+func TestDeletePartialMatchWithCollisions(t *testing.T) {
+	vec := NewGaugeVec(
+		GaugeOpts{
+			Name: "test",
+			Help: "helpless",
+		},
+		[]string{"l1", "l2"},
+	)
+	vec.hashAdd = func(_ uint64, _ string) uint64 { return 1 }
+	vec.hashAddByte = func(_ uint64, _ byte) uint64 { return 1 }
+
+	remainingValues := func() [][]string {
+		var values [][]string
+		for _, metrics := range vec.metrics {
+			for _, metric := range metrics {
+				values = append(values, metric.values)
+			}
+		}
+		return values
+	}
+
+	// All three metrics share one hash bucket. The first one does not match
+	// the partial labels, the other two do.
+	vec.With(Labels{"l1": "other", "l2": "v2"}).Set(3)
+	vec.With(Labels{"l1": "v1", "l2": "v2"}).Set(1)
+	vec.With(Labels{"l1": "v1", "l2": "v3"}).Set(2)
+
+	if got, want := vec.DeletePartialMatch(Labels{"l1": "v1"}), 2; got != want {
+		t.Errorf("DeletePartialMatch() = %d, want %d", got, want)
+	}
+	if got, want := remainingValues(), [][]string{{"other", "v2"}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("remaining metrics = %v, want %v (the non-matching metric in the same bucket must survive)", got, want)
+	}
+	if got, want := vec.DeletePartialMatch(Labels{"l2": "v2"}), 1; got != want {
+		t.Errorf("DeletePartialMatch() = %d, want %d", got, want)
+	}
+	if got := remainingValues(); len(got) != 0 {
+		t.Errorf("remaining metrics = %v, want none", got)
+	}
+}
+
 func testDeletePartialMatch(t *testing.T, baseVec *GaugeVec) {
 	assertNoMetric := func(t *testing.T) {
 		if n := len(baseVec.metrics); n != 0 {

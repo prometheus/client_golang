@@ -540,7 +540,9 @@ func (m *metricMap) deleteByHashWithLabelsLocked(
 	return true
 }
 
-// deleteByLabels deletes a metric if the given labels are present in the metric.
+// deleteByLabels deletes all metrics whose label values partially match the
+// given labels and returns the number of deleted metrics. Metrics that share
+// a hash bucket with a matching metric but do not match themselves are kept.
 func (m *metricMap) deleteByLabels(labels Labels, curry []curriedLabelValue) int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
@@ -548,29 +550,18 @@ func (m *metricMap) deleteByLabels(labels Labels, curry []curriedLabelValue) int
 	var numDeleted int
 
 	for h, metrics := range m.metrics {
-		i := findMetricWithPartialLabels(m.desc, metrics, labels, curry)
-		if i >= len(metrics) {
-			// Didn't find matching labels in this metric slice.
-			continue
+		remaining := slices.DeleteFunc(metrics, func(metric metricWithLabelValues) bool {
+			return matchPartialLabels(m.desc, metric.values, labels, curry)
+		})
+		numDeleted += len(metrics) - len(remaining)
+		if len(remaining) == 0 {
+			delete(m.metrics, h)
+		} else if len(remaining) < len(metrics) {
+			m.metrics[h] = remaining
 		}
-		delete(m.metrics, h)
-		numDeleted++
 	}
 
 	return numDeleted
-}
-
-// findMetricWithPartialLabel returns the index of the matching metric or
-// len(metrics) if not found.
-func findMetricWithPartialLabels(
-	desc *Desc, metrics []metricWithLabelValues, labels Labels, curry []curriedLabelValue,
-) int {
-	for i, metric := range metrics {
-		if matchPartialLabels(desc, metric.values, labels, curry) {
-			return i
-		}
-	}
-	return len(metrics)
 }
 
 // indexOf searches the given slice of strings for the target string and returns
