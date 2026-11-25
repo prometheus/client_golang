@@ -20,17 +20,18 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/klauspost/compress/snappy"
-	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -38,33 +39,87 @@ import (
 	writev2 "github.com/prometheus/client_golang/exp/api/remote/genproto/v2"
 )
 
-func TestRetryAfterDuration(t *testing.T) {
+func TestAddDurations(t *testing.T) {
 	tc := []struct {
 		name     string
-		tInput   string
-		expected model.Duration
+		a, b     time.Duration
+		expected time.Duration
 	}{
-		{
-			name:     "seconds",
-			tInput:   "120",
-			expected: model.Duration(time.Second * 120),
-		},
-		{
-			name:     "date-time default",
-			tInput:   time.RFC1123, // Expected layout is http.TimeFormat, hence an error.
-			expected: 0,
-		},
-		{
-			name:     "retry-after not provided",
-			tInput:   "", // Expected layout is http.TimeFormat, hence an error.
-			expected: 0,
-		},
+		{name: "small values", a: time.Second, b: 2 * time.Second, expected: 3 * time.Second},
+		{name: "zero Retry-After", a: time.Second, expected: time.Second},
+		{name: "one second and the largest Retry-After that is parsed would overflow", a: time.Second, b: 9223372036 * time.Second, expected: math.MaxInt64},
+		{name: "Retry-After that leaves room for the backoff", a: time.Second, b: 9223372035 * time.Second, expected: 9223372036 * time.Second},
+		{name: "sum would overflow", a: 10 * time.Second, b: math.MaxInt64 - time.Second, expected: math.MaxInt64},
+		{name: "largest duration", a: time.Second, b: math.MaxInt64, expected: math.MaxInt64},
 	}
 	for _, c := range tc {
-		if got := retryAfterDuration(c.tInput); got != time.Duration(c.expected) {
-			t.Fatal("expected", c.expected, "got", got)
+		if got := addDurations(c.a, c.b); got != c.expected {
+			t.Fatalf("%s: expected %v, got %v", c.name, c.expected, got)
 		}
 	}
+}
+
+func TestRetryAfterDuration(t *testing.T) {
+	// The bubble clock starts at a fixed time, so a date can be an exact distance away.
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		tc := []struct {
+			name     string
+			tInput   string
+			expected time.Duration
+		}{
+			{
+				name:     "seconds",
+				tInput:   "120",
+				expected: 120 * time.Second,
+			},
+			{
+				name:     "negative seconds",
+				tInput:   "-30",
+				expected: 0,
+			},
+			{
+				name:     "negative seconds that would overflow",
+				tInput:   "-10000000000",
+				expected: 0,
+			},
+			{
+				name:     "seconds that would overflow",
+				tInput:   "10000000000",
+				expected: 0,
+			},
+			{
+				name:     "largest seconds that fit",
+				tInput:   "9223372036",
+				expected: 9223372036 * time.Second,
+			},
+			{
+				name:     "date in the future",
+				tInput:   now.Add(90 * time.Second).UTC().Format(http.TimeFormat),
+				expected: 90 * time.Second,
+			},
+			{
+				name:     "date in the past",
+				tInput:   now.Add(-time.Hour).UTC().Format(http.TimeFormat),
+				expected: 0,
+			},
+			{
+				name:     "date-time default",
+				tInput:   time.RFC1123, // Expected layout is http.TimeFormat, hence an error.
+				expected: 0,
+			},
+			{
+				name:     "retry-after not provided",
+				tInput:   "", // Expected layout is http.TimeFormat, hence an error.
+				expected: 0,
+			},
+		}
+		for _, c := range tc {
+			if got := retryAfterDuration(c.tInput); got != c.expected {
+				t.Fatalf("%s: expected %v, got %v", c.name, c.expected, got)
+			}
+		}
+	})
 }
 
 type storeFunc func(*http.Request, WriteMessageType, WriteMode) (*WriteResponse, error)

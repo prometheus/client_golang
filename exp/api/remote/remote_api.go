@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"mime"
 	"net/http"
 	"net/url"
@@ -306,7 +307,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 			return accumulatedStats, err
 		}
 
-		backoffDelay := b.NextDelay() + retryableErr.RetryAfter()
+		backoffDelay := addDurations(b.NextDelay(), retryableErr.RetryAfter())
 
 		// Invoke retry callback if provided.
 		if writeOpts.retryCallback != nil {
@@ -392,16 +393,30 @@ func (r *API) attemptWrite(ctx context.Context, compr Compression, msgType Write
 	return rs, err
 }
 
+// addDurations returns the sum of two non-negative durations, or the largest duration
+// if the sum does not fit. A Retry-After that is close to the largest duration must
+// not overflow to a negative delay when the backoff is added to it.
+func addDurations(a, b time.Duration) time.Duration {
+	if a > math.MaxInt64-b {
+		return math.MaxInt64
+	}
+	return a + b
+}
+
 // retryAfterDuration returns the duration for the Retry-After header. In case of any errors, it
-// returns 0 as if the header was never supplied.
+// returns 0 as if the header was never supplied. A date in the past, a negative number of
+// seconds and a number of seconds that does not fit in a duration also give 0, so the value
+// never shortens the backoff.
 func retryAfterDuration(t string) time.Duration {
 	parsedDuration, err := time.Parse(http.TimeFormat, t)
 	if err == nil {
-		return time.Until(parsedDuration)
+		// A date in the past means there is nothing to wait for.
+		return max(time.Until(parsedDuration), 0)
 	}
-	// The duration can be in seconds.
-	d, err := strconv.Atoi(t)
-	if err != nil {
+	// The duration can be in seconds, a non-negative number that must not overflow when
+	// converted to a duration.
+	d, err := strconv.ParseUint(t, 10, 64)
+	if err != nil || d > math.MaxInt64/uint64(time.Second) {
 		return 0
 	}
 	return time.Duration(d) * time.Second
