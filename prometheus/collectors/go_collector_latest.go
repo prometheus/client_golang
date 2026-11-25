@@ -125,6 +125,19 @@ func WithoutGoCollectorRuntimeMetrics(matchers ...*regexp.Regexp) func(options *
 	}
 }
 
+// WithGoCollectorIntegerByteBucketBounds makes histograms of byte-valued
+// runtime/metrics (e.g. go_gc_heap_allocs_by_size_bytes) use integer bucket
+// upper bounds such as le="24" instead of le="24.999999999999996".
+//
+// Byte counts are always integers, so both bounds select the same observations.
+// The option is off by default because changing the le label values of existing
+// series can break queries and dashboards that use them.
+func WithGoCollectorIntegerByteBucketBounds() func(options *internal.GoCollectorOptions) {
+	return func(o *internal.GoCollectorOptions) {
+		o.IntegerByteBucketBounds = true
+	}
+}
+
 // GoCollectionOption represents Go collection option flag.
 // Deprecated.
 type GoCollectionOption uint32

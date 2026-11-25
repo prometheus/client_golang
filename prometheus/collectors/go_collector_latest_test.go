@@ -16,14 +16,17 @@ package collectors
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/internal"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -130,6 +133,49 @@ func TestWithGoCollectorMemStatsMetricsDisabled(t *testing.T) {
 
 	if diff := cmp.Diff(got, withBaseMetrics(defaultRuntimeMetrics)); diff != "" {
 		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestWithGoCollectorIntegerByteBucketBounds(t *testing.T) {
+	// upperBounds returns the bucket upper bounds of every histogram the
+	// Go collector exposes, by metric name.
+	upperBounds := func(t *testing.T, opts ...func(o *internal.GoCollectorOptions)) map[string][]float64 {
+		t.Helper()
+		reg := prometheus.NewPedanticRegistry()
+		reg.MustRegister(NewGoCollector(append(opts, WithGoCollectorRuntimeMetrics(MetricsAll))...))
+		result, err := reg.Gather()
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string][]float64{}
+		for _, mf := range result {
+			for _, m := range mf.GetMetric() {
+				for _, b := range m.GetHistogram().GetBucket() {
+					got[mf.GetName()] = append(got[mf.GetName()], b.GetUpperBound())
+				}
+			}
+		}
+		return got
+	}
+
+	def := upperBounds(t)
+	withOpt := upperBounds(t, WithGoCollectorIntegerByteBucketBounds())
+
+	if len(def["go_gc_heap_allocs_by_size_bytes"]) == 0 {
+		t.Fatal("go_gc_heap_allocs_by_size_bytes not found or has no buckets")
+	}
+	for name, bounds := range def {
+		want := bounds
+		if strings.HasSuffix(name, "_bytes") {
+			// A bound just below an integer becomes that integer minus 1.
+			want = make([]float64, len(bounds))
+			for i, b := range bounds {
+				want[i] = math.Ceil(b) - 1
+			}
+		}
+		if diff := cmp.Diff(want, withOpt[name]); diff != "" {
+			t.Errorf("%s: upper bounds mismatch (-want +got):\n%s", name, diff)
+		}
 	}
 }
 

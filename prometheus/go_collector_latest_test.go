@@ -229,6 +229,48 @@ func TestBatchHistogram(t *testing.T) {
 	}
 }
 
+func TestBatchHistogramUpperBounds(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		buckets       []float64 // Inclusive lower bounds, like runtime/metrics.
+		integerBounds bool
+		want          []float64
+	}{
+		{
+			name:    "default uses the float64 just below the exclusive bound",
+			buckets: []float64{math.Inf(-1), 1, 9, 25, math.Inf(1)},
+			want:    []float64{math.Nextafter(9, 1), math.Nextafter(25, 9)},
+		},
+		{
+			name:          "integer bounds",
+			buckets:       []float64{math.Inf(-1), 1, 9, 25, math.Inf(1)},
+			integerBounds: true,
+			want:          []float64{8, 24},
+		},
+		{
+			name:          "integer bounds with a non-integer boundary",
+			buckets:       []float64{1, 9.5, math.Inf(1)},
+			integerBounds: true,
+			want:          []float64{9},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newBatchHistogram(NewDesc("test_bytes", "help", nil, nil), tc.buckets, false, tc.integerBounds)
+			pb := &dto.Metric{}
+			if err := h.Write(pb); err != nil {
+				t.Fatal(err)
+			}
+			var got []float64
+			for _, b := range pb.Histogram.Bucket {
+				got = append(got, b.GetUpperBound())
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got upper bounds %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func collectGoMetrics(t *testing.T, opts internal.GoCollectorOptions) []Metric {
 	t.Helper()
 

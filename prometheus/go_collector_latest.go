@@ -229,6 +229,7 @@ func NewGoCollector(opts ...func(o *internal.GoCollectorOptions)) Collector {
 				),
 				internal.RuntimeMetricsBucketsForUnit(bucketsMap[d.Name], unit),
 				hasSum,
+				opt.IntegerByteBucketBounds && unit == "bytes",
 			)
 		} else if d.Cumulative {
 			m = NewCounter(CounterOpts{
@@ -474,6 +475,9 @@ type batchHistogram struct {
 	// Static fields updated only once.
 	desc   *Desc
 	hasSum bool
+	// integerBounds is set for histograms of integer values (bytes), so their
+	// bucket upper bounds can be exposed as integers.
+	integerBounds bool
 
 	// Because this histogram operates in batches, it just uses a
 	// single mutex for everything. updates are always serialized
@@ -486,11 +490,12 @@ type batchHistogram struct {
 }
 
 // newBatchHistogram creates a new batch histogram value with the given
-// Desc, buckets, and whether or not it has an exact sum available.
+// Desc, buckets, whether or not it has an exact sum available, and whether
+// its observed values are always integers.
 //
 // buckets must always be from the runtime/metrics package, following
 // the same conventions.
-func newBatchHistogram(desc *Desc, buckets []float64, hasSum bool) *batchHistogram {
+func newBatchHistogram(desc *Desc, buckets []float64, hasSum, integerBounds bool) *batchHistogram {
 	// We need to remove -Inf values. runtime/metrics keeps them around.
 	// But -Inf bucket should not be allowed for prometheus histograms.
 	if buckets[0] == math.Inf(-1) {
@@ -503,8 +508,9 @@ func newBatchHistogram(desc *Desc, buckets []float64, hasSum bool) *batchHistogr
 		// 1 more value in the buckets list than there are buckets represented,
 		// because in runtime/metrics, the bucket values represent *boundaries*,
 		// and non-Inf boundaries are inclusive lower bounds for that bucket.
-		counts: make([]uint64, len(buckets)-1),
-		hasSum: hasSum,
+		counts:        make([]uint64, len(buckets)-1),
+		hasSum:        hasSum,
+		integerBounds: integerBounds,
 	}
 	h.init(h)
 	return h
@@ -568,6 +574,10 @@ func (h *batchHistogram) Write(out *dto.Metric) error {
 		// Float64Histogram's upper bound is exclusive, so make it inclusive
 		// by obtaining the next float64 value down, in order.
 		upperBound := math.Nextafter(h.buckets[i+1], h.buckets[i])
+		if h.integerBounds {
+			// For integer values, x < b is the same as x <= ceil(b)-1.
+			upperBound = math.Ceil(h.buckets[i+1]) - 1
+		}
 		dtoBuckets = append(dtoBuckets, &dto.Bucket{
 			CumulativeCount: new(totalCount),
 			UpperBound:      new(upperBound),
