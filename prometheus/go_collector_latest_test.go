@@ -232,7 +232,7 @@ func TestBatchHistogram(t *testing.T) {
 func TestBatchHistogramUpperBounds(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
-		buckets       []float64 // runtime/metrics boundaries: inclusive lower bounds
+		buckets       []float64 // Inclusive lower bounds, like runtime/metrics.
 		integerBounds bool
 		want          []float64
 	}{
