@@ -15,7 +15,9 @@ package validations
 
 import (
 	"errors"
-	"reflect"
+	"slices"
+	"strconv"
+	"strings"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -24,13 +26,24 @@ import (
 func LintDuplicateMetric(mf *dto.MetricFamily) []error {
 	var problems []error
 
-	for i, m := range mf.Metric {
-		for _, k := range mf.Metric[i+1:] {
-			if reflect.DeepEqual(m.Label, k.Label) {
-				problems = append(problems, errors.New("metric not unique"))
-				break
+	seen := make(map[string]struct{}, len(mf.Metric))
+	for _, m := range mf.Metric {
+		// The order of the labels is irrelevant for the identity of a metric.
+		pairs := make([]string, 0, len(m.Label))
+		for _, l := range m.Label {
+			// An empty label value is equivalent to the label being absent.
+			if l.GetValue() == "" {
+				continue
 			}
+			pairs = append(pairs, strconv.Quote(l.GetName())+"="+strconv.Quote(l.GetValue()))
 		}
+		slices.Sort(pairs)
+		key := strings.Join(pairs, ",")
+		if _, ok := seen[key]; ok {
+			problems = append(problems, errors.New("metric not unique"))
+			continue
+		}
+		seen[key] = struct{}{}
 	}
 
 	return problems
