@@ -27,6 +27,20 @@ var negotiateContentEncodingTests = []struct {
 	{"gzip;q=1.0, identity; q=0.5, *;q=0", []string{"identity", "gzip"}, "gzip"},
 	{"gzip;q=1.0, identity; q=0.5, *;q=0", []string{"identity", "zstd"}, "identity"},
 	{"zstd", []string{"identity", "gzip"}, "identity"},
+	{"gzip;q=0", []string{"identity", "gzip"}, "identity"},
+	{"gzip;q=0", []string{"identity", "gzip", "zstd"}, "identity"},
+	{"*;q=0.5, gzip;q=0", []string{"gzip", "zstd"}, "zstd"},
+	{"*, gzip;q=0", []string{"gzip", "identity"}, "identity"},
+	{"*, gzip;q=0", []string{"gzip"}, "identity"},
+	{"gzip;q=0.5, *;q=0.8", []string{"gzip", "zstd"}, "zstd"},
+	{"*, identity;q=0, gzip;q=0", []string{"identity", "gzip"}, ""},
+	{"identity;q=0", []string{"identity", "gzip"}, ""},
+	{"identity;q=0", []string{"gzip"}, ""},
+	{"identity;q=0, gzip;q=0.5", []string{"identity", "gzip"}, "gzip"},
+	{"GZIP", []string{"identity", "gzip"}, "gzip"},
+	{"Zstd", []string{"identity", "gzip", "zstd"}, "zstd"},
+	{"*", []string{""}, ""},
+	{"*, gzip;q=0.5", []string{"", "gzip"}, ""},
 }
 
 func TestNegotiateContentEncoding(t *testing.T) {
