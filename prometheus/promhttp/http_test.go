@@ -136,6 +136,36 @@ func TestBoundedGzipPool(t *testing.T) {
 	}
 }
 
+func TestBoundedGzipPoolResetsDestination(t *testing.T) {
+	pool := newBoundedGzipPool(1)
+	var dst bytes.Buffer
+	gz := pool.Get()
+	gz.Reset(&dst)
+	if _, err := gz.Write([]byte("first response")); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	original := dst.String()
+	pool.Put(gz)
+
+	reused := pool.Get()
+	if reused != gz {
+		t.Fatal("expected the pooled writer to be reused")
+	}
+	// Write without resetting to verify the idle destination is safe.
+	if _, err := reused.Write([]byte("discarded response")); err != nil {
+		t.Fatal(err)
+	}
+	if err := reused.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if dst.String() != original {
+		t.Fatal("pooled writer wrote to its previous destination")
+	}
+}
+
 func TestHandlerErrorHandling(t *testing.T) {
 	// Create a registry that collects a MetricFamily with two elements,
 	// another with one, and reports an error. Further down, we'll use the

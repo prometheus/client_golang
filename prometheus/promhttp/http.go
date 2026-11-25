@@ -100,6 +100,8 @@ func (p *boundedGzipPool) Get() *gzip.Writer {
 }
 
 func (p *boundedGzipPool) Put(gz *gzip.Writer) {
+	// Release the previous response writer before retaining the compressor.
+	gz.Reset(io.Discard)
 	select {
 	case p.writers <- gz:
 	default:
