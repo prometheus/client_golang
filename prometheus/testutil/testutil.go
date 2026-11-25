@@ -237,15 +237,13 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	return compareMetricFamilies(got, wanted, metricNames...)
 }
 
-// GatherAndCompareStrict works like GatherAndCompare, but it fails on mistakes
-// in the arguments themselves, which GatherAndCompare can silently accept:
+// GatherAndCompareStrict is GatherAndCompare with one addition: it returns an
+// error if a name in metricNames is not present in the gathered metrics.
+// Without this check, a typo in metricNames filters both sides to nothing and
+// GatherAndCompare passes without comparing anything.
 //
-//   - Every name in metricNames must be present in the gathered metrics.
-//     Otherwise a typo in metricNames filters both sides to nothing and
-//     GatherAndCompare passes without comparing anything.
-//   - The expected output is not filtered by metricNames; it is compared as
-//     written, so an expected metric that the Gatherer does not produce is an
-//     error instead of being filtered away.
+// Everything else behaves exactly like GatherAndCompare, including the
+// filtering of both the expected and the gathered metrics by metricNames.
 //
 // See https://github.com/prometheus/client_golang/issues/1351.
 func GatherAndCompareStrict(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
@@ -265,6 +263,7 @@ func GatherAndCompareStrict(g prometheus.Gatherer, expected io.Reader, metricNam
 
 	if metricNames != nil {
 		got = filterMetrics(got, metricNames)
+		wanted = filterMetrics(wanted, metricNames)
 	}
 	return compare(got, wanted)
 }

@@ -376,13 +376,15 @@ func TestGatherAndCompareStrict(t *testing.T) {
 			expectedError: "some_totall not present in the gathered metrics",
 		},
 		{
-			name: "expected metric missing from the registry must not be filtered out of expected",
+			name: "expected metric not named in metricNames is ignored, like GatherAndCompare",
 			expected: `
+				# HELP some_total A value that represents a counter.
+				# TYPE some_total counter
+
 				some_total{label1="value1"} 1
 				some_other_total{label1="value1"} 1
 			`,
-			metricNames:   []string{"some_total"},
-			expectedError: "some_other_total",
+			metricNames: []string{"some_total"},
 		},
 		{
 			name: "gathered metric missing from expected must fail",
