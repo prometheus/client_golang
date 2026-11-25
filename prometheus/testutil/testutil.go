@@ -237,6 +237,7 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 }
 
 // CollectAndFormat collects the metrics identified by `metricNames` and returns them in the given format.
+// If no metricNames are provided, all collected metrics are returned.
 func CollectAndFormat(c prometheus.Collector, format expfmt.FormatType, metricNames ...string) ([]byte, error) {
 	reg := prometheus.NewPedanticRegistry()
 	if err := reg.Register(c); err != nil {
@@ -257,7 +258,9 @@ func GatherAndFormat(g prometheus.Gatherer, format expfmt.FormatType, metricName
 		return nil, fmt.Errorf("gathering metrics failed: %w", err)
 	}
 
-	gotFiltered = filterMetrics(gotFiltered, metricNames)
+	if metricNames != nil {
+		gotFiltered = filterMetrics(gotFiltered, metricNames)
+	}
 
 	var gotFormatted bytes.Buffer
 	enc := expfmt.NewEncoder(&gotFormatted, expfmt.NewFormat(format))

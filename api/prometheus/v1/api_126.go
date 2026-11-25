@@ -203,6 +203,11 @@ func (qr *queryResult) UnmarshalJSON(b []byte) error {
 		err = jsoniter.Unmarshal(v.Result, &sv)
 		qr.v = &sv
 
+	case model.ValString:
+		var strv model.String
+		err = jsoniter.Unmarshal(v.Result, &strv)
+		qr.v = &strv
+
 	case model.ValVector:
 		var vv model.Vector
 		err = jsoniter.Unmarshal(v.Result, &vv)

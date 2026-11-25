@@ -41,6 +41,7 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -93,7 +94,8 @@ func (p *boundedGzipPool) Get() *gzip.Writer {
 	case gz := <-p.writers:
 		return gz
 	default:
-		return gzip.NewWriter(nil)
+		gz, _ := gzip.NewWriterLevel(nil, gzip.BestSpeed)
+		return gz
 	}
 }
 
@@ -138,7 +140,7 @@ var errGatherPanicked = errors.New("coalesced gather panicked")
 func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	c.mu.Lock()
 	if cy := c.cycle; cy != nil {
-		// c.cycle is non-nil while Gather runs or handlers are still consuming its results.
+		// c.cycle is only non-nil while its Gather runs.
 		cy.refs++
 		c.mu.Unlock()
 		<-cy.ready
@@ -185,6 +187,14 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 	}()
 	cy.mfs, cy.done, cy.err = c.g.Gather()
 	panicked = false
+	// Detach the finished cycle, so that requests arriving from now on start a
+	// new Gather instead of getting this result, which handlers of this cycle
+	// might still be writing out to slow clients.
+	c.mu.Lock()
+	if c.cycle == cy {
+		c.cycle = nil
+	}
+	c.mu.Unlock()
 	close(cy.ready) // happens-before joiners' reads of cy.mfs/err/done
 
 	// Clone here too so cy.mfs stays the write-once canonical slice: joiners
@@ -194,8 +204,7 @@ func (c *coalescingGatherer) Gather() ([]*dto.MetricFamily, func(), error) {
 }
 
 // releaseFunc returns the done callback for one caller sharing cy.
-// When the last caller releases, the underlying done is invoked and the
-// cycle is cleared so the next Gather starts fresh.
+// When the last caller releases, the underlying done is invoked.
 func (c *coalescingGatherer) releaseFunc(cy *gatherCycle) func() {
 	return func() {
 		c.mu.Lock()
@@ -203,10 +212,6 @@ func (c *coalescingGatherer) releaseFunc(cy *gatherCycle) func() {
 		if cy.refs > 0 {
 			c.mu.Unlock()
 			return
-		}
-		// Last caller.
-		if c.cycle == cy {
-			c.cycle = nil
 		}
 		c.mu.Unlock()
 		cy.done() // called outside the lock to avoid holding it during done
@@ -347,7 +352,8 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 		if len(acceptedFormats) == 0 {
 			acceptedFormats = expfmt.DefaultAcceptedFormats()
 			if opts.EnableOpenMetrics {
-				acceptedFormats = expfmt.DefaultOpenMetricsAcceptedFormats()
+				// OpenMetrics 2.0-rc is included ahead of stable OpenMetrics formats.
+				acceptedFormats = slices.Concat([]expfmt.Format{expfmt.FmtOpenMetrics_2_0_0_rc}, expfmt.DefaultOpenMetricsAcceptedFormats())
 			}
 		}
 		contentType = expfmt.NegotiateAccept(req.Header, acceptedFormats...)
@@ -418,11 +424,15 @@ func HandlerForTransactional(reg prometheus.TransactionalGatherer, opts HandlerO
 			}
 		}
 
+		shouldTruncExemplars := isOpenMetrics1(contentType)
 		for _, mf := range mfs {
 			if metricFilter != nil {
 				if _, ok := metricFilter[mf.GetName()]; !ok {
 					continue
 				}
+			}
+			if shouldTruncExemplars {
+				mf = truncateMetricFamilyExemplars(mf, openMetrics1ExemplarMaxRunes)
 			}
 			if handleError(enc.Encode(mf)) {
 				return
@@ -664,8 +674,8 @@ type HandlerOpts struct {
 	// formats in AcceptedFormats specifies the server's preference order used as a
 	// tie-breaker (e.g. for wildcard "*/*" requests or equal q-values) and fallback.
 	// If empty, the default set is used (expfmt.DefaultAcceptedFormats()).
-	// If empty and EnableOpenMetrics is true, stable OpenMetrics formats are negotiated
-	// (expfmt.DefaultOpenMetricsAcceptedFormats()).
+	// If empty and EnableOpenMetrics is true, OpenMetrics 2.0-rc and stable OpenMetrics formats are negotiated
+	// (expfmt.FmtOpenMetrics_2_0_0_rc followed by expfmt.DefaultOpenMetricsAcceptedFormats()).
 	// This is useful for testing experimental formats (e.g. OpenMetrics 2.0)
 	// or restricting the formats you want to allow.
 	// Using EnableOpenMetrics with an empty AcceptedFormats is still the recommended option for the majority of cases.
@@ -715,5 +725,248 @@ func negotiateEncodingWriter(r *http.Request, rw io.Writer, compressions []strin
 	default:
 		// The content encoding was not implemented yet.
 		return nil, "", func() {}, fmt.Errorf("content compression format not recognized: %s. Valid formats are: %s", selected, defaultCompressionFormats())
+	}
+}
+
+// openMetrics1ExemplarMaxRunes is the maximum combined rune length of label
+// names and values in an exemplar allowed by the OpenMetrics 1.0 specification.
+const openMetrics1ExemplarMaxRunes = 128
+
+// isOpenMetrics1 reports whether format is OpenMetrics 0.0.1 or 1.0.0.
+func isOpenMetrics1(format expfmt.Format) bool {
+	if format.FormatType() != expfmt.TypeOpenMetrics {
+		return false
+	}
+	v := format.Version()
+	return v == expfmt.OpenMetricsVersion_1_0_0 || v == expfmt.OpenMetricsVersion_0_0_1 || v == ""
+}
+
+// truncateMetricFamilyExemplars returns a shallow copy of mf with exemplar label
+// sets truncated to maxRunes, or mf itself if no exemplar exceeds maxRunes.
+//
+// Returning a shallow copy rather than mutating mf in place avoids racing or
+// leaking truncated exemplars into concurrent OpenMetrics 2.0 or Protobuf
+// scrapes when CoalesceGather is enabled or a custom TransactionalGatherer
+// caches MetricFamily pointers across scrapes.
+func truncateMetricFamilyExemplars(mf *dto.MetricFamily, maxRunes int) *dto.MetricFamily {
+	if mf == nil {
+		return nil
+	}
+	if mf.Type != nil {
+		switch mf.GetType() {
+		case dto.MetricType_GAUGE, dto.MetricType_SUMMARY, dto.MetricType_UNTYPED:
+			return mf
+		}
+	}
+	var out *dto.MetricFamily
+	for i, m := range mf.Metric {
+		if m == nil {
+			continue
+		}
+		var mCopy *dto.Metric
+		if m.Counter != nil && m.Counter.Exemplar != nil {
+			if truncE := truncateExemplar(m.Counter.Exemplar, maxRunes); truncE != m.Counter.Exemplar {
+				mCopy = cloneMetric(m)
+				mCopy.Counter = &dto.Counter{
+					Value:            m.Counter.Value,
+					Exemplar:         truncE,
+					CreatedTimestamp: m.Counter.CreatedTimestamp,
+				}
+			}
+		}
+		if m.Histogram != nil {
+			var hCopy *dto.Histogram
+			for j, b := range m.Histogram.Bucket {
+				if b == nil || b.Exemplar == nil {
+					continue
+				}
+				if truncE := truncateExemplar(b.Exemplar, maxRunes); truncE != b.Exemplar {
+					if hCopy == nil {
+						hCopy = cloneHistogram(m.Histogram)
+						hCopy.Bucket = make([]*dto.Bucket, len(m.Histogram.Bucket))
+						copy(hCopy.Bucket, m.Histogram.Bucket)
+					}
+					hCopy.Bucket[j] = &dto.Bucket{
+						CumulativeCount:      b.CumulativeCount,
+						CumulativeCountFloat: b.CumulativeCountFloat,
+						UpperBound:           b.UpperBound,
+						Exemplar:             truncE,
+					}
+				}
+			}
+			var (
+				exemplars        []*dto.Exemplar
+				exemplarsChanged bool
+			)
+			for j, e := range m.Histogram.Exemplars {
+				truncE := truncateExemplar(e, maxRunes)
+				if !exemplarsChanged && truncE != e {
+					exemplarsChanged = true
+					if j > 0 {
+						exemplars = make([]*dto.Exemplar, j, len(m.Histogram.Exemplars))
+						copy(exemplars, m.Histogram.Exemplars[:j])
+					}
+				}
+				if exemplarsChanged && truncE != nil {
+					if exemplars == nil {
+						exemplars = make([]*dto.Exemplar, 0, len(m.Histogram.Exemplars)-j)
+					}
+					exemplars = append(exemplars, truncE)
+				}
+			}
+			if exemplarsChanged {
+				if hCopy == nil {
+					hCopy = cloneHistogram(m.Histogram)
+				}
+				hCopy.Exemplars = exemplars
+			}
+			if hCopy != nil {
+				if mCopy == nil {
+					mCopy = cloneMetric(m)
+				}
+				mCopy.Histogram = hCopy
+			}
+		}
+		if mCopy != nil {
+			if out == nil {
+				out = &dto.MetricFamily{
+					Name:   mf.Name,
+					Help:   mf.Help,
+					Type:   mf.Type,
+					Metric: make([]*dto.Metric, len(mf.Metric)),
+					Unit:   mf.Unit,
+				}
+				copy(out.Metric, mf.Metric)
+			}
+			out.Metric[i] = mCopy
+		}
+	}
+	if out != nil {
+		return out
+	}
+	return mf
+}
+
+func cloneMetric(m *dto.Metric) *dto.Metric {
+	return &dto.Metric{
+		Label:       m.Label,
+		Gauge:       m.Gauge,
+		Counter:     m.Counter,
+		Summary:     m.Summary,
+		Untyped:     m.Untyped,
+		Histogram:   m.Histogram,
+		TimestampMs: m.TimestampMs,
+	}
+}
+
+func cloneHistogram(h *dto.Histogram) *dto.Histogram {
+	return &dto.Histogram{
+		SampleCount:      h.SampleCount,
+		SampleCountFloat: h.SampleCountFloat,
+		SampleSum:        h.SampleSum,
+		Bucket:           h.Bucket,
+		CreatedTimestamp: h.CreatedTimestamp,
+		Schema:           h.Schema,
+		ZeroThreshold:    h.ZeroThreshold,
+		ZeroCount:        h.ZeroCount,
+		ZeroCountFloat:   h.ZeroCountFloat,
+		NegativeSpan:     h.NegativeSpan,
+		NegativeDelta:    h.NegativeDelta,
+		NegativeCount:    h.NegativeCount,
+		PositiveSpan:     h.PositiveSpan,
+		PositiveDelta:    h.PositiveDelta,
+		PositiveCount:    h.PositiveCount,
+		Exemplars:        h.Exemplars,
+	}
+}
+
+// truncateExemplar drops whole label pairs that do not fit within maxRunes,
+// prioritizing "trace_id" and "span_id" before remaining labels. It returns
+// the original exemplar if all labels already fit, or nil if no labels fit so
+// the exemplar is omitted in OpenMetrics 1.0.
+//
+// NOTE: A new *dto.Exemplar is returned when truncating because Counter.Write
+// and Histogram.Write share the *dto.Exemplar pointer stored on the metric
+// across scrapes.
+func truncateExemplar(e *dto.Exemplar, maxRunes int) *dto.Exemplar {
+	if e == nil || len(e.Label) == 0 {
+		return e
+	}
+	// Fast path: UTF-8 rune count cannot exceed byte length.
+	var byteLen int
+	for _, lp := range e.Label {
+		byteLen += len(lp.GetName()) + len(lp.GetValue())
+	}
+	if byteLen <= maxRunes {
+		return e
+	}
+
+	var (
+		runes       int
+		stackCounts [16]int
+		counts      []int
+	)
+	if len(e.Label) <= len(stackCounts) {
+		counts = stackCounts[:len(e.Label)]
+	} else {
+		counts = make([]int, len(e.Label))
+	}
+	traceIdx, spanIdx := -1, -1
+	for i, lp := range e.Label {
+		name := lp.GetName()
+		r := utf8.RuneCountInString(name) + utf8.RuneCountInString(lp.GetValue())
+		counts[i] = r
+		runes += r
+		switch name {
+		case "trace_id":
+			traceIdx = i
+		case "span_id":
+			spanIdx = i
+		}
+	}
+	if runes <= maxRunes {
+		return e
+	}
+	if len(e.Label) == 1 {
+		return nil
+	}
+
+	var (
+		kept      []*dto.LabelPair
+		remaining = maxRunes
+	)
+	for _, idx := range [2]int{traceIdx, spanIdx} {
+		if idx < 0 {
+			continue
+		}
+		if r := counts[idx]; r <= remaining {
+			if kept == nil {
+				kept = make([]*dto.LabelPair, 0, len(e.Label)-1)
+			}
+			kept = append(kept, e.Label[idx])
+			remaining -= r
+		}
+	}
+
+	for i, lp := range e.Label {
+		if i == traceIdx || i == spanIdx {
+			continue
+		}
+		if r := counts[i]; r <= remaining {
+			if kept == nil {
+				kept = make([]*dto.LabelPair, 0, len(e.Label)-1)
+			}
+			kept = append(kept, lp)
+			remaining -= r
+		}
+	}
+
+	if len(kept) == 0 {
+		return nil
+	}
+	return &dto.Exemplar{
+		Label:     kept,
+		Value:     e.Value,
+		Timestamp: e.Timestamp,
 	}
 }

@@ -169,7 +169,7 @@ func (b *Bridge) Run(ctx context.Context) {
 // Push pushes Prometheus metrics to the configured Graphite server.
 func (b *Bridge) Push() error {
 	mfs, err := b.g.Gather()
-	if err != nil || len(mfs) == 0 {
+	if err != nil {
 		switch b.errorHandling {
 		case AbortOnError:
 			return err
@@ -180,6 +180,10 @@ func (b *Bridge) Push() error {
 		default:
 			panic("unrecognized error handling value")
 		}
+	}
+
+	if len(mfs) == 0 {
+		return nil
 	}
 
 	conn, err := net.DialTimeout("tcp", b.url, b.timeout)

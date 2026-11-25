@@ -520,6 +520,7 @@ other_total 1.0
 		{"Text", reg, expfmt.TypeTextPlain, []string{"foo_bar"}, text},
 		{"OpenMetrics", reg, expfmt.TypeOpenMetrics, []string{"foo_bar"}, openMetrics + "# EOF\n"},
 		{"OpenMetricsMultipleFamilies", reg, expfmt.TypeOpenMetrics, []string{"foo_bar", "other_total"}, openMetrics + otherOpenMetrics + "# EOF\n"},
+		{"OpenMetricsNoNames", reg, expfmt.TypeOpenMetrics, nil, openMetrics + otherOpenMetrics + "# EOF\n"},
 		{"TextNoMatch", reg, expfmt.TypeTextPlain, []string{"missing"}, ""},
 		{"OpenMetricsNoMatch", reg, expfmt.TypeOpenMetrics, []string{"missing"}, "# EOF\n"},
 		{"TextEmptyRegistry", prometheus.NewPedanticRegistry(), expfmt.TypeTextPlain, []string{"foo_bar"}, ""},

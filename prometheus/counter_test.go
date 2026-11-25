@@ -298,17 +298,25 @@ func TestCounterExemplar(t *testing.T) {
 		t.Error("adding exemplar with invalid label succeeded")
 	}
 
+	// Adding an exemplar with 129 runes (above the old 128-rune OM 1.0 limit,
+	// within ExemplarMaxRunes) should succeed.
+	counter.AddWithExemplar(42, Labels{
+		"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
+		"x1234567":                   "8+15 characters",
+		"z":                          strings.Repeat("x", 63),
+	})
+
 	addExemplarWithOversizedLabels := func() (err error) {
 		defer func() {
 			if e := recover(); e != nil {
 				err = e.(error)
 			}
 		}()
-		// Should panic because of 129 runes.
+		// Should panic because of 2049 runes (exceeding ExemplarMaxRunes = 2048).
 		counter.AddWithExemplar(42, Labels{
 			"abcdefghijklmnopqrstuvwxyz": "26+16 characters",
 			"x1234567":                   "8+15 characters",
-			"z":                          strings.Repeat("x", 63),
+			"z":                          strings.Repeat("x", 1983),
 		})
 		return nil
 	}

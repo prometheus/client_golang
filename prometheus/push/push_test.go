@@ -16,11 +16,13 @@ package push
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -284,6 +286,27 @@ func TestPush(t *testing.T) {
 		t.Error("unexpected path:", lastPath)
 	}
 
+	// Push and Delete with a custom header and basic auth. The header must be
+	// sent but not modified.
+	customHeader := make(http.Header)
+	customHeader.Set("X-Custom", "value")
+	pusher := New(pgwOK.URL, "testjob").
+		Collector(metric1).
+		Header(customHeader).
+		BasicAuth("user", "secret")
+	if err := pusher.Push(); err != nil {
+		t.Fatal(err)
+	}
+	if err := pusher.Delete(); err != nil {
+		t.Fatal(err)
+	}
+	if lastHeader.Get("X-Custom") != "value" || lastHeader.Get("Authorization") == "" {
+		t.Errorf("custom header or Authorization header not sent, got %v", lastHeader)
+	}
+	if len(customHeader) != 1 || customHeader.Get("X-Custom") != "value" {
+		t.Errorf("custom header was modified, got %v", customHeader)
+	}
+
 	// Push some Collectors with custom header, all good.
 	header := make(http.Header)
 	header.Set("Authorization", "Bearer Token")
@@ -305,5 +328,95 @@ func TestPush(t *testing.T) {
 	}
 	if lastHeader == nil || lastHeader.Get("Authorization") == "" {
 		t.Error("empty Authorization header")
+	}
+}
+
+func TestPushOpenMetrics(t *testing.T) {
+	for _, format := range []expfmt.Format{expfmt.FmtOpenMetrics_0_0_1, expfmt.FmtOpenMetrics_1_0_0} {
+		for _, count := range []int{0, 1} {
+			for _, method := range []string{http.MethodPut, http.MethodPost} {
+				t.Run(fmt.Sprintf("%s/metrics=%d/%s", format, count, method), func(t *testing.T) {
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if r.Method != method || r.Header.Get("Content-Type") != string(format) {
+							http.Error(w, "unexpected method or content type", http.StatusBadRequest)
+							return
+						}
+						decoder := expfmt.NewDecoder(r.Body, format)
+						decoded := 0
+						for {
+							var family dto.MetricFamily
+							err := decoder.Decode(&family)
+							if errors.Is(err, io.EOF) {
+								break
+							}
+							if err != nil {
+								http.Error(w, err.Error(), http.StatusBadRequest)
+								return
+							}
+							decoded++
+						}
+						if decoded != count {
+							http.Error(w, "unexpected metric family count", http.StatusBadRequest)
+						}
+					}))
+					t.Cleanup(server.Close)
+					pusher := New(server.URL, "testjob").Format(format)
+					if count > 0 {
+						pusher.Collector(prometheus.NewGauge(prometheus.GaugeOpts{
+							Name: "test_gauge",
+							Help: "A test gauge.",
+						}))
+					}
+					if method == http.MethodPut {
+						if err := pusher.Push(); err != nil {
+							t.Fatal(err)
+						}
+					} else {
+						if err := pusher.Add(); err != nil {
+							t.Fatal(err)
+						}
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestPushPathSegments(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		job      string
+		grouping string
+		wantPath string
+	}{
+		{"dot job", ".", "", "/metrics/job@base64/Lg"},
+		{"dot-dot job", "..", "", "/metrics/job@base64/Li4"},
+		{"dot grouping", "testjob", ".", "/metrics/job/testjob/instance@base64/Lg"},
+		{"dot-dot grouping", "testjob", "..", "/metrics/job/testjob/instance@base64/Li4"},
+		{"embedded dot", "test.job", "", "/metrics/job/test.job"},
+		{"space job", "test job", "", "/metrics/job/test job"},
+		{"space grouping", "testjob", "a b+c", "/metrics/job/testjob/instance/a b+c"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("/metrics/", func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPut {
+					t.Errorf("Method = %q, want PUT", r.Method)
+				}
+				if r.URL.Path != test.wantPath {
+					t.Errorf("Path = %q, want %q", r.URL.Path, test.wantPath)
+				}
+				w.WriteHeader(http.StatusOK)
+			})
+			server := httptest.NewServer(mux)
+			defer server.Close()
+			pusher := New(server.URL, test.job)
+			if test.grouping != "" {
+				pusher.Grouping("instance", test.grouping)
+			}
+			if err := pusher.Push(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

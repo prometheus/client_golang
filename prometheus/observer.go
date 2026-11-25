@@ -58,7 +58,8 @@ type ObserverVec interface {
 // current time as timestamp, and the provided Labels. Empty Labels will lead to
 // a valid (label-less) exemplar. But if Labels is nil, the current exemplar is
 // left in place. ObserveWithExemplar panics if any of the provided labels are
-// invalid or if the provided labels contain more than 128 runes in total.
+// invalid or if the provided labels contain more than ExemplarMaxRunes (2KiB)
+// runes in total.
 type ExemplarObserver interface {
 	ObserveWithExemplar(value float64, exemplar Labels)
 }

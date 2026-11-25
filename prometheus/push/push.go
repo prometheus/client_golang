@@ -129,6 +129,14 @@ func (p *Pusher) Push() error {
 // PushContext is like Push but includes a context.
 //
 // If the context expires before HTTP request is complete, an error is returned.
+//
+// As metrics are often pushed on completion of a job, and jobs may
+// complete due to cancellation of their context, take care not to use
+// the potentially canceled context as the argument to this function.
+// You can reset a context's timeout with [context.WithoutCancel],
+// e.g.
+//
+//	p.PushContext(context.WithTimeout(context.WithoutCancel(ctx), time.Second))
 func (p *Pusher) PushContext(ctx context.Context) error {
 	return p.push(ctx, http.MethodPut)
 }
@@ -202,8 +210,9 @@ func (p *Pusher) Client(c HTTPDoer) *Pusher {
 	return p
 }
 
-// Header sets a custom HTTP header for the Pusher's client. For convenience, this method
-// returns a pointer to the Pusher itself.
+// Header sets a custom HTTP header for the Pusher's client. The header is
+// copied into each request and is not modified by the Pusher. For convenience,
+// this method returns a pointer to the Pusher itself.
 func (p *Pusher) Header(header http.Header) *Pusher {
 	p.header = header
 	return p
@@ -245,7 +254,7 @@ func (p *Pusher) Delete() error {
 		return err
 	}
 	if p.header != nil {
-		req.Header = p.header
+		req.Header = p.header.Clone()
 	}
 	if p.useBasicAuth {
 		req.SetBasicAuth(p.username, p.password)
@@ -294,12 +303,17 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 			)
 		}
 	}
+	if closer, ok := enc.(expfmt.Closer); ok {
+		if err := closer.Close(); err != nil {
+			return fmt.Errorf("failed to finalize metrics, error is %w", err)
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, method, p.fullURL(), buf)
 	if err != nil {
 		return err
 	}
 	if p.header != nil {
-		req.Header = p.header
+		req.Header = p.header.Clone()
 	}
 	if p.useBasicAuth {
 		req.SetBasicAuth(p.username, p.password)
@@ -319,13 +333,12 @@ func (p *Pusher) push(ctx context.Context, method string) error {
 }
 
 // fullURL assembles the URL used to push/delete metrics and returns it as a
-// string. The job name and any grouping label values containing a '/' will
-// trigger a base64 encoding of the affected component and proper suffixing of
-// the preceding component. Similarly, an empty grouping label value will be
-// encoded as base64 just with a single `=` padding character (to avoid an empty
-// path component). If the component does not contain a '/' but other special
-// characters, the usual url.QueryEscape is used for compatibility with older
-// versions of the Pushgateway and for better readability.
+// string. The job name and any grouping label values containing a '/' or equal
+// to '.' or '..' will trigger a base64 encoding of the affected component and
+// proper suffixing of the preceding component. Similarly, an empty grouping
+// label value will be encoded as base64 just with a single `=` padding character
+// (to avoid an empty path component). Other special characters use url.PathEscape for
+// compatibility with older versions of the Pushgateway and better readability.
 func (p *Pusher) fullURL() string {
 	urlComponents := []string{}
 	if encodedJob, base64 := encodeComponent(p.job); base64 {
@@ -344,14 +357,14 @@ func (p *Pusher) fullURL() string {
 }
 
 // encodeComponent encodes the provided string with base64.RawURLEncoding in
-// case it contains '/' and as "=" in case it is empty. If neither is the case,
-// it uses url.QueryEscape instead. It returns true in the former two cases.
+// case it contains '/' or equals '.' or '..', and as "=" in case it is empty.
+// Otherwise, it uses url.PathEscape. It returns true when base64 encoding is used.
 func encodeComponent(s string) (string, bool) {
 	if s == "" {
 		return "=", true
 	}
-	if strings.Contains(s, "/") {
+	if strings.Contains(s, "/") || s == "." || s == ".." {
 		return base64.RawURLEncoding.EncodeToString([]byte(s)), true
 	}
-	return url.QueryEscape(s), false
+	return url.PathEscape(s), false
 }

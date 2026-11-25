@@ -14,6 +14,7 @@
 package prometheus
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -465,4 +466,56 @@ func TestWrapCollector(t *testing.T) {
 		expected := toMetricFamilies(lg)
 		assertEqualMFs(t, expected, gathered)
 	})
+}
+
+// invalidCollector signals its inability to describe and collect itself with
+// an invalid Desc and an invalid Metric.
+type invalidCollector struct {
+	err error
+}
+
+func (c invalidCollector) Describe(ch chan<- *Desc) {
+	ch <- NewInvalidDesc(c.err)
+}
+
+func (c invalidCollector) Collect(ch chan<- Metric) {
+	ch <- NewInvalidMetric(NewInvalidDesc(c.err), c.err)
+}
+
+func TestWrapInvalidDesc(t *testing.T) {
+	errInvalid := errors.New("collector is invalid")
+
+	for _, tc := range []struct {
+		name   string
+		prefix string
+		labels Labels
+	}{
+		{name: "labels", labels: Labels{"foo": "bar"}},
+		{name: "prefix", prefix: "prefix_"},
+		{name: "prefix and labels", prefix: "prefix_", labels: Labels{"foo": "bar"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wrap := func(r Registerer) Registerer {
+				return WrapRegistererWithPrefix(tc.prefix, WrapRegistererWith(tc.labels, r))
+			}
+
+			t.Run("register", func(t *testing.T) {
+				err := wrap(NewPedanticRegistry()).Register(invalidCollector{err: errInvalid})
+				if !errors.Is(err, errInvalid) {
+					t.Fatalf("expected error %q, got %v", errInvalid, err)
+				}
+			})
+
+			t.Run("gather", func(t *testing.T) {
+				reg := NewPedanticRegistry()
+				if err := wrap(reg).Register(uncheckedCollector{c: invalidCollector{err: errInvalid}}); err != nil {
+					t.Fatal("registering failed:", err)
+				}
+				_, err := reg.Gather()
+				if !errors.Is(err, errInvalid) {
+					t.Fatalf("expected error %q, got %v", errInvalid, err)
+				}
+			})
+		})
+	}
 }

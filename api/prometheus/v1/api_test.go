@@ -281,6 +281,23 @@ func TestAPIs(t *testing.T) {
 
 	queryTests := []apiTest{
 		{
+			do: doQuery(`"foo"`, testTime),
+			inRes: &queryResult{
+				Type: model.ValString,
+				Result: &model.String{
+					Value:     "foo",
+					Timestamp: model.TimeFromUnix(testTime.Unix()),
+				},
+			},
+
+			reqMethod: "POST",
+			reqPath:   "/api/v1/query",
+			res: &model.String{
+				Value:     "foo",
+				Timestamp: model.TimeFromUnix(testTime.Unix()),
+			},
+		},
+		{
 			do: doQuery("2", testTime, WithTimeout(5*time.Second)),
 			inRes: &queryResult{
 				Type: model.ValScalar,
@@ -457,6 +474,34 @@ func TestAPIs(t *testing.T) {
 			inRes:     []string{"val1", "val2"},
 			reqMethod: "GET",
 			reqPath:   "/api/v1/label/mylabel/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
+		{
+			do:        doLabelValues(nil, "service.name", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/service.name/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
+		{
+			do:        doLabelValues(nil, "app.kubernetes.io/name", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/U__app_2e_kubernetes_2e_io_2f_name/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
+		{
+			do:        doLabelValues(nil, ".", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/U___2e_/values",
+			res:       model.LabelValues{"val1", "val2"},
+		},
+		{
+			do:        doLabelValues(nil, "..", testTime.Add(-100*time.Hour), testTime),
+			inRes:     []string{"val1", "val2"},
+			reqMethod: "GET",
+			reqPath:   "/api/v1/label/U___2e__2e_/values",
 			res:       model.LabelValues{"val1", "val2"},
 		},
 
@@ -1460,6 +1505,14 @@ func TestAPIs(t *testing.T) {
 			inRes:     "foo / bar",
 			res:       "\"foo / bar\"",
 		},
+		{
+			// FormatQuery returns the JSON-encoded string, so inner quotes are escaped.
+			do:        doFormatQuery(`up{job="prometheus"}`),
+			reqMethod: "POST",
+			reqPath:   "/api/v1/format_query",
+			inRes:     `up{job="prometheus"}`,
+			res:       `"up{job=\"prometheus\"}"`,
+		},
 	}
 
 	var tests []apiTest
@@ -1554,6 +1607,42 @@ func (c *testClient) Do(ctx context.Context, req *http.Request) (*http.Response,
 	}
 
 	return resp, b, nil
+}
+
+func TestAddOptionalURLParamsDurations(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []Option
+		want url.Values
+	}{
+		{
+			name: "whole seconds",
+			opts: []Option{WithTimeout(5 * time.Second), WithLookbackDelta(2 * time.Minute)},
+			want: url.Values{"timeout": {"5"}, "lookback_delta": {"120"}},
+		},
+		{
+			name: "fractional seconds",
+			opts: []Option{WithTimeout(1500 * time.Millisecond), WithLookbackDelta(2500 * time.Millisecond)},
+			want: url.Values{"timeout": {"1.5"}, "lookback_delta": {"2.5"}},
+		},
+		{
+			name: "microseconds",
+			opts: []Option{WithTimeout(time.Microsecond)},
+			want: url.Values{"timeout": {"0.000001"}},
+		},
+		{
+			name: "unset",
+			want: url.Values{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := addOptionalURLParams(url.Values{}, tc.opts)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("addOptionalURLParams() = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }
 
 func TestAPIClientDo(t *testing.T) {

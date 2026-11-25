@@ -184,6 +184,12 @@ type API interface {
 	// WalReplay returns the current replay status of the wal.
 	WalReplay(ctx context.Context) (WalReplayStatus, error)
 	// FormatQuery formats a PromQL expression in a prettified way.
+	//
+	// The returned string is the raw JSON encoding of the formatted expression.
+	// It is wrapped in double quotes and its inner characters are escaped, e.g.
+	// `"up{job=\"prometheus\"}"`. To get the expression itself, decode the
+	// result with json.Unmarshal into a string, or use strconv.Unquote. This
+	// behavior is kept for backwards compatibility.
 	FormatQuery(ctx context.Context, query string) (string, error)
 }
 
@@ -692,6 +698,12 @@ func (h *httpAPI) LabelNames(ctx context.Context, matches []string, startTime, e
 }
 
 func (h *httpAPI) LabelValues(ctx context.Context, label string, matches []string, startTime, endTime time.Time, opts ...Option) (model.LabelValues, Warnings, Infos, error) {
+	if strings.Contains(label, "/") || label == "." || label == ".." {
+		// The label name is a path segment, so a '/' would split it and a
+		// "." or ".." segment is removed when the server cleans the path. The
+		// server accepts the name in the Values Escaping form instead.
+		label = model.EscapeName(label, model.ValueEncodingEscaping)
+	}
 	u := h.client.URL(epLabelValues, map[string]string{"name": label})
 	q := addOptionalURLParams(u.Query(), opts)
 
@@ -774,11 +786,11 @@ func addOptionalURLParams(q url.Values, opts []Option) url.Values {
 	}
 
 	if opt.timeout > 0 {
-		q.Set("timeout", opt.timeout.String())
+		q.Set("timeout", formatDuration(opt.timeout))
 	}
 
 	if opt.lookbackDelta > 0 {
-		q.Set("lookback_delta", opt.lookbackDelta.String())
+		q.Set("lookback_delta", formatDuration(opt.lookbackDelta))
 	}
 
 	if opt.stats != "" {
@@ -813,7 +825,7 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 	q.Set("query", query)
 	q.Set("start", formatTime(r.Start))
 	q.Set("end", formatTime(r.End))
-	q.Set("step", strconv.FormatFloat(r.Step.Seconds(), 'f', -1, 64))
+	q.Set("step", formatDuration(r.Step))
 
 	var qres queryResult
 	_, warnings, infos, err := h.client.DoGetFallback(ctx, u, q, &qres)
@@ -1159,6 +1171,12 @@ func (h *apiClientImpl) DoGetFallback(ctx context.Context, u *url.URL, args url.
 		return h.Do(ctx, req, into)
 	}
 	return resp, warnings, infos, err
+}
+
+// formatDuration formats a duration as a number of seconds, which is the form
+// the Prometheus HTTP API accepts for any duration, including sub-second ones.
+func formatDuration(d time.Duration) string {
+	return strconv.FormatFloat(d.Seconds(), 'f', -1, 64)
 }
 
 func formatTime(t time.Time) string {

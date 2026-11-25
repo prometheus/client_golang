@@ -515,6 +515,10 @@ type HistogramVecOpts struct {
 	// of labels. Each label value will be constrained with the optional Constraint
 	// function, if provided.
 	VariableLabels ConstrainableLabels
+
+	// TTL, if greater than zero, enables per-child expiration for this vector.
+	// See MetricVecOpts.TTL for semantics.
+	TTL time.Duration
 }
 
 // NewHistogram creates a new Histogram based on the provided HistogramOpts. It
@@ -821,13 +825,27 @@ func (h *histogram) Write(out *dto.Metric) error {
 	out.Histogram = his
 	out.Label = h.labelPairs
 
+	// Allocate the buckets and the values they point to in one go instead
+	// of three times per bucket. A histogram without classic buckets does
+	// not allocate.
+	type bucketWithValues struct {
+		bucket          dto.Bucket
+		cumulativeCount uint64
+		upperBound      float64
+	}
+	var bucketData []bucketWithValues
+	if len(h.upperBounds) > 0 {
+		bucketData = make([]bucketWithValues, len(h.upperBounds))
+	}
 	var cumCount uint64
 	for i, upperBound := range h.upperBounds {
 		cumCount += atomic.LoadUint64(&coldCounts.buckets[i])
-		his.Bucket[i] = &dto.Bucket{
-			CumulativeCount: new(cumCount),
-			UpperBound:      new(upperBound),
-		}
+		bd := &bucketData[i]
+		bd.cumulativeCount = cumCount
+		bd.upperBound = upperBound
+		bd.bucket.CumulativeCount = &bd.cumulativeCount
+		bd.bucket.UpperBound = &bd.upperBound
+		his.Bucket[i] = &bd.bucket
 		if e := h.exemplars[i].Load(); e != nil {
 			his.Bucket[i].Exemplar = e.(*dto.Exemplar)
 		}
@@ -1202,8 +1220,16 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 		WithUnit(opts.Unit),
 	)
 	return &HistogramVec{
-		MetricVec: NewMetricVec(desc, func(lvs ...string) Metric {
-			return newHistogram(desc, opts.HistogramOpts, lvs...)
+		MetricVec: V2.NewMetricVec(MetricVecOpts{
+			Desc: desc,
+			NewMetric: func(lvs ...string) Metric {
+				h := newHistogram(desc, opts.HistogramOpts, lvs...)
+				if opts.TTL <= 0 {
+					return h
+				}
+				return newTTLHistogram(h)
+			},
+			TTL: opts.TTL,
 		}),
 	}
 }
@@ -1222,6 +1248,9 @@ func (v2) NewHistogramVec(opts HistogramVecOpts) *HistogramVec {
 // Histogram will still exist, but it will not be exported anymore, even if a
 // Histogram with the same label values is created later. See also the CounterVec
 // example.
+//
+// TTL cleanup and looking up an expired metric can also remove or replace it.
+// The same rules for cached references apply. See MetricVecOpts.TTL for details.
 //
 // An error is returned if the number of label values is not the same as the
 // number of variable labels in Desc (minus any curried labels).
