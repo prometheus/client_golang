@@ -327,6 +327,92 @@ func TestMetricNotFound(t *testing.T) {
 	}
 }
 
+func TestGatherAndCompareStrict(t *testing.T) {
+	reg := prometheus.NewPedanticRegistry()
+
+	c := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "some_total",
+		Help: "A value that represents a counter.",
+		ConstLabels: prometheus.Labels{
+			"label1": "value1",
+		},
+	})
+	c.Inc()
+	if err := reg.Register(c); err != nil {
+		t.Fatalf("registering collector failed: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name          string
+		expected      string
+		metricNames   []string
+		expectedError string
+	}{
+		{
+			name: "all requested metrics present, exact match",
+			expected: `
+				# HELP some_total A value that represents a counter.
+				# TYPE some_total counter
+
+				some_total{label1="value1"} 1
+			`,
+			metricNames: []string{"some_total"},
+		},
+		{
+			name: "all requested metrics present, no metric names",
+			expected: `
+				# HELP some_total A value that represents a counter.
+				# TYPE some_total counter
+
+				some_total{label1="value1"} 1
+			`,
+		},
+		{
+			name: "typo in metricNames must not pass silently",
+			expected: `
+				some_total{label1="value1"} 1
+			`,
+			metricNames:   []string{"some_totall"},
+			expectedError: "some_totall not present in the gathered metrics",
+		},
+		{
+			name: "expected metric missing from the registry must not be filtered out of expected",
+			expected: `
+				some_total{label1="value1"} 1
+				some_other_total{label1="value1"} 1
+			`,
+			metricNames:   []string{"some_total"},
+			expectedError: "some_other_total",
+		},
+		{
+			name: "gathered metric missing from expected must fail",
+			expected: `
+				some_other_total{label1="value1"} 1
+			`,
+			metricNames:   []string{"some_total"},
+			expectedError: "some_total",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := GatherAndCompareStrict(reg, strings.NewReader(tc.expected), tc.metricNames...)
+
+			if tc.expectedError == "" {
+				if err != nil {
+					t.Errorf("unexpected error:\n%s", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Errorf("expected error containing %q, got no error", tc.expectedError)
+				return
+			}
+			if !strings.Contains(err.Error(), tc.expectedError) {
+				t.Errorf("expected error containing %q, got:\n%s", tc.expectedError, err)
+			}
+		})
+	}
+}
+
 func TestScrapeAndCompare(t *testing.T) {
 	const expected = `
 		# HELP some_total A value that represents a counter.
