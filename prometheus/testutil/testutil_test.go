@@ -19,8 +19,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -536,4 +539,155 @@ other_total 1.0
 			}
 		})
 	}
+}
+
+func TestGatherAndCompareWithOptions(t *testing.T) {
+	omFmt, err := expfmt.NewOpenMetricsFormat("1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reg := prometheus.NewPedanticRegistry()
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "my_counter_total",
+		Help: "Some counter with exemplar",
+	})
+	if err := reg.Register(counter); err != nil {
+		t.Fatal(err)
+	}
+	counter.(prometheus.ExemplarAdder).AddWithExemplar(1, prometheus.Labels{"trace_id": "abc"})
+
+	expected := `# HELP my_counter Some counter with exemplar
+# TYPE my_counter counter
+my_counter_total 1.0 # {trace_id="abc"} 1.0
+# EOF
+`
+
+	// Compare with OpenMetrics format and ignore exemplar timestamp.
+	if err := GatherAndCompareWithOptions(reg, strings.NewReader(expected), WithFormat(omFmt), WithIgnoreExemplarTimestamps()); err != nil {
+		t.Fatalf("unexpected GatherAndCompareWithOptions failure: %v", err)
+	}
+
+	// Compare with mismatched exemplar label should fail.
+	mismatched := `# HELP my_counter Some counter with exemplar
+# TYPE my_counter counter
+my_counter_total 1.0 # {trace_id="wrong"} 1.0
+# EOF
+`
+	if err := GatherAndCompareWithOptions(reg, strings.NewReader(mismatched), WithFormat(omFmt), WithIgnoreExemplarTimestamps()); err == nil {
+		t.Fatal("expected failure due to mismatched exemplar, got nil")
+	}
+
+	// Test CollectAndCompareWithOptions with exemplar.
+	c := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "collected_total",
+		Help: "A collected counter with exemplar",
+	})
+	c.(prometheus.ExemplarAdder).AddWithExemplar(42, prometheus.Labels{"span_id": "xyz"})
+
+	expectedCollected := `# HELP collected A collected counter with exemplar
+# TYPE collected counter
+collected_total 42.0 # {span_id="xyz"} 42.0
+# EOF
+`
+	if err := CollectAndCompareWithOptions(c, strings.NewReader(expectedCollected), WithFormat(omFmt), WithIgnoreExemplarTimestamps()); err != nil {
+		t.Fatalf("unexpected CollectAndCompareWithOptions failure: %v", err)
+	}
+
+	// Test WithMetricNames filtering with format option.
+	other := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "other_counter_total",
+		Help: "Other counter",
+	})
+	other.Inc()
+	if err := reg.Register(other); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := GatherAndCompareWithOptions(reg, strings.NewReader(expected), WithFormat(omFmt), WithIgnoreExemplarTimestamps(), WithMetricNames("my_counter_total")); err != nil {
+		t.Fatalf("unexpected GatherAndCompareWithOptions with metric filter failure: %v", err)
+	}
+
+	// Test Histogram with exemplar and WithIgnoreExemplarTimestamps.
+	hist := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "my_hist",
+		Help:    "A histogram",
+		Buckets: []float64{1, 5, 10},
+	})
+	hist.(prometheus.ExemplarObserver).ObserveWithExemplar(2.5, prometheus.Labels{"trace_id": "xyz"})
+
+	expectedHist := `# HELP my_hist A histogram
+# TYPE my_hist histogram
+my_hist_bucket{le="1.0"} 0
+my_hist_bucket{le="5.0"} 1 # {trace_id="xyz"} 2.5
+my_hist_bucket{le="10.0"} 1
+my_hist_bucket{le="+Inf"} 1
+my_hist_sum 2.5
+my_hist_count 1
+# EOF
+`
+	if err := CollectAndCompareWithOptions(hist, strings.NewReader(expectedHist), WithFormat(omFmt), WithIgnoreExemplarTimestamps()); err != nil {
+		t.Fatalf("unexpected CollectAndCompareWithOptions histogram failure: %v", err)
+	}
+
+	// Test exemplar with explicit timestamp matching.
+	collectorWithTimestamp := &fixedExemplarCollector{
+		desc: prometheus.NewDesc("ts_metric_total", "A counter with timestamp", nil, nil),
+	}
+	expectedWithTimestamp := `# HELP ts_metric A counter with timestamp
+# TYPE ts_metric counter
+ts_metric_total 1.0 # {trace_id="fixed"} 1.0 1600000000.000
+# EOF
+`
+	if err := CollectAndCompareWithOptions(collectorWithTimestamp, strings.NewReader(expectedWithTimestamp), WithFormat(omFmt)); err != nil {
+		t.Fatalf("unexpected CollectAndCompareWithOptions with timestamp failure: %v", err)
+	}
+
+	expectedWrongTimestamp := `# HELP ts_metric A counter with timestamp
+# TYPE ts_metric counter
+ts_metric_total 1.0 # {trace_id="fixed"} 1.0 1700000000.000
+# EOF
+`
+	if err := CollectAndCompareWithOptions(collectorWithTimestamp, strings.NewReader(expectedWrongTimestamp), WithFormat(omFmt)); err == nil {
+		t.Fatal("expected CollectAndCompareWithOptions to fail due to timestamp mismatch, got nil")
+	}
+
+	// Test TransactionalGatherAndCompareWithOptions.
+	txGatherer := prometheus.ToTransactionalGatherer(reg)
+	if err := TransactionalGatherAndCompareWithOptions(txGatherer, strings.NewReader(expected), WithFormat(omFmt), WithIgnoreExemplarTimestamps(), WithMetricNames("my_counter_total")); err != nil {
+		t.Fatalf("unexpected TransactionalGatherAndCompareWithOptions failure: %v", err)
+	}
+}
+
+type fixedExemplarCollector struct {
+	desc *prometheus.Desc
+}
+
+func (c *fixedExemplarCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.desc
+}
+
+func (c *fixedExemplarCollector) Collect(ch chan<- prometheus.Metric) {
+	ch <- &fixedExemplarMetric{desc: c.desc}
+}
+
+type fixedExemplarMetric struct {
+	desc *prometheus.Desc
+}
+
+func (m *fixedExemplarMetric) Desc() *prometheus.Desc { return m.desc }
+
+func (m *fixedExemplarMetric) Write(out *dto.Metric) error {
+	val := 1.0
+	out.Counter = &dto.Counter{
+		Value: &val,
+		Exemplar: &dto.Exemplar{
+			Label: []*dto.LabelPair{
+				{Name: new("trace_id"), Value: new("fixed")},
+			},
+			Value:     new(1.0),
+			Timestamp: timestamppb.New(time.Unix(1600000000, 0)),
+		},
+	}
+	return nil
 }
