@@ -31,6 +31,7 @@
 package writev2
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -94,6 +95,10 @@ func TestDesymbolizeLabelsInvalidInput(t *testing.T) {
 		{name: "odd number of refs, longer", labelRefs: []uint32{1, 1, 1}, symbols: []string{"", "a"}},
 		{name: "name ref out of range", labelRefs: []uint32{9, 1}, symbols: []string{"", "a"}},
 		{name: "value ref out of range", labelRefs: []uint32{1, 9}, symbols: []string{"", "a"}},
+		{name: "name ref high bit set", labelRefs: []uint32{1 << 31, 1}, symbols: []string{"", "a"}},
+		{name: "value ref high bit set", labelRefs: []uint32{1, 1 << 31}, symbols: []string{"", "a"}},
+		{name: "name ref max uint32", labelRefs: []uint32{math.MaxUint32, 1}, symbols: []string{"", "a"}},
+		{name: "value ref max uint32", labelRefs: []uint32{1, math.MaxUint32}, symbols: []string{"", "a"}},
 		{name: "refs against empty symbols", labelRefs: []uint32{0, 0}, symbols: nil},
 	} {
 		t.Run(tcase.name, func(t *testing.T) {

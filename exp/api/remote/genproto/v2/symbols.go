@@ -101,7 +101,7 @@ func DesymbolizeLabels(labelRefs []uint32, symbols, buf []string) ([]string, err
 	result := buf[:0]
 	for i := 0; i < len(labelRefs); i += 2 {
 		nameRef, valueRef := labelRefs[i], labelRefs[i+1]
-		if int(nameRef) >= len(symbols) || int(valueRef) >= len(symbols) {
+		if uint64(nameRef) >= uint64(len(symbols)) || uint64(valueRef) >= uint64(len(symbols)) {
 			return nil, fmt.Errorf("labelRefs %v (name), %v (value) outside of symbols table (size %v)", nameRef, valueRef, len(symbols))
 		}
 		result = append(result, symbols[nameRef], symbols[valueRef])
