@@ -294,7 +294,9 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 				)
 			}
 			// Success!
-			// TODO(bwplotka): Debug log with retry summary?
+			if b.NumRetries() > 0 {
+				r.opts.logger.Debug("successfully sent remote write request after retries", "retries", b.NumRetries())
+			}
 			return accumulatedStats, nil
 		}
 
@@ -304,6 +306,11 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 		}
 
 		if !b.Ongoing() {
+			// Ongoing is also false when ctx is canceled. Only log when the
+			// retry limit is what stopped us.
+			if ctx.Err() == nil {
+				r.opts.logger.Error("remote write request failed; retries exhausted", "err", err, "retries", b.NumRetries())
+			}
 			return accumulatedStats, err
 		}
 
@@ -314,7 +321,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 			writeOpts.retryCallback(retryableErr.error)
 		}
 
-		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
+		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay, "retries", b.NumRetries())
 		select {
 		case <-ctx.Done():
 			return accumulatedStats, ctx.Err()
@@ -524,9 +531,8 @@ func SnappyDecodeMiddleware(logger *slog.Logger) func(http.Handler) http.Handler
 
 			decompressed, err := snappy.Decode(nil, bodyBytes)
 			if err != nil {
-				// TODO(bwplotka): Add more context to responded error?
 				logger.Error("Error snappy decoding remote write request", "err", err)
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, fmt.Sprintf("failed to decompress snappy request body: %v", err), http.StatusBadRequest)
 				return
 			}
 
