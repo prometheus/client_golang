@@ -205,8 +205,7 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 		// exemplar slice, growing it with every scrape.
 		pb.Histogram = proto.Clone(pb.Histogram).(*dto.Histogram)
 		h := pb.Histogram
-		isNative := h.Schema != nil || h.GetZeroThreshold() != 0 ||
-			h.GetZeroCount() != 0 || h.GetZeroCountFloat() != 0 ||
+		isNative := h.GetZeroThreshold() != 0 || h.GetZeroCount() != 0 ||
 			len(h.PositiveSpan) != 0 || len(h.NegativeSpan) != 0
 		hasClassic := len(h.Bucket) > 0
 		for _, e := range m.exemplars {

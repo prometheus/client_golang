@@ -498,9 +498,33 @@ func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
 		hist          *dto.Histogram
 		exemplars     []*dto.Exemplar
 		wantExemplars int
+		wantBuckets   int
 	}{
 		{
-			name: "float native histogram ZeroCountFloat only",
+			name: "no-op span empty native histogram",
+			hist: &dto.Histogram{
+				Schema:       proto.Int32(2),
+				PositiveSpan: []*dto.BucketSpan{{Offset: proto.Int32(0), Length: proto.Uint32(0)}},
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(1.0), Timestamp: timestamppb.New(now)},
+			},
+			wantExemplars: 1,
+			wantBuckets:   0,
+		},
+		{
+			name: "schema-only histogram treated as classic",
+			hist: &dto.Histogram{
+				Schema: proto.Int32(2),
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(1.0), Timestamp: timestamppb.New(now)},
+			},
+			wantExemplars: 0,
+			wantBuckets:   1,
+		},
+		{
+			name: "ZeroCountFloat-only histogram without spans treated as classic",
 			hist: &dto.Histogram{
 				SampleCountFloat: new(5.0),
 				ZeroCountFloat:   new(5.0),
@@ -508,17 +532,8 @@ func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
 			exemplars: []*dto.Exemplar{
 				{Value: new(0.0), Timestamp: timestamppb.New(now)},
 			},
-			wantExemplars: 1,
-		},
-		{
-			name: "schema-only empty native histogram",
-			hist: &dto.Histogram{
-				Schema: proto.Int32(2),
-			},
-			exemplars: []*dto.Exemplar{
-				{Value: new(1.0), Timestamp: timestamppb.New(now)},
-			},
-			wantExemplars: 1,
+			wantExemplars: 0,
+			wantBuckets:   1,
 		},
 		{
 			name: "pure native histogram exemplar without timestamp",
@@ -530,6 +545,7 @@ func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
 				{Value: new(1.0)},
 			},
 			wantExemplars: 0,
+			wantBuckets:   0,
 		},
 		{
 			name: "pure native histogram skips NaN exemplar",
@@ -541,6 +557,7 @@ func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
 				{Value: new(math.NaN()), Timestamp: timestamppb.New(now)},
 			},
 			wantExemplars: 0,
+			wantBuckets:   0,
 		},
 	}
 
@@ -558,8 +575,8 @@ func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
 			if len(got.GetExemplars()) != tc.wantExemplars {
 				t.Errorf("native exemplars: got %d, want %d", len(got.GetExemplars()), tc.wantExemplars)
 			}
-			if len(got.GetBucket()) != 0 {
-				t.Errorf("pure native histogram got %d spurious classic buckets: %v", len(got.GetBucket()), got.GetBucket())
+			if len(got.GetBucket()) != tc.wantBuckets {
+				t.Errorf("classic buckets: got %d, want %d: %v", len(got.GetBucket()), tc.wantBuckets, got.GetBucket())
 			}
 		})
 	}
