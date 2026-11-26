@@ -244,6 +244,8 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 //
 // Everything else behaves exactly like GatherAndCompare, including the
 // filtering of both the expected and the gathered metrics by metricNames.
+// An empty metricNames filters nothing, so every gathered metric is compared,
+// just like calling GatherAndCompare without names.
 //
 // See https://github.com/prometheus/client_golang/issues/1351.
 func GatherAndCompareStrict(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
@@ -261,7 +263,7 @@ func GatherAndCompareStrict(g prometheus.Gatherer, expected io.Reader, metricNam
 		return err
 	}
 
-	if metricNames != nil {
+	if len(metricNames) > 0 {
 		got = filterMetrics(got, metricNames)
 		wanted = filterMetrics(wanted, metricNames)
 	}

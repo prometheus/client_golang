@@ -368,6 +368,24 @@ func TestGatherAndCompareStrict(t *testing.T) {
 			`,
 		},
 		{
+			name: "empty metricNames list compares everything, exact match",
+			expected: `
+				# HELP some_total A value that represents a counter.
+				# TYPE some_total counter
+
+				some_total{label1="value1"} 1
+			`,
+			metricNames: []string{},
+		},
+		{
+			name: "empty non-nil metricNames must not drop everything and pass",
+			expected: `
+				some_other_total{label1="value1"} 1
+			`,
+			metricNames:   []string{},
+			expectedError: "some_total",
+		},
+		{
 			name: "typo in metricNames must not pass silently",
 			expected: `
 				some_total{label1="value1"} 1
