@@ -205,12 +205,15 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 		// exemplar slice, growing it with every scrape.
 		pb.Histogram = proto.Clone(pb.Histogram).(*dto.Histogram)
 		h := pb.Histogram
+		isNative := h.GetZeroThreshold() != 0 || h.GetZeroCount() != 0 ||
+			len(h.PositiveSpan) != 0 || len(h.NegativeSpan) != 0
+		hasClassic := len(h.Bucket) > 0
 		for _, e := range m.exemplars {
-			if (h.GetZeroThreshold() != 0 || h.GetZeroCount() != 0 ||
-				len(h.PositiveSpan) != 0 || len(h.NegativeSpan) != 0) &&
-				e.GetTimestamp() != nil {
-				h.Exemplars = append(h.Exemplars, e)
-				if len(h.Bucket) == 0 {
+			if isNative {
+				if e.GetTimestamp() != nil && !math.IsNaN(e.GetValue()) {
+					h.Exemplars = append(h.Exemplars, e)
+				}
+				if !hasClassic {
 					// Don't proceed to classic buckets if there are none.
 					continue
 				}
@@ -221,6 +224,8 @@ func (m *withExemplarsMetric) Write(pb *dto.Metric) error {
 			})
 			if i < len(h.Bucket) {
 				h.Bucket[i].Exemplar = e
+			} else if len(h.Bucket) > 0 && math.IsInf(h.Bucket[len(h.Bucket)-1].GetUpperBound(), 1) {
+				h.Bucket[len(h.Bucket)-1].Exemplar = e
 			} else {
 				// The +Inf bucket should be explicitly added if there is an exemplar for it, similar to non-const histogram logic in https://github.com/prometheus/client_golang/blob/main/prometheus/histogram.go#L357-L365.
 				b := &dto.Bucket{
@@ -260,6 +265,9 @@ type Exemplar struct {
 // NewMetricWithExemplars works best with MustNewConstMetric and
 // MustNewConstHistogram, see example.
 func NewMetricWithExemplars(m Metric, exemplars ...Exemplar) (Metric, error) {
+	if m == nil {
+		return nil, errors.New("cannot attach exemplars to nil metric")
+	}
 	if len(exemplars) == 0 {
 		return nil, errors.New("no exemplar was passed for NewMetricWithExemplars")
 	}
