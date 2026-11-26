@@ -676,14 +676,86 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 			t.Errorf("expected debug log with retries summary after retry success, got logs: %+v", logs)
 		}
 	})
+
+	t.Run("retries exhausted is logged only when the retry limit is reached", func(t *testing.T) {
+		for _, tc := range []struct {
+			name    string
+			cancel  bool
+			wantLog bool
+		}{
+			{name: "retry limit reached", wantLog: true},
+			{name: "context canceled", cancel: true, wantLog: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				var mu sync.Mutex
+				var messages []string
+				tLogger := slog.New(&testLogHandler{onRecord: func(r slog.Record) {
+					mu.Lock()
+					defer mu.Unlock()
+					messages = append(messages, r.Message)
+				}})
+
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				// Every attempt gets a retryable 500. In the canceled case the
+				// context is canceled before the response comes back, so the
+				// backoff stops because of ctx and not because of the limit.
+				transport := roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					if tc.cancel {
+						cancel()
+					}
+					return &http.Response{
+						StatusCode: http.StatusInternalServerError,
+						Status:     "500 Internal Server Error",
+						Header:     http.Header{},
+						Body:       io.NopCloser(strings.NewReader("")),
+					}, nil
+				})
+
+				client, err := NewAPI("http://example.com",
+					WithAPIHTTPClient(&http.Client{Transport: transport}),
+					WithAPILogger(tLogger),
+					WithAPIBackoff(BackoffConfig{
+						Min:        1 * time.Millisecond,
+						Max:        1 * time.Millisecond,
+						MaxRetries: 1,
+					}),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, err = client.Write(ctx, WriteV2MessageType, WriteModeNone, testV2())
+				if err == nil {
+					t.Fatal("expected write to fail")
+				}
+
+				mu.Lock()
+				defer mu.Unlock()
+				logged := false
+				for _, m := range messages {
+					if m == "remote write request failed; retries exhausted" {
+						logged = true
+					}
+				}
+				if logged != tc.wantLog {
+					t.Errorf("retries exhausted logged = %v, want %v; logs: %v", logged, tc.wantLog, messages)
+				}
+			})
+		}
+	})
 }
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 type retryThenSucceedStorage struct {
 	failTimes int
 	attempts  *int
 }
 
-func (s *retryThenSucceedStorage) Store(req *http.Request, msgType WriteMessageType, mode WriteMode) (*WriteResponse, error) {
+func (s *retryThenSucceedStorage) Store(req *http.Request, _ WriteMessageType, _ WriteMode) (*WriteResponse, error) {
 	*s.attempts++
 	w := NewWriteResponse()
 	if *s.attempts <= s.failTimes {

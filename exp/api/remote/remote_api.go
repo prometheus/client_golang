@@ -305,7 +305,11 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 		}
 
 		if !b.Ongoing() {
-			r.opts.logger.Error("remote write request failed; retries exhausted", "err", err, "retries", b.NumRetries())
+			// Ongoing is also false when ctx is canceled. Only log when the
+			// retry limit is what stopped us.
+			if ctx.Err() == nil {
+				r.opts.logger.Error("remote write request failed; retries exhausted", "err", err, "retries", b.NumRetries())
+			}
 			return accumulatedStats, err
 		}
 
