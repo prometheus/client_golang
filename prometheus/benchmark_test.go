@@ -241,7 +241,7 @@ func BenchmarkParallelCounter(b *testing.B) {
 // lookup or short computation precedes each metric update.
 // The v parameter accepts the loop index to prevent compile-time constant folding.
 func doWork(v int) int {
-	for i := 0; i < 10000; i++ {
+	for i := range 10000 {
 		v += i
 	}
 	return v
@@ -260,10 +260,10 @@ func benchmarkWithWork(b *testing.B, w int, op func()) {
 	gate := new(sync.WaitGroup)
 	gate.Add(1)
 
-	for i := 0; i < w; i++ {
+	for range w {
 		go func() {
 			gate.Wait()
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				runtime.KeepAlive(doWork(i))
 				op()
 			}
@@ -339,9 +339,8 @@ func BenchmarkHistogramObserveWithWork(b *testing.B) {
 
 func BenchmarkSummaryObserveWithWork(b *testing.B) {
 	s := NewSummary(SummaryOpts{
-		Name:       "benchmark_summary_observe",
-		Help:       "A summary to benchmark Observe (CAS for sum).",
-		Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		Name: "benchmark_summary_observe",
+		Help: "A summary without objectives to benchmark Observe (CAS for sum).",
 	})
 	for _, w := range []int{1, 2, 4, 8} {
 		b.Run(strconv.Itoa(w), func(b *testing.B) {
