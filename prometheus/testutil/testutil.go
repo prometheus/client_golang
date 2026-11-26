@@ -46,6 +46,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/kylelemons/godebug/diff"
 	dto "github.com/prometheus/client_model/go"
@@ -234,6 +235,63 @@ func TransactionalGatherAndCompare(g prometheus.TransactionalGatherer, expected 
 	}
 
 	return compareMetricFamilies(got, wanted, metricNames...)
+}
+
+// GatherAndCompareStrict is GatherAndCompare with one addition: it returns an
+// error if a name in metricNames is not present in the gathered metrics.
+// Without this check, a typo in metricNames filters both sides to nothing and
+// GatherAndCompare passes without comparing anything.
+//
+// Everything else behaves exactly like GatherAndCompare, including the
+// filtering of both the expected and the gathered metrics by metricNames.
+// An empty metricNames filters nothing, so every gathered metric is compared,
+// just like calling GatherAndCompare without names.
+//
+// See https://github.com/prometheus/client_golang/issues/1351.
+func GatherAndCompareStrict(g prometheus.Gatherer, expected io.Reader, metricNames ...string) error {
+	got, err := g.Gather()
+	if err != nil {
+		return fmt.Errorf("gathering metrics failed: %w", err)
+	}
+
+	wanted, err := convertReaderToMetricFamily(expected)
+	if err != nil {
+		return err
+	}
+
+	if err := requireMetricNamesPresent(got, metricNames); err != nil {
+		return err
+	}
+
+	if len(metricNames) > 0 {
+		got = filterMetrics(got, metricNames)
+		wanted = filterMetrics(wanted, metricNames)
+	}
+	return compare(got, wanted)
+}
+
+// requireMetricNamesPresent returns an error listing every name that is not
+// present in the gathered metric families.
+func requireMetricNamesPresent(got []*dto.MetricFamily, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	existing := make(map[string]struct{}, len(got))
+	for _, mf := range got {
+		existing[mf.GetName()] = struct{}{}
+	}
+
+	var missing []string
+	for _, name := range names {
+		if _, ok := existing[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("metric(s) %s not present in the gathered metrics", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 // CollectAndFormat collects the metrics identified by `metricNames` and returns them in the given format.
