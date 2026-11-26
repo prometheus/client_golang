@@ -317,7 +317,7 @@ func (r *API) Write(ctx context.Context, msgType WriteMessageType, mode WriteMod
 		r.opts.logger.Error("failed to send remote write request; retrying after backoff", "err", err, "backoff", backoffDelay)
 		select {
 		case <-ctx.Done():
-			return WriteResponseStats{}, ctx.Err()
+			return accumulatedStats, ctx.Err()
 		case <-time.After(backoffDelay):
 			// Retry.
 		}

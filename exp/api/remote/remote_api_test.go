@@ -574,6 +574,46 @@ func TestRemoteAPI_Write_WithHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("context canceled during backoff keeps accumulated stats", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// Partial write: two samples were stored before the failure.
+			w.Header().Set(writtenSamplesHeader, "2")
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		client, err := NewAPI(srv.URL,
+			WithAPIHTTPClient(srv.Client()),
+			WithAPIBackoff(BackoffConfig{
+				Min:        time.Minute,
+				Max:        time.Minute,
+				MaxRetries: 3,
+			}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		var retries int
+		stats, err := client.Write(ctx, WriteV2MessageType, WriteModeNone, testV2(),
+			WithWriteRetryCallback(func(error) {
+				// The first attempt failed; cancel while Write waits to retry.
+				retries++
+				cancel()
+			}),
+		)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+		if retries != 1 {
+			t.Fatalf("expected 1 retry callback invocation, got %d", retries)
+		}
+		if stats.Samples != 2 {
+			t.Fatalf("expected 2 samples written by the failed attempt, got %+v", stats)
+		}
+	})
+
 	t.Run("retry callback not invoked on success", func(t *testing.T) {
 		tLogger := slog.Default()
 		mStore := &mockStorage{}
