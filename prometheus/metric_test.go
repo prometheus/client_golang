@@ -467,3 +467,149 @@ func TestWithExemplarsMetricConstMetricsConcurrentGather(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+type stubHistogramMetric struct {
+	desc *Desc
+	hist *dto.Histogram
+}
+
+func (m *stubHistogramMetric) Desc() *Desc { return m.desc }
+func (m *stubHistogramMetric) Write(pb *dto.Metric) error {
+	pb.Histogram = m.hist
+	return nil
+}
+
+func TestNewMetricWithExemplarsNilMetric(t *testing.T) {
+	m, err := NewMetricWithExemplars(nil, Exemplar{Value: 1, Labels: Labels{"trace_id": "abc"}})
+	if err == nil {
+		t.Fatalf("expected error for nil metric, got nil (metric=%v)", m)
+	}
+	if m != nil {
+		t.Fatalf("expected nil metric on error, got %v", m)
+	}
+}
+
+func TestWithExemplarsNativeHistogramDetection(t *testing.T) {
+	now := time.Date(2026, 11, 26, 0, 0, 0, 0, time.UTC)
+	desc := NewDesc("native_hist_exemplar_detection", "A native histogram.", nil, nil)
+
+	tests := []struct {
+		name          string
+		hist          *dto.Histogram
+		exemplars     []*dto.Exemplar
+		wantExemplars int
+	}{
+		{
+			name: "float native histogram ZeroCountFloat only",
+			hist: &dto.Histogram{
+				SampleCountFloat: new(5.0),
+				ZeroCountFloat:   new(5.0),
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(0.0), Timestamp: timestamppb.New(now)},
+			},
+			wantExemplars: 1,
+		},
+		{
+			name: "schema-only empty native histogram",
+			hist: &dto.Histogram{
+				Schema: proto.Int32(2),
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(1.0), Timestamp: timestamppb.New(now)},
+			},
+			wantExemplars: 1,
+		},
+		{
+			name: "pure native histogram exemplar without timestamp",
+			hist: &dto.Histogram{
+				Schema:        proto.Int32(2),
+				ZeroThreshold: new(0.2),
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(1.0)},
+			},
+			wantExemplars: 0,
+		},
+		{
+			name: "pure native histogram skips NaN exemplar",
+			hist: &dto.Histogram{
+				Schema:        proto.Int32(2),
+				ZeroThreshold: new(0.2),
+			},
+			exemplars: []*dto.Exemplar{
+				{Value: new(math.NaN()), Timestamp: timestamppb.New(now)},
+			},
+			wantExemplars: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := &withExemplarsMetric{
+				Metric:    &stubHistogramMetric{desc: desc, hist: tc.hist},
+				exemplars: tc.exemplars,
+			}
+			var pb dto.Metric
+			if err := m.Write(&pb); err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+			got := pb.GetHistogram()
+			if len(got.GetExemplars()) != tc.wantExemplars {
+				t.Errorf("native exemplars: got %d, want %d", len(got.GetExemplars()), tc.wantExemplars)
+			}
+			if len(got.GetBucket()) != 0 {
+				t.Errorf("pure native histogram got %d spurious classic buckets: %v", len(got.GetBucket()), got.GetBucket())
+			}
+		})
+	}
+}
+
+func TestWithExemplarsClassicHistogramNaNNoDuplicateInfBucket(t *testing.T) {
+	desc := NewDesc("classic_hist_nan_exemplar", "A classic histogram.", nil, nil)
+	h := MustNewConstHistogram(desc, 20, 42.0, map[float64]uint64{25: 10, 50: 20})
+
+	for _, tc := range []struct {
+		name      string
+		exemplars []Exemplar
+	}{
+		{
+			name: "two NaN exemplars",
+			exemplars: []Exemplar{
+				{Value: math.NaN(), Labels: Labels{"trace_id": "nan1"}},
+				{Value: math.NaN(), Labels: Labels{"trace_id": "nan2"}},
+			},
+		},
+		{
+			name: "overflow finite then NaN exemplar",
+			exemplars: []Exemplar{
+				{Value: 100.0, Labels: Labels{"trace_id": "hi"}},
+				{Value: math.NaN(), Labels: Labels{"trace_id": "nan"}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, err := NewMetricWithExemplars(h, tc.exemplars...)
+			if err != nil {
+				t.Fatalf("NewMetricWithExemplars: %v", err)
+			}
+			var pb dto.Metric
+			if err := m.Write(&pb); err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+			buckets := pb.GetHistogram().GetBucket()
+			if len(buckets) != 3 {
+				t.Fatalf("got %d buckets (duplicate +Inf?), want 3: %v", len(buckets), buckets)
+			}
+			infCount := 0
+			for _, b := range buckets {
+				if math.IsInf(b.GetUpperBound(), 1) {
+					infCount++
+				}
+			}
+			if infCount != 1 {
+				t.Fatalf("got %d +Inf buckets, want 1", infCount)
+			}
+		})
+	}
+}
