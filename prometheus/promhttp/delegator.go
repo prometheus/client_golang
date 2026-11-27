@@ -229,9 +229,12 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	}
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
+	// With zero bytes copied, http.ErrContentLength can come from the source
+	// before any write, or from net/http after it commits 200 and rejects
+	// the first write. In the latter case, a delegator without a header
+	// observer can trigger a superfluous WriteHeader warning on the next
+	// Write or Flush.
 	if !d.wroteHeader && n > 0 {
-		// Without a header observer, use the copy result to record the
-		// default status. A later Write would otherwise send a second header.
 		d.recordHeader(http.StatusOK)
 	}
 	return n, err
