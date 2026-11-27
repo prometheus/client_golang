@@ -141,6 +141,15 @@ func (o *firstReadObserver) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// After a flush outside the delegator, net/http can ask for the file
+// descriptor without first reading any data through the observer.
+func (o *firstReadObserver) SyscallConn() (syscall.RawConn, error) {
+	if conn, ok := o.src.(syscall.Conn); ok {
+		return conn.SyscallConn()
+	}
+	return nil, errors.ErrUnsupported
+}
+
 type observedWriterTo struct {
 	io.Reader
 	src io.WriterTo
@@ -156,16 +165,7 @@ func (o observedWriterTo) WriteTo(w io.Writer) (int64, error) {
 
 type observedConn struct {
 	observedWriterTo
-	conn syscall.Conn
-}
-
-func (o observedConn) SyscallConn() (syscall.RawConn, error) {
-	// A descriptor copy bypasses Read and WriteTo. Let TCP use sendfile
-	// once the first read has recorded the header.
-	if !o.d.wroteHeader {
-		return nil, errors.ErrUnsupported
-	}
-	return o.conn.SyscallConn()
+	syscall.Conn
 }
 
 type headerObservingWriter struct {

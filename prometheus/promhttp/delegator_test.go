@@ -19,7 +19,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 	"testing/iotest"
 	"time"
@@ -86,6 +88,36 @@ func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 type readFromFunc func(io.Reader) (int64, error)
 
 func (f readFromFunc) ReadFrom(r io.Reader) (int64, error) { return f(r) }
+
+func TestReaderFromDelegatorExposesFileBeforeFirstRead(t *testing.T) {
+	file, err := os.CreateTemp(t.TempDir(), "body")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	copyFile := readFromFunc(func(r io.Reader) (int64, error) {
+		// After an outside flush TCP can use sendfile without a buffered read.
+		if lr, ok := r.(*io.LimitedReader); ok {
+			r = lr.R
+		}
+		conn, ok := r.(syscall.Conn)
+		if !ok {
+			t.Fatal("file descriptor is hidden")
+		}
+		_, err := conn.SyscallConn()
+		return 0, err
+	})
+	w := struct {
+		http.ResponseWriter
+		io.ReaderFrom
+	}{httptest.NewRecorder(), copyFile}
+	d := newDelegator(w, func(int) { t.Error("descriptor lookup recorded a header") })
+	for _, src := range []io.Reader{file, io.LimitReader(file, 1)} {
+		if _, err := d.(io.ReaderFrom).ReadFrom(src); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 func TestReaderFromDelegatorObservesFirstRead(t *testing.T) {
 	src := strings.NewReader("abcdef")
