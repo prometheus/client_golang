@@ -24,6 +24,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -73,6 +74,34 @@ func TestInstrumentHandlerReadFromContentLength(t *testing.T) {
 				t.Errorf("io.Copy returned (%d, %v), plain handler returned (%d, %v)", got.n, got.err, want.n, want.err)
 			}
 		})
+	}
+}
+
+func TestTimeToWriteHeaderReadFromFlushesBeforeNextRead(t *testing.T) {
+	first := strings.Repeat("x", 512)
+	tail, release := io.Pipe()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// The source waits for the client after the first 512 bytes.
+		_, _ = w.(io.ReaderFrom).ReadFrom(io.MultiReader(strings.NewReader(first), tail))
+	})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	srv := httptest.NewServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	defer srv.Close()
+	defer release.Close()
+
+	client := srv.Client()
+	client.Timeout = 5 * time.Second
+	resp, err := client.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	got := make([]byte, len(first))
+	if _, err := io.ReadFull(resp.Body, got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != first {
+		t.Error("client received different bytes from the source")
 	}
 }
 
