@@ -17,7 +17,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"syscall"
@@ -117,24 +116,34 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 // On the read path, net/http writes the implicit 200 inside ReadFrom, just
 // after the first read that returns data. This observer records it at that read
-// and puts the source back. Package net looks through one io.LimitedReader
-// to find a source for sendfile or splice.
+// and puts a caller-limited source back. Package net looks through one
+// io.LimitedReader to find a source for sendfile or splice.
 type firstReadObserver struct {
 	src io.Reader
 	lr  *io.LimitedReader
 	d   *responseWriterDelegator
 }
 
+// Expose a descriptor only when the source has one.
+func (o *firstReadObserver) reader() io.Reader {
+	if _, ok := o.src.(syscall.Conn); ok {
+		return o
+	}
+	return struct{ io.Reader }{o}
+}
+
 func (o *firstReadObserver) Read(p []byte) (int, error) {
 	// With nested delegators, src is another observer that puts its own
 	// source back during Read. Restoring src afterward would undo that.
-	o.lr.R = o.src
+	if o.lr != nil {
+		o.lr.R = o.src
+	}
 	n, err := o.src.Read(p)
-	if n == 0 {
+	if n == 0 && o.lr != nil {
 		// Keep watching the reader the caller left in place.
 		o.src = o.lr.R
-		o.lr.R = o
-	} else if !o.d.wroteHeader {
+		o.lr.R = o.reader()
+	} else if n > 0 && !o.d.wroteHeader {
 		// The source may have set an explicit status during Read.
 		o.d.recordHeader(http.StatusOK)
 	}
@@ -185,29 +194,29 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 		// Waiting for ReadFrom to return would include the whole body copy
 		// in the header timing. Reuse a caller's LimitedReader, as with
 		// io.CopyN. A second one would hide the file from sendfile.
-		lr, ok := re.(*io.LimitedReader)
-		if !ok {
-			lr = &io.LimitedReader{R: re, N: math.MaxInt64}
+		src := re
+		o := &firstReadObserver{src: src, d: d.responseWriterDelegator}
+		if lr, ok := src.(*io.LimitedReader); ok {
+			o.src, o.lr = lr.R, lr
+			lr.R = o.reader()
+			defer func() {
+				// A copy without data leaves the observer in the caller's reader.
+				if lr.R == o.reader() {
+					lr.R = o.src
+				}
+			}()
+		} else {
+			re = o.reader()
 		}
-		o := &firstReadObserver{src: lr.R, lr: lr, d: d.responseWriterDelegator}
-		lr.R = o
-		defer func() {
-			// A copy without data leaves the observer in the caller's reader.
-			if lr.R == o {
-				lr.R = o.src
-			}
-		}()
-		if wt, ok := re.(io.WriterTo); ok {
+		if wt, ok := src.(io.WriterTo); ok {
 			// Let the wrapped writer choose Read or WriteTo. The source's
 			// WriteTo can use different write sizes from a buffered copy.
-			observed := observedWriterTo{lr, wt, d.responseWriterDelegator}
+			observed := observedWriterTo{re, wt, d.responseWriterDelegator}
 			if conn, ok := wt.(syscall.Conn); ok {
 				re = observedConn{observed, conn}
 			} else {
 				re = observed
 			}
-		} else {
-			re = lr
 		}
 	}
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)

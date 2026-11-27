@@ -83,6 +83,39 @@ func TestInstrumentHandlerReadFromContentLength(t *testing.T) {
 	}
 }
 
+func TestTimeToWriteHeaderReadFromAfterRejectedWrite(t *testing.T) {
+	run := func(timed bool) int64 {
+		copied := make(chan int64, 1)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Length", "1")
+			if _, err := w.Write([]byte("abcd")); !errors.Is(err, http.ErrContentLength) {
+				t.Errorf("initial Write returned %v, want ErrContentLength", err)
+			}
+			w.(http.Flusher).Flush()
+			if timed {
+				w = newDelegator(w, func(int) {})
+			}
+			src := struct{ io.Reader }{strings.NewReader("abcd")}
+			n, err := w.(io.ReaderFrom).ReadFrom(src)
+			if err != nil {
+				t.Error(err)
+			}
+			copied <- n
+		}))
+		defer srv.Close()
+		resp, err := srv.Client().Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return <-copied
+	}
+	// Go 1.27 enforces the declared length on the copy handed to TCP.
+	if want, got := run(false), run(true); got != want {
+		t.Errorf("timed ReadFrom copied %d bytes, plain handler copied %d", got, want)
+	}
+}
+
 func TestTimeToWriteHeaderReadFromFlushesBeforeNextRead(t *testing.T) {
 	first := strings.Repeat("x", 512)
 	tail, release := io.Pipe()
