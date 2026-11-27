@@ -57,11 +57,15 @@ func (r *responseWriterDelegator) Written() int64 {
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
 	r.recordHeader(code)
+	// Forward every call so the wrapped writer can report a repeated final header.
 	r.ResponseWriter.WriteHeader(code)
 }
 
+// Record the status and notify the observer without writing a header.
+// During ReadFrom the wrapped writer writes the header itself.
 func (r *responseWriterDelegator) recordHeader(code int) {
 	if r.observeWriteHeader != nil && !r.wroteHeader {
+		// Call the observer once, even if the handler calls WriteHeader again.
 		r.observeWriteHeader(code)
 	}
 	r.status = code
@@ -111,19 +115,27 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
 
+// On the read path, net/http writes the implicit 200 inside ReadFrom, just
+// after the first read that returns data. This observer records it at that read
+// and puts the source back. Package net looks through one io.LimitedReader
+// to find a source for sendfile or splice.
 type firstReadObserver struct {
-	src     io.Reader
-	limited *io.LimitedReader
-	d       *responseWriterDelegator
+	src io.Reader
+	lr  *io.LimitedReader
+	d   *responseWriterDelegator
 }
 
 func (o *firstReadObserver) Read(p []byte) (int, error) {
-	// Unwrap before reading so stacked observers each remove their own layer.
-	o.limited.R = o.src
+	// With nested delegators, src is another observer that puts its own
+	// source back during Read. Restoring src afterward would undo that.
+	o.lr.R = o.src
 	n, err := o.src.Read(p)
 	if n == 0 {
-		o.limited.R = o
+		// Keep watching the reader the caller left in place.
+		o.src = o.lr.R
+		o.lr.R = o
 	} else if !o.d.wroteHeader {
+		// The source may have set an explicit status during Read.
 		o.d.recordHeader(http.StatusOK)
 	}
 	return n, err
@@ -170,15 +182,21 @@ func (w headerObservingWriter) Write(p []byte) (int, error) {
 
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !d.wroteHeader && d.observeWriteHeader != nil {
-		// Observe the first read of data. Reuse an existing LimitedReader so
-		// the TCP fast path can reach its source after unwrapping one layer.
+		// Waiting for ReadFrom to return would include the whole body copy
+		// in the header timing. Reuse a caller's LimitedReader, as with
+		// io.CopyN. A second one would hide the file from sendfile.
 		lr, ok := re.(*io.LimitedReader)
 		if !ok {
 			lr = &io.LimitedReader{R: re, N: math.MaxInt64}
 		}
-		o := &firstReadObserver{src: lr.R, limited: lr, d: d.responseWriterDelegator}
+		o := &firstReadObserver{src: lr.R, lr: lr, d: d.responseWriterDelegator}
 		lr.R = o
-		defer func() { lr.R = o.src }()
+		defer func() {
+			// A copy without data leaves the observer in the caller's reader.
+			if lr.R == o {
+				lr.R = o.src
+			}
+		}()
 		if wt, ok := re.(io.WriterTo); ok {
 			// Let the wrapped writer choose Read or WriteTo. The source's
 			// WriteTo can use different write sizes from a buffered copy.
@@ -195,7 +213,8 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
 	if !d.wroteHeader && n > 0 {
-		// The wrapped writer has already committed an implicit 200.
+		// Without a header observer, use the copy result to record the
+		// default status. A later Write would otherwise send a second header.
 		d.recordHeader(http.StatusOK)
 	}
 	return n, err

@@ -14,6 +14,7 @@
 package promhttp
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/http"
@@ -87,10 +88,13 @@ type readFromFunc func(io.Reader) (int64, error)
 func (f readFromFunc) ReadFrom(r io.Reader) (int64, error) { return f(r) }
 
 func TestReaderFromDelegatorObservesFirstRead(t *testing.T) {
-	src := strings.NewReader("file contents")
+	src := strings.NewReader("abcdef")
 	limited := &io.LimitedReader{R: src, N: 4}
 	observations := 0
+	called := false
 	copyBody := readFromFunc(func(r io.Reader) (int64, error) {
+		called = true
+		// A read without data must leave the header open.
 		_, _ = r.Read(nil)
 		if observations != 0 {
 			t.Fatal("observed the header before reading any data")
@@ -103,7 +107,7 @@ func TestReaderFromDelegatorObservesFirstRead(t *testing.T) {
 		if observations != 2 {
 			t.Errorf("got %d header observations after the first byte, want 2", observations)
 		}
-		// The TCP connection unwraps one LimitedReader to find the file.
+		// The TCP connection unwraps one LimitedReader to find the source.
 		if lr, ok := r.(*io.LimitedReader); !ok || lr.R != src {
 			t.Error("the original source is hidden after the first read")
 		}
@@ -117,7 +121,41 @@ func TestReaderFromDelegatorObservesFirstRead(t *testing.T) {
 	observe := func(int) { observations++ }
 	d := newDelegator(newDelegator(w, observe), observe)
 	if n, err := d.(io.ReaderFrom).ReadFrom(limited); n != 4 || err != nil || limited.N != 0 {
-		t.Errorf("ReadFrom returned (%d, %v), remaining limit %d", n, err, limited.N)
+		t.Errorf("ReadFrom returned (%d, %v) and left a limit of %d, want (4, nil) and 0", n, err, limited.N)
+	}
+	if !called {
+		t.Error("the wrapped writer's ReadFrom was never called")
+	}
+}
+
+type readFunc func([]byte) (int, error)
+
+func (f readFunc) Read(p []byte) (int, error) { return f(p) }
+
+func TestReaderFromDelegatorPreservesChangesMadeDuringRead(t *testing.T) {
+	for _, n := range []int{0, 1} {
+		w := struct {
+			http.ResponseWriter
+			io.ReaderFrom
+		}{httptest.NewRecorder(), new(bytes.Buffer)}
+		d := newDelegator(w, func(int) {})
+		tail := strings.NewReader("tail")
+		lr := &io.LimitedReader{N: 1}
+		lr.R = readFunc(func(p []byte) (int, error) {
+			d.WriteHeader(http.StatusCreated)
+			lr.R = tail
+			p[0] = 'x'
+			return n, io.EOF
+		})
+		if _, err := d.(io.ReaderFrom).ReadFrom(lr); err != nil {
+			t.Fatal(err)
+		}
+		if lr.R != tail {
+			t.Errorf("after a read of %d bytes, the caller's replacement reader was lost", n)
+		}
+		if got := d.Status(); got != http.StatusCreated {
+			t.Errorf("after a read of %d bytes, got status %d, want 201", n, got)
+		}
 	}
 }
 
@@ -141,9 +179,11 @@ func TestReaderFromDelegator(t *testing.T) {
 			results := make(chan result, 1)
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				var res result
-				d := newDelegator(w, func(code int) {
+				observe := func(code int) {
 					res.observed = append(res.observed, code)
-				})
+				}
+				// The outer delegator takes its status from the copy result.
+				d := newDelegator(newDelegator(w, observe), nil)
 				// A handler that reports a failed or empty copy with its own status.
 				n, err := d.(io.ReaderFrom).ReadFrom(tc.src)
 				switch {
