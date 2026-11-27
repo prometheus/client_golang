@@ -103,22 +103,31 @@ func TestReaderFromDelegatorRecordsEmptyWrite(t *testing.T) {
 	}
 }
 
-func TestReaderFromDelegatorPassesTCPSourceWithoutObserver(t *testing.T) {
-	var got io.Reader
-	captureSource := readFromFunc(func(r io.Reader) (int64, error) {
-		got = r
-		return 0, nil
-	})
-	w := struct {
-		http.ResponseWriter
-		io.ReaderFrom
-	}{httptest.NewRecorder(), captureSource}
+func TestReaderFromDelegatorTCPSource(t *testing.T) {
 	src := new(net.TCPConn)
-	if _, err := newDelegator(w, nil).(io.ReaderFrom).ReadFrom(src); err != nil {
-		t.Fatal(err)
+	sourceSeenByWriter := func(observe func(int)) io.Reader {
+		t.Helper()
+		var got io.Reader
+		w := struct {
+			http.ResponseWriter
+			io.ReaderFrom
+		}{httptest.NewRecorder(), readFromFunc(func(r io.Reader) (int64, error) {
+			got = r
+			return 0, nil
+		})}
+		if _, err := newDelegator(w, observe).(io.ReaderFrom).ReadFrom(src); err != nil {
+			t.Fatal(err)
+		}
+		return got
 	}
-	if got != src {
-		t.Errorf("wrapped ReadFrom got %T, want the original *net.TCPConn", got)
+	// Package net selects splice by the concrete type of the source.
+	if got := sourceSeenByWriter(nil); got != src {
+		t.Errorf("without header observer: got %T, want the original *net.TCPConn", got)
+	}
+	// On TLS, net/http uses TCPConn.WriteTo, which wraps write errors in net.OpError.
+	got := sourceSeenByWriter(func(int) {})
+	if _, ok := got.(io.WriterTo); !ok {
+		t.Errorf("with header observer: got %T, want io.WriterTo", got)
 	}
 }
 
