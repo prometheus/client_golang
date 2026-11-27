@@ -15,9 +15,11 @@ package promhttp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"syscall"
 )
 
 const (
@@ -53,16 +55,20 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
+	r.recordHeader(code)
+	// Forward every call so the wrapped writer can report a repeated final header.
+	r.ResponseWriter.WriteHeader(code)
+}
+
+// Record the status and notify the observer without writing a header.
+// During ReadFrom the wrapped writer writes the header itself.
+func (r *responseWriterDelegator) recordHeader(code int) {
 	if r.observeWriteHeader != nil && !r.wroteHeader {
-		// Only call observeWriteHeader for the 1st time. It's a bug if
-		// WriteHeader is called more than once, but we want to protect
-		// against it here. Note that we still delegate the WriteHeader
-		// to the original ResponseWriter to not mask the bug from it.
+		// Call the observer once, even if the handler calls WriteHeader again.
 		r.observeWriteHeader(code)
 	}
 	r.status = code
 	r.wroteHeader = true
-	r.ResponseWriter.WriteHeader(code)
 }
 
 func (r *responseWriterDelegator) Write(b []byte) (int, error) {
@@ -108,14 +114,123 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
 
-func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
-	// If applicable, call WriteHeader here so that observeWriteHeader is
-	// handled appropriately.
-	if !d.wroteHeader {
-		d.WriteHeader(http.StatusOK)
+// On the read path, net/http commits the implicit 200 inside ReadFrom, just
+// after the first read that returns data. At that read the observer records
+// the status and leaves the source exposed in the caller's io.LimitedReader,
+// if any. Package net needs the concrete socket type for splice.
+type firstReadObserver struct {
+	src io.Reader
+	lr  *io.LimitedReader
+	d   *responseWriterDelegator
+}
+
+func (o *firstReadObserver) Read(p []byte) (int, error) {
+	// With nested delegators, src is another observer that puts its own
+	// source back during Read. Restoring src afterward would undo that.
+	if o.lr != nil {
+		o.lr.R = o.src
 	}
-	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
+	n, err := o.src.Read(p)
+	if n == 0 && o.lr != nil {
+		// Keep watching the reader the caller left in place.
+		o.src = o.lr.R
+		o.lr.R = o
+	} else if n > 0 && !o.d.wroteHeader {
+		// Without a LimitedReader the observer sees every later read too.
+		// The source can also set a status itself during Read.
+		o.d.recordHeader(http.StatusOK)
+	}
+	return n, err
+}
+
+// After a flush outside the delegator, package net can use sendfile without
+// a Read through the observer. Header timing then includes the file transfer.
+func (o *firstReadObserver) SyscallConn() (syscall.RawConn, error) {
+	if conn, ok := o.src.(syscall.Conn); ok {
+		return conn.SyscallConn()
+	}
+	return nil, errors.ErrUnsupported
+}
+
+type observedWriterTo struct {
+	io.Reader
+	src io.WriterTo
+	d   *responseWriterDelegator
+}
+
+func (o observedWriterTo) WriteTo(w io.Writer) (int64, error) {
+	if o.d.wroteHeader {
+		// Nothing left to observe. Let the source see the destination's type.
+		return o.src.WriteTo(w)
+	}
+	return o.src.WriteTo(headerObservingWriter{w, o.d})
+}
+
+type headerObservingWriter struct {
+	io.Writer
+	d *responseWriterDelegator
+}
+
+func (w headerObservingWriter) Write(p []byte) (int, error) {
+	if !w.d.wroteHeader {
+		w.d.recordHeader(http.StatusOK)
+	}
+	return w.Writer.Write(p)
+}
+
+func (d readerFromDelegator) ReadFrom(src io.Reader) (int64, error) {
+	reader := src
+	if !d.wroteHeader && d.observeWriteHeader != nil {
+		// Observe the first read with data to exclude the rest of the copy
+		// from the header timing. Reuse the LimitedReader supplied by callers
+		// such as io.CopyN. Package net unwraps only one for sendfile or splice.
+		o := &firstReadObserver{src: src, d: d.responseWriterDelegator}
+		if lr, ok := src.(*io.LimitedReader); ok {
+			o.src, o.lr = lr.R, lr
+			lr.R = o
+			defer func() {
+				// Sendfile can copy data without a Read. Remove any observer
+				// left in R, but preserve a reader installed by the source.
+				if lr.R == o {
+					lr.R = o.src
+				}
+			}()
+		} else {
+			reader = o
+		}
+	}
+	// Keep WriteTo visible so net/http can use the source's write sizes.
+	// A buffered copy can split a write that would exceed Content-Length.
+	// Observe Write itself because even an empty write can commit the header.
+	if wt, ok := src.(io.WriterTo); ok && !d.wroteHeader {
+		// TCPConn.WriteTo never calls Write without data. Without a header
+		// observer, pass the socket itself so package net can use splice.
+		_, tcp := src.(*net.TCPConn)
+		if !tcp || d.observeWriteHeader != nil {
+			observed := observedWriterTo{reader, wt, d.responseWriterDelegator}
+			reader = observed
+			if conn, ok := wt.(syscall.Conn); ok {
+				// Keep a file's descriptor visible for sendfile.
+				reader = struct {
+					observedWriterTo
+					syscall.Conn
+				}{observed, conn}
+			}
+		}
+	}
+	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(reader)
 	d.written += n
+	// Record the default status if data was copied without an observed header.
+	// After an outside flush, sendfile can bypass the observer. In that case
+	// the header timer records here, when the copy finishes.
+	//
+	// With zero bytes copied, http.ErrContentLength can come from the source
+	// before any write, or from net/http after it commits 200 and rejects
+	// the first write. In the latter case an untimed Write or Flush can
+	// trigger a superfluous WriteHeader warning.
+	if !d.wroteHeader && n > 0 {
+		d.recordHeader(http.StatusOK)
+	}
 	return n, err
 }
 

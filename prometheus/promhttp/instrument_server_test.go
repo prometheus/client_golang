@@ -14,18 +14,231 @@
 package promhttp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func TestInstrumentHandlerReadFromContentLength(t *testing.T) {
+	type copyResult struct {
+		n   int64
+		err error
+	}
+	// The handler declares 768 bytes but copies from a 1024-byte source.
+	payload := bytes.Repeat([]byte("0123456789abcdef"), 64)
+	copied := make(chan copyResult, 1)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "768")
+		// Hide WriteTo so io.Copy calls the response writer's ReadFrom.
+		n, err := io.Copy(w, struct{ io.Reader }{bytes.NewReader(payload)})
+		copied <- copyResult{n, err}
+	})
+	run := func(t *testing.T, h http.Handler) copyResult {
+		t.Helper()
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+		resp, err := srv.Client().Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		if !bytes.Equal(body, payload[:768]) {
+			t.Errorf("body (%d bytes) differs from the first 768 source bytes", len(body))
+		}
+		return <-copied
+	}
+	// Go 1.27 added a length check to the part of ReadFrom that copies
+	// directly to TCP (https://go.dev/cl/755701). Use the plain handler's
+	// copy result as the expectation for the running Go version.
+	want := run(t, handler)
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "requests_total"}, []string{"code"})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	for name, h := range map[string]http.Handler{
+		"counter":              InstrumentHandlerCounter(counter, handler),
+		"time to write header": InstrumentHandlerTimeToWriteHeader(timer, handler),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := run(t, h)
+			if got.n != want.n || !errors.Is(got.err, want.err) {
+				t.Errorf("io.Copy returned (%d, %v), plain handler returned (%d, %v)", got.n, got.err, want.n, want.err)
+			}
+		})
+	}
+}
+
+func TestTimeToWriteHeaderReadFromAfterRejectedWrite(t *testing.T) {
+	run := func(timed bool) int64 {
+		copied := make(chan int64, 1)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Length", "1")
+			if _, err := w.Write([]byte("abcd")); !errors.Is(err, http.ErrContentLength) {
+				t.Errorf("initial Write returned %v, want ErrContentLength", err)
+			}
+			w.(http.Flusher).Flush()
+			if timed {
+				w = newDelegator(w, func(int) {})
+			}
+			src := struct{ io.Reader }{strings.NewReader("abcd")}
+			n, err := w.(io.ReaderFrom).ReadFrom(src)
+			if err != nil {
+				t.Error(err)
+			}
+			copied <- n
+		}))
+		defer srv.Close()
+		resp, err := srv.Client().Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		return <-copied
+	}
+	// Go 1.27 enforces the declared length on the copy handed to TCP.
+	if want, got := run(false), run(true); got != want {
+		t.Errorf("timed ReadFrom copied %d bytes, plain handler copied %d", got, want)
+	}
+}
+
+func TestTimeToWriteHeaderReadFromFlushesBeforeNextRead(t *testing.T) {
+	first := strings.Repeat("x", 512)
+	tail, release := io.Pipe()
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// After 512 bytes, the source blocks until the test closes the pipe.
+		_, _ = w.(io.ReaderFrom).ReadFrom(io.MultiReader(strings.NewReader(first), tail))
+	})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	srv := httptest.NewServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	defer srv.Close()
+	defer release.Close()
+
+	client := srv.Client()
+	client.Timeout = 5 * time.Second
+	resp, err := client.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	got := make([]byte, len(first))
+	if _, err := io.ReadFull(resp.Body, got); err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != first {
+		t.Error("client received different bytes from the source")
+	}
+}
+
+func TestTimeToWriteHeaderTLSReadFromUDP(t *testing.T) {
+	src, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Close()
+	packet := bytes.Repeat([]byte("x"), 1024)
+	if _, err := src.WriteToUDP(packet, src.LocalAddr().(*net.UDPAddr)); err != nil {
+		t.Fatal(err)
+	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// A short first read discards the rest of the only datagram.
+		if err := src.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Error(err)
+			return
+		}
+		if _, err := io.CopyN(w, src, int64(len(packet))); err != nil {
+			t.Error(err)
+		}
+	})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	// Over TLS, net/http can read the whole datagram at once. On plain
+	// TCP, net/http itself limits the first read of a new response to 512 bytes.
+	srv := httptest.NewTLSServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	defer srv.Close()
+	resp, err := srv.Client().Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(body, packet) {
+		t.Errorf("response body (%d bytes) differs from the UDP datagram (%d bytes)", len(body), len(packet))
+	}
+}
+
+func TestTimeToWriteHeaderReadFromWriterTo(t *testing.T) {
+	for _, network := range []string{"TLS", "Unix"} {
+		t.Run(network, func(t *testing.T) {
+			testTimeToWriteHeaderReadFromWriterTo(t, network)
+		})
+	}
+}
+
+func testTimeToWriteHeaderReadFromWriterTo(t *testing.T, network string) {
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "40960")
+		// On both connections net/http uses strings.Reader.WriteTo. Its 64 KiB
+		// write exceeds the declared 40 KiB, so net/http rejects it entirely.
+		src := strings.NewReader(strings.Repeat("x", 64<<10))
+		n, err := w.(io.ReaderFrom).ReadFrom(src)
+		if n != 0 || !errors.Is(err, http.ErrContentLength) {
+			t.Errorf("ReadFrom returned (%d, %v), want (0, ErrContentLength)", n, err)
+		}
+	})
+	timed := InstrumentHandlerTimeToWriteHeader(timer, handler)
+	var srv *httptest.Server
+	if network == "TLS" {
+		srv = httptest.NewTLSServer(timed)
+	} else {
+		// A relative name keeps the socket path within the platform limit.
+		t.Chdir(t.TempDir())
+		listener, err := net.Listen("unix", "http.sock")
+		if err != nil {
+			t.Skipf("Unix socket unavailable: %v", err)
+		}
+		srv = &httptest.Server{Listener: listener, Config: &http.Server{Handler: timed}}
+		srv.Start()
+		srv.Client().Transport.(*http.Transport).DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", listener.Addr().String())
+		}
+	}
+	defer srv.Close()
+	resp, err := srv.Client().Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if len(body) != 0 || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Errorf("client read %d bytes, err=%v, want 0 bytes and unexpected EOF", len(body), err)
+	}
+	var metric dto.Metric
+	if err := timer.WithLabelValues().(prometheus.Metric).Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+	if got := metric.GetHistogram().GetSampleCount(); got != 1 {
+		t.Errorf("got %d header observations, want 1", got)
+	}
+}
 
 func TestLabelCheck(t *testing.T) {
 	scenarios := map[string]struct {
