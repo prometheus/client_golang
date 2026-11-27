@@ -14,7 +14,9 @@
 package promhttp
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -26,6 +28,52 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func TestInstrumentHandlerReadFromContentLength(t *testing.T) {
+	type copyResult struct {
+		n   int64
+		err error
+	}
+	payload := bytes.Repeat([]byte("0123456789abcdef"), 64)
+	copied := make(chan copyResult, 1)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "768")
+		// Hide WriteTo so io.Copy calls the response writer's ReadFrom.
+		n, err := io.Copy(w, struct{ io.Reader }{bytes.NewReader(payload)})
+		copied <- copyResult{n, err}
+	})
+	run := func(t *testing.T, h http.Handler) copyResult {
+		t.Helper()
+		srv := httptest.NewServer(h)
+		defer srv.Close()
+		resp, err := srv.Client().Get(srv.URL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil || !bytes.Equal(body, payload[:768]) {
+			t.Errorf("read %d bytes, err=%v, want the first 768 bytes and nil error", len(body), err)
+		}
+		return <-copied
+	}
+	// Go 1.27 added length enforcement in ReadFrom (https://go.dev/cl/755701).
+	// Compare the handler's copy result with net/http on the running Go version.
+	want := run(t, handler)
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "requests_total"}, []string{"code"})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	for name, h := range map[string]http.Handler{
+		"counter":              InstrumentHandlerCounter(counter, handler),
+		"time to write header": InstrumentHandlerTimeToWriteHeader(timer, handler),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := run(t, h)
+			if got.n != want.n || !errors.Is(got.err, want.err) {
+				t.Errorf("io.Copy returned (%d, %v), plain handler returned (%d, %v)", got.n, got.err, want.n, want.err)
+			}
+		})
+	}
+}
 
 func TestLabelCheck(t *testing.T) {
 	scenarios := map[string]struct {

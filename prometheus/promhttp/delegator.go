@@ -16,6 +16,7 @@ package promhttp
 import (
 	"bufio"
 	"io"
+	"math"
 	"net"
 	"net/http"
 )
@@ -53,16 +54,16 @@ func (r *responseWriterDelegator) Written() int64 {
 }
 
 func (r *responseWriterDelegator) WriteHeader(code int) {
+	r.recordHeader(code)
+	r.ResponseWriter.WriteHeader(code)
+}
+
+func (r *responseWriterDelegator) recordHeader(code int) {
 	if r.observeWriteHeader != nil && !r.wroteHeader {
-		// Only call observeWriteHeader for the 1st time. It's a bug if
-		// WriteHeader is called more than once, but we want to protect
-		// against it here. Note that we still delegate the WriteHeader
-		// to the original ResponseWriter to not mask the bug from it.
 		r.observeWriteHeader(code)
 	}
 	r.status = code
 	r.wroteHeader = true
-	r.ResponseWriter.WriteHeader(code)
 }
 
 func (r *responseWriterDelegator) Write(b []byte) (int, error) {
@@ -108,26 +109,44 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return d.ResponseWriter.(http.Hijacker).Hijack()
 }
 
-// readFromProbeLen is the sniffLen of net/http, whose ReadFrom takes the same
-// step: http.DetectContentType considers at most that many bytes.
-const readFromProbeLen = 512
+type firstReadObserver struct {
+	src     io.Reader
+	limited *io.LimitedReader
+	d       *responseWriterDelegator
+}
+
+func (o *firstReadObserver) Read(p []byte) (int, error) {
+	// Unwrap before reading so stacked observers each remove their own layer.
+	o.limited.R = o.src
+	n, err := o.src.Read(p)
+	if n == 0 {
+		o.limited.R = o
+	} else if !o.d.wroteHeader {
+		o.d.recordHeader(http.StatusOK)
+	}
+	return n, err
+}
 
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
-	var probed int64
-	if !d.wroteHeader {
-		// Like net/http, probe the source: pass its first bytes to Write,
-		// so that the implicit 200 is set only once the source yields
-		// data. The embedded delegator has no ReadFrom, so io.Copy calls
-		// its Write.
-		n, err := io.Copy(d.responseWriterDelegator, io.LimitReader(re, readFromProbeLen))
-		if err != nil || n < readFromProbeLen {
-			return n, err
+	if !d.wroteHeader && d.observeWriteHeader != nil {
+		// Observe the wrapped writer's first read of data. A LimitedReader
+		// lets net/http pass the original file on to sendfile after that read.
+		lr, ok := re.(*io.LimitedReader)
+		if !ok {
+			lr = &io.LimitedReader{R: re, N: math.MaxInt64}
 		}
-		probed = n
+		o := &firstReadObserver{src: lr.R, limited: lr, d: d.responseWriterDelegator}
+		lr.R = o
+		defer func() { lr.R = o.src }()
+		re = lr
 	}
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
-	return probed + n, err
+	if !d.wroteHeader && n > 0 {
+		// The wrapped writer has already committed an implicit 200.
+		d.recordHeader(http.StatusOK)
+	}
+	return n, err
 }
 
 func (d pusherDelegator) Push(target string, opts *http.PushOptions) error {
