@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -102,6 +103,43 @@ func TestTimeToWriteHeaderReadFromFlushesBeforeNextRead(t *testing.T) {
 	}
 	if string(got) != first {
 		t.Error("client received different bytes from the source")
+	}
+}
+
+func TestTimeToWriteHeaderTLSReadFromUDP(t *testing.T) {
+	src, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer src.Close()
+	packet := bytes.Repeat([]byte("x"), 1024)
+	if _, err := src.WriteToUDP(packet, src.LocalAddr().(*net.UDPAddr)); err != nil {
+		t.Fatal(err)
+	}
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// A short first read discards the rest of the only datagram.
+		if err := src.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Error(err)
+			return
+		}
+		if _, err := io.CopyN(w, src, int64(len(packet))); err != nil {
+			t.Error(err)
+		}
+	})
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	srv := httptest.NewTLSServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	defer srv.Close()
+	resp, err := srv.Client().Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(body, packet) {
+		t.Errorf("response body differs from the UDP datagram: got %d bytes, want %d", len(body), len(packet))
 	}
 }
 
