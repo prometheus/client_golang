@@ -21,6 +21,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -72,6 +73,38 @@ func TestInstrumentHandlerReadFromContentLength(t *testing.T) {
 				t.Errorf("io.Copy returned (%d, %v), plain handler returned (%d, %v)", got.n, got.err, want.n, want.err)
 			}
 		})
+	}
+}
+
+func TestTimeToWriteHeaderTLSReadFromWriterTo(t *testing.T) {
+	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "40960")
+		// Over TLS, net/http uses strings.Reader.WriteTo. Its single 64 KiB
+		// write exceeds the declared 40 KiB, so net/http rejects it entirely.
+		src := strings.NewReader(strings.Repeat("x", 64<<10))
+		n, err := w.(io.ReaderFrom).ReadFrom(src)
+		if n != 0 || !errors.Is(err, http.ErrContentLength) {
+			t.Errorf("ReadFrom returned (%d, %v), want (0, ErrContentLength)", n, err)
+		}
+	})
+	srv := httptest.NewTLSServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	defer srv.Close()
+	resp, err := srv.Client().Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if len(body) != 0 || !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Errorf("client read %d bytes, err=%v, want 0 bytes and unexpected EOF", len(body), err)
+	}
+	var metric dto.Metric
+	if err := timer.WithLabelValues().(prometheus.Metric).Write(&metric); err != nil {
+		t.Fatal(err)
+	}
+	if got := metric.GetHistogram().GetSampleCount(); got != 1 {
+		t.Errorf("got %d header observations, want 1", got)
 	}
 }
 

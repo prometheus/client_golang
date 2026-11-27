@@ -210,14 +210,15 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
-		d := newDelegator(w, func(status int) {
+		d := &responseWriterDelegator{ResponseWriter: w, tls: r.TLS != nil}
+		d.observeWriteHeader = func(status int) {
 			l := labels(code, method, r.Method, status, hOpts.extraMethods...)
 			for label, resolve := range hOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
 			observeWithExemplar(obs.With(l), time.Since(now).Seconds(), hOpts.getExemplarFn(r))
-		})
-		next.ServeHTTP(d, r)
+		}
+		next.ServeHTTP(d.wrap(), r)
 	}
 }
 

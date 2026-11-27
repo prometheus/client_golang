@@ -42,6 +42,7 @@ type responseWriterDelegator struct {
 	status             int
 	written            int64
 	wroteHeader        bool
+	tls                bool
 	observeWriteHeader func(int)
 }
 
@@ -127,6 +128,28 @@ func (o *firstReadObserver) Read(p []byte) (int, error) {
 	return n, err
 }
 
+type observedWriterTo struct {
+	io.Reader
+	src io.WriterTo
+	d   *responseWriterDelegator
+}
+
+func (o observedWriterTo) WriteTo(w io.Writer) (int64, error) {
+	return o.src.WriteTo(headerObservingWriter{w, o.d})
+}
+
+type headerObservingWriter struct {
+	io.Writer
+	d *responseWriterDelegator
+}
+
+func (w headerObservingWriter) Write(p []byte) (int, error) {
+	if !w.d.wroteHeader {
+		w.d.recordHeader(http.StatusOK)
+	}
+	return w.Writer.Write(p)
+}
+
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !d.wroteHeader && d.observeWriteHeader != nil {
 		// Observe the wrapped writer's first read of data. A LimitedReader
@@ -138,7 +161,13 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 		o := &firstReadObserver{src: lr.R, limited: lr, d: d.responseWriterDelegator}
 		lr.R = o
 		defer func() { lr.R = o.src }()
-		re = lr
+		if wt, ok := re.(io.WriterTo); ok && d.tls {
+			// Over TLS, net/http can copy via WriteTo. Preserve the source's
+			// write sizes because net/http rejects an entire oversized write.
+			re = observedWriterTo{lr, wt, d.responseWriterDelegator}
+		} else {
+			re = lr
+		}
 	}
 	n, err := d.ResponseWriter.(io.ReaderFrom).ReadFrom(re)
 	d.written += n
@@ -383,11 +412,14 @@ func init() {
 }
 
 func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) delegator {
-	d := &responseWriterDelegator{
+	return (&responseWriterDelegator{
 		ResponseWriter:     w,
 		observeWriteHeader: observeWriteHeaderFunc,
-	}
+	}).wrap()
+}
 
+func (r *responseWriterDelegator) wrap() delegator {
+	w := r.ResponseWriter
 	id := 0
 	//nolint:staticcheck // Ignore SA1019. http.CloseNotifier is deprecated but we keep it here to not break existing users.
 	if _, ok := w.(http.CloseNotifier); ok {
@@ -406,5 +438,5 @@ func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) deleg
 		id += pusher
 	}
 
-	return pickDelegator[id](d)
+	return pickDelegator[id](r)
 }
