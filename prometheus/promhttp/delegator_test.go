@@ -103,6 +103,25 @@ func TestReaderFromDelegatorRecordsEmptyWrite(t *testing.T) {
 	}
 }
 
+func TestReaderFromDelegatorPassesTCPSourceWithoutObserver(t *testing.T) {
+	var got io.Reader
+	captureSource := readFromFunc(func(r io.Reader) (int64, error) {
+		got = r
+		return 0, nil
+	})
+	w := struct {
+		http.ResponseWriter
+		io.ReaderFrom
+	}{httptest.NewRecorder(), captureSource}
+	src := new(net.TCPConn)
+	if _, err := newDelegator(w, nil).(io.ReaderFrom).ReadFrom(src); err != nil {
+		t.Fatal(err)
+	}
+	if got != src {
+		t.Errorf("wrapped ReadFrom got %T, want the original *net.TCPConn", got)
+	}
+}
+
 func TestReaderFromDelegatorExposesFileBeforeFirstRead(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "body")
 	if err != nil {

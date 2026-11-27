@@ -115,9 +115,9 @@ func (d hijackerDelegator) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 }
 
 // On the read path, net/http writes the implicit 200 inside ReadFrom, just
-// after the first read that returns data. This observer records it at that read
-// and puts a caller-limited source back. Package net looks through one
-// io.LimitedReader to find a source for sendfile or splice.
+// after the first read that returns data. At that read the observer records
+// the status and leaves the source exposed in the caller's io.LimitedReader,
+// if any. Package net needs the concrete socket type for splice.
 type firstReadObserver struct {
 	src io.Reader
 	lr  *io.LimitedReader
@@ -196,8 +196,8 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	src := re
 	if !d.wroteHeader && d.observeWriteHeader != nil {
 		// Waiting for ReadFrom to return would include the whole body copy
-		// in the header timing. Reuse a caller's LimitedReader, as with
-		// io.CopyN. A second one would hide the file from sendfile.
+		// in the header timing. Reuse the LimitedReader supplied by callers
+		// such as io.CopyN. Package net unwraps only one for sendfile or splice.
 		o := &firstReadObserver{src: src, d: d.responseWriterDelegator}
 		if lr, ok := src.(*io.LimitedReader); ok {
 			o.src, o.lr = lr.R, lr
@@ -212,8 +212,9 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 			re = o.reader()
 		}
 	}
-	// WriteTo can commit the header with an empty Write. Its byte count
-	// cannot distinguish that from an empty source that never calls Write.
+	// Keep WriteTo visible so net/http can use the source's write sizes.
+	// A buffered copy can split a write that would exceed Content-Length.
+	// Observe Write itself because even an empty write can commit the header.
 	if wt, ok := src.(io.WriterTo); ok && !d.wroteHeader {
 		// TCPConn.WriteTo only writes data. An untimed copy can pass the
 		// socket itself to TCP so that it remains eligible for splice.
