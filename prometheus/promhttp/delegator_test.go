@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -88,6 +89,19 @@ func TestResponseWriterDelegatorUnwrap(t *testing.T) {
 type readFromFunc func(io.Reader) (int64, error)
 
 func (f readFromFunc) ReadFrom(r io.Reader) (int64, error) { return f(r) }
+
+func TestReaderFromDelegatorRecordsEmptyWrite(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	w := struct {
+		http.ResponseWriter
+		io.ReaderFrom
+	}{recorder, readFromFunc(func(r io.Reader) (int64, error) { return io.Copy(recorder, r) })}
+	d := newDelegator(w, nil)
+	n, err := d.(io.ReaderFrom).ReadFrom(&net.Buffers{nil})
+	if n != 0 || err != nil || d.Status() != http.StatusOK {
+		t.Errorf("ReadFrom returned (%d, %v), status %d, want (0, nil) and 200", n, err, d.Status())
+	}
+}
 
 func TestReaderFromDelegatorExposesFileBeforeFirstRead(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "body")

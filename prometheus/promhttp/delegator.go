@@ -166,7 +166,10 @@ type observedWriterTo struct {
 }
 
 func (o observedWriterTo) WriteTo(w io.Writer) (int64, error) {
-	if o.d.wroteHeader {
+	// A direct write to TCP cannot commit an HTTP header. Keep the
+	// destination visible to a file's WriteTo for sendfile.
+	_, tcp := w.(*net.TCPConn)
+	if o.d.wroteHeader || (tcp && o.d.observeWriteHeader == nil) {
 		return o.src.WriteTo(w)
 	}
 	return o.src.WriteTo(headerObservingWriter{w, o.d})
@@ -190,11 +193,11 @@ func (w headerObservingWriter) Write(p []byte) (int, error) {
 }
 
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
+	src := re
 	if !d.wroteHeader && d.observeWriteHeader != nil {
 		// Waiting for ReadFrom to return would include the whole body copy
 		// in the header timing. Reuse a caller's LimitedReader, as with
 		// io.CopyN. A second one would hide the file from sendfile.
-		src := re
 		o := &firstReadObserver{src: src, d: d.responseWriterDelegator}
 		if lr, ok := src.(*io.LimitedReader); ok {
 			o.src, o.lr = lr.R, lr
@@ -208,14 +211,18 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 		} else {
 			re = o.reader()
 		}
-		if wt, ok := src.(io.WriterTo); ok {
-			// Let the wrapped writer choose Read or WriteTo. The source's
-			// WriteTo can use different write sizes from a buffered copy.
+	}
+	// WriteTo can commit the header with an empty Write. Its byte count
+	// cannot distinguish that from an empty source that never calls Write.
+	if wt, ok := src.(io.WriterTo); ok && !d.wroteHeader {
+		// TCPConn.WriteTo only writes data. An untimed copy can pass the
+		// socket itself to TCP so that it remains eligible for splice.
+		_, tcp := src.(*net.TCPConn)
+		if !tcp || d.observeWriteHeader != nil {
 			observed := observedWriterTo{re, wt, d.responseWriterDelegator}
+			re = observed
 			if conn, ok := wt.(syscall.Conn); ok {
 				re = observedConn{observed, conn}
-			} else {
-				re = observed
 			}
 		}
 	}
