@@ -15,10 +15,12 @@ package promhttp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"math"
 	"net"
 	"net/http"
+	"syscall"
 )
 
 const (
@@ -42,7 +44,6 @@ type responseWriterDelegator struct {
 	status             int
 	written            int64
 	wroteHeader        bool
-	tls                bool
 	observeWriteHeader func(int)
 }
 
@@ -135,7 +136,24 @@ type observedWriterTo struct {
 }
 
 func (o observedWriterTo) WriteTo(w io.Writer) (int64, error) {
+	if o.d.wroteHeader {
+		return o.src.WriteTo(w)
+	}
 	return o.src.WriteTo(headerObservingWriter{w, o.d})
+}
+
+type observedConn struct {
+	observedWriterTo
+	conn syscall.Conn
+}
+
+func (o observedConn) SyscallConn() (syscall.RawConn, error) {
+	// A descriptor copy bypasses Read and WriteTo. Let TCP use sendfile
+	// once the first read has recorded the header.
+	if !o.d.wroteHeader {
+		return nil, errors.ErrUnsupported
+	}
+	return o.conn.SyscallConn()
 }
 
 type headerObservingWriter struct {
@@ -152,8 +170,8 @@ func (w headerObservingWriter) Write(p []byte) (int, error) {
 
 func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 	if !d.wroteHeader && d.observeWriteHeader != nil {
-		// Observe the wrapped writer's first read of data. A LimitedReader
-		// lets net/http pass the original file on to sendfile after that read.
+		// Observe the first read of data. Reuse an existing LimitedReader so
+		// the TCP fast path can reach its source after unwrapping one layer.
 		lr, ok := re.(*io.LimitedReader)
 		if !ok {
 			lr = &io.LimitedReader{R: re, N: math.MaxInt64}
@@ -161,10 +179,15 @@ func (d readerFromDelegator) ReadFrom(re io.Reader) (int64, error) {
 		o := &firstReadObserver{src: lr.R, limited: lr, d: d.responseWriterDelegator}
 		lr.R = o
 		defer func() { lr.R = o.src }()
-		if wt, ok := re.(io.WriterTo); ok && d.tls {
-			// Over TLS, net/http can copy via WriteTo. Preserve the source's
-			// write sizes because net/http rejects an entire oversized write.
-			re = observedWriterTo{lr, wt, d.responseWriterDelegator}
+		if wt, ok := re.(io.WriterTo); ok {
+			// Let the wrapped writer choose Read or WriteTo. The source's
+			// WriteTo can use different write sizes from a buffered copy.
+			observed := observedWriterTo{lr, wt, d.responseWriterDelegator}
+			if conn, ok := wt.(syscall.Conn); ok {
+				re = observedConn{observed, conn}
+			} else {
+				re = observed
+			}
 		} else {
 			re = lr
 		}
@@ -412,14 +435,11 @@ func init() {
 }
 
 func newDelegator(w http.ResponseWriter, observeWriteHeaderFunc func(int)) delegator {
-	return (&responseWriterDelegator{
+	d := &responseWriterDelegator{
 		ResponseWriter:     w,
 		observeWriteHeader: observeWriteHeaderFunc,
-	}).wrap()
-}
+	}
 
-func (r *responseWriterDelegator) wrap() delegator {
-	w := r.ResponseWriter
 	id := 0
 	//nolint:staticcheck // Ignore SA1019. http.CloseNotifier is deprecated but we keep it here to not break existing users.
 	if _, ok := w.(http.CloseNotifier); ok {
@@ -438,5 +458,5 @@ func (r *responseWriterDelegator) wrap() delegator {
 		id += pusher
 	}
 
-	return pickDelegator[id](r)
+	return pickDelegator[id](d)
 }

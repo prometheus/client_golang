@@ -143,11 +143,19 @@ func TestTimeToWriteHeaderTLSReadFromUDP(t *testing.T) {
 	}
 }
 
-func TestTimeToWriteHeaderTLSReadFromWriterTo(t *testing.T) {
+func TestTimeToWriteHeaderReadFromWriterTo(t *testing.T) {
+	for _, network := range []string{"TLS", "Unix"} {
+		t.Run(network, func(t *testing.T) {
+			testTimeToWriteHeaderReadFromWriterTo(t, network)
+		})
+	}
+}
+
+func testTimeToWriteHeaderReadFromWriterTo(t *testing.T, network string) {
 	timer := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: "header_seconds"}, nil)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "40960")
-		// Over TLS, net/http uses strings.Reader.WriteTo. Its single 64 KiB
+		// On both connections net/http uses strings.Reader.WriteTo. Its 64 KiB
 		// write exceeds the declared 40 KiB, so net/http rejects it entirely.
 		src := strings.NewReader(strings.Repeat("x", 64<<10))
 		n, err := w.(io.ReaderFrom).ReadFrom(src)
@@ -155,7 +163,24 @@ func TestTimeToWriteHeaderTLSReadFromWriterTo(t *testing.T) {
 			t.Errorf("ReadFrom returned (%d, %v), want (0, ErrContentLength)", n, err)
 		}
 	})
-	srv := httptest.NewTLSServer(InstrumentHandlerTimeToWriteHeader(timer, handler))
+	timed := InstrumentHandlerTimeToWriteHeader(timer, handler)
+	var srv *httptest.Server
+	if network == "TLS" {
+		srv = httptest.NewTLSServer(timed)
+	} else {
+		// A relative name keeps the socket path within the platform limit.
+		t.Chdir(t.TempDir())
+		listener, err := net.Listen("unix", "http.sock")
+		if err != nil {
+			t.Skipf("Unix socket unavailable: %v", err)
+		}
+		srv = &httptest.Server{Listener: listener, Config: &http.Server{Handler: timed}}
+		srv.Start()
+		srv.Client().Transport.(*http.Transport).DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var dialer net.Dialer
+			return dialer.DialContext(ctx, "unix", listener.Addr().String())
+		}
+	}
 	defer srv.Close()
 	resp, err := srv.Client().Get(srv.URL)
 	if err != nil {
