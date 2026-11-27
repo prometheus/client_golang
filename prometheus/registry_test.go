@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1598,6 +1599,165 @@ func TestGatherRejectsDuplicateLabelNames(t *testing.T) {
 				t.Fatalf("unexpected error, want it to contain %q: %v", want, err)
 			}
 		})
+	}
+}
+
+// helpTextCollector is an unchecked collector that emits one counter per
+// entry in helps, in order, all with the same name and a distinct label value.
+// Using a single collector keeps the order in which Gather sees them fixed.
+type helpTextCollector struct {
+	name  string
+	helps []string
+}
+
+func (c helpTextCollector) Describe(chan<- *prometheus.Desc) {}
+
+func (c helpTextCollector) Collect(ch chan<- prometheus.Metric) {
+	for i, help := range c.helps {
+		desc := prometheus.NewDesc(c.name, help, []string{"i"}, nil)
+		ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, 1, strconv.Itoa(i))
+	}
+}
+
+func TestGatherHelpTextMismatch(t *testing.T) {
+	const name = "interop_total"
+	errMismatch := errors.New("mismatch")
+
+	type call struct{ oldHelp, newHelp string }
+	for _, tc := range []struct {
+		name       string
+		pedantic   bool
+		helps      []string
+		onMismatch func(oldHelp, newHelp string) (string, error) // Nil means not set.
+		wantHelp   string
+		wantCalls  []call
+		wantErrs   int // Number of rejected metrics.
+	}{
+		{
+			name:     "default rejects mismatch",
+			helps:    []string{"Events.", "Events"},
+			wantErrs: 1,
+		},
+		{
+			name:  "keep old",
+			helps: []string{"Events.", "Events"},
+			onMismatch: func(oldHelp, _ string) (string, error) {
+				return oldHelp, nil
+			},
+			wantHelp:  "Events.",
+			wantCalls: []call{{"Events.", "Events"}},
+		},
+		{
+			name:  "keep new",
+			helps: []string{"Events.", "Events"},
+			onMismatch: func(_, newHelp string) (string, error) {
+				return newHelp, nil
+			},
+			wantHelp:  "Events",
+			wantCalls: []call{{"Events.", "Events"}},
+		},
+		{
+			name:  "called once per conflicting help, not per metric",
+			helps: []string{"Events.", "Events", "Events", "Events.", "Events"},
+			onMismatch: func(_, newHelp string) (string, error) {
+				return newHelp, nil
+			},
+			wantHelp:  "Events",
+			wantCalls: []call{{"Events.", "Events"}},
+		},
+		{
+			name:  "replacement help, then a new conflict",
+			helps: []string{"A", "B", "A", "C"},
+			onMismatch: func(oldHelp, newHelp string) (string, error) {
+				if newHelp == "B" {
+					return "X", nil
+				}
+				return oldHelp, nil
+			},
+			wantHelp:  "X",
+			wantCalls: []call{{"A", "B"}, {"X", "C"}},
+		},
+		{
+			name:  "error rejects every metric with that help",
+			helps: []string{"Events.", "Events", "Events"},
+			onMismatch: func(string, string) (string, error) {
+				return "", errMismatch
+			},
+			wantHelp:  "Events.",
+			wantCalls: []call{{"Events.", "Events"}},
+			wantErrs:  2,
+		},
+		{
+			name:     "pedantic registry ignores it",
+			pedantic: true,
+			helps:    []string{"Events.", "Events"},
+			onMismatch: func(oldHelp, _ string) (string, error) {
+				return oldHelp, nil
+			},
+			wantErrs: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := prometheus.NewRegistry()
+			if tc.pedantic {
+				reg = prometheus.NewPedanticRegistry()
+			}
+			var calls []call
+			if tc.onMismatch != nil {
+				reg.OnHelpTextMismatch(func(n, oldHelp, newHelp string) (string, error) {
+					if n != name {
+						t.Errorf("got name %q, want %q", n, name)
+					}
+					calls = append(calls, call{oldHelp, newHelp})
+					return tc.onMismatch(oldHelp, newHelp)
+				})
+			}
+			reg.MustRegister(helpTextCollector{name: name, helps: tc.helps})
+
+			mfs, err := reg.Gather()
+			var gotErrs int
+			if err != nil {
+				// Gather unwraps a MultiError holding a single error.
+				errs := []error{err}
+				if multi, ok := errors.AsType[prometheus.MultiError](err); ok {
+					errs = multi
+				}
+				gotErrs = len(errs)
+				for _, e := range errs {
+					if tc.onMismatch != nil && !tc.pedantic && !errors.Is(e, errMismatch) {
+						t.Errorf("got error %v, want it to wrap %v", e, errMismatch)
+					}
+				}
+			}
+			if gotErrs != tc.wantErrs {
+				t.Fatalf("got %d errors, want %d: %v", gotErrs, tc.wantErrs, err)
+			}
+			if !slices.Equal(calls, tc.wantCalls) {
+				t.Errorf("got calls %v, want %v", calls, tc.wantCalls)
+			}
+			if tc.wantErrs > 0 && (tc.onMismatch == nil || tc.pedantic) {
+				return // Gather fails as it always has.
+			}
+			if len(mfs) != 1 {
+				t.Fatalf("got %d metric families, want 1", len(mfs))
+			}
+			if got := mfs[0].GetHelp(); got != tc.wantHelp {
+				t.Errorf("got help %q, want %q", got, tc.wantHelp)
+			}
+			if got, want := len(mfs[0].GetMetric()), len(tc.helps)-tc.wantErrs; got != want {
+				t.Errorf("got %d metrics, want %d", got, want)
+			}
+		})
+	}
+}
+
+func TestGatherHelpTextMismatchUnset(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	reg.OnHelpTextMismatch(func(oldHelp, _, _ string) (string, error) { return oldHelp, nil })
+	reg.OnHelpTextMismatch(nil)
+	reg.MustRegister(helpTextCollector{name: "interop_total", helps: []string{"Events.", "Events"}})
+	if _, err := reg.Gather(); err == nil {
+		t.Fatal("got no error after OnHelpTextMismatch(nil), want the default mismatch error")
 	}
 }
 
