@@ -27,6 +27,53 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type benchResponseWriter struct {
+	header http.Header
+}
+
+func (w *benchResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = http.Header{}
+	}
+	return w.header
+}
+
+func (w *benchResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
+
+func (w *benchResponseWriter) WriteHeader(int) {}
+
+func BenchmarkInstrumentHandler(b *testing.B) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	cases := []struct {
+		name   string
+		labels []string
+	}{
+		{name: "code", labels: []string{"code"}},
+		{name: "code_method", labels: []string{"code", "method"}},
+	}
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			hist := prometheus.NewHistogramVec(prometheus.HistogramOpts{
+				Name: "request_duration_seconds",
+				Help: "Request duration.",
+			}, tc.labels)
+			counter := prometheus.NewCounterVec(prometheus.CounterOpts{
+				Name: "requests_total",
+				Help: "Requests.",
+			}, tc.labels)
+			handler := InstrumentHandlerCounter(counter, InstrumentHandlerDuration(hist, next))
+			req := httptest.NewRequest(http.MethodGet, "http://example.com/v1/items?q=red", nil)
+			var rw benchResponseWriter
+			b.ReportAllocs()
+			for b.Loop() {
+				handler.ServeHTTP(&rw, req)
+			}
+		})
+	}
+}
+
 func TestLabelCheck(t *testing.T) {
 	scenarios := map[string]struct {
 		metricName    string // Defaults to "c".
@@ -350,6 +397,7 @@ func TestLabels(t *testing.T) {
 			if sc.ok {
 				gotCode, gotMethod := checkLabels(sc.varLabels)
 				gotLabels := labels(gotCode, gotMethod, sc.reqMethod, sc.respStatus, sc.extraMethods...)
+				defer putLabels(gotLabels)
 				if !equalLabels(gotLabels, sc.wantLabels) {
 					t.Errorf("wanted labels=%v for counter, got code=%v", sc.wantLabels, gotLabels)
 				}

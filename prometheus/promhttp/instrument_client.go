@@ -75,6 +75,7 @@ func InstrumentRoundTripperCounter(counter *prometheus.CounterVec, next http.Rou
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			l := labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range rtOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
@@ -119,6 +120,7 @@ func InstrumentRoundTripperDuration(obs prometheus.ObserverVec, next http.RoundT
 		resp, err := next.RoundTrip(r)
 		if err == nil {
 			l := labels(code, method, r.Method, resp.StatusCode, rtOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range rtOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
