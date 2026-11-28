@@ -342,10 +342,49 @@ type Registry struct {
 	dimHashesByName       map[string]uint64
 	uncheckedCollectors   []Collector
 	pedanticChecksEnabled bool
+	onHelpTextMismatch    HelpTextMismatchFunc
 
 	// lastMetricCount is the number of metrics gathered by the previous
 	// Gather call. It is used to presize the map of metric hashes.
 	lastMetricCount atomic.Int64
+}
+
+// HelpTextMismatchFunc decides what a Registry does when Gather collects two
+// metrics with the same name but different help text. name is the metric
+// name, oldHelp is the help text the metric family already has, and newHelp is
+// the conflicting one. It returns the help text the family should keep, which
+// may be oldHelp, newHelp or a different string, or an error to fail the
+// metric as Gather does by default.
+type HelpTextMismatchFunc func(name, oldHelp, newHelp string) (string, error)
+
+// OnHelpTextMismatch sets f to be called when Gather collects metrics that
+// share a name but have different help text. By default, and when f is nil,
+// such a metric is reported as an error, as before.
+//
+// This is for registries where independent code exposes the same metric, for
+// example two versions of a library, or an unchecked Collector such as a
+// bridge from another instrumentation library next to native collectors. A
+// small difference in help text, such as a trailing period, would otherwise
+// fail the whole Gather.
+//
+// It only affects Gather. Register still rejects a checked Collector whose
+// Desc has the same name as an already registered one but different help
+// text, so in practice f is called for metrics from unchecked Collectors.
+//
+// f is called at most once per metric name and conflicting help text in each
+// Gather, not once per metric, and its result is reused for the rest of that
+// Gather. Collectors run concurrently, so which help text arrives first, and
+// is passed as oldHelp, can change between Gathers. To expose the same help
+// text on every scrape, f should choose independently of the argument order,
+// for example by returning the shorter string.
+//
+// f is called from Gather while it holds no locks on the Registry, and must
+// not call methods of the Registry. It has no effect on a Registry created
+// with NewPedanticRegistry, which always rejects mismatched help text.
+func (r *Registry) OnHelpTextMismatch(f HelpTextMismatchFunc) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	r.onHelpTextMismatch = f
 }
 
 // Register implements Registerer.
@@ -553,6 +592,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		wg                  sync.WaitGroup
 		safeErrs            = &SafeMultiError{} // To collect errors in a threadsafe way
 		registeredDescIDs   map[uint64]struct{} // Only used for pedantic checks
+		helpResolver        *helpTextResolver   // Nil unless OnHelpTextMismatch is set.
 	)
 
 	goroutineBudget := len(r.collectorsByID) + len(r.uncheckedCollectors)
@@ -571,6 +611,12 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 		registeredDescIDs = make(map[uint64]struct{}, len(r.descIDs))
 		for id := range r.descIDs {
 			registeredDescIDs[id] = struct{}{}
+		}
+	}
+	if r.onHelpTextMismatch != nil && !r.pedanticChecksEnabled {
+		helpResolver = &helpTextResolver{
+			onMismatch: r.onHelpTextMismatch,
+			resolved:   map[helpTextKey]error{},
 		}
 	}
 	r.mtx.RUnlock()
@@ -637,6 +683,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				registeredDescIDs,
 				xxh,
 				&metrics,
+				helpResolver,
 			))
 		case metric, ok := <-umc:
 			if !ok {
@@ -649,6 +696,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 				nil,
 				xxh,
 				&metrics,
+				helpResolver,
 			))
 		default:
 			if goroutineBudget <= 0 || len(checkedCollectors)+len(uncheckedCollectors) == 0 {
@@ -668,6 +716,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						registeredDescIDs,
 						xxh,
 						&metrics,
+						helpResolver,
 					))
 				case metric, ok := <-umc:
 					if !ok {
@@ -680,6 +729,7 @@ func (r *Registry) Gather() ([]*dto.MetricFamily, error) {
 						nil,
 						xxh,
 						&metrics,
+						helpResolver,
 					))
 				}
 				break
@@ -822,6 +872,41 @@ func WriteToTextfile(filename string, g Gatherer) error {
 	return os.Rename(tmp.Name(), filename)
 }
 
+// helpTextKey identifies a help text seen for a metric name during Gather.
+type helpTextKey struct {
+	name, help string
+}
+
+// helpTextResolver applies a HelpTextMismatchFunc during one Gather. It
+// remembers the outcome for each name and help text, so the function is called
+// once per conflicting help text rather than once per metric. It is only used
+// from the goroutine running Gather, so it needs no locking.
+type helpTextResolver struct {
+	onMismatch HelpTextMismatchFunc
+	resolved   map[helpTextKey]error
+}
+
+// resolve handles a metric whose help text differs from the help text of
+// family. It updates the family's help text if needed, or returns an error if
+// the metric must be rejected.
+func (h *helpTextResolver) resolve(family *dto.MetricFamily, help string) error {
+	name := family.GetName()
+	if err, ok := h.resolved[helpTextKey{name, help}]; ok {
+		return err
+	}
+	oldHelp := family.GetHelp()
+	keep, err := h.onMismatch(name, oldHelp, help)
+	if err != nil {
+		h.resolved[helpTextKey{name, help}] = err
+		return err
+	}
+	h.resolved[helpTextKey{name, oldHelp}] = nil
+	h.resolved[helpTextKey{name, help}] = nil
+	h.resolved[helpTextKey{name, keep}] = nil
+	family.Help = &keep
+	return nil
+}
+
 // processMetric is an internal helper method only used by the Gather method.
 func processMetric(
 	metric Metric,
@@ -830,6 +915,7 @@ func processMetric(
 	registeredDescIDs map[uint64]struct{},
 	xxh *xxhash.Digest,
 	metrics *metricAllocator,
+	helpResolver *helpTextResolver,
 ) error {
 	if metric == nil {
 		return errors.New("collected nil metric")
@@ -847,10 +933,15 @@ func processMetric(
 	metricFamily, ok := metricFamiliesByName[desc.fqName]
 	if ok { // Existing name.
 		if metricFamily.GetHelp() != desc.help {
-			return fmt.Errorf(
-				"collected metric %s %s has help %q but should have %q",
-				desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
-			)
+			if helpResolver == nil {
+				return fmt.Errorf(
+					"collected metric %s %s has help %q but should have %q",
+					desc.fqName, dtoMetric, desc.help, metricFamily.GetHelp(),
+				)
+			}
+			if err := helpResolver.resolve(metricFamily, desc.help); err != nil {
+				return fmt.Errorf("collected metric %s %s: %w", desc.fqName, dtoMetric, err)
+			}
 		}
 		// TODO(beorn7): Simplify switch once Desc has type.
 		switch metricFamily.GetType() {
