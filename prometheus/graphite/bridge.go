@@ -21,13 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 
 	dto "github.com/prometheus/client_model/go"
@@ -199,80 +200,257 @@ func (b *Bridge) Push() error {
 	return writeMetrics(conn, mfs, b.useTags, b.prefix, model.Now())
 }
 
+type graphiteLabel struct {
+	name  string
+	value string
+}
+
+type graphiteLabels []graphiteLabel
+
+func (g graphiteLabels) Len() int { return len(g) }
+
+func (g graphiteLabels) Swap(i, j int) { g[i], g[j] = g[j], g[i] }
+
+func (g graphiteLabels) Less(i, j int) bool {
+	return concatLess(g[i].name, g[i].value, g[j].name, g[j].value)
+}
+
+func concatLess(aName, aValue, bName, bValue string) bool {
+	n := len(aName) + 1 + len(aValue)
+	bn := len(bName) + 1 + len(bValue)
+	if bn < n {
+		n = bn
+	}
+	for i := range n {
+		ab := concatAt(aName, aValue, i)
+		bb := concatAt(bName, bValue, i)
+		if ab != bb {
+			return ab < bb
+		}
+	}
+	return len(aName)+1+len(aValue) < len(bName)+1+len(bValue)
+}
+
+func concatAt(name, value string, i int) byte {
+	if i < len(name) {
+		return name[i]
+	}
+	if i == len(name) {
+		return ' '
+	}
+	return value[i-len(name)-1]
+}
+
 func writeMetrics(w io.Writer, mfs []*dto.MetricFamily, useTags bool, prefix string, now model.Time) error {
-	vec, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{
-		Timestamp: now,
-	}, mfs...)
-	if err != nil {
-		return err
+	for _, mf := range mfs {
+		switch mf.GetType() {
+		case dto.MetricType_COUNTER, dto.MetricType_GAUGE, dto.MetricType_SUMMARY, dto.MetricType_UNTYPED, dto.MetricType_HISTOGRAM, dto.MetricType_GAUGE_HISTOGRAM:
+		default:
+			return fmt.Errorf("expfmt.extractSamples: unknown metric family type %v", mf.GetType())
+		}
 	}
 
 	buf := bufio.NewWriter(w)
-	for _, s := range vec {
-		if prefix != "" {
-			for _, c := range prefix {
-				if _, err := buf.WriteRune(c); err != nil {
+	for _, mf := range mfs {
+		if err := writeFamily(buf, mf, useTags, prefix, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeFamily(buf *bufio.Writer, mf *dto.MetricFamily, useTags bool, prefix string, now model.Time) error {
+	name := mf.GetName()
+	switch mf.GetType() {
+	case dto.MetricType_COUNTER:
+		for _, m := range mf.GetMetric() {
+			if m.Counter == nil {
+				continue
+			}
+			if err := writeSample(buf, prefix, name, m, nil, m.Counter.GetValue(), useTags, now); err != nil {
+				return err
+			}
+		}
+	case dto.MetricType_GAUGE:
+		for _, m := range mf.GetMetric() {
+			if m.Gauge == nil {
+				continue
+			}
+			if err := writeSample(buf, prefix, name, m, nil, m.Gauge.GetValue(), useTags, now); err != nil {
+				return err
+			}
+		}
+	case dto.MetricType_UNTYPED:
+		for _, m := range mf.GetMetric() {
+			if m.Untyped == nil {
+				continue
+			}
+			if err := writeSample(buf, prefix, name, m, nil, m.Untyped.GetValue(), useTags, now); err != nil {
+				return err
+			}
+		}
+	case dto.MetricType_SUMMARY:
+		for _, m := range mf.GetMetric() {
+			if m.Summary == nil {
+				continue
+			}
+			for _, q := range m.Summary.GetQuantile() {
+				extra := []graphiteLabel{{name: string(model.QuantileLabel), value: strconv.FormatFloat(q.GetQuantile(), 'g', -1, 64)}}
+				if err := writeSample(buf, prefix, name, m, extra, q.GetValue(), useTags, now); err != nil {
 					return err
 				}
 			}
-			if err := buf.WriteByte('.'); err != nil {
+			if err := writeSample(buf, prefix, name+"_sum", m, nil, m.Summary.GetSampleSum(), useTags, now); err != nil {
+				return err
+			}
+			if err := writeSample(buf, prefix, name+"_count", m, nil, float64(m.Summary.GetSampleCount()), useTags, now); err != nil {
 				return err
 			}
 		}
-		if err := writeMetric(buf, s.Metric, useTags); err != nil {
-			return err
-		}
-		if _, err := fmt.Fprintf(buf, " %g %d\n", s.Value, int64(s.Timestamp)/millisecondsPerSecond); err != nil {
-			return err
-		}
-		if err := buf.Flush(); err != nil {
-			return err
+	case dto.MetricType_HISTOGRAM, dto.MetricType_GAUGE_HISTOGRAM:
+		for _, m := range mf.GetMetric() {
+			if m.Histogram == nil {
+				continue
+			}
+			infSeen := false
+			for _, bucket := range m.Histogram.GetBucket() {
+				if isPositiveInf(bucket.GetUpperBound()) {
+					infSeen = true
+				}
+				v := bucket.GetCumulativeCountFloat()
+				if v <= 0 {
+					v = float64(bucket.GetCumulativeCount())
+				}
+				extra := []graphiteLabel{{name: string(model.BucketLabel), value: strconv.FormatFloat(bucket.GetUpperBound(), 'g', -1, 64)}}
+				if err := writeSample(buf, prefix, name+"_bucket", m, extra, v, useTags, now); err != nil {
+					return err
+				}
+			}
+			if err := writeSample(buf, prefix, name+"_sum", m, nil, m.Histogram.GetSampleSum(), useTags, now); err != nil {
+				return err
+			}
+			count := m.Histogram.GetSampleCountFloat()
+			if count <= 0 {
+				count = float64(m.Histogram.GetSampleCount())
+			}
+			if err := writeSample(buf, prefix, name+"_count", m, nil, count, useTags, now); err != nil {
+				return err
+			}
+			if !infSeen {
+				extra := []graphiteLabel{{name: string(model.BucketLabel), value: "+Inf"}}
+				if err := writeSample(buf, prefix, name+"_bucket", m, extra, count, useTags, now); err != nil {
+					return err
+				}
+			}
 		}
 	}
-
 	return nil
 }
 
-func writeMetric(buf *bufio.Writer, m model.Metric, useTags bool) error {
-	metricName, hasName := m[model.MetricNameLabel]
-	numLabels := len(m) - 1
-	if !hasName {
-		numLabels = len(m)
-	}
+func isPositiveInf(v float64) bool {
+	return math.IsInf(v, +1)
+}
 
-	var err error
-	switch numLabels {
-	case 0:
-		if hasName {
-			return writeSanitized(buf, string(metricName))
-		}
-	default:
-		if err = writeSanitized(buf, string(metricName)); err != nil {
+func writeSample(buf *bufio.Writer, prefix, name string, m *dto.Metric, extra []graphiteLabel, value float64, useTags bool, now model.Time) error {
+	for _, c := range prefix {
+		if _, err := buf.WriteRune(c); err != nil {
 			return err
 		}
-		if useTags {
-			return writeTags(buf, m)
+	}
+	if prefix != "" {
+		if err := buf.WriteByte('.'); err != nil {
+			return err
 		}
-		return writeLabels(buf, m, numLabels)
+	}
+	if err := writeSanitized(buf, name); err != nil {
+		return err
+	}
+	labels := m.GetLabel()
+	if useTags {
+		if err := writeTagLabels(buf, labels, extra); err != nil {
+			return err
+		}
+	} else if err := writeDotLabels(buf, labels, extra); err != nil {
+		return err
+	}
+	ts := now
+	if m.TimestampMs != nil {
+		ts = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
+	}
+	if err := writeTail(buf, value, int64(ts)/millisecondsPerSecond); err != nil {
+		return err
+	}
+	return buf.Flush()
+}
+
+func writeTail(buf *bufio.Writer, value float64, ts int64) error {
+	if err := buf.WriteByte(' '); err != nil {
+		return err
+	}
+	var tmp [32]byte
+	if _, err := buf.Write(strconv.AppendFloat(tmp[:0], value, 'g', -1, 64)); err != nil {
+		return err
+	}
+	if err := buf.WriteByte(' '); err != nil {
+		return err
+	}
+	if _, err := buf.Write(strconv.AppendInt(tmp[:0], ts, 10)); err != nil {
+		return err
+	}
+	return buf.WriteByte('\n')
+}
+
+func writeTagLabels(buf *bufio.Writer, labels []*dto.LabelPair, extra []graphiteLabel) error {
+	for _, label := range labels {
+		if err := writeOneTag(buf, label.GetName(), label.GetValue()); err != nil {
+			return err
+		}
+	}
+	for _, label := range extra {
+		if err := writeOneTag(buf, label.name, label.value); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func writeTags(buf *bufio.Writer, m model.Metric) error {
-	for label, value := range m {
-		if label != model.MetricNameLabel {
-			buf.WriteRune(';')
-			if _, err := buf.WriteString(sanitizeTag(string(label), ";!^=")); err != nil {
-				return err
-			}
-			buf.WriteRune('=')
-			v := sanitizeTag(string(value), ";")
-			if strings.HasPrefix(v, "~") {
-				v = "_" + v[1:]
-			}
-			if _, err := buf.WriteString(v); err != nil {
-				return err
-			}
+func writeOneTag(buf *bufio.Writer, name, value string) error {
+	if _, err := buf.WriteRune(';'); err != nil {
+		return err
+	}
+	if _, err := buf.WriteString(sanitizeTag(name, ";!^=")); err != nil {
+		return err
+	}
+	if _, err := buf.WriteRune('='); err != nil {
+		return err
+	}
+	v := sanitizeTag(value, ";")
+	if strings.HasPrefix(v, "~") {
+		v = "_" + v[1:]
+	}
+	_, err := buf.WriteString(v)
+	return err
+}
+
+func writeDotLabels(buf *bufio.Writer, labels []*dto.LabelPair, extra []graphiteLabel) error {
+	pairs := make(graphiteLabels, 0, len(labels)+len(extra))
+	for _, label := range labels {
+		pairs = append(pairs, graphiteLabel{name: label.GetName(), value: label.GetValue()})
+	}
+	pairs = append(pairs, extra...)
+	sort.Sort(pairs)
+	for _, label := range pairs {
+		if err := buf.WriteByte('.'); err != nil {
+			return err
+		}
+		if err := writeSanitized(buf, label.name); err != nil {
+			return err
+		}
+		if err := buf.WriteByte('.'); err != nil {
+			return err
+		}
+		if err := writeSanitized(buf, label.value); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -288,26 +466,6 @@ func sanitizeTag(s, forbidden string) string {
 		}
 		return c
 	}, s)
-}
-
-func writeLabels(buf *bufio.Writer, m model.Metric, numLabels int) error {
-	labelStrings := make([]string, 0, numLabels)
-	for label, value := range m {
-		if label != model.MetricNameLabel {
-			labelString := string(label) + " " + string(value)
-			labelStrings = append(labelStrings, labelString)
-		}
-	}
-	sort.Strings(labelStrings)
-	for _, s := range labelStrings {
-		if err := buf.WriteByte('.'); err != nil {
-			return err
-		}
-		if err := writeSanitized(buf, s); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func writeSanitized(buf *bufio.Writer, s string) error {
