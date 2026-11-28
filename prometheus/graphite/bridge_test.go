@@ -87,8 +87,12 @@ func TestWriteTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buf.Reset()
-			m := model.Metric{model.MetricNameLabel: "m", model.LabelName(tc.label): model.LabelValue(tc.value)}
-			if err := writeMetric(w, m, true); err != nil {
+			name, value := "m", tc.value
+			label := tc.label
+			if err := writeSanitized(w, name); err != nil {
+				t.Fatalf("write failed: %v", err)
+			}
+			if err := writeTagLabels(w, []*dto.LabelPair{{Name: &label, Value: &value}}, nil); err != nil {
 				t.Fatalf("write failed: %v", err)
 			}
 			if err := w.Flush(); err != nil {
@@ -438,6 +442,36 @@ func TestPush(t *testing.T) {
 		t.Fatalf("error reading push: %v", err)
 	case <-time.After(50 * time.Millisecond):
 		t.Fatalf("no result from graphite server")
+	}
+}
+
+func BenchmarkWriteMetrics(b *testing.B) {
+	for _, n := range []int{20, 200} {
+		for _, tags := range []bool{false, true} {
+			b.Run(fmt.Sprintf("series=%d/tags=%t", n, tags), func(b *testing.B) {
+				reg := prometheus.NewRegistry()
+				c := prometheus.NewCounterVec(prometheus.CounterOpts{
+					Name: "requests_total",
+					Help: "Requests.",
+				}, []string{"path", "code"})
+				reg.MustRegister(c)
+				for i := range n {
+					c.WithLabelValues(fmt.Sprintf("/v1/resource/%d", i), "200").Add(float64(i + 1))
+				}
+				mfs, err := reg.Gather()
+				if err != nil {
+					b.Fatal(err)
+				}
+				var buf bytes.Buffer
+				b.ReportAllocs()
+				for b.Loop() {
+					buf.Reset()
+					if err := writeMetrics(&buf, mfs, tags, "app", model.Time(1477043083)); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+		}
 	}
 }
 
