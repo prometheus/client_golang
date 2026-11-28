@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	dto "github.com/prometheus/client_model/go"
@@ -109,6 +110,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 			next.ServeHTTP(d, r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range hOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
@@ -120,6 +122,7 @@ func InstrumentHandlerDuration(obs prometheus.ObserverVec, next http.Handler, op
 		now := time.Now()
 		next.ServeHTTP(w, r)
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
+		defer putLabels(l)
 		for label, resolve := range hOpts.extraLabelsFromRequest {
 			l[label] = resolve(r)
 		}
@@ -159,6 +162,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 			next.ServeHTTP(d, r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range hOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
@@ -170,6 +174,7 @@ func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler,
 		next.ServeHTTP(w, r)
 
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
+		defer putLabels(l)
 		for label, resolve := range hOpts.extraLabelsFromRequest {
 			l[label] = resolve(r)
 		}
@@ -212,6 +217,7 @@ func InstrumentHandlerTimeToWriteHeader(obs prometheus.ObserverVec, next http.Ha
 		now := time.Now()
 		d := newDelegator(w, func(status int) {
 			l := labels(code, method, r.Method, status, hOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range hOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
@@ -256,6 +262,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 			size := computeApproximateRequestSize(r)
 
 			l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
+			defer putLabels(l)
 			for label, resolve := range hOpts.extraLabelsFromRequest {
 				l[label] = resolve(r)
 			}
@@ -268,6 +275,7 @@ func InstrumentHandlerRequestSize(obs prometheus.ObserverVec, next http.Handler,
 		size := computeApproximateRequestSize(r)
 
 		l := labels(code, method, r.Method, 0, hOpts.extraMethods...)
+		defer putLabels(l)
 		for label, resolve := range hOpts.extraLabelsFromRequest {
 			l[label] = resolve(r)
 		}
@@ -308,6 +316,7 @@ func InstrumentHandlerResponseSize(obs prometheus.ObserverVec, next http.Handler
 		next.ServeHTTP(d, r)
 
 		l := labels(code, method, r.Method, d.Status(), hOpts.extraMethods...)
+		defer putLabels(l)
 		for label, resolve := range hOpts.extraLabelsFromRequest {
 			l[label] = resolve(r)
 		}
@@ -401,21 +410,26 @@ func isLabelCurried(c prometheus.Collector, label string) bool {
 	return true
 }
 
+var labelPool = sync.Pool{
+	New: func() any {
+		return make(prometheus.Labels, 3)
+	},
+}
+
 func labels(code, method bool, reqMethod string, status int, extraMethods ...string) prometheus.Labels {
-	labels := prometheus.Labels{}
-
-	if !code && !method {
-		return labels
-	}
-
+	l := labelPool.Get().(prometheus.Labels)
 	if code {
-		labels["code"] = sanitizeCode(status)
+		l["code"] = sanitizeCode(status)
 	}
 	if method {
-		labels["method"] = sanitizeMethod(reqMethod, extraMethods...)
+		l["method"] = sanitizeMethod(reqMethod, extraMethods...)
 	}
+	return l
+}
 
-	return labels
+func putLabels(l prometheus.Labels) {
+	clear(l)
+	labelPool.Put(l)
 }
 
 func computeApproximateRequestSize(r *http.Request) int {
